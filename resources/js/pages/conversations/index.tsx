@@ -96,9 +96,17 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
     const handleSearch = (value: string) => {
         setSearch(value);
-        router.get('/admin/chat', { search: value }, {
+        
+        // Si hay una conversación seleccionada, mantenerla abierta
+        const url = selectedConversation 
+            ? `/admin/chat/${selectedConversation.id}`
+            : '/admin/chat';
+        
+        router.get(url, { search: value }, {
             preserveState: true,
+            preserveScroll: true,
             replace: true,
+            only: ['conversations'], // Solo actualizar la lista de conversaciones
         });
     };
 
