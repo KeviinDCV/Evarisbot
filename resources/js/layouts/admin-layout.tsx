@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { type PropsWithChildren, type ReactNode } from 'react';
-import { Users, MessageSquare, Settings, LogOut, Menu } from 'lucide-react';
+import { Users, MessageSquare, Settings, LogOut, Menu, User, KeyRound } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -84,11 +84,29 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                         </div>
                     </div>
                     
+                    <div className="space-y-1 mb-2">
+                        <Link
+                            href="/settings/profile"
+                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                            <User className="w-4 h-4" />
+                            <span>Mi Perfil</span>
+                        </Link>
+                        
+                        <Link
+                            href="/settings/password"
+                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                            <KeyRound className="w-4 h-4" />
+                            <span>Cambiar Contraseña</span>
+                        </Link>
+                    </div>
+                    
                     <Link
                         href={logout().url}
                         method="post"
                         as="button"
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors"
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors border-t border-white/10 pt-3"
                     >
                         <LogOut className="w-4 h-4" />
                         <span>Cerrar Sesión</span>

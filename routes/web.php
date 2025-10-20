@@ -28,6 +28,23 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     });
     
     Route::resource('users', UserController::class);
+    
+    // Configuración del sistema
+    Route::controller(\App\Http\Controllers\Admin\SettingsController::class)->group(function () {
+        Route::get('/settings', 'index')->name('settings.index');
+        Route::post('/settings/whatsapp', 'updateWhatsApp')->name('settings.whatsapp');
+        Route::post('/settings/business', 'updateBusiness')->name('settings.business');
+        Route::post('/settings/test-whatsapp', 'testWhatsAppConnection')->name('settings.test-whatsapp');
+    });
+    
+    // Conversaciones (WhatsApp)
+    Route::controller(\App\Http\Controllers\ConversationController::class)->prefix('chat')->group(function () {
+        Route::get('/', 'index')->name('chat.index');
+        Route::get('/{conversation}', 'show')->name('chat.show');
+        Route::post('/{conversation}/send', 'sendMessage')->name('chat.send');
+        Route::post('/{conversation}/assign', 'assign')->name('chat.assign');
+        Route::post('/{conversation}/status', 'updateStatus')->name('chat.status');
+    });
 });
 
 require __DIR__.'/settings.php';

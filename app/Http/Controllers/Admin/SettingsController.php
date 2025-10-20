@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Setting;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+
+class SettingsController extends Controller
+{
+    /**
+     * Mostrar la página de configuración
+     */
+    public function index()
+    {
+        $settings = [
+            'whatsapp' => [
+                'token' => Setting::getPreview('whatsapp_token'),
+                'phone_id' => Setting::get('whatsapp_phone_id'),
+                'business_account_id' => Setting::get('whatsapp_business_account_id'),
+                'verify_token' => Setting::getPreview('whatsapp_verify_token'),
+                'webhook_url' => Setting::get('whatsapp_webhook_url'),
+                'is_configured' => Setting::has('whatsapp_token') && Setting::has('whatsapp_phone_id'),
+            ],
+            'business' => [
+                'name' => Setting::get('business_name'),
+                'welcome_message' => Setting::get('welcome_message'),
+                'away_message' => Setting::get('away_message'),
+                'business_hours' => Setting::get('business_hours'),
+            ],
+        ];
+
+        return Inertia::render('admin/settings/index', [
+            'settings' => $settings,
+        ]);
+    }
+
+    /**
+     * Actualizar configuración de WhatsApp
+     */
+    public function updateWhatsApp(Request $request)
+    {
+        $validated = $request->validate([
+            'whatsapp_token' => 'nullable|string|min:20',
+            'whatsapp_phone_id' => 'nullable|numeric|digits_between:10,20',
+            'whatsapp_business_account_id' => 'nullable|numeric|digits_between:10,20',
+            'whatsapp_verify_token' => 'nullable|string|min:8',
+        ]);
+
+        // Si se proporciona un token, verificar que sea válido
+        if (!empty($validated['whatsapp_token'])) {
+            $isValid = $this->verifyWhatsAppToken($validated['whatsapp_token']);
+            
+            if (!$isValid) {
+                throw ValidationException::withMessages([
+                    'whatsapp_token' => 'El token de WhatsApp no es válido o ha expirado.',
+                ]);
+            }
+        }
+
+        // Guardar configuraciones
+        if (isset($validated['whatsapp_token'])) {
+            Setting::set('whatsapp_token', $validated['whatsapp_token'], 'Token de acceso de WhatsApp Business API');
+        }
+
+        if (isset($validated['whatsapp_phone_id'])) {
+            Setting::set('whatsapp_phone_id', $validated['whatsapp_phone_id'], 'ID del número de teléfono de WhatsApp');
+        }
+
+        if (isset($validated['whatsapp_business_account_id'])) {
+            Setting::set('whatsapp_business_account_id', $validated['whatsapp_business_account_id'], 'ID de la cuenta de WhatsApp Business');
+        }
+
+        if (isset($validated['whatsapp_verify_token'])) {
+            Setting::set('whatsapp_verify_token', $validated['whatsapp_verify_token'], 'Token de verificación del webhook');
+        }
+
+        return redirect()->back()->with('success', 'Configuración de WhatsApp actualizada exitosamente.');
+    }
+
+    /**
+     * Actualizar configuración del negocio
+     */
+    public function updateBusiness(Request $request)
+    {
+        $validated = $request->validate([
+            'business_name' => 'nullable|string|max:255',
+            'welcome_message' => 'nullable|string|max:1000',
+            'away_message' => 'nullable|string|max:1000',
+            'business_hours' => 'nullable|string|max:500',
+        ]);
+
+        foreach ($validated as $key => $value) {
+            if ($value !== null) {
+                Setting::set($key, $value);
+            }
+        }
+
+        return redirect()->back()->with('success', 'Configuración del negocio actualizada exitosamente.');
+    }
+
+    /**
+     * Verificar si el token de WhatsApp es válido
+     */
+    private function verifyWhatsAppToken(string $token): bool
+    {
+        try {
+            $response = Http::withToken($token)
+                ->timeout(10)
+                ->get('https://graph.facebook.com/v18.0/me');
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Probar la conexión con WhatsApp
+     */
+    public function testWhatsAppConnection()
+    {
+        $token = Setting::get('whatsapp_token');
+        $phoneId = Setting::get('whatsapp_phone_id');
+
+        if (empty($token) || empty($phoneId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se han configurado las credenciales de WhatsApp.',
+            ], 400);
+        }
+
+        try {
+            // Verificar el token
+            $response = Http::withToken($token)
+                ->timeout(10)
+                ->get('https://graph.facebook.com/v18.0/me');
+
+            if ($response->successful()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Conexión exitosa con WhatsApp Business API.',
+                    'data' => $response->json(),
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo conectar con WhatsApp. Verifica tus credenciales.',
+            ], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al conectar: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+}
