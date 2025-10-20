@@ -1,6 +1,5 @@
 import { Head } from '@inertiajs/react';
 
-import AppearanceTabs from '@/components/appearance-tabs';
 import HeadingSmall from '@/components/heading-small';
 import { type BreadcrumbItem } from '@/types';
 
@@ -26,7 +25,11 @@ export default function Appearance() {
                         title="Appearance settings"
                         description="Update your account's appearance settings"
                     />
-                    <AppearanceTabs />
+                    <div className="rounded-lg border border-gray-200 bg-white p-6">
+                        <p className="text-sm text-gray-600">
+                            La aplicación está configurada para usar únicamente el modo claro institucional.
+                        </p>
+                    </div>
                 </div>
             </SettingsLayout>
         </AppLayout>

@@ -1,6 +1,4 @@
 import AppLogoIcon from '@/components/app-logo-icon';
-import { home } from '@/routes';
-import { Link } from '@inertiajs/react';
 import { type PropsWithChildren } from 'react';
 
 interface AuthLayoutProps {
@@ -15,28 +13,21 @@ export default function AuthSimpleLayout({
     description,
 }: PropsWithChildren<AuthLayoutProps>) {
     return (
-        <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
+        <div className="flex min-h-svh flex-col items-center justify-center bg-white p-6 md:p-10">
             <div className="w-full max-w-sm">
-                <div className="flex flex-col gap-8">
-                    <div className="flex flex-col items-center gap-4">
-                        <Link
-                            href={home()}
-                            className="flex flex-col items-center gap-2 font-medium"
-                        >
-                            <div className="mb-1 flex h-9 w-9 items-center justify-center rounded-md">
-                                <AppLogoIcon className="size-9 fill-current text-[var(--foreground)] dark:text-white" />
-                            </div>
-                            <span className="sr-only">{title}</span>
-                        </Link>
-
-                        <div className="space-y-2 text-center">
-                            <h1 className="text-xl font-medium">{title}</h1>
-                            <p className="text-center text-sm text-muted-foreground">
-                                {description}
-                            </p>
+                <div className="flex flex-col gap-6">
+                    {/* Logo institucional */}
+                    <div className="flex justify-center mb-4">
+                        <AppLogoIcon className="h-20 w-auto object-contain" />
+                    </div>
+                    
+                    {/* Card del Login */}
+                    <div className="rounded-2xl bg-white p-8 shadow-xl border border-gray-200">
+                        <div className="space-y-6">
+                            <h1 className="text-3xl font-bold text-center text-black">{title}</h1>
+                            {children}
                         </div>
                     </div>
-                    {children}
                 </div>
             </div>
         </div>
