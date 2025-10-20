@@ -12,7 +12,9 @@ import {
     Paperclip,
     Check,
     CheckCheck,
-    X
+    X,
+    PanelLeftClose,
+    PanelLeftOpen
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
@@ -66,6 +68,7 @@ interface ConversationsIndexProps {
 export default function ConversationsIndex({ conversations, selectedConversation, filters }: ConversationsIndexProps) {
     const [search, setSearch] = useState(filters.search || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     
     const { data, setData, post, reset, processing } = useForm({
@@ -198,7 +201,9 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
             <div className="h-[calc(100vh-0px)] flex bg-gray-50">
                 {/* Lista de Conversaciones - Izquierda */}
-                <div className="w-96 bg-white border-r border-gray-200 flex flex-col">
+                <div className={`bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ${
+                    isSidebarVisible ? 'w-96' : 'w-0 overflow-hidden'
+                }`}>
                     {/* Header */}
                     <div className="p-4 border-b border-gray-200">
                         <h2 className="text-xl font-bold text-black mb-3">Conversaciones</h2>
@@ -291,6 +296,20 @@ export default function ConversationsIndex({ conversations, selectedConversation
                         {/* Header del Chat */}
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
                             <div className="flex items-center gap-4">
+                                {/* Botón toggle sidebar */}
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setIsSidebarVisible(!isSidebarVisible)}
+                                    className="hover:bg-gray-100"
+                                    title={isSidebarVisible ? "Ocultar conversaciones" : "Mostrar conversaciones"}
+                                >
+                                    {isSidebarVisible ? (
+                                        <PanelLeftClose className="w-5 h-5" />
+                                    ) : (
+                                        <PanelLeftOpen className="w-5 h-5" />
+                                    )}
+                                </Button>
                                 {/* Avatar e Información */}
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-[#2e3f84] flex items-center justify-center text-white font-medium">
