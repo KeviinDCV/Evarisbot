@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -49,28 +50,56 @@ class ConversationController extends Controller
     /**
      * Mostrar una conversación específica con sus mensajes
      */
-    public function show(Conversation $conversation)
+    public function show(Request $request, Conversation $conversation)
     {
+        $query = Conversation::with(['lastMessage', 'assignedUser'])
+            ->orderBy('last_message_at', 'desc');
+
+        // Aplicar filtros si existen
+        if ($request->has('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->has('assigned') && $request->assigned === 'me') {
+            $query->where('assigned_to', auth()->id());
+        } elseif ($request->has('assigned') && $request->assigned === 'unassigned') {
+            $query->whereNull('assigned_to');
+        }
+
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('contact_name', 'like', "%{$search}%")
+                  ->orWhere('phone_number', 'like', "%{$search}%");
+            });
+        }
+
+        $conversations = $query->get();
+        
+        // Cargar la conversación seleccionada con todos sus mensajes
         $conversation->load(['messages.sender', 'assignedUser']);
         
         // Marcar mensajes como leídos
         $conversation->markAsRead();
 
-        return Inertia::render('conversations/show', [
-            'conversation' => $conversation,
+        return Inertia::render('conversations/index', [
+            'conversations' => $conversations,
+            'selectedConversation' => $conversation,
+            'filters' => $request->only(['status', 'assigned', 'search']),
         ]);
     }
 
     /**
      * Enviar un mensaje en la conversación
      */
-    public function sendMessage(Request $request, Conversation $conversation)
+    public function sendMessage(Request $request, Conversation $conversation, WhatsAppService $whatsappService)
     {
         $validated = $request->validate([
             'content' => 'required|string',
             'message_type' => 'string|in:text,image,document,audio,video',
         ]);
 
+        // Crear el mensaje en la base de datos
         $message = $conversation->messages()->create([
             'content' => $validated['content'],
             'message_type' => $validated['message_type'] ?? 'text',
@@ -84,7 +113,30 @@ class ConversationController extends Controller
             'last_message_at' => now(),
         ]);
 
-        // TODO: Enviar mensaje real vía WhatsApp API
+        // Enviar mensaje real vía WhatsApp API
+        if ($whatsappService->isConfigured()) {
+            $result = $whatsappService->sendTextMessage(
+                $conversation->phone_number,
+                $validated['content']
+            );
+
+            if ($result['success']) {
+                $message->update([
+                    'status' => 'sent',
+                    'whatsapp_message_id' => $result['message_id'],
+                ]);
+            } else {
+                $message->update([
+                    'status' => 'failed',
+                    'error_message' => $result['error'],
+                ]);
+            }
+        } else {
+            // Si no está configurado, simular envío exitoso para pruebas
+            $message->update([
+                'status' => 'sent',
+            ]);
+        }
 
         return back();
     }

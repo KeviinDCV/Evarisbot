@@ -47,5 +47,11 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     });
 });
 
+// Webhook de WhatsApp (sin autenticación)
+Route::controller(\App\Http\Controllers\WhatsAppWebhookController::class)->prefix('webhook')->group(function () {
+    Route::get('/whatsapp', 'verify')->name('webhook.whatsapp.verify');
+    Route::post('/whatsapp', 'handle')->name('webhook.whatsapp.handle');
+});
+
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
