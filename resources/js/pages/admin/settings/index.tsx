@@ -102,230 +102,242 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
         <AdminLayout>
             <Head title="Configuración del Sistema" />
 
-            <div className="p-8 space-y-8">
-                {/* Header */}
-                <div>
-                    <h1 className="text-3xl font-bold text-black">Configuración del Sistema</h1>
-                    <p className="text-gray-600 mt-1">Gestiona las configuraciones globales de Evarisbot</p>
-                </div>
-
-                {/* Configuración de WhatsApp */}
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <div className="border-b border-gray-200 p-6">
-                        <h2 className="text-xl font-semibold text-black">WhatsApp Business API</h2>
-                        <p className="text-sm text-gray-600 mt-1">
-                            Configura la conexión con WhatsApp Business API
-                        </p>
+            <div className="min-h-screen bg-[#f0f2f8] p-4 md:p-6 lg:p-8">
+                <div className="max-w-7xl mx-auto">
+                    {/* Header */}
+                    <div className="mb-6">
+                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#2e3f84]">Configuración del Sistema</h1>
+                        <p className="text-sm md:text-base text-[#6b7494] mt-1">Gestiona las configuraciones globales de Evarisbot</p>
                     </div>
 
-                    <form onSubmit={handleWhatsAppSubmit} className="p-6 space-y-6">
-                        {/* Token de Acceso */}
-                        <div className="space-y-2">
-                            <Label htmlFor="whatsapp_token" className="text-sm font-medium text-black">
-                                Token de Acceso
-                            </Label>
-                            {settings.whatsapp.token && (
-                                <p className="text-xs text-gray-500">
-                                    Token actual: <code className="bg-gray-100 px-2 py-1 rounded">{settings.whatsapp.token}</code>
-                                </p>
-                            )}
-                            <Input
-                                id="whatsapp_token"
-                                type="password"
-                                value={whatsappForm.data.whatsapp_token}
-                                onChange={(e) => whatsappForm.setData('whatsapp_token', e.target.value)}
-                                placeholder={settings.whatsapp.token ? 'Dejar vacío para mantener el actual' : 'Ej: EAABwzLixnjYBO...'}
-                                className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none font-mono text-sm"
-                            />
-                            <InputError message={whatsappForm.errors.whatsapp_token} />
-                        </div>
+                    {/* Bento Grid Layout */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
 
-                        {/* ID del Teléfono */}
-                        <div className="space-y-2">
-                            <Label htmlFor="whatsapp_phone_id" className="text-sm font-medium text-black">
-                                ID del Teléfono de Negocio
-                            </Label>
-                            <Input
-                                id="whatsapp_phone_id"
-                                type="text"
-                                value={whatsappForm.data.whatsapp_phone_id}
-                                onChange={(e) => whatsappForm.setData('whatsapp_phone_id', e.target.value)}
-                                placeholder="Ej: 123456789012345"
-                                className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none"
-                            />
-                            <InputError message={whatsappForm.errors.whatsapp_phone_id} />
-                        </div>
+                        {/* WhatsApp Config - Spans 2 columns on large screens */}
+                        <div className="lg:col-span-2">
+                            <form onSubmit={handleWhatsAppSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 h-full">
+                                <div className="mb-4">
+                                    <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">WhatsApp Business API</h2>
+                                    <p className="text-xs md:text-sm text-[#6b7494] mt-1">
+                                        Configura la conexión con WhatsApp
+                                    </p>
+                                </div>
 
-                        {/* ID de Cuenta de Negocio */}
-                        <div className="space-y-2">
-                            <Label htmlFor="whatsapp_business_account_id" className="text-sm font-medium text-black">
-                                ID de la Cuenta de WhatsApp Business
-                            </Label>
-                            <Input
-                                id="whatsapp_business_account_id"
-                                type="text"
-                                value={whatsappForm.data.whatsapp_business_account_id}
-                                onChange={(e) => whatsappForm.setData('whatsapp_business_account_id', e.target.value)}
-                                placeholder="Ej: 987654321098765"
-                                className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none"
-                            />
-                            <InputError message={whatsappForm.errors.whatsapp_business_account_id} />
-                        </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Token de Acceso */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="whatsapp_token" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            Token de Acceso
+                                        </Label>
+                                        {settings.whatsapp.token && (
+                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-lg">
+                                                <p className="text-xs text-[#6b7494] truncate font-mono">●●●●{settings.whatsapp.token.slice(-4)}</p>
+                                            </div>
+                                        )}
+                                        <Input
+                                            id="whatsapp_token"
+                                            type="password"
+                                            value={whatsappForm.data.whatsapp_token}
+                                            onChange={(e) => whatsappForm.setData('whatsapp_token', e.target.value)}
+                                            placeholder={settings.whatsapp.token ? 'Actualizar token' : 'Token de WhatsApp'}
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 font-mono text-xs md:text-sm"
+                                        />
+                                        <InputError message={whatsappForm.errors.whatsapp_token} />
+                                    </div>
 
-                        {/* Verify Token */}
-                        <div className="space-y-2">
-                            <Label htmlFor="whatsapp_verify_token" className="text-sm font-medium text-black">
-                                Token de Verificación (Webhook)
-                            </Label>
-                            {settings.whatsapp.verify_token && (
-                                <p className="text-xs text-gray-500">
-                                    Token actual: <code className="bg-gray-100 px-2 py-1 rounded">{settings.whatsapp.verify_token}</code>
-                                </p>
-                            )}
-                            <Input
-                                id="whatsapp_verify_token"
-                                type="password"
-                                value={whatsappForm.data.whatsapp_verify_token}
-                                onChange={(e) => whatsappForm.setData('whatsapp_verify_token', e.target.value)}
-                                placeholder={settings.whatsapp.verify_token ? 'Dejar vacío para mantener el actual' : 'Ej: mi_token_seguro_123'}
-                                className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none"
-                            />
-                            <InputError message={whatsappForm.errors.whatsapp_verify_token} />
-                        </div>
+                                    {/* ID del Teléfono */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="whatsapp_phone_id" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            Phone ID
+                                        </Label>
+                                        <Input
+                                            id="whatsapp_phone_id"
+                                            type="text"
+                                            value={whatsappForm.data.whatsapp_phone_id}
+                                            onChange={(e) => whatsappForm.setData('whatsapp_phone_id', e.target.value)}
+                                            placeholder="123456789012345"
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
+                                        />
+                                        <InputError message={whatsappForm.errors.whatsapp_phone_id} />
+                                    </div>
 
-                        {/* Estado de la conexión */}
-                        {connectionStatus.type && (
-                            <div
-                                className={`flex items-center gap-2 p-4 rounded-lg ${
-                                    connectionStatus.type === 'success'
-                                        ? 'bg-green-50 text-green-700'
-                                        : 'bg-red-50 text-red-700'
-                                }`}
-                            >
-                                {connectionStatus.type === 'success' ? (
-                                    <CheckCircle2 className="w-5 h-5" />
-                                ) : (
-                                    <AlertCircle className="w-5 h-5" />
+                                    {/* ID de Cuenta de Negocio */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="whatsapp_business_account_id" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            Business Account ID
+                                        </Label>
+                                        <Input
+                                            id="whatsapp_business_account_id"
+                                            type="text"
+                                            value={whatsappForm.data.whatsapp_business_account_id}
+                                            onChange={(e) => whatsappForm.setData('whatsapp_business_account_id', e.target.value)}
+                                            placeholder="987654321098765"
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
+                                        />
+                                        <InputError message={whatsappForm.errors.whatsapp_business_account_id} />
+                                    </div>
+
+                                    {/* Verify Token */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="whatsapp_verify_token" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            Verify Token
+                                        </Label>
+                                        {settings.whatsapp.verify_token && (
+                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-lg">
+                                                <p className="text-xs text-[#6b7494] truncate">●●●●{settings.whatsapp.verify_token.slice(-4)}</p>
+                                            </div>
+                                        )}
+                                        <Input
+                                            id="whatsapp_verify_token"
+                                            type="password"
+                                            value={whatsappForm.data.whatsapp_verify_token}
+                                            onChange={(e) => whatsappForm.setData('whatsapp_verify_token', e.target.value)}
+                                            placeholder={settings.whatsapp.verify_token ? 'Actualizar' : 'Webhook token'}
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
+                                        />
+                                        <InputError message={whatsappForm.errors.whatsapp_verify_token} />
+                                    </div>
+                                </div>
+
+                                {/* Estado de la conexión */}
+                                {connectionStatus.type && (
+                                    <div className="mt-4 md:col-span-2">
+                                        <div
+                                            className={`flex items-center gap-2 p-3 rounded-xl ${
+                                                connectionStatus.type === 'success'
+                                                    ? 'bg-gradient-to-b from-green-50 to-green-100/50 text-green-700 shadow-[0_1px_2px_rgba(34,197,94,0.15),0_2px_4px_rgba(34,197,94,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
+                                                    : 'bg-gradient-to-b from-red-50 to-red-100/50 text-red-700 shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
+                                            }`}
+                                        >
+                                            {connectionStatus.type === 'success' ? (
+                                                <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+                                            ) : (
+                                                <AlertCircle className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
+                                            )}
+                                            <span className="text-xs md:text-sm font-medium">{connectionStatus.message}</span>
+                                        </div>
+                                    </div>
                                 )}
-                                <span className="text-sm">{connectionStatus.message}</span>
-                            </div>
-                        )}
 
-                        {/* Botones */}
-                        <div className="flex gap-3 pt-4">
-                            <Button
-                                type="submit"
-                                disabled={whatsappForm.processing}
-                                className="bg-[#2e3f84] hover:bg-[#1e2f74] text-white"
-                            >
-                                {whatsappForm.processing ? 'Guardando...' : 'Guardar Configuración'}
-                            </Button>
+                                {/* Botones */}
+                                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 pt-4 mt-4 border-t border-[#e8ebf5] md:col-span-2">
+                                    <Button
+                                        type="submit"
+                                        disabled={whatsappForm.processing}
+                                        className="w-full sm:flex-1 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                    >
+                                        {whatsappForm.processing ? 'Guardando...' : 'Guardar'}
+                                    </Button>
 
-                            {settings.whatsapp.is_configured && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={testConnection}
-                                    disabled={testingConnection}
-                                    className="border-gray-300 text-gray-700"
-                                >
-                                    {testingConnection ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            Probando...
-                                        </>
-                                    ) : (
-                                        'Probar Conexión'
+                                    {settings.whatsapp.is_configured && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={testConnection}
+                                            disabled={testingConnection}
+                                            className="w-full sm:flex-1 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.1),0_4px_8px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(46,63,132,0.1)] active:translate-y-0 transition-all duration-200 text-sm"
+                                        >
+                                            {testingConnection ? (
+                                                <>
+                                                    <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-2 animate-spin" />
+                                                    Probando...
+                                                </>
+                                            ) : (
+                                                'Probar Conexión'
+                                            )}
+                                        </Button>
                                     )}
-                                </Button>
-                            )}
+                                </div>
+                            </form>
                         </div>
-                    </form>
-                </div>
 
-                {/* Configuración del Negocio */}
-                <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <div className="border-b border-gray-200 p-6">
-                        <h2 className="text-xl font-semibold text-black">Información del Negocio</h2>
-                        <p className="text-sm text-gray-600 mt-1">
-                            Configura mensajes automáticos y datos de tu negocio
-                        </p>
+                        {/* Business Info - Spans 1 column, stacks vertically */}
+                        <div className="lg:col-span-1">
+                            <form onSubmit={handleBusinessSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] p-4 md:p-6 h-full">
+                                <div className="mb-4">
+                                    <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">Información del Negocio</h2>
+                                    <p className="text-xs md:text-sm text-[#6b7494] mt-1">
+                                        Mensajes y datos generales
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {/* Nombre */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="business_name" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            Nombre del Negocio
+                                        </Label>
+                                        <Input
+                                            id="business_name"
+                                            type="text"
+                                            value={businessForm.data.business_name}
+                                            onChange={(e) => businessForm.setData('business_name', e.target.value)}
+                                            placeholder="Tu empresa"
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
+                                        />
+                                        <InputError message={businessForm.errors.business_name} />
+                                    </div>
+
+                                    {/* Mensaje de Bienvenida */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="welcome_message" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            Mensaje de Bienvenida
+                                        </Label>
+                                        <Textarea
+                                            id="welcome_message"
+                                            value={businessForm.data.welcome_message}
+                                            onChange={(e) => businessForm.setData('welcome_message', e.target.value)}
+                                            placeholder="Hola, gracias por contactarnos..."
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm min-h-[80px]"
+                                        />
+                                        <InputError message={businessForm.errors.welcome_message} />
+                                    </div>
+
+                                    {/* Mensaje Fuera de Horario */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="away_message" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            Mensaje Fuera de Horario
+                                        </Label>
+                                        <Textarea
+                                            id="away_message"
+                                            value={businessForm.data.away_message}
+                                            onChange={(e) => businessForm.setData('away_message', e.target.value)}
+                                            placeholder="Estamos fuera de horario..."
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm min-h-[80px]"
+                                        />
+                                        <InputError message={businessForm.errors.away_message} />
+                                    </div>
+
+                                    {/* Horarios de Atención */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="business_hours" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            Horarios de Atención
+                                        </Label>
+                                        <Input
+                                            id="business_hours"
+                                            type="text"
+                                            value={businessForm.data.business_hours}
+                                            onChange={(e) => businessForm.setData('business_hours', e.target.value)}
+                                            placeholder="Lun-Vie: 9:00-18:00"
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
+                                        />
+                                        <InputError message={businessForm.errors.business_hours} />
+                                    </div>
+                                </div>
+
+                                {/* Botón */}
+                                <div className="pt-4 mt-4 border-t border-[#e8ebf5]">
+                                    <Button
+                                        type="submit"
+                                        disabled={businessForm.processing}
+                                        className="w-full bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                    >
+                                        {businessForm.processing ? 'Guardando...' : 'Guardar'}
+                                    </Button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-
-                    <form onSubmit={handleBusinessSubmit} className="p-6 space-y-6">
-                        {/* Nombre */}
-                        <div className="space-y-2">
-                            <Label htmlFor="business_name" className="text-sm font-medium text-black">
-                                Nombre
-                            </Label>
-                            <Input
-                                id="business_name"
-                                type="text"
-                                value={businessForm.data.business_name}
-                                onChange={(e) => businessForm.setData('business_name', e.target.value)}
-                                placeholder="Ej: Evarisbot"
-                                className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none"
-                            />
-                            <InputError message={businessForm.errors.business_name} />
-                        </div>
-
-                        {/* Mensaje de Bienvenida */}
-                        <div className="space-y-2">
-                            <Label htmlFor="welcome_message" className="text-sm font-medium text-black">
-                                Mensaje de Bienvenida
-                            </Label>
-                            <Textarea
-                                id="welcome_message"
-                                value={businessForm.data.welcome_message}
-                                onChange={(e) => businessForm.setData('welcome_message', e.target.value)}
-                                placeholder="Hola, gracias por contactarnos. ¿En qué podemos ayudarte?"
-                                className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none min-h-[100px]"
-                            />
-                            <InputError message={businessForm.errors.welcome_message} />
-                        </div>
-
-                        {/* Mensaje Fuera de Horario */}
-                        <div className="space-y-2">
-                            <Label htmlFor="away_message" className="text-sm font-medium text-black">
-                                Mensaje Fuera de Horario
-                            </Label>
-                            <Textarea
-                                id="away_message"
-                                value={businessForm.data.away_message}
-                                onChange={(e) => businessForm.setData('away_message', e.target.value)}
-                                placeholder="Gracias por escribirnos. En este momento estamos fuera de horario..."
-                                className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none min-h-[100px]"
-                            />
-                            <InputError message={businessForm.errors.away_message} />
-                        </div>
-
-                        {/* Horarios de Atención */}
-                        <div className="space-y-2">
-                            <Label htmlFor="business_hours" className="text-sm font-medium text-black">
-                                Horarios de Atención
-                            </Label>
-                            <Input
-                                id="business_hours"
-                                type="text"
-                                value={businessForm.data.business_hours}
-                                onChange={(e) => businessForm.setData('business_hours', e.target.value)}
-                                placeholder="Lun-Vie: 9:00 AM - 6:00 PM"
-                                className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none"
-                            />
-                            <InputError message={businessForm.errors.business_hours} />
-                        </div>
-
-                        {/* Botón */}
-                        <div className="flex gap-3 pt-4">
-                            <Button
-                                type="submit"
-                                disabled={businessForm.processing}
-                                className="bg-[#2e3f84] hover:bg-[#1e2f74] text-white"
-                            >
-                                {businessForm.processing ? 'Guardando...' : 'Guardar Configuración'}
-                            </Button>
-                        </div>
-                    </form>
                 </div>
             </div>
         </AdminLayout>
