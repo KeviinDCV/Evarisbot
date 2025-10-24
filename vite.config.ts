@@ -17,6 +17,18 @@ export default defineConfig({
             formVariants: true,
         }),
     ],
+    server: {
+        host: '0.0.0.0', // Listen on all network interfaces
+        port: 5173,
+        strictPort: true,
+        cors: {
+            origin: '*', // Allow all origins (or specify 'http://192.168.2.202:8000' for specific origin)
+            credentials: true,
+        },
+        hmr: {
+            host: '192.168.2.202', // Use your machine's network IP for HMR
+        },
+    },
     esbuild: {
         jsx: 'automatic',
     },
