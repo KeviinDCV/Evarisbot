@@ -9,7 +9,9 @@ import {
     Phone,
     Paperclip,
     Check,
-    CheckCheck
+    CheckCheck,
+    Clock,
+    X
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
@@ -100,12 +102,36 @@ export default function ConversationShow({ conversation }: ConversationShowProps
 
     const getStatusIcon = (status: string) => {
         switch (status) {
+            case 'pending':
+                return (
+                    <span title="Enviando...">
+                        <Clock className="w-4 h-4 text-gray-400 animate-pulse" />
+                    </span>
+                );
             case 'sent':
-                return <Check className="w-4 h-4 text-gray-400" />;
+                return (
+                    <span title="Enviado">
+                        <Check className="w-4 h-4 text-gray-400" />
+                    </span>
+                );
             case 'delivered':
-                return <CheckCheck className="w-4 h-4 text-gray-400" />;
+                return (
+                    <span title="Entregado">
+                        <CheckCheck className="w-4 h-4 text-gray-400" />
+                    </span>
+                );
             case 'read':
-                return <CheckCheck className="w-4 h-4 text-blue-500" />;
+                return (
+                    <span title="Leído">
+                        <CheckCheck className="w-4 h-4 text-blue-500" />
+                    </span>
+                );
+            case 'failed':
+                return (
+                    <span title="Error al enviar">
+                        <X className="w-4 h-4 text-red-500" />
+                    </span>
+                );
             default:
                 return null;
         }
@@ -204,12 +230,26 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                             >
                                 Marcar como en progreso
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
-                                onClick={() => handleStatusChange('resolved')}
-                                className="cursor-pointer hover:bg-gray-100"
-                            >
-                                Marcar como resuelta
-                            </DropdownMenuItem>
+                            
+                            {/* Marcar como resuelta / Reabrir */}
+                            {conversation.status === 'resolved' ? (
+                                <DropdownMenuItem 
+                                    onClick={() => handleStatusChange('active')}
+                                    className="cursor-pointer hover:bg-gray-100 text-blue-600"
+                                >
+                                    <Check className="w-4 h-4 mr-2" />
+                                    Reabrir conversación
+                                </DropdownMenuItem>
+                            ) : (
+                                <DropdownMenuItem 
+                                    onClick={() => handleStatusChange('resolved')}
+                                    className="cursor-pointer hover:bg-gray-100 text-green-600"
+                                >
+                                    <CheckCheck className="w-4 h-4 mr-2" />
+                                    Marcar como resuelta
+                                </DropdownMenuItem>
+                            )}
+                            
                             <DropdownMenuItem 
                                 onClick={() => handleStatusChange('closed')}
                                 className="cursor-pointer hover:bg-gray-100"

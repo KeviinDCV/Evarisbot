@@ -14,7 +14,8 @@ import {
     CheckCheck,
     X,
     PanelLeftClose,
-    PanelLeftOpen
+    PanelLeftOpen,
+    Clock
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
@@ -183,12 +184,36 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
     const getStatusIcon = (status: string) => {
         switch (status) {
+            case 'pending':
+                return (
+                    <span title="Enviando...">
+                        <Clock className="w-4 h-4 text-gray-400 animate-pulse" />
+                    </span>
+                );
             case 'sent':
-                return <Check className="w-4 h-4 text-gray-400" />;
+                return (
+                    <span title="Enviado">
+                        <Check className="w-4 h-4 text-gray-400" />
+                    </span>
+                );
             case 'delivered':
-                return <CheckCheck className="w-4 h-4 text-gray-400" />;
+                return (
+                    <span title="Entregado">
+                        <CheckCheck className="w-4 h-4 text-gray-400" />
+                    </span>
+                );
             case 'read':
-                return <CheckCheck className="w-4 h-4 text-blue-500" />;
+                return (
+                    <span title="Leído">
+                        <CheckCheck className="w-4 h-4 text-blue-500" />
+                    </span>
+                );
+            case 'failed':
+                return (
+                    <span title="Error al enviar">
+                        <X className="w-4 h-4 text-red-500" />
+                    </span>
+                );
             default:
                 return null;
         }
@@ -523,6 +548,19 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                             </div>
                                         </div>
                                     ))}
+                                    
+                                    {/* Indicador de "escribiendo..." - Se mostrará cuando se implemente en backend */}
+                                    {/* Ejemplo de cómo se vería: */}
+                                    {/* <div className="flex justify-start">
+                                        <div className="bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-2xl px-4 py-3">
+                                            <div className="flex items-center gap-1">
+                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                            </div>
+                                        </div>
+                                    </div> */}
+                                    
                                     <div ref={messagesEndRef} />
                                 </div>
                             )}
