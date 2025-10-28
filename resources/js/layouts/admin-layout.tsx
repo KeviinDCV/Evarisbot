@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { type PropsWithChildren, type ReactNode, useState } from 'react';
-import { Users, MessageSquare, Settings, LogOut, Menu, User, X } from 'lucide-react';
+import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,11 @@ const menuItems = [
         title: 'Conversaciones',
         href: '/admin/chat',
         icon: MessageSquare,
+    },
+    {
+        title: 'Plantillas',
+        href: '/admin/templates',
+        icon: FileText,
     },
     {
         title: 'Gestión de Usuarios',
@@ -34,6 +39,16 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     const currentUrl = usePage().url;
     const getInitials = useInitials();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Filtrar menú según rol
+    const visibleMenuItems = menuItems.filter((item) => {
+        // Asesores solo ven Conversaciones y Plantillas
+        if (auth.user.role === 'advisor') {
+            return item.href === '/admin/chat' || item.href === '/admin/templates';
+        }
+        // Admins ven todo
+        return true;
+    });
 
     return (
         <div className="flex h-screen bg-[#f0f2f8] relative">
@@ -89,7 +104,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
                 {/* Navigation - Mid Layer */}
                 <nav className="flex-1 p-3 lg:p-4 space-y-2 bg-gradient-to-b from-transparent via-[#2e3f84]/30 to-transparent overflow-y-auto">
-                    {menuItems.map((item) => {
+                    {visibleMenuItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = currentUrl.startsWith(item.href);
                         

@@ -25,12 +25,6 @@ class SettingsController extends Controller
                 'webhook_url' => Setting::get('whatsapp_webhook_url'),
                 'is_configured' => Setting::has('whatsapp_token') && Setting::has('whatsapp_phone_id'),
             ],
-            'business' => [
-                'name' => Setting::get('business_name'),
-                'welcome_message' => Setting::get('welcome_message'),
-                'away_message' => Setting::get('away_message'),
-                'business_hours' => Setting::get('business_hours'),
-            ],
         ];
 
         return Inertia::render('admin/settings/index', [
@@ -79,27 +73,6 @@ class SettingsController extends Controller
         }
 
         return redirect()->back()->with('success', 'Configuración de WhatsApp actualizada exitosamente.');
-    }
-
-    /**
-     * Actualizar configuración del negocio
-     */
-    public function updateBusiness(Request $request)
-    {
-        $validated = $request->validate([
-            'business_name' => 'nullable|string|max:255',
-            'welcome_message' => 'nullable|string|max:1000',
-            'away_message' => 'nullable|string|max:1000',
-            'business_hours' => 'nullable|string|max:500',
-        ]);
-
-        foreach ($validated as $key => $value) {
-            if ($value !== null) {
-                Setting::set($key, $value);
-            }
-        }
-
-        return redirect()->back()->with('success', 'Configuración del negocio actualizada exitosamente.');
     }
 
     /**

@@ -17,12 +17,6 @@ interface Settings {
         webhook_url: string | null;
         is_configured: boolean;
     };
-    business: {
-        name: string | null;
-        welcome_message: string | null;
-        away_message: string | null;
-        business_hours: string | null;
-    };
 }
 
 interface SettingsIndexProps {
@@ -44,14 +38,6 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
         whatsapp_verify_token: '',
     });
 
-    // Formulario de Negocio
-    const businessForm = useForm({
-        business_name: settings.business.name || '',
-        welcome_message: settings.business.welcome_message || '',
-        away_message: settings.business.away_message || '',
-        business_hours: settings.business.business_hours || '',
-    });
-
     const handleWhatsAppSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         whatsappForm.post('/admin/settings/whatsapp', {
@@ -59,13 +45,6 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
             onSuccess: () => {
                 whatsappForm.reset('whatsapp_token', 'whatsapp_verify_token');
             },
-        });
-    };
-
-    const handleBusinessSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        businessForm.post('/admin/settings/business', {
-            preserveScroll: true,
         });
     };
 
@@ -110,11 +89,11 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                         <p className="text-sm md:text-base text-[#6b7494] mt-1">Gestiona las configuraciones globales de Evarisbot</p>
                     </div>
 
-                    {/* Bento Grid Layout */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+                    {/* Layout para WhatsApp Config */}
+                    <div className="max-w-5xl">
 
-                        {/* WhatsApp Config - Spans 2 columns on large screens */}
-                        <div className="lg:col-span-2">
+                        {/* WhatsApp Config */}
+                        <div>
                             <form onSubmit={handleWhatsAppSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 h-full">
                                 <div className="mb-4">
                                     <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">WhatsApp Business API</h2>
@@ -247,93 +226,6 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                             )}
                                         </Button>
                                     )}
-                                </div>
-                            </form>
-                        </div>
-
-                        {/* Business Info - Spans 1 column, stacks vertically */}
-                        <div className="lg:col-span-1">
-                            <form onSubmit={handleBusinessSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] p-4 md:p-6 h-full">
-                                <div className="mb-4">
-                                    <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">Información del Negocio</h2>
-                                    <p className="text-xs md:text-sm text-[#6b7494] mt-1">
-                                        Mensajes y datos generales
-                                    </p>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {/* Nombre */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="business_name" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                            Nombre del Negocio
-                                        </Label>
-                                        <Input
-                                            id="business_name"
-                                            type="text"
-                                            value={businessForm.data.business_name}
-                                            onChange={(e) => businessForm.setData('business_name', e.target.value)}
-                                            placeholder="Tu empresa"
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
-                                        />
-                                        <InputError message={businessForm.errors.business_name} />
-                                    </div>
-
-                                    {/* Mensaje de Bienvenida */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="welcome_message" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                            Mensaje de Bienvenida
-                                        </Label>
-                                        <Textarea
-                                            id="welcome_message"
-                                            value={businessForm.data.welcome_message}
-                                            onChange={(e) => businessForm.setData('welcome_message', e.target.value)}
-                                            placeholder="Hola, gracias por contactarnos..."
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm min-h-[80px]"
-                                        />
-                                        <InputError message={businessForm.errors.welcome_message} />
-                                    </div>
-
-                                    {/* Mensaje Fuera de Horario */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="away_message" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                            Mensaje Fuera de Horario
-                                        </Label>
-                                        <Textarea
-                                            id="away_message"
-                                            value={businessForm.data.away_message}
-                                            onChange={(e) => businessForm.setData('away_message', e.target.value)}
-                                            placeholder="Estamos fuera de horario..."
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm min-h-[80px]"
-                                        />
-                                        <InputError message={businessForm.errors.away_message} />
-                                    </div>
-
-                                    {/* Horarios de Atención */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="business_hours" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                            Horarios de Atención
-                                        </Label>
-                                        <Input
-                                            id="business_hours"
-                                            type="text"
-                                            value={businessForm.data.business_hours}
-                                            onChange={(e) => businessForm.setData('business_hours', e.target.value)}
-                                            placeholder="Lun-Vie: 9:00-18:00"
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
-                                        />
-                                        <InputError message={businessForm.errors.business_hours} />
-                                    </div>
-                                </div>
-
-                                {/* Botón */}
-                                <div className="pt-4 mt-4 border-t border-[#e8ebf5]">
-                                    <Button
-                                        type="submit"
-                                        disabled={businessForm.processing}
-                                        className="w-full bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
-                                    >
-                                        {businessForm.processing ? 'Guardando...' : 'Guardar'}
-                                    </Button>
                                 </div>
                             </form>
                         </div>

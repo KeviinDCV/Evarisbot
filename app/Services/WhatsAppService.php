@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Setting;
@@ -220,14 +221,26 @@ class WhatsAppService
                 return null;
             }
 
+            // Verificar si el mensaje ya fue procesado (evitar duplicados)
+            $existingMessage = Message::where('whatsapp_message_id', $messageId)->first();
+            if ($existingMessage) {
+                Log::info('Message already processed, skipping', ['message_id' => $messageId]);
+                return $existingMessage;
+            }
+
             // Buscar o crear conversación
             $conversation = Conversation::firstOrCreate(
                 ['phone_number' => '+' . $from],
                 [
-                    'status' => 'active',
+                    'status' => 'in_progress', // Auto-iniciar como "en progreso"
                     'last_message_at' => now(),
                 ]
             );
+
+            // Si la conversación ya existía y estaba resuelta, reactivarla
+            if ($conversation->status === 'resolved') {
+                $conversation->update(['status' => 'in_progress']);
+            }
 
             // Extraer contenido según tipo de mensaje
             $content = '';
@@ -270,6 +283,9 @@ class WhatsAppService
 
             // Marcar como leído en WhatsApp
             $this->markAsRead($messageId);
+
+            // Emitir evento de broadcasting para actualización en tiempo real
+            broadcast(new MessageSent($message, $conversation->fresh(['lastMessage', 'assignedUser'])));
 
             Log::info('Incoming message processed', [
                 'conversation_id' => $conversation->id,

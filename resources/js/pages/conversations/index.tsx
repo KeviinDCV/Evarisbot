@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -55,9 +55,16 @@ interface Conversation {
     messages?: Message[];
 }
 
+interface User {
+    id: number;
+    name: string;
+    role: string;
+}
+
 interface ConversationsIndexProps {
     conversations: Conversation[];
     selectedConversation?: Conversation;
+    users: User[];
     filters: {
         search?: string;
         status?: string;
@@ -65,7 +72,10 @@ interface ConversationsIndexProps {
     };
 }
 
-export default function ConversationsIndex({ conversations, selectedConversation, filters }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations, selectedConversation, users, filters }: ConversationsIndexProps) {
+    const { auth } = usePage().props as any;
+    const isAdmin = auth.user.role === 'admin';
+    
     const [search, setSearch] = useState(filters.search || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -93,6 +103,24 @@ export default function ConversationsIndex({ conversations, selectedConversation
         window.addEventListener('keydown', handleEscape);
         return () => window.removeEventListener('keydown', handleEscape);
     }, [selectedConversation]);
+
+    // Polling para actualización automática (compatible con cPanel)
+    useEffect(() => {
+        // Solo hacer polling si hay una conversación seleccionada
+        if (!selectedConversation) return;
+
+        // Consultar cada 3 segundos si hay mensajes nuevos
+        const interval = setInterval(() => {
+            router.reload({ 
+                only: ['conversations', 'selectedConversation'],
+            });
+        }, 3000); // 3 segundos
+
+        // Cleanup: detener polling al desmontar
+        return () => {
+            clearInterval(interval);
+        };
+    }, [selectedConversation?.id]);
 
     const handleSearch = (value: string) => {
         setSearch(value);
@@ -183,9 +211,9 @@ export default function ConversationsIndex({ conversations, selectedConversation
         });
     };
 
-    const handleAssign = () => {
+    const handleAssign = (userId?: number) => {
         if (!selectedConversation) return;
-        router.post(`/admin/chat/${selectedConversation.id}/assign`, {}, {
+        router.post(`/admin/chat/${selectedConversation.id}/assign`, { user_id: userId }, {
             preserveScroll: true,
         });
     };
@@ -195,6 +223,15 @@ export default function ConversationsIndex({ conversations, selectedConversation
         router.post(`/admin/chat/${selectedConversation.id}/status`, { status }, {
             preserveScroll: true,
         });
+    };
+
+    const handleHideChat = () => {
+        if (!selectedConversation) return;
+        if (confirm('¿Estás seguro de que deseas eliminar esta conversación? (No se borrará de la base de datos)')) {
+            router.delete(`/admin/chat/${selectedConversation.id}/hide`, {
+                preserveScroll: false,
+            });
+        }
     };
 
     const handleCloseChat = () => {
@@ -233,7 +270,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                     </div>
 
                     {/* Lista de Conversaciones */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-2">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-2 pt-4">
                         {conversations.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-[#6b7494] p-8">
                                 <MessageSquare className="w-16 h-16 mb-4 text-[#9fa5c0]" />
@@ -369,29 +406,65 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                             <MoreVertical className="w-5 h-5" />
                                         </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-48 bg-white">
-                                        <DropdownMenuItem onClick={handleAssign} className="cursor-pointer hover:bg-gray-100">
-                                            {selectedConversation.assigned_to ? 'Reasignar a mí' : 'Asignarme esta conversación'}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem 
-                                            onClick={() => handleStatusChange('in_progress')}
-                                            className="cursor-pointer hover:bg-gray-100"
-                                        >
-                                            Marcar como en progreso
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem 
-                                            onClick={() => handleStatusChange('resolved')}
-                                            className="cursor-pointer hover:bg-gray-100"
-                                        >
-                                            Marcar como resuelta
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem 
-                                            onClick={() => handleStatusChange('closed')}
-                                            className="cursor-pointer hover:bg-gray-100"
-                                        >
-                                            Cerrar conversación
-                                        </DropdownMenuItem>
+                                    <DropdownMenuContent align="end" className="w-56 bg-white">
+                                        {/* Asignar conversación - Solo Admin */}
+                                        {isAdmin && (
+                                            <>
+                                                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase">
+                                                    Asignar conversación
+                                                </div>
+                                                {users.map((user) => (
+                                                    <DropdownMenuItem 
+                                                        key={user.id}
+                                                        onClick={() => handleAssign(user.id)} 
+                                                        className="cursor-pointer hover:bg-gray-100"
+                                                    >
+                                                        <span className={selectedConversation.assigned_to === user.id ? 'font-bold text-[#2e3f84]' : ''}>
+                                                            {user.name} {user.role === 'admin' ? '(Admin)' : '(Asesor)'}
+                                                        </span>
+                                                        {selectedConversation.assigned_to === user.id && (
+                                                            <Check className="w-4 h-4 ml-auto text-[#2e3f84]" />
+                                                        )}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                                
+                                                <DropdownMenuSeparator />
+                                            </>
+                                        )}
+                                        
+                                        {/* Marcar como resuelta / Reabrir - Todos */}
+                                        {selectedConversation.status === 'resolved' ? (
+                                            <DropdownMenuItem 
+                                                onClick={() => handleStatusChange('active')}
+                                                className="cursor-pointer hover:bg-gray-100 text-blue-600"
+                                            >
+                                                <Check className="w-4 h-4 mr-2" />
+                                                Reabrir conversación
+                                            </DropdownMenuItem>
+                                        ) : (
+                                            <DropdownMenuItem 
+                                                onClick={() => handleStatusChange('resolved')}
+                                                className="cursor-pointer hover:bg-gray-100 text-green-600"
+                                            >
+                                                <CheckCheck className="w-4 h-4 mr-2" />
+                                                Marcar como resuelta
+                                            </DropdownMenuItem>
+                                        )}
+                                        
+                                        {/* Eliminar chat - Solo Admin */}
+                                        {isAdmin && (
+                                            <>
+                                                <DropdownMenuSeparator />
+                                                
+                                                <DropdownMenuItem 
+                                                    onClick={handleHideChat}
+                                                    className="cursor-pointer hover:bg-red-50 text-red-600"
+                                                >
+                                                    <X className="w-4 h-4 mr-2" />
+                                                    Eliminar chat
+                                                </DropdownMenuItem>
+                                            </>
+                                        )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 

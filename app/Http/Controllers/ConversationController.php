@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\User;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,18 +18,26 @@ class ConversationController extends Controller
     public function index(Request $request)
     {
         $query = Conversation::with(['lastMessage', 'assignedUser'])
+            ->where('status', '!=', 'closed') // No mostrar conversaciones cerradas
             ->orderBy('last_message_at', 'desc');
+
+        // Si es asesor, solo ver conversaciones asignadas a él
+        if (auth()->user()->isAdvisor()) {
+            $query->where('assigned_to', auth()->id());
+        }
 
         // Filtrar por estado si se proporciona
         if ($request->has('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
-        // Filtrar por asignación
-        if ($request->has('assigned') && $request->assigned === 'me') {
-            $query->where('assigned_to', auth()->id());
-        } elseif ($request->has('assigned') && $request->assigned === 'unassigned') {
-            $query->whereNull('assigned_to');
+        // Filtrar por asignación (solo para admin)
+        if (auth()->user()->isAdmin()) {
+            if ($request->has('assigned') && $request->assigned === 'me') {
+                $query->where('assigned_to', auth()->id());
+            } elseif ($request->has('assigned') && $request->assigned === 'unassigned') {
+                $query->whereNull('assigned_to');
+            }
         }
 
         // Buscar por nombre o teléfono
@@ -41,8 +51,12 @@ class ConversationController extends Controller
 
         $conversations = $query->get();
 
+        // Obtener todos los usuarios (asesores) disponibles para asignación
+        $users = User::select('id', 'name', 'role')->get();
+
         return Inertia::render('conversations/index', [
             'conversations' => $conversations,
+            'users' => $users,
             'filters' => $request->only(['status', 'assigned', 'search']),
         ]);
     }
@@ -52,18 +66,31 @@ class ConversationController extends Controller
      */
     public function show(Request $request, Conversation $conversation)
     {
-        $query = Conversation::with(['lastMessage', 'assignedUser'])
-            ->orderBy('last_message_at', 'desc');
-
-        // Aplicar filtros si existen
-        if ($request->has('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+        // Validar acceso: asesores solo pueden ver conversaciones asignadas a ellos
+        if (auth()->user()->isAdvisor() && $conversation->assigned_to !== auth()->id()) {
+            abort(403, 'No tienes permiso para ver esta conversación.');
         }
 
-        if ($request->has('assigned') && $request->assigned === 'me') {
+        $query = Conversation::with(['lastMessage', 'assignedUser'])
+            ->where('status', '!=', 'closed') // No mostrar conversaciones cerradas
+            ->orderBy('last_message_at', 'desc');
+
+        // Si es asesor, solo ver sus conversaciones
+        if (auth()->user()->isAdvisor()) {
             $query->where('assigned_to', auth()->id());
-        } elseif ($request->has('assigned') && $request->assigned === 'unassigned') {
-            $query->whereNull('assigned_to');
+        }
+
+        // Aplicar filtros si existen (solo admin)
+        if (auth()->user()->isAdmin()) {
+            if ($request->has('status') && $request->status !== 'all') {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->has('assigned') && $request->assigned === 'me') {
+                $query->where('assigned_to', auth()->id());
+            } elseif ($request->has('assigned') && $request->assigned === 'unassigned') {
+                $query->whereNull('assigned_to');
+            }
         }
 
         if ($request->has('search')) {
@@ -82,9 +109,13 @@ class ConversationController extends Controller
         // Marcar mensajes como leídos
         $conversation->markAsRead();
 
+        // Obtener todos los usuarios (asesores) disponibles para asignación
+        $users = User::select('id', 'name', 'role')->get();
+
         return Inertia::render('conversations/index', [
             'conversations' => $conversations,
             'selectedConversation' => $conversation,
+            'users' => $users,
             'filters' => $request->only(['status', 'assigned', 'search']),
         ]);
     }
@@ -113,8 +144,29 @@ class ConversationController extends Controller
             'last_message_at' => now(),
         ]);
 
-        // Enviar mensaje real vía WhatsApp API
-        if ($whatsappService->isConfigured()) {
+        // Intentar enviar con Twilio primero (para demos)
+        $twilioService = app(\App\Services\TwilioService::class);
+        
+        if ($twilioService->isConfigured()) {
+            $success = $twilioService->sendTextMessage(
+                $conversation->phone_number,
+                $validated['content']
+            );
+
+            if ($success) {
+                $message->update([
+                    'status' => 'sent',
+                    'whatsapp_message_id' => 'twilio_' . time(),
+                ]);
+            } else {
+                $message->update([
+                    'status' => 'failed',
+                    'error_message' => 'Error al enviar con Twilio',
+                ]);
+            }
+        } 
+        // Si Twilio no está configurado, usar WhatsApp API
+        elseif ($whatsappService->isConfigured()) {
             $result = $whatsappService->sendTextMessage(
                 $conversation->phone_number,
                 $validated['content']
@@ -132,11 +184,14 @@ class ConversationController extends Controller
                 ]);
             }
         } else {
-            // Si no está configurado, simular envío exitoso para pruebas
+            // Si ninguno está configurado, simular envío exitoso para pruebas
             $message->update([
                 'status' => 'sent',
             ]);
         }
+
+        // Emitir evento de broadcasting para actualización en tiempo real
+        broadcast(new MessageSent($message->fresh(['sender']), $conversation->fresh(['lastMessage', 'assignedUser'])))->toOthers();
 
         return back();
     }
@@ -170,5 +225,20 @@ class ConversationController extends Controller
         $conversation->update(['status' => $validated['status']]);
 
         return back()->with('success', 'Estado actualizado.');
+    }
+
+    /**
+     * Ocultar conversación (no elimina de BD)
+     */
+    public function hide(Conversation $conversation)
+    {
+        // Marcar como cerrada y oculta para que no aparezca en las consultas
+        $conversation->update([
+            'status' => 'closed',
+            'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
+                      'Chat ocultado por ' . auth()->user()->name . ' el ' . now()->format('Y-m-d H:i:s')
+        ]);
+
+        return redirect()->route('admin.chat.index')->with('success', 'Conversación eliminada exitosamente.');
     }
 }

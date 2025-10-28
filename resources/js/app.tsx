@@ -1,4 +1,6 @@
 import '../css/app.css';
+// Echo/Reverb deshabilitado para compatibilidad con cPanel (usar polling en su lugar)
+// import './echo';
 
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';

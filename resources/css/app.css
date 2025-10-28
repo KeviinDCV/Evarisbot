@@ -93,6 +93,106 @@
     --sidebar-accent-foreground: #000000;
     --sidebar-border: #e0e0e0;
     --sidebar-ring: #2e3f84;
+    
+    /* Color Layering System - Basado en #2e3f84 (hsl(231, 48%, 35%)) */
+    /* Incrementos de 0.1 (10%) en lightness para crear jerarquía visual */
+    --layer-deepest: hsl(231, 48%, 92%);     /* L: 92% - Fondo más profundo/body */
+    --layer-deep: hsl(231, 40%, 95%);        /* L: 95% - Cards/Contenedores */
+    --layer-base: hsl(231, 35%, 97%);        /* L: 97% - Inputs/Campos */
+    --layer-elevated: hsl(231, 30%, 98.5%);  /* L: 98.5% - Elementos hover */
+    --layer-highest: hsl(231, 20%, 99.5%);   /* L: 99.5% - Elementos más elevados */
+    
+    /* Primary Color Variations - Para botones y elementos interactivos */
+    --primary-darker: hsl(231, 48%, 30%);    /* Hover/Active states */
+    --primary-base: hsl(231, 48%, 35%);      /* Color base #2e3f84 */
+    --primary-lighter: hsl(231, 48%, 40%);   /* Subtle highlights */
+    
+    /* Two-Layer Shadows System - Luz desde arriba (natural lighting) */
+    /* Formato: sombra superior clara (light) + sombra inferior oscura (dark) */
+    
+    /* Small: Elementos sutiles, estados default */
+    --shadow-sm: 
+        0 -1px 1px 0 rgba(255, 255, 255, 0.1),           /* Light top */
+        0 2px 4px -1px rgba(46, 63, 132, 0.08);          /* Dark bottom */
+    
+    /* Base: Elementos estándar, cards */
+    --shadow-base: 
+        0 -1px 2px 0 rgba(255, 255, 255, 0.15),          /* Light top */
+        0 4px 8px -2px rgba(46, 63, 132, 0.12),          /* Dark bottom */
+        0 2px 4px -1px rgba(46, 63, 132, 0.08);          /* Ambient */
+    
+    /* Medium: Elementos interactivos, hover states */
+    --shadow-md: 
+        0 -2px 4px 0 rgba(255, 255, 255, 0.2),           /* Light top */
+        0 8px 16px -4px rgba(46, 63, 132, 0.16),         /* Dark bottom */
+        0 4px 8px -2px rgba(46, 63, 132, 0.1);           /* Ambient */
+    
+    /* Large: Elementos prominentes, focus/active */
+    --shadow-lg: 
+        0 -3px 6px 0 rgba(255, 255, 255, 0.25),          /* Light top */
+        0 12px 24px -6px rgba(46, 63, 132, 0.2),         /* Dark bottom */
+        0 6px 12px -3px rgba(46, 63, 132, 0.12);         /* Ambient */
+    
+    /* Extra Large: Modals, popovers */
+    --shadow-xl: 
+        0 -4px 8px 0 rgba(255, 255, 255, 0.3),           /* Light top */
+        0 20px 40px -10px rgba(46, 63, 132, 0.24),       /* Dark bottom */
+        0 10px 20px -5px rgba(46, 63, 132, 0.15);        /* Ambient */
+    
+    /* Inset Shadows - Para elementos hundidos (sunken) */
+    --shadow-inset-sm: 
+        inset 0 1px 2px 0 rgba(46, 63, 132, 0.1),        /* Top dark */
+        inset 0 -1px 1px 0 rgba(255, 255, 255, 0.05);    /* Bottom light */
+    
+    --shadow-inset-md: 
+        inset 0 2px 4px 0 rgba(46, 63, 132, 0.15),       /* Top dark */
+        inset 0 -1px 2px 0 rgba(255, 255, 255, 0.1);     /* Bottom light */
+    
+    /* Gradients - Para efectos shiny/elevated */
+    --gradient-shine: linear-gradient(
+        180deg, 
+        rgba(255, 255, 255, 0.15) 0%, 
+        rgba(255, 255, 255, 0) 50%,
+        rgba(46, 63, 132, 0.05) 100%
+    );
+    
+    --gradient-subtle: linear-gradient(
+        180deg, 
+        rgba(255, 255, 255, 0.08) 0%, 
+        rgba(255, 255, 255, 0) 100%
+    );
+    
+    /* Responsive System - Escalado fluido basado en viewport */
+    /* Base spacing scale (mobile-first) */
+    --space-xs: 0.5rem;      /* 8px */
+    --space-sm: 0.75rem;     /* 12px */
+    --space-base: 1rem;      /* 16px */
+    --space-md: 1.25rem;     /* 20px */
+    --space-lg: 1.5rem;      /* 24px */
+    --space-xl: 2rem;        /* 32px */
+    --space-2xl: 2.5rem;     /* 40px */
+    --space-3xl: 3rem;       /* 48px */
+    
+    /* Fluid typography scale */
+    --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);    /* 12-14px */
+    --text-sm: clamp(0.875rem, 0.825rem + 0.25vw, 1rem);     /* 14-16px */
+    --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);    /* 16-18px */
+    --text-lg: clamp(1.125rem, 1.05rem + 0.375vw, 1.25rem);  /* 18-20px */
+    --text-xl: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);      /* 20-24px */
+    --text-2xl: clamp(1.5rem, 1.35rem + 0.75vw, 1.875rem);   /* 24-30px */
+    --text-3xl: clamp(1.875rem, 1.65rem + 1.125vw, 2.25rem); /* 30-36px */
+    
+    /* Container widths */
+    --container-xs: 20rem;   /* 320px */
+    --container-sm: 24rem;   /* 384px */
+    --container-md: 28rem;   /* 448px */
+    --container-lg: 32rem;   /* 512px */
+    --container-xl: 36rem;   /* 576px */
+    
+    /* Responsive padding/margin multipliers */
+    --spacing-mobile: 1;
+    --spacing-tablet: 1.25;
+    --spacing-desktop: 1.5;
 }
 
 

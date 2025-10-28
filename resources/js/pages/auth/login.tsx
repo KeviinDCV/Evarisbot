@@ -23,13 +23,23 @@ export default function Login({ status, canResetPassword }: LoginProps) {
             <Form
                 {...store.form()}
                 resetOnSuccess={['password']}
-                className="flex flex-col gap-5"
+                className="flex flex-col"
+                style={{ gap: 'var(--space-md)' }}
             >
                 {({ processing, errors }) => (
                     <>
-                        <div className="space-y-5">
-                            <div className="space-y-2">
-                                <Label htmlFor="email" className="text-sm font-medium text-black">Nombre de usuario</Label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+                                <Label 
+                                    htmlFor="email" 
+                                    className="font-semibold" 
+                                    style={{ 
+                                        color: 'var(--primary-base)',
+                                        fontSize: 'var(--text-sm)'
+                                    }}
+                                >
+                                    Nombre de usuario
+                                </Label>
                                 <Input
                                     id="email"
                                     type="email"
@@ -39,13 +49,38 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder="ejemplo: usuario@correo.com"
-                                    className="h-11 w-full rounded-lg border-0 bg-gray-100 px-4 text-black placeholder:text-gray-400 shadow-none focus:bg-gray-150"
+                                    className="w-full rounded-lg border-0 placeholder:text-gray-400 transition-all duration-200"
+                                    style={{
+                                        backgroundColor: 'var(--layer-base)',
+                                        color: 'var(--primary-base)',
+                                        boxShadow: 'var(--shadow-inset-sm)',
+                                        height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                        padding: '0 var(--space-base)',
+                                        fontSize: 'var(--text-base)'
+                                    }}
+                                    onFocus={(e) => {
+                                        e.target.style.backgroundColor = 'var(--layer-elevated)';
+                                        e.target.style.boxShadow = 'var(--shadow-inset-md)'; // Deeper inset on focus
+                                    }}
+                                    onBlur={(e) => {
+                                        e.target.style.backgroundColor = 'var(--layer-base)';
+                                        e.target.style.boxShadow = 'var(--shadow-inset-sm)';
+                                    }}
                                 />
                                 <InputError message={errors.email} />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="password" className="text-sm font-medium text-black">Contraseña</Label>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+                                <Label 
+                                    htmlFor="password" 
+                                    className="font-semibold" 
+                                    style={{ 
+                                        color: 'var(--primary-base)',
+                                        fontSize: 'var(--text-sm)'
+                                    }}
+                                >
+                                    Contraseña
+                                </Label>
                                 <Input
                                     id="password"
                                     type="password"
@@ -54,14 +89,62 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder="Ingresa tu contraseña aquí..."
-                                    className="h-11 w-full rounded-lg border-0 bg-gray-100 px-4 text-black placeholder:text-gray-400 shadow-none focus:bg-gray-150"
+                                    className="w-full rounded-lg border-0 placeholder:text-gray-400 transition-all duration-200"
+                                    style={{
+                                        backgroundColor: 'var(--layer-base)',
+                                        color: 'var(--primary-base)',
+                                        boxShadow: 'var(--shadow-inset-sm)',
+                                        height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                        padding: '0 var(--space-base)',
+                                        fontSize: 'var(--text-base)'
+                                    }}
+                                    onFocus={(e) => {
+                                        e.target.style.backgroundColor = 'var(--layer-elevated)';
+                                        e.target.style.boxShadow = 'var(--shadow-inset-md)'; // Deeper inset on focus
+                                    }}
+                                    onBlur={(e) => {
+                                        e.target.style.backgroundColor = 'var(--layer-base)';
+                                        e.target.style.boxShadow = 'var(--shadow-inset-sm)';
+                                    }}
                                 />
                                 <InputError message={errors.password} />
                             </div>
 
                             <Button
                                 type="submit"
-                                className="mt-2 h-12 w-full rounded-lg bg-gray-200 text-black hover:bg-gray-300 font-medium transition-colors"
+                                className="w-full rounded-lg font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
+                                style={{
+                                    ...{
+                                        backgroundColor: 'var(--primary-base)',
+                                        boxShadow: 'var(--shadow-md)',
+                                        backgroundImage: 'var(--gradient-shine)',
+                                        height: 'clamp(2.75rem, 2.75rem + 0.75vw, 3.5rem)',
+                                        fontSize: 'var(--text-base)',
+                                        marginTop: 'var(--space-sm)'
+                                    }
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; // Two-layer shadow on hover
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.backgroundImage = 'var(--gradient-shine)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.backgroundImage = 'var(--gradient-shine)';
+                                }}
+                                onMouseDown={(e) => {
+                                    // Active state: pressed down effect
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                                }}
+                                onMouseUp={(e) => {
+                                    // Release: return to hover state
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                }}
                                 tabIndex={3}
                                 disabled={processing}
                             >
