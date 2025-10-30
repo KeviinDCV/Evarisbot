@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/routes/login';
 import { Form, Head } from '@inertiajs/react';
+import { useTranslation } from 'react-i18next';
 
 interface LoginProps {
     status?: string;
@@ -13,12 +14,14 @@ interface LoginProps {
 }
 
 export default function Login({ status, canResetPassword }: LoginProps) {
+    const { t } = useTranslation();
+    
     return (
         <AuthLayout
-            title="Iniciar Sesión"
+            title={t('auth.loginTitle')}
             description=""
         >
-            <Head title="Iniciar Sesión" />
+            <Head title={t('auth.loginTitle')} />
 
             <Form
                 {...store.form()}
@@ -38,7 +41,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                         fontSize: 'var(--text-sm)'
                                     }}
                                 >
-                                    Nombre de usuario
+                                    {t('auth.username')}
                                 </Label>
                                 <Input
                                     id="email"
@@ -48,7 +51,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     autoFocus
                                     tabIndex={1}
                                     autoComplete="email"
-                                    placeholder="ejemplo: usuario@correo.com"
+                                    placeholder={t('auth.emailPlaceholder')}
                                     className="w-full rounded-lg border-0 placeholder:text-gray-400 transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
@@ -79,7 +82,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                         fontSize: 'var(--text-sm)'
                                     }}
                                 >
-                                    Contraseña
+                                    {t('common.password')}
                                 </Label>
                                 <Input
                                     id="password"
@@ -88,7 +91,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     required
                                     tabIndex={2}
                                     autoComplete="current-password"
-                                    placeholder="Ingresa tu contraseña aquí..."
+                                    placeholder={t('auth.passwordPlaceholder')}
                                     className="w-full rounded-lg border-0 placeholder:text-gray-400 transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
@@ -149,7 +152,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                 disabled={processing}
                             >
                                 {processing && <Spinner className="mr-2" />}
-                                Ingresar
+                                {t('auth.login')}
                             </Button>
                         </div>
                     </>

@@ -21,6 +21,7 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { useTranslation } from 'react-i18next';
 
 interface Message {
     id: number;
@@ -52,6 +53,7 @@ interface ConversationShowProps {
 }
 
 export default function ConversationShow({ conversation }: ConversationShowProps) {
+    const { t } = useTranslation();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
@@ -104,31 +106,31 @@ export default function ConversationShow({ conversation }: ConversationShowProps
         switch (status) {
             case 'pending':
                 return (
-                    <span title="Enviando...">
+                    <span title={t('conversations.status.sending')}>
                         <Clock className="w-4 h-4 text-gray-400 animate-pulse" />
                     </span>
                 );
             case 'sent':
                 return (
-                    <span title="Enviado">
+                    <span title={t('conversations.status.sent')}>
                         <Check className="w-4 h-4 text-gray-400" />
                     </span>
                 );
             case 'delivered':
                 return (
-                    <span title="Entregado">
+                    <span title={t('conversations.status.delivered')}>
                         <CheckCheck className="w-4 h-4 text-gray-400" />
                     </span>
                 );
             case 'read':
                 return (
-                    <span title="Leído">
+                    <span title={t('conversations.status.read')}>
                         <CheckCheck className="w-4 h-4 text-blue-500" />
                     </span>
                 );
             case 'failed':
                 return (
-                    <span title="Error al enviar">
+                    <span title={t('conversations.status.failed')}>
                         <X className="w-4 h-4 text-red-500" />
                     </span>
                 );
@@ -156,11 +158,11 @@ export default function ConversationShow({ conversation }: ConversationShowProps
 
     const getStatusLabel = (status: string) => {
         const labels: Record<string, string> = {
-            active: 'Activa',
-            pending: 'Pendiente',
-            in_progress: 'En progreso',
-            resolved: 'Resuelta',
-            closed: 'Cerrada',
+            active: t('conversations.statusLabels.active'),
+            pending: t('conversations.statusLabels.pending'),
+            in_progress: t('conversations.statusLabels.inProgress'),
+            resolved: t('conversations.statusLabels.resolved'),
+            closed: t('conversations.statusLabels.closed'),
         };
         return labels[status] || status;
     };
@@ -189,7 +191,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                             </div>
                             <div>
                                 <h2 className="font-semibold text-black">
-                                    {conversation.contact_name || 'Sin nombre'}
+                                    {conversation.contact_name || t('conversations.noName')}
                                 </h2>
                                 <div className="flex items-center gap-2 text-sm text-gray-600">
                                     <Phone className="w-3 h-3" />
@@ -207,7 +209,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                         {/* Asignación */}
                         {conversation.assigned_user && (
                             <div className="text-sm text-gray-600 ml-2">
-                                Asignado a: <span className="font-medium text-black">{conversation.assigned_user.name}</span>
+                                {t('conversations.assignedToLabel')} <span className="font-medium text-black">{conversation.assigned_user.name}</span>
                             </div>
                         )}
                     </div>
@@ -221,40 +223,40 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 bg-white">
                             <DropdownMenuItem onClick={handleAssign} className="cursor-pointer hover:bg-gray-100">
-                                {conversation.assigned_to ? 'Reasignar a mí' : 'Asignarme esta conversación'}
+                                {conversation.assigned_to ? t('conversations.reassignToMe') : t('conversations.assignToMe')}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                                 onClick={() => handleStatusChange('in_progress')}
                                 className="cursor-pointer hover:bg-gray-100"
                             >
-                                Marcar como en progreso
+                                {t('conversations.markAsInProgress')}
                             </DropdownMenuItem>
-                            
+
                             {/* Marcar como resuelta / Reabrir */}
                             {conversation.status === 'resolved' ? (
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                     onClick={() => handleStatusChange('active')}
                                     className="cursor-pointer hover:bg-gray-100 text-blue-600"
                                 >
                                     <Check className="w-4 h-4 mr-2" />
-                                    Reabrir conversación
+                                    {t('conversations.reopenConversation')}
                                 </DropdownMenuItem>
                             ) : (
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                     onClick={() => handleStatusChange('resolved')}
                                     className="cursor-pointer hover:bg-gray-100 text-green-600"
                                 >
                                     <CheckCheck className="w-4 h-4 mr-2" />
-                                    Marcar como resuelta
+                                    {t('conversations.markAsResolved')}
                                 </DropdownMenuItem>
                             )}
-                            
-                            <DropdownMenuItem 
+
+                            <DropdownMenuItem
                                 onClick={() => handleStatusChange('closed')}
                                 className="cursor-pointer hover:bg-gray-100"
                             >
-                                Cerrar conversación
+                                {t('conversations.closeConversation')}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -264,7 +266,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                 <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50">
                     {conversation.messages.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-500">
-                            <p>No hay mensajes en esta conversación</p>
+                            <p>{t('conversations.noMessagesInConversation')}</p>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -325,7 +327,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                         <Textarea
                             value={data.content}
                             onChange={(e) => setData('content', e.target.value)}
-                            placeholder="Escribe un mensaje..."
+                            placeholder={t('conversations.typeMessage')}
                             className="flex-1 min-h-[44px] max-h-[120px] resize-none border-gray-300 focus:border-[#2e3f84] focus:ring-[#2e3f84] shadow-none"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -345,7 +347,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                         </Button>
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                        Presiona Enter para enviar, Shift + Enter para nueva línea
+                        {t('conversations.inputHint')}
                     </p>
                 </form>
             </div>
