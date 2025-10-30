@@ -25,6 +25,7 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import { useTranslation } from 'react-i18next';
 
 interface Message {
     id: number;
@@ -74,6 +75,7 @@ interface ConversationsIndexProps {
 }
 
 export default function ConversationsIndex({ conversations, selectedConversation, users, filters }: ConversationsIndexProps) {
+    const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
     
@@ -144,11 +146,11 @@ export default function ConversationsIndex({ conversations, selectedConversation
         const d = new Date(date);
         const now = new Date();
         const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         if (diffDays === 0) {
             return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
         } else if (diffDays === 1) {
-            return 'Ayer';
+            return t('conversations.yesterday');
         } else if (diffDays < 7) {
             return d.toLocaleDateString('es-ES', { weekday: 'short' });
         } else {
@@ -173,11 +175,11 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
     const getStatusLabel = (status: string) => {
         const labels: Record<string, string> = {
-            active: 'Activa',
-            pending: 'Pendiente',
-            in_progress: 'En progreso',
-            resolved: 'Resuelta',
-            closed: 'Cerrada',
+            active: t('conversations.statusLabels.active'),
+            pending: t('conversations.statusLabels.pending'),
+            in_progress: t('conversations.statusLabels.inProgress'),
+            resolved: t('conversations.statusLabels.resolved'),
+            closed: t('conversations.statusLabels.closed'),
         };
         return labels[status] || status;
     };
@@ -186,31 +188,31 @@ export default function ConversationsIndex({ conversations, selectedConversation
         switch (status) {
             case 'pending':
                 return (
-                    <span title="Enviando...">
+                    <span title={t('conversations.status.sending')}>
                         <Clock className="w-4 h-4 text-gray-400 animate-pulse" />
                     </span>
                 );
             case 'sent':
                 return (
-                    <span title="Enviado">
+                    <span title={t('conversations.status.sent')}>
                         <Check className="w-4 h-4 text-gray-400" />
                     </span>
                 );
             case 'delivered':
                 return (
-                    <span title="Entregado">
+                    <span title={t('conversations.status.delivered')}>
                         <CheckCheck className="w-4 h-4 text-gray-400" />
                     </span>
                 );
             case 'read':
                 return (
-                    <span title="Leído">
+                    <span title={t('conversations.status.read')}>
                         <CheckCheck className="w-4 h-4 text-blue-500" />
                     </span>
                 );
             case 'failed':
                 return (
-                    <span title="Error al enviar">
+                    <span title={t('conversations.status.failed')}>
                         <X className="w-4 h-4 text-red-500" />
                     </span>
                 );
@@ -252,7 +254,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
     const handleHideChat = () => {
         if (!selectedConversation) return;
-        if (confirm('¿Estás seguro de que deseas eliminar esta conversación? (No se borrará de la base de datos)')) {
+        if (confirm(t('conversations.deleteConfirm'))) {
             router.delete(`/admin/chat/${selectedConversation.id}/hide`, {
                 preserveScroll: false,
             });
@@ -267,7 +269,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
     return (
         <AdminLayout>
-            <Head title="Conversaciones" />
+            <Head title={t('conversations.title')} />
 
             <div className="h-[calc(100vh-0px)] flex bg-[#f0f2f8]">
                 {/* Lista de Conversaciones - Izquierda */}
@@ -279,14 +281,14 @@ export default function ConversationsIndex({ conversations, selectedConversation
                 }`}>
                     {/* Header */}
                     <div className="p-3 md:p-4 bg-[#dde1f0]">
-                        <h2 className="text-lg md:text-xl font-bold text-[#2e3f84] mb-2 md:mb-3">Conversaciones</h2>
+                        <h2 className="text-lg md:text-xl font-bold text-[#2e3f84] mb-2 md:mb-3">{t('conversations.title')}</h2>
                         
                         {/* Búsqueda */}
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#6b7494] w-4 h-4" />
                             <Input
                                 type="text"
-                                placeholder="Buscar conversación..."
+                                placeholder={t('conversations.searchPlaceholder')}
                                 value={search}
                                 onChange={(e) => handleSearch(e.target.value)}
                                 className="pl-10 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] focus:shadow-[0_2px_4px_rgba(46,63,132,0.08),0_3px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-lg transition-all duration-200"
@@ -300,10 +302,10 @@ export default function ConversationsIndex({ conversations, selectedConversation
                             <div className="flex flex-col items-center justify-center h-full text-[#6b7494] p-8">
                                 <MessageSquare className="w-16 h-16 mb-4 text-[#9fa5c0]" />
                                 <p className="text-center text-sm">
-                                    No hay conversaciones disponibles
+                                    {t('conversations.noConversations')}
                                 </p>
                                 <p className="text-center text-xs text-[#9fa5c0] mt-2">
-                                    Las conversaciones aparecerán aquí cuando los clientes escriban
+                                    {t('conversations.noConversationsSubtitle')}
                                 </p>
                             </div>
                         ) : (
@@ -340,7 +342,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                             </span>
                                         </div>
                                         <p className="text-xs md:text-sm text-[#6b7494] truncate">
-                                            {conversation.last_message?.content || 'Sin mensajes'}
+                                            {conversation.last_message?.content || t('conversations.noMessages')}
                                         </p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
@@ -360,10 +362,10 @@ export default function ConversationsIndex({ conversations, selectedConversation
                         <div className="text-center text-[#6b7494] bg-gradient-to-b from-white to-[#fafbfc] p-8 md:p-12 rounded-2xl shadow-[0_4px_8px_rgba(46,63,132,0.06),0_12px_24px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
                             <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#9fa5c0]" />
                             <h3 className="text-xl font-semibold text-[#2e3f84] mb-2">
-                                Selecciona una conversación
+                                {t('conversations.selectConversation')}
                             </h3>
                             <p className="text-sm">
-                                Elige una conversación de la izquierda para ver los mensajes
+                                {t('conversations.selectConversationHint')}
                             </p>
                         </div>
                     </div>
@@ -385,7 +387,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                         }
                                     }}
                                     className="hover:bg-gray-100 flex-shrink-0"
-                                    title={isSidebarVisible ? "Ocultar conversaciones" : "Mostrar conversaciones"}
+                                    title={isSidebarVisible ? t('conversations.hideList') : t('conversations.showList')}
                                 >
                                     {isSidebarVisible ? (
                                         <PanelLeftClose className="w-5 h-5" />
@@ -400,7 +402,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <h2 className="font-semibold text-black text-sm md:text-base truncate">
-                                            {selectedConversation.contact_name || 'Sin nombre'}
+                                            {selectedConversation.contact_name || t('conversations.noName')}
                                         </h2>
                                         <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
                                             <Phone className="w-3 h-3" />
@@ -418,7 +420,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                 {/* Asignación */}
                                 {selectedConversation.assigned_user && (
                                     <div className="hidden xl:block text-sm text-[#6b7494] ml-2">
-                                        Asignado a: <span className="font-medium text-[#2e3f84]">{selectedConversation.assigned_user.name}</span>
+                                        {t('conversations.assignedTo')}: <span className="font-medium text-[#2e3f84]">{selectedConversation.assigned_user.name}</span>
                                     </div>
                                 )}
                             </div>
@@ -436,7 +438,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                         {isAdmin && (
                                             <>
                                                 <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase">
-                                                    Asignar conversación
+                                                    {t('conversations.assignConversation')}
                                                 </div>
                                                 {users.map((user) => (
                                                     <DropdownMenuItem 
@@ -445,7 +447,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                                         className="cursor-pointer hover:bg-gray-100"
                                                     >
                                                         <span className={selectedConversation.assigned_to === user.id ? 'font-bold text-[#2e3f84]' : ''}>
-                                                            {user.name} {user.role === 'admin' ? '(Admin)' : '(Asesor)'}
+                                                            {user.name} {user.role === 'admin' ? t('users.roleAdmin') : t('users.roleAdvisor')}
                                                         </span>
                                                         {selectedConversation.assigned_to === user.id && (
                                                             <Check className="w-4 h-4 ml-auto text-[#2e3f84]" />
@@ -464,7 +466,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                                 className="cursor-pointer hover:bg-gray-100 text-blue-600"
                                             >
                                                 <Check className="w-4 h-4 mr-2" />
-                                                Reabrir conversación
+                                                {t('conversations.reopenConversation')}
                                             </DropdownMenuItem>
                                         ) : (
                                             <DropdownMenuItem 
@@ -472,7 +474,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                                 className="cursor-pointer hover:bg-gray-100 text-green-600"
                                             >
                                                 <CheckCheck className="w-4 h-4 mr-2" />
-                                                Marcar como resuelta
+                                                {t('conversations.markAsResolved')}
                                             </DropdownMenuItem>
                                         )}
                                         
@@ -481,12 +483,12 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                             <>
                                                 <DropdownMenuSeparator />
                                                 
-                                                <DropdownMenuItem 
+                                                <DropdownMenuItem
                                                     onClick={handleHideChat}
                                                     className="cursor-pointer hover:bg-red-50 text-red-600"
                                                 >
                                                     <X className="w-4 h-4 mr-2" />
-                                                    Eliminar chat
+                                                    {t('conversations.deleteChat')}
                                                 </DropdownMenuItem>
                                             </>
                                         )}
@@ -494,12 +496,12 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                 </DropdownMenu>
 
                                 {/* Botón Cerrar Chat */}
-                                <Button 
-                                    variant="ghost" 
+                                <Button
+                                    variant="ghost"
                                     size="sm"
                                     onClick={handleCloseChat}
                                     className="hover:bg-gray-100"
-                                    title="Cerrar chat (Esc)"
+                                    title={t('conversations.closeChatHint')}
                                 >
                                     <X className="w-5 h-5" />
                                 </Button>
@@ -510,7 +512,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                         <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 bg-[#f8f9fc]">
                             {!selectedConversation.messages || selectedConversation.messages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-[#6b7494]">
-                                    <p>No hay mensajes en esta conversación</p>
+                                    <p>{t('conversations.noMessagesInConversation')}</p>
                                 </div>
                             ) : (
                                 <div className="space-y-3 md:space-y-4">
@@ -584,7 +586,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                 <Textarea
                                     value={data.content}
                                     onChange={(e) => setData('content', e.target.value)}
-                                    placeholder="Escribe un mensaje..."
+                                    placeholder={t('conversations.messagePlaceholder')}
                                     className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 bg-gradient-to-b from-white to-[#fafbfc] focus:ring-2 focus:ring-[#2e3f84] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-xl transition-shadow duration-200"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -604,7 +606,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                 </Button>
                             </div>
                             <p className="hidden md:block text-xs text-[#6b7494] mt-2">
-                                Presiona Enter para enviar, Shift + Enter para nueva línea
+                                {t('conversations.sendHint')}
                             </p>
                         </form>
                     </div>

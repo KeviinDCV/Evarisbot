@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search, MessageSquare, Image, FileText, Power, PowerOff, Edit, Trash2, Send } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Template {
     id: number;
@@ -39,6 +40,7 @@ interface TemplatesIndexProps {
 }
 
 export default function TemplatesIndex({ templates, filters }: TemplatesIndexProps) {
+    const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
     
@@ -64,7 +66,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
     };
 
     const deleteTemplate = (templateId: number) => {
-        if (confirm('¿Estás seguro de eliminar esta plantilla?')) {
+        if (confirm(t('templates.deleteConfirm'))) {
             router.delete(`/admin/templates/${templateId}`, {
                 preserveScroll: true,
             });
@@ -82,16 +84,16 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
 
     const getTypeLabel = (type: string) => {
         switch (type) {
-            case 'text': return 'Texto';
-            case 'image': return 'Imagen';
-            case 'document': return 'Documento';
+            case 'text': return t('templates.types.text');
+            case 'image': return t('templates.types.image');
+            case 'document': return t('templates.types.document');
             default: return type;
         }
     };
 
     return (
         <AdminLayout>
-            <Head title="Plantillas de Mensajes" />
+            <Head title={t('templates.title')} />
 
             <div className="min-h-screen bg-[#f0f2f8] p-4 md:p-6 lg:p-8">
                 <div className="max-w-7xl mx-auto">
@@ -100,10 +102,10 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
                             <div>
                                 <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
-                                    Plantillas de Mensajes
+                                    {t('templates.title')}
                                 </h1>
                                 <p className="text-gray-600" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                    {isAdmin ? 'Crea y gestiona plantillas para envíos masivos de WhatsApp' : 'Visualiza las plantillas disponibles'}
+                                    {isAdmin ? t('templates.adminSubtitle') : t('templates.viewerSubtitle')}
                                 </p>
                             </div>
                             {isAdmin && (
@@ -130,7 +132,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                         }}
                                     >
                                         <Plus className="w-4 h-4 mr-2" />
-                                        Nueva Plantilla
+                                        {t('templates.newTemplate')}
                                     </Button>
                                 </Link>
                             )}
@@ -140,7 +142,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                         <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                             <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
                                 <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
-                                    Buscar
+                                    {t('common.search')}
                                 </label>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -149,7 +151,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
-                                        placeholder="Buscar por nombre..."
+                                        placeholder={t('templates.searchPlaceholder')}
                                         className="pl-10 border-0 rounded-lg transition-all duration-200"
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
@@ -163,7 +165,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
 
                             <div style={{ flex: '0 1 150px' }}>
                                 <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
-                                    Estado
+                                    {t('common.status')}
                                 </label>
                                 <select
                                     value={statusFilter}
@@ -177,15 +179,15 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                         padding: '0 var(--space-base)',
                                     }}
                                 >
-                                    <option value="all">Todas</option>
-                                    <option value="active">Activas</option>
-                                    <option value="inactive">Inactivas</option>
+                                    <option value="all">{t('common.all')}</option>
+                                    <option value="active">{t('common.active')}</option>
+                                    <option value="inactive">{t('common.inactive')}</option>
                                 </select>
                             </div>
 
                             <div style={{ flex: '0 1 150px' }}>
                                 <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
-                                    Tipo
+                                    {t('templates.type')}
                                 </label>
                                 <select
                                     value={typeFilter}
@@ -199,10 +201,10 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                         padding: '0 var(--space-base)',
                                     }}
                                 >
-                                    <option value="all">Todos</option>
-                                    <option value="text">Texto</option>
-                                    <option value="image">Imagen</option>
-                                    <option value="document">Documento</option>
+                                    <option value="all">{t('common.all')}</option>
+                                    <option value="text">{t('templates.types.text')}</option>
+                                    <option value="image">{t('templates.types.image')}</option>
+                                    <option value="document">{t('templates.types.document')}</option>
                                 </select>
                             </div>
 
@@ -218,7 +220,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                     fontSize: 'var(--text-sm)',
                                 }}
                             >
-                                Filtrar
+                                {t('common.filter')}
                             </Button>
                         </div>
                     </div>
@@ -271,13 +273,13 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                     }}
                                 >
                                     <div>
-                                        <p className="text-gray-500" style={{ fontSize: 'var(--text-xs)' }}>Envíos</p>
+                                        <p className="text-gray-500" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.stats.sends')}</p>
                                         <p className="font-bold" style={{ fontSize: 'var(--text-base)', color: 'var(--primary-base)' }}>
                                             {template.usage_stats.total_sends}
                                         </p>
                                     </div>
                                     <div>
-                                        <p className="text-gray-500" style={{ fontSize: 'var(--text-xs)' }}>Destinatarios</p>
+                                        <p className="text-gray-500" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.stats.recipients')}</p>
                                         <p className="font-bold" style={{ fontSize: 'var(--text-base)', color: 'var(--primary-base)' }}>
                                             {template.usage_stats.total_recipients}
                                         </p>
@@ -309,7 +311,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                             </div>
                                         )}
                                         <span style={{ fontSize: 'var(--text-xs)', color: template.is_active ? 'green' : 'gray' }}>
-                                            {template.is_active ? 'Activa' : 'Inactiva'}
+                                            {template.is_active ? t('templates.statusLabels.active') : t('templates.statusLabels.inactive')}
                                         </span>
                                     </div>
 
@@ -361,19 +363,19 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                         <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
                             <MessageSquare className="w-16 h-16 mx-auto mb-4 text-gray-400" />
                             <h3 className="font-bold mb-2" style={{ fontSize: 'var(--text-xl)', color: 'var(--primary-base)' }}>
-                                No hay plantillas
+                                {t('templates.noTemplates')}
                             </h3>
                             <p className="text-gray-600 mb-6" style={{ fontSize: 'var(--text-sm)' }}>
                                 {isAdmin 
-                                    ? 'Crea tu primera plantilla para empezar a enviar mensajes masivos'
-                                    : 'No hay plantillas disponibles en este momento'
+                                    ? t('templates.noTemplatesSubtitle')
+                                    : t('templates.noTemplatesViewer')
                                 }
                             </p>
                             {isAdmin && (
                                 <Link href="/admin/templates/create">
                                     <Button style={{ backgroundColor: 'var(--primary-base)', color: 'white' }}>
                                         <Plus className="w-4 h-4 mr-2" />
-                                        Nueva Plantilla
+                                        {t('templates.newTemplate')}
                                     </Button>
                                 </Link>
                             )}
