@@ -29,6 +29,14 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { useTranslation } from 'react-i18next';
 
 interface Message {
@@ -89,6 +97,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [contextMenu, setContextMenu] = useState<{ conversationId: number; x: number; y: number } | null>(null);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     
@@ -328,11 +337,15 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
     const handleHideChat = () => {
         if (!selectedConversation) return;
-        if (confirm(t('conversations.deleteConfirm'))) {
-            router.delete(`/admin/chat/${selectedConversation.id}/hide`, {
-                preserveScroll: false,
-            });
-        }
+        setShowDeleteDialog(true);
+    };
+
+    const confirmHideChat = () => {
+        if (!selectedConversation) return;
+        setShowDeleteDialog(false);
+        router.delete(`/admin/chat/${selectedConversation.id}/hide`, {
+            preserveScroll: false,
+        });
     };
 
     const handleCloseChat = () => {
@@ -865,6 +878,51 @@ export default function ConversationsIndex({ conversations, selectedConversation
                     </div>
                 )}
             </div>
+
+            {/* Dialog de confirmación de eliminación */}
+            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <DialogContent className="sm:max-w-md bg-gradient-to-b from-white to-[#fafbfc] border-2 border-[#e0e4f0]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-[#2e3f84] flex items-center gap-2">
+                            <X className="w-6 h-6 text-red-500" />
+                            Eliminar conversación
+                        </DialogTitle>
+                        <div className="text-[#6b7494] space-y-3 pt-4">
+                            <DialogDescription className="text-sm leading-relaxed">
+                                Esta acción <strong>eliminará temporalmente la conversación de tu vista</strong>, pero no te preocupes:
+                            </DialogDescription>
+                            <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded-r space-y-1">
+                                <div className="text-sm text-blue-900">
+                                    ✓ <strong>Todos los mensajes se conservarán</strong>
+                                </div>
+                                <div className="text-sm text-blue-900">
+                                    ✓ <strong>Si el cliente vuelve a escribir</strong>, la conversación reaparecerá automáticamente con todo el historial
+                                </div>
+                            </div>
+                            <div className="text-xs text-gray-500 italic">
+                                Es temporal. La conversación volverá cuando el cliente te escriba de nuevo.
+                            </div>
+                        </div>
+                    </DialogHeader>
+                    <DialogFooter className="gap-3 sm:gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowDeleteDialog(false)}
+                            className="border-[#d0d5e8] hover:bg-gray-100"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={confirmHideChat}
+                            className="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-[0_2px_4px_rgba(239,68,68,0.3)]"
+                        >
+                            Sí, eliminar conversación
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AdminLayout>
     );
 }
