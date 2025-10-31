@@ -115,13 +115,24 @@ class WhatsAppService
                 ];
             }
 
+            Log::error('WhatsApp API error sending image', [
+                'status' => $response->status(),
+                'response' => $response->json(),
+                'url' => $imageUrl,
+                'to' => $to,
+            ]);
+
             return [
                 'success' => false,
                 'error' => $response->json()['error']['message'] ?? 'Error desconocido',
             ];
 
         } catch (\Exception $e) {
-            Log::error('WhatsApp send image exception', ['error' => $e->getMessage()]);
+            Log::error('WhatsApp send image exception', [
+                'error' => $e->getMessage(),
+                'url' => $imageUrl,
+                'to' => $to,
+            ]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -129,7 +140,121 @@ class WhatsAppService
     /**
      * Enviar mensaje con documento
      */
-    public function sendDocumentMessage(string $to, string $documentUrl, string $filename): array
+    public function sendDocumentMessage(string $to, string $documentUrl, string $filename, ?string $caption = null): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'document',
+                'document' => [
+                    'link' => $documentUrl,
+                    'filename' => $filename,
+                ],
+            ];
+
+            // Agregar caption si existe
+            if ($caption) {
+                $payload['document']['caption'] = $caption;
+            }
+
+            $response = Http::withToken($this->token)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'message_id' => $response->json()['messages'][0]['id'] ?? null,
+                ];
+            }
+
+            Log::error('WhatsApp API error sending document', [
+                'status' => $response->status(),
+                'response' => $response->json(),
+                'url' => $documentUrl,
+                'filename' => $filename,
+                'to' => $to,
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $response->json()['error']['message'] ?? 'Error desconocido',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp send document exception', [
+                'error' => $e->getMessage(),
+                'url' => $documentUrl,
+                'filename' => $filename,
+                'to' => $to,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Enviar mensaje con video
+     */
+    public function sendVideoMessage(string $to, string $videoUrl, ?string $caption = null): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'video',
+                'video' => [
+                    'link' => $videoUrl,
+                ],
+            ];
+
+            if ($caption) {
+                $payload['video']['caption'] = $caption;
+            }
+
+            $response = Http::withToken($this->token)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'message_id' => $response->json()['messages'][0]['id'] ?? null,
+                ];
+            }
+
+            Log::error('WhatsApp API error sending video', [
+                'status' => $response->status(),
+                'response' => $response->json(),
+                'url' => $videoUrl,
+                'to' => $to,
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $response->json()['error']['message'] ?? 'Error desconocido',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp send video exception', [
+                'error' => $e->getMessage(),
+                'url' => $videoUrl,
+                'to' => $to,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Enviar mensaje con audio
+     */
+    public function sendAudioMessage(string $to, string $audioUrl): array
     {
         if (!$this->isConfigured()) {
             return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
@@ -140,10 +265,9 @@ class WhatsAppService
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
                     'messaging_product' => 'whatsapp',
                     'to' => $this->formatPhoneNumber($to),
-                    'type' => 'document',
-                    'document' => [
-                        'link' => $documentUrl,
-                        'filename' => $filename,
+                    'type' => 'audio',
+                    'audio' => [
+                        'link' => $audioUrl,
                     ],
                 ]);
 
@@ -154,13 +278,24 @@ class WhatsAppService
                 ];
             }
 
+            Log::error('WhatsApp API error sending audio', [
+                'status' => $response->status(),
+                'response' => $response->json(),
+                'url' => $audioUrl,
+                'to' => $to,
+            ]);
+
             return [
                 'success' => false,
                 'error' => $response->json()['error']['message'] ?? 'Error desconocido',
             ];
 
         } catch (\Exception $e) {
-            Log::error('WhatsApp send document exception', ['error' => $e->getMessage()]);
+            Log::error('WhatsApp send audio exception', [
+                'error' => $e->getMessage(),
+                'url' => $audioUrl,
+                'to' => $to,
+            ]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -187,6 +322,67 @@ class WhatsAppService
         } catch (\Exception $e) {
             Log::error('WhatsApp mark as read exception', ['error' => $e->getMessage()]);
             return false;
+        }
+    }
+
+    /**
+     * Descargar media desde WhatsApp API usando media ID
+     */
+    public function downloadMedia(string $mediaId): ?string
+    {
+        try {
+            // Paso 1: Obtener URL del media
+            $response = Http::withToken($this->token)
+                ->get("{$this->apiUrl}/{$mediaId}");
+
+            if (!$response->successful()) {
+                Log::error('Failed to get media URL', [
+                    'media_id' => $mediaId,
+                    'response' => $response->json(),
+                ]);
+                return null;
+            }
+
+            $mediaUrl = $response->json()['url'] ?? null;
+            
+            if (!$mediaUrl) {
+                Log::error('Media URL not found in response', ['response' => $response->json()]);
+                return null;
+            }
+
+            // Paso 2: Descargar el archivo
+            $fileResponse = Http::withToken($this->token)
+                ->timeout(30)
+                ->get($mediaUrl);
+
+            if (!$fileResponse->successful()) {
+                Log::error('Failed to download media file', ['url' => $mediaUrl]);
+                return null;
+            }
+
+            // Paso 3: Guardar archivo en storage
+            $mimeType = $fileResponse->header('Content-Type');
+            $extension = explode('/', $mimeType)[1] ?? 'jpg';
+            $filename = 'whatsapp_media/' . uniqid() . '.' . $extension;
+            
+            \Storage::disk('public')->put($filename, $fileResponse->body());
+
+            // Usar ruta relativa para compatibilidad con IP local y ngrok
+            $localUrl = '/storage/' . $filename;
+            
+            Log::info('Media downloaded successfully', [
+                'media_id' => $mediaId,
+                'local_url' => $localUrl,
+            ]);
+
+            return $localUrl;
+
+        } catch (\Exception $e) {
+            Log::error('Download media exception', [
+                'media_id' => $mediaId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
         }
     }
 
@@ -253,15 +449,67 @@ class WhatsAppService
             } elseif (isset($messageData['image'])) {
                 $content = $messageData['image']['caption'] ?? 'Imagen';
                 $messageType = 'image';
-                $mediaUrl = $messageData['image']['id'] ?? null;
+                $mediaId = $messageData['image']['id'] ?? null;
+                
+                // Descargar la imagen desde WhatsApp
+                if ($mediaId) {
+                    $mediaUrl = $this->downloadMedia($mediaId);
+                }
+            } elseif (isset($messageData['video'])) {
+                $content = $messageData['video']['caption'] ?? 'Video';
+                $messageType = 'video';
+                $mediaId = $messageData['video']['id'] ?? null;
+                
+                // Descargar el video desde WhatsApp
+                if ($mediaId) {
+                    $mediaUrl = $this->downloadMedia($mediaId);
+                }
             } elseif (isset($messageData['document'])) {
                 $content = $messageData['document']['filename'] ?? 'Documento';
                 $messageType = 'document';
-                $mediaUrl = $messageData['document']['id'] ?? null;
+                $mediaId = $messageData['document']['id'] ?? null;
+                
+                // Descargar el documento desde WhatsApp
+                if ($mediaId) {
+                    $mediaUrl = $this->downloadMedia($mediaId);
+                }
             } elseif (isset($messageData['audio'])) {
                 $content = 'Audio';
                 $messageType = 'audio';
-                $mediaUrl = $messageData['audio']['id'] ?? null;
+                $mediaId = $messageData['audio']['id'] ?? null;
+                
+                // Descargar el audio desde WhatsApp
+                if ($mediaId) {
+                    $mediaUrl = $this->downloadMedia($mediaId);
+                }
+            } elseif (isset($messageData['sticker'])) {
+                $content = 'Sticker';
+                $messageType = 'sticker';
+                $mediaId = $messageData['sticker']['id'] ?? null;
+                
+                // Descargar el sticker desde WhatsApp
+                if ($mediaId) {
+                    $mediaUrl = $this->downloadMedia($mediaId);
+                }
+            } elseif (isset($messageData['location'])) {
+                $latitude = $messageData['location']['latitude'] ?? '';
+                $longitude = $messageData['location']['longitude'] ?? '';
+                $name = $messageData['location']['name'] ?? '';
+                $address = $messageData['location']['address'] ?? '';
+                
+                $content = $name ?: 'Ubicación';
+                if ($address) {
+                    $content .= "\n" . $address;
+                }
+                $messageType = 'location';
+                $mediaUrl = "https://www.google.com/maps?q={$latitude},{$longitude}";
+            } elseif (isset($messageData['contacts'])) {
+                $contacts = $messageData['contacts'] ?? [];
+                $contactNames = array_map(function($contact) {
+                    return $contact['name']['formatted_name'] ?? 'Contacto';
+                }, $contacts);
+                $content = 'Contacto: ' . implode(', ', $contactNames);
+                $messageType = 'contact';
             }
 
             // Crear mensaje

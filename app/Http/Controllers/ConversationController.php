@@ -125,15 +125,56 @@ class ConversationController extends Controller
      */
     public function sendMessage(Request $request, Conversation $conversation, WhatsAppService $whatsappService)
     {
+        // Aumentar límites de PHP para uploads grandes
+        @ini_set('upload_max_filesize', '20M');
+        @ini_set('post_max_size', '25M');
+        @ini_set('max_execution_time', '300');
+        
         $validated = $request->validate([
-            'content' => 'required|string',
-            'message_type' => 'string|in:text,image,document,audio,video',
+            'content' => 'nullable|string',
+            'message_type' => 'string|in:text,image,document,video,audio',
+            'media_file' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,mp4,mov,avi,mkv,3gp,mp3,ogg,aac,amr,opus|max:20480', // max 20MB
         ]);
+
+        // Si hay archivo, subirlo
+        $mediaUrl = null;
+        $mediaFilename = null;
+        $messageType = $validated['message_type'] ?? 'text';
+        
+        if ($request->hasFile('media_file')) {
+            $file = $request->file('media_file');
+            $path = $file->store('whatsapp_media', 'public');
+            // Usar ruta relativa para compatibilidad local/ngrok
+            $mediaUrl = '/storage/' . $path;
+            $mediaFilename = $file->getClientOriginalName();
+            
+            // Determinar tipo de mensaje basado en la extensión
+            $extension = strtolower($file->getClientOriginalExtension());
+            if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                $messageType = 'image';
+            } elseif (in_array($extension, ['mp4', 'mov', 'avi', 'mkv', '3gp'])) {
+                $messageType = 'video';
+            } elseif (in_array($extension, ['mp3', 'ogg', 'aac', 'amr', 'opus'])) {
+                $messageType = 'audio';
+            } else {
+                $messageType = 'document';
+            }
+            
+            \Log::info('File uploaded for WhatsApp', [
+                'filename' => $mediaFilename,
+                'type' => $messageType,
+                'url' => $mediaUrl,
+                'size' => $file->getSize(),
+                'mime' => $file->getMimeType(),
+            ]);
+        }
 
         // Crear el mensaje en la base de datos
         $message = $conversation->messages()->create([
-            'content' => $validated['content'],
-            'message_type' => $validated['message_type'] ?? 'text',
+            'content' => $validated['content'] ?? ($mediaFilename ?? 'Media file'),
+            'message_type' => $messageType,
+            'media_url' => $mediaUrl,
+            'media_filename' => $mediaFilename,
             'is_from_user' => false,
             'sent_by' => auth()->id(),
             'status' => 'pending',
@@ -146,20 +187,59 @@ class ConversationController extends Controller
 
         // Enviar mensaje usando WhatsApp Business API
         if ($whatsappService->isConfigured()) {
-            $result = $whatsappService->sendTextMessage(
-                $conversation->phone_number,
-                $validated['content']
-            );
+            $result = null;
+            
+            // Convertir URL relativa a absoluta usando APP_URL (funciona con ngrok)
+            $absoluteMediaUrl = $mediaUrl ? config('app.url') . $mediaUrl : null;
+            
+            if ($absoluteMediaUrl) {
+                \Log::info('Sending media to WhatsApp', [
+                    'type' => $messageType,
+                    'absolute_url' => $absoluteMediaUrl,
+                    'app_url' => config('app.url'),
+                ]);
+            }
+            
+            if ($messageType === 'image' && $absoluteMediaUrl) {
+                $result = $whatsappService->sendImageMessage(
+                    $conversation->phone_number,
+                    $absoluteMediaUrl,
+                    $validated['content']
+                );
+            } elseif ($messageType === 'video' && $absoluteMediaUrl) {
+                $result = $whatsappService->sendVideoMessage(
+                    $conversation->phone_number,
+                    $absoluteMediaUrl,
+                    $validated['content'] ?? null
+                );
+            } elseif ($messageType === 'audio' && $absoluteMediaUrl) {
+                $result = $whatsappService->sendAudioMessage(
+                    $conversation->phone_number,
+                    $absoluteMediaUrl
+                );
+            } elseif ($messageType === 'document' && $absoluteMediaUrl) {
+                $result = $whatsappService->sendDocumentMessage(
+                    $conversation->phone_number,
+                    $absoluteMediaUrl,
+                    $mediaFilename,
+                    $validated['content'] ?? null
+                );
+            } else {
+                $result = $whatsappService->sendTextMessage(
+                    $conversation->phone_number,
+                    $validated['content']
+                );
+            }
 
-            if ($result['success']) {
+            if ($result && $result['success']) {
                 $message->update([
                     'status' => 'sent',
-                    'whatsapp_message_id' => $result['message_id'],
+                    'whatsapp_message_id' => $result['message_id'] ?? null,
                 ]);
             } else {
                 $message->update([
                     'status' => 'failed',
-                    'error_message' => $result['error'],
+                    'error_message' => $result['error'] ?? 'Unknown error',
                 ]);
             }
         } else {

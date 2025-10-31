@@ -24,9 +24,20 @@ interface SettingsIndexProps {
     settings: Settings;
 }
 
+interface BusinessProfile {
+    business_name: string;
+    phone_number: string;
+    phone_number_id: string;
+    verified: boolean;
+    quality_rating: string;
+    messaging_limit: string;
+}
+
 export default function SettingsIndex({ settings }: SettingsIndexProps) {
     const { t } = useTranslation();
     const [testingConnection, setTestingConnection] = useState(false);
+    const [loadingProfile, setLoadingProfile] = useState(false);
+    const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<{
         type: 'success' | 'error' | null;
         message: string;
@@ -76,6 +87,37 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
             });
         } finally {
             setTestingConnection(false);
+        }
+    };
+
+    const getBusinessProfile = async () => {
+        setLoadingProfile(true);
+
+        try {
+            const response = await fetch('/admin/settings/business-profile', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                setBusinessProfile(data.profile);
+            } else {
+                setConnectionStatus({
+                    type: 'error',
+                    message: data.message || 'Unable to fetch business profile',
+                });
+            }
+        } catch (error) {
+            setConnectionStatus({
+                type: 'error',
+                message: 'Error fetching business profile',
+            });
+        } finally {
+            setLoadingProfile(false);
         }
     };
 
@@ -211,24 +253,78 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                     </Button>
 
                                     {settings.whatsapp.is_configured && (
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={testConnection}
-                                            disabled={testingConnection}
-                                            className="w-full sm:flex-1 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.1),0_4px_8px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(46,63,132,0.1)] active:translate-y-0 transition-all duration-200 text-sm"
-                                        >
-                                            {testingConnection ? (
-                                                <>
-                                                    <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-2 animate-spin" />
-                                                    {t('settings.whatsapp.testing')}
-                                                </>
-                                            ) : (
-                                                t('settings.whatsapp.testConnection')
-                                            )}
-                                        </Button>
+                                        <>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={testConnection}
+                                                disabled={testingConnection}
+                                                className="w-full sm:flex-1 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.1),0_4px_8px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(46,63,132,0.1)] active:translate-y-0 transition-all duration-200 text-sm"
+                                            >
+                                                {testingConnection ? (
+                                                    <>
+                                                        <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-2 animate-spin" />
+                                                        {t('settings.whatsapp.testing')}
+                                                    </>
+                                                ) : (
+                                                    t('settings.whatsapp.testConnection')
+                                                )}
+                                            </Button>
+
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={getBusinessProfile}
+                                                disabled={loadingProfile}
+                                                className="w-full sm:flex-1 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.1),0_4px_8px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(46,63,132,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                            >
+                                                {loadingProfile ? (
+                                                    <>
+                                                        <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-2 animate-spin" />
+                                                        Loading...
+                                                    </>
+                                                ) : (
+                                                    'Get Business Profile'
+                                                )}
+                                            </Button>
+                                        </>
                                     )}
                                 </div>
+
+                                {/* Business Profile Info */}
+                                {businessProfile && (
+                                    <div className="mt-4 p-4 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-xl shadow-[0_1px_2px_rgba(46,63,132,0.1),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] md:col-span-2">
+                                        <h3 className="text-sm font-semibold text-[#2e3f84] mb-3">WhatsApp Business Profile</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                            <div>
+                                                <span className="text-[#6b7494] font-medium">Business Name:</span>
+                                                <p className="text-[#2e3f84] font-semibold">{businessProfile.business_name}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[#6b7494] font-medium">Phone Number:</span>
+                                                <p className="text-[#2e3f84] font-semibold">{businessProfile.phone_number}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[#6b7494] font-medium">Phone Number ID:</span>
+                                                <p className="text-[#2e3f84] font-semibold font-mono">{businessProfile.phone_number_id}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[#6b7494] font-medium">Verified:</span>
+                                                <p className={`font-semibold ${businessProfile.verified ? 'text-green-600' : 'text-orange-600'}`}>
+                                                    {businessProfile.verified ? '✓ Verified' : 'Not Verified'}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[#6b7494] font-medium">Quality Rating:</span>
+                                                <p className="text-[#2e3f84] font-semibold">{businessProfile.quality_rating}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[#6b7494] font-medium">Messaging Limit:</span>
+                                                <p className="text-[#2e3f84] font-semibold">{businessProfile.messaging_limit}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </form>
                         </div>
                     </div>

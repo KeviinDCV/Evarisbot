@@ -92,6 +92,57 @@ class SettingsController extends Controller
     }
 
     /**
+     * Obtener información del perfil de WhatsApp Business
+     */
+    public function getBusinessProfile()
+    {
+        $token = Setting::get('whatsapp_token');
+        $phoneId = Setting::get('whatsapp_phone_id');
+
+        if (empty($token) || empty($phoneId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'WhatsApp API not configured.',
+            ], 400);
+        }
+
+        try {
+            $response = Http::withToken($token)
+                ->timeout(10)
+                ->get("https://graph.facebook.com/v18.0/{$phoneId}", [
+                    'fields' => 'id,verified_name,code_verification_status,display_phone_number,quality_rating,messaging_limit_tier'
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return response()->json([
+                    'success' => true,
+                    'profile' => [
+                        'business_name' => $data['verified_name'] ?? 'N/A',
+                        'phone_number' => $data['display_phone_number'] ?? 'N/A',
+                        'phone_number_id' => $data['id'] ?? 'N/A',
+                        'verified' => ($data['code_verification_status'] ?? 'NOT_VERIFIED') === 'VERIFIED',
+                        'quality_rating' => $data['quality_rating'] ?? 'UNKNOWN',
+                        'messaging_limit' => $data['messaging_limit_tier'] ?? 'TIER_NOT_SET',
+                    ],
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to fetch business profile.',
+            ], 400);
+
+        } catch (\Exception $e) {
+            Log::error('Get business profile error', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Probar la conexión con WhatsApp
      */
     public function testWhatsAppConnection()

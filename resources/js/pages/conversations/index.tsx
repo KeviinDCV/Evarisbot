@@ -15,7 +15,11 @@ import {
     X,
     PanelLeftClose,
     PanelLeftOpen,
-    Clock
+    Clock,
+    MapPin,
+    User,
+    FileAudio,
+    Smile
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import {
@@ -31,6 +35,7 @@ interface Message {
     id: number;
     content: string;
     message_type: string;
+    media_url?: string | null;
     is_from_user: boolean;
     status: string;
     created_at: string;
@@ -82,10 +87,13 @@ export default function ConversationsIndex({ conversations, selectedConversation
     const [search, setSearch] = useState(filters.search || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     
     const { data, setData, post, reset, processing } = useForm({
         content: '',
+        media_file: null as File | null,
     });
 
     // Scroll automático al final cuando hay nuevos mensajes
@@ -221,15 +229,50 @@ export default function ConversationsIndex({ conversations, selectedConversation
         }
     };
 
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+            setData('media_file', file);
+        }
+    };
+
+    const handleRemoveFile = () => {
+        setSelectedFile(null);
+        setData('media_file', null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
-        if (!data.content.trim() || !selectedConversation) return;
+        
+        console.log('Submit attempt:', { 
+            content: data.content, 
+            selectedFile, 
+            selectedConversation: selectedConversation?.id 
+        });
+        
+        const hasContent = data.content && data.content.trim().length > 0;
+        const hasFile = selectedFile !== null;
+        
+        if ((!hasContent && !hasFile) || !selectedConversation) {
+            console.log('Validation failed:', { hasContent, hasFile, hasConversation: !!selectedConversation });
+            return;
+        }
 
+        console.log('Sending message...');
         setIsSubmitting(true);
         post(`/admin/chat/${selectedConversation.id}/send`, {
             preserveScroll: true,
+            forceFormData: true,
             onSuccess: () => {
                 reset();
+                setSelectedFile(null);
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
                 setIsSubmitting(false);
             },
             onError: () => {
@@ -536,9 +579,96 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                                 )}
                                                 
                                                 {/* Contenido del mensaje */}
-                                                <p className="text-sm whitespace-pre-wrap break-words">
-                                                    {message.content}
-                                                </p>
+                                                {message.message_type === 'image' && message.media_url ? (
+                                                    <div className="space-y-2">
+                                                        <img 
+                                                            src={message.media_url} 
+                                                            alt={message.content}
+                                                            className="max-w-full max-h-96 rounded-lg object-cover"
+                                                            loading="lazy"
+                                                        />
+                                                        {message.content && message.content !== 'Imagen' && (
+                                                            <p className="text-sm whitespace-pre-wrap break-words">
+                                                                {message.content}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ) : message.message_type === 'video' && message.media_url ? (
+                                                    <div className="space-y-2">
+                                                        <video 
+                                                            src={message.media_url}
+                                                            controls
+                                                            className="max-w-full max-h-96 rounded-lg"
+                                                            preload="metadata"
+                                                        >
+                                                            Your browser does not support video playback.
+                                                        </video>
+                                                        {message.content && message.content !== 'Video' && (
+                                                            <p className="text-sm whitespace-pre-wrap break-words">
+                                                                {message.content}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ) : message.message_type === 'audio' && message.media_url ? (
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <FileAudio className="w-5 h-5" />
+                                                            <audio 
+                                                                src={message.media_url}
+                                                                controls
+                                                                className="max-w-full"
+                                                                preload="metadata"
+                                                            >
+                                                                Your browser does not support audio playback.
+                                                            </audio>
+                                                        </div>
+                                                    </div>
+                                                ) : message.message_type === 'sticker' && message.media_url ? (
+                                                    <div className="space-y-2">
+                                                        <img 
+                                                            src={message.media_url} 
+                                                            alt="Sticker"
+                                                            className="w-32 h-32 object-contain"
+                                                            loading="lazy"
+                                                        />
+                                                    </div>
+                                                ) : message.message_type === 'document' && message.media_url ? (
+                                                    <div className="space-y-2">
+                                                        <a 
+                                                            href={message.media_url} 
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-2 text-sm hover:underline"
+                                                        >
+                                                            <Paperclip className="w-4 h-4" />
+                                                            {message.content}
+                                                        </a>
+                                                    </div>
+                                                ) : message.message_type === 'location' && message.media_url ? (
+                                                    <div className="space-y-2">
+                                                        <a 
+                                                            href={message.media_url} 
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex items-center gap-2 text-sm hover:underline"
+                                                        >
+                                                            <MapPin className="w-5 h-5" />
+                                                            <div>
+                                                                <p className="font-semibold">Location</p>
+                                                                <p className="text-xs opacity-80 whitespace-pre-wrap">{message.content}</p>
+                                                            </div>
+                                                        </a>
+                                                    </div>
+                                                ) : message.message_type === 'contact' ? (
+                                                    <div className="flex items-start gap-2 text-sm">
+                                                        <User className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                                        <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm whitespace-pre-wrap break-words">
+                                                        {message.content}
+                                                    </p>
+                                                )}
 
                                                 {/* Hora y Estado */}
                                                 <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${
@@ -570,16 +700,42 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
                         {/* Área de Entrada de Mensaje */}
                         <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-[#f0f2f8]">
+                            {/* Preview del archivo seleccionado */}
+                            {selectedFile && (
+                                <div className="mb-2 flex items-center gap-2 p-2 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-lg">
+                                    <Paperclip className="w-4 h-4 text-[#2e3f84]" />
+                                    <span className="text-sm text-[#2e3f84] flex-1 truncate">{selectedFile.name}</span>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleRemoveFile}
+                                        className="h-6 w-6 p-0 hover:bg-red-100"
+                                    >
+                                        <X className="w-4 h-4 text-red-600" />
+                                    </Button>
+                                </div>
+                            )}
+                            
                             <div className="flex items-end gap-2 md:gap-3">
-                                {/* Botón de adjuntar (futuro) - oculto en mobile */}
+                                {/* Input de archivo oculto */}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
+                                />
+                                
+                                {/* Botón de adjuntar */}
                                 <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    className="hidden md:flex hover:bg-gray-100"
-                                    disabled
+                                    className="flex hover:bg-gray-100"
+                                    onClick={() => fileInputRef.current?.click()}
                                 >
-                                    <Paperclip className="w-5 h-5 text-gray-400" />
+                                    <Paperclip className="w-5 h-5 text-[#2e3f84]" />
                                 </Button>
 
                                 {/* Campo de texto */}
@@ -599,8 +755,8 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                 {/* Botón de enviar */}
                                 <Button
                                     type="submit"
-                                    disabled={!data.content.trim() || processing || isSubmitting}
-                                    className="bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white px-4 md:px-6 shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-200"
+                                    disabled={(!(data.content?.trim()) && !selectedFile) || processing || isSubmitting}
+                                    className="bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white px-4 md:px-6 shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <Send className="w-5 h-5" />
                                 </Button>
