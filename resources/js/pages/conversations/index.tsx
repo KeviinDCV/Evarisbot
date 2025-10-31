@@ -135,21 +135,36 @@ export default function ConversationsIndex({ conversations, selectedConversation
         }
     }, [contextMenu]);
 
-    // Polling para actualización automática (compatible con cPanel)
+    // Polling para actualizar la lista de conversaciones (siempre activo)
     useEffect(() => {
-        // Solo hacer polling si hay una conversación seleccionada
-        if (!selectedConversation) return;
-
-        // Consultar cada 3 segundos si hay mensajes nuevos
-        const interval = setInterval(() => {
+        // Actualizar lista de conversaciones cada 3 segundos
+        const conversationsInterval = setInterval(() => {
             router.reload({ 
-                only: ['conversations', 'selectedConversation'],
+                only: ['conversations'],
             });
         }, 3000); // 3 segundos
 
         // Cleanup: detener polling al desmontar
         return () => {
-            clearInterval(interval);
+            clearInterval(conversationsInterval);
+        };
+    }, []);
+
+    // Polling para actualización de mensajes en conversación seleccionada
+    useEffect(() => {
+        // Solo hacer polling si hay una conversación seleccionada
+        if (!selectedConversation) return;
+
+        // Consultar cada 3 segundos si hay mensajes nuevos en la conversación actual
+        const messagesInterval = setInterval(() => {
+            router.reload({ 
+                only: ['selectedConversation'],
+            });
+        }, 3000); // 3 segundos
+
+        // Cleanup: detener polling al desmontar
+        return () => {
+            clearInterval(messagesInterval);
         };
     }, [selectedConversation?.id]);
 
