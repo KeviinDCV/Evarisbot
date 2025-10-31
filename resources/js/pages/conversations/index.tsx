@@ -88,6 +88,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ conversationId: number; x: number; y: number } | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     
@@ -114,6 +115,16 @@ export default function ConversationsIndex({ conversations, selectedConversation
         window.addEventListener('keydown', handleEscape);
         return () => window.removeEventListener('keydown', handleEscape);
     }, [selectedConversation]);
+
+    // Cerrar menú contextual al hacer click fuera
+    useEffect(() => {
+        const handleClickOutside = () => setContextMenu(null);
+        
+        if (contextMenu) {
+            window.addEventListener('click', handleClickOutside);
+            return () => window.removeEventListener('click', handleClickOutside);
+        }
+    }, [contextMenu]);
 
     // Polling para actualización automática (compatible con cPanel)
     useEffect(() => {
@@ -281,6 +292,12 @@ export default function ConversationsIndex({ conversations, selectedConversation
         });
     };
 
+    const handleContextMenu = (e: React.MouseEvent, conversationId: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({ conversationId, x: e.clientX, y: e.clientY });
+    };
+
     const handleAssign = (userId?: number) => {
         if (!selectedConversation) return;
         router.post(`/admin/chat/${selectedConversation.id}/assign`, { user_id: userId }, {
@@ -288,9 +305,23 @@ export default function ConversationsIndex({ conversations, selectedConversation
         });
     };
 
+    const handleAssignFromContext = (conversationId: number, userId?: number) => {
+        setContextMenu(null);
+        router.post(`/admin/chat/${conversationId}/assign`, { user_id: userId }, {
+            preserveScroll: true,
+        });
+    };
+
     const handleStatusChange = (status: string) => {
         if (!selectedConversation) return;
         router.post(`/admin/chat/${selectedConversation.id}/status`, { status }, {
+            preserveScroll: true,
+        });
+    };
+
+    const handleStatusChangeFromContext = (conversationId: number, status: string) => {
+        setContextMenu(null);
+        router.post(`/admin/chat/${conversationId}/status`, { status }, {
             preserveScroll: true,
         });
     };
@@ -356,6 +387,7 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                 <button
                                     key={conversation.id}
                                     onClick={() => router.get(`/admin/chat/${conversation.id}`, {}, { preserveScroll: true, preserveState: true })}
+                                    onContextMenu={(e) => handleContextMenu(e, conversation.id)}
                                     className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-xl ${
                                         selectedConversation?.id === conversation.id 
                                             ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]' 
@@ -377,9 +409,14 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                     {/* Información */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between mb-1">
-                                            <h3 className="font-semibold text-black truncate">
-                                                {conversation.contact_name || conversation.phone_number}
-                                            </h3>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-black truncate text-sm">
+                                                    {conversation.contact_name || 'Sin nombre'}
+                                                </h3>
+                                                <p className="text-xs text-gray-500 truncate">
+                                                    {conversation.phone_number}
+                                                </p>
+                                            </div>
                                             <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
                                                 {formatTime(conversation.last_message_at)}
                                             </span>
@@ -396,6 +433,66 @@ export default function ConversationsIndex({ conversations, selectedConversation
                             ))
                         )}
                     </div>
+
+                    {/* Menú Contextual */}
+                    {contextMenu && (() => {
+                        const conversation = conversations.find(c => c.id === contextMenu.conversationId);
+                        if (!conversation) return null;
+                        
+                        return (
+                            <div 
+                                className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 min-w-[200px]"
+                                style={{ 
+                                    top: `${contextMenu.y}px`, 
+                                    left: `${contextMenu.x}px` 
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Asignar conversación - Solo Admin */}
+                                {isAdmin && (
+                                    <>
+                                        <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
+                                            {t('conversations.assignConversation')}
+                                        </div>
+                                        {users.map((user) => (
+                                            <button
+                                                key={user.id}
+                                                onClick={() => handleAssignFromContext(conversation.id, user.id)}
+                                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between"
+                                            >
+                                                <span className={conversation.assigned_to === user.id ? 'font-bold text-[#2e3f84]' : ''}>
+                                                    {user.name} {user.role === 'admin' ? t('users.roleAdmin') : t('users.roleAdvisor')}
+                                                </span>
+                                                {conversation.assigned_to === user.id && (
+                                                    <Check className="w-4 h-4 text-[#2e3f84]" />
+                                                )}
+                                            </button>
+                                        ))}
+                                        <div className="border-t border-gray-200 my-1"></div>
+                                    </>
+                                )}
+                                
+                                {/* Marcar como resuelta / Reabrir */}
+                                {conversation.status === 'resolved' ? (
+                                    <button
+                                        onClick={() => handleStatusChangeFromContext(conversation.id, 'active')}
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 text-blue-600 flex items-center gap-2"
+                                    >
+                                        <Check className="w-4 h-4" />
+                                        {t('conversations.reopenConversation')}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => handleStatusChangeFromContext(conversation.id, 'resolved')}
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 text-green-600 flex items-center gap-2"
+                                    >
+                                        <CheckCheck className="w-4 h-4" />
+                                        {t('conversations.markAsResolved')}
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 {/* Área de Chat - Derecha */}
@@ -445,9 +542,9 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <h2 className="font-semibold text-black text-sm md:text-base truncate">
-                                            {selectedConversation.contact_name || t('conversations.noName')}
+                                            {selectedConversation.contact_name || 'Sin nombre'}
                                         </h2>
-                                        <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
+                                        <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600">
                                             <Phone className="w-3 h-3" />
                                             <span>{selectedConversation.phone_number}</span>
                                         </div>

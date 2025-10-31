@@ -72,8 +72,9 @@ class WhatsAppWebhookController extends Controller
 
                     // Procesar mensajes entrantes
                     if (isset($value['messages'])) {
+                        $contacts = $value['contacts'] ?? [];
                         foreach ($value['messages'] as $message) {
-                            $this->whatsappService->processIncomingMessage($message);
+                            $this->whatsappService->processIncomingMessage($message, $contacts);
                         }
                     }
 

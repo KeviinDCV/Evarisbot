@@ -405,7 +405,7 @@ class WhatsAppService
     /**
      * Procesar mensaje entrante desde webhook
      */
-    public function processIncomingMessage(array $messageData): ?Message
+    public function processIncomingMessage(array $messageData, array $contacts = []): ?Message
     {
         try {
             $from = $messageData['from'] ?? null;
@@ -424,14 +424,37 @@ class WhatsAppService
                 return $existingMessage;
             }
 
+            // Extraer información del contacto
+            $contactName = null;
+            $profilePictureUrl = null;
+            
+            foreach ($contacts as $contact) {
+                if (isset($contact['wa_id']) && $contact['wa_id'] === $from) {
+                    $contactName = $contact['profile']['name'] ?? null;
+                    break;
+                }
+            }
+
             // Buscar o crear conversación
+            $conversationData = [
+                'status' => 'in_progress',
+                'last_message_at' => now(),
+            ];
+
+            // Agregar nombre del contacto si existe
+            if ($contactName) {
+                $conversationData['contact_name'] = $contactName;
+            }
+
             $conversation = Conversation::firstOrCreate(
                 ['phone_number' => '+' . $from],
-                [
-                    'status' => 'in_progress', // Auto-iniciar como "en progreso"
-                    'last_message_at' => now(),
-                ]
+                $conversationData
             );
+
+            // Actualizar nombre si cambió y no estaba vacío antes
+            if ($contactName && $conversation->contact_name !== $contactName) {
+                $conversation->update(['contact_name' => $contactName]);
+            }
 
             // Si la conversación ya existía y estaba resuelta, reactivarla
             if ($conversation->status === 'resolved') {
