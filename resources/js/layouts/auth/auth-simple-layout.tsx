@@ -1,4 +1,5 @@
 import AppLogoIcon from '@/components/app-logo-icon';
+import { LanguageSelector } from '@/components/language-selector';
 import { type PropsWithChildren } from 'react';
 
 interface AuthLayoutProps {
@@ -13,13 +14,22 @@ export default function AuthSimpleLayout({
     description,
 }: PropsWithChildren<AuthLayoutProps>) {
     return (
-        <div 
-            className="flex min-h-svh flex-col items-center justify-center"
-            style={{ 
+        <div
+            className="flex min-h-svh flex-col items-center justify-center relative"
+            style={{
                 backgroundColor: 'var(--layer-deepest)',
                 padding: 'var(--space-lg)', // Mobile: 24px
             }}
         >
+            {/* Selector de idioma en la esquina superior derecha */}
+            <div
+                className="absolute top-4 right-4 z-10"
+                style={{
+                    width: 'auto',
+                }}
+            >
+                <LanguageSelector />
+            </div>
             {/* Sistema de cajas flexible: contenedor principal */}
             <div 
                 className="w-full"

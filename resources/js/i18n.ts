@@ -23,8 +23,8 @@ i18n
     // Inicializa i18next
     .init({
         resources,
-        fallbackLng: 'es', // Idioma por defecto es español
-        debug: true, // Activar debug temporalmente para ver logs
+        fallbackLng: 'en', // Idioma por defecto cambiado a inglés para video de Meta
+        debug: false, // Debug desactivado para producción
 
         interpolation: {
             escapeValue: false, // React ya escapa por defecto

@@ -144,29 +144,8 @@ class ConversationController extends Controller
             'last_message_at' => now(),
         ]);
 
-        // Intentar enviar con Twilio primero (para demos)
-        $twilioService = app(\App\Services\TwilioService::class);
-        
-        if ($twilioService->isConfigured()) {
-            $success = $twilioService->sendTextMessage(
-                $conversation->phone_number,
-                $validated['content']
-            );
-
-            if ($success) {
-                $message->update([
-                    'status' => 'sent',
-                    'whatsapp_message_id' => 'twilio_' . time(),
-                ]);
-            } else {
-                $message->update([
-                    'status' => 'failed',
-                    'error_message' => 'Error al enviar con Twilio',
-                ]);
-            }
-        } 
-        // Si Twilio no está configurado, usar WhatsApp API
-        elseif ($whatsappService->isConfigured()) {
+        // Enviar mensaje usando WhatsApp Business API
+        if ($whatsappService->isConfigured()) {
             $result = $whatsappService->sendTextMessage(
                 $conversation->phone_number,
                 $validated['content']
@@ -184,9 +163,10 @@ class ConversationController extends Controller
                 ]);
             }
         } else {
-            // Si ninguno está configurado, simular envío exitoso para pruebas
+            // Si WhatsApp API no está configurado, marcar como fallido
             $message->update([
-                'status' => 'sent',
+                'status' => 'failed',
+                'error_message' => 'WhatsApp API not configured. Please configure it in Settings.',
             ]);
         }
 

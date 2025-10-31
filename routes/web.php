@@ -34,21 +34,16 @@ Route::get('/terms-of-service', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
-        // Redirigir según el rol del usuario
-        if (auth()->user()->isAdmin()) {
-            return redirect()->route('admin.users.index');
-        }
-        
-        // Para asesores, redirigir al chat
+        // Redirigir al chat tanto para admins como para asesores
         return redirect()->route('admin.chat.index');
     })->name('dashboard');
 });
 
 // Rutas del Administrador
 Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
-    // Redirigir /admin a /admin/users
+    // Redirigir /admin a /admin/chat
     Route::get('/', function () {
-        return redirect()->route('admin.users.index');
+        return redirect()->route('admin.chat.index');
     });
     
     Route::resource('users', UserController::class);
@@ -89,11 +84,11 @@ Route::controller(\App\Http\Controllers\WhatsAppWebhookController::class)->prefi
     Route::post('/whatsapp', 'handle')->name('webhook.whatsapp.handle');
 });
 
-// Webhook de Twilio (sin autenticación)
-Route::controller(\App\Http\Controllers\TwilioWebhookController::class)->prefix('webhook')->group(function () {
-    Route::post('/twilio', 'handleIncoming')->name('webhook.twilio.incoming');
-    Route::post('/twilio/status', 'handleStatus')->name('webhook.twilio.status');
-});
+// Webhook de Twilio - DESHABILITADO (solo usamos WhatsApp Business API de Meta)
+// Route::controller(\App\Http\Controllers\TwilioWebhookController::class)->prefix('webhook')->group(function () {
+//     Route::post('/twilio', 'handleIncoming')->name('webhook.twilio.incoming');
+//     Route::post('/twilio/status', 'handleStatus')->name('webhook.twilio.status');
+// });
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

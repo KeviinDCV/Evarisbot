@@ -18,7 +18,7 @@ class WhatsAppService
     public function __construct()
     {
         $this->token = Setting::get('whatsapp_token');
-        $this->phoneNumberId = Setting::get('whatsapp_phone_number_id');
+        $this->phoneNumberId = Setting::get('whatsapp_phone_id');
     }
 
     /**

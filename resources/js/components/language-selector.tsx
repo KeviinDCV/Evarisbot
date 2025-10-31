@@ -31,7 +31,6 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
     }, [i18n]);
 
     const changeLanguage = async (lng: string) => {
-        console.log('Cambiando idioma a:', lng);
         await i18n.changeLanguage(lng);
         setCurrentLanguage(lng);
     };
