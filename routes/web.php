@@ -54,6 +54,13 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::get('templates/{template}/send-form', [TemplateController::class, 'sendForm'])->name('templates.send-form');
     Route::post('templates/{template}/send', [TemplateController::class, 'sendMassive'])->name('templates.send');
     
+    // Gestión de Citas
+    Route::controller(\App\Http\Controllers\AppointmentController::class)->prefix('appointments')->name('appointments.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/upload', 'upload')->name('upload');
+        Route::post('/process', 'process')->name('process');
+    });
+    
     // Configuración del sistema
     Route::controller(\App\Http\Controllers\Admin\SettingsController::class)->group(function () {
         Route::get('/settings', 'index')->name('settings.index');

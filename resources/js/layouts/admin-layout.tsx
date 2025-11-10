@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { type PropsWithChildren, type ReactNode, useState } from 'react';
-import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText } from 'lucide-react';
+import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText, Calendar } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,11 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             title: t('navigation.conversations'),
             href: '/admin/chat',
             icon: MessageSquare,
+        },
+        {
+            title: t('navigation.appointments'),
+            href: '/admin/appointments',
+            icon: Calendar,
         },
         {
             title: t('navigation.templates'),
