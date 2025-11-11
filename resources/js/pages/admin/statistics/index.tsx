@@ -75,8 +75,12 @@ const COLORS = {
     info: '#3B82F6',
 };
 
-const StatRow = ({ icon: Icon, label, value }: { icon: any; label: string; value: number }) => (
-    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] transition-colors">
+const StatRow = ({ icon: Icon, label, value, index }: { icon: any; label: string; value: number; index?: number }) => (
+    <div className={`flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors ${
+        index !== undefined && index % 2 === 0 
+            ? 'bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9]' 
+            : 'bg-white'
+    } hover:bg-gradient-to-b hover:from-[#f0f2f8] hover:to-[#e8ebf5]`}>
         <div className="flex items-center gap-2">
             <Icon className="w-3 h-3 text-[#2e3f84]" />
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
@@ -312,19 +316,23 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={Send} label={t('statistics.messages.sent')} value={statistics.messages.sent} />
-                                    <StatRow icon={MessageSquare} label={t('statistics.messages.answered')} value={statistics.messages.answered} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.messages.confirmed')} value={statistics.messages.confirmed} />
-                                    <StatRow icon={XCircle} label={t('statistics.messages.cancelled')} value={statistics.messages.cancelled} />
-                                    <StatRow icon={CalendarIcon} label={t('statistics.messages.rescheduled')} value={statistics.messages.rescheduled} />
+                                    <StatRow icon={Send} label={t('statistics.messages.sent')} value={statistics.messages.sent} index={0} />
+                                    <StatRow icon={MessageSquare} label={t('statistics.messages.answered')} value={statistics.messages.answered} index={1} />
+                                    <StatRow icon={CheckCircle2} label={t('statistics.messages.confirmed')} value={statistics.messages.confirmed} index={2} />
+                                    <StatRow icon={XCircle} label={t('statistics.messages.cancelled')} value={statistics.messages.cancelled} index={3} />
+                                    <StatRow icon={CalendarIcon} label={t('statistics.messages.rescheduled')} value={statistics.messages.rescheduled} index={4} />
                                 </div>
                                 <div className="mt-2 pt-2 border-t border-gray-200">
                                     <h3 className="font-semibold mb-1.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
                                         {t('statistics.messages.byStatus')}
                                     </h3>
                                     <div className="space-y-1">
-                                        {Object.entries(statistics.messages.by_status).map(([status, count]) => (
-                                            <div key={status} className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] transition-colors">
+                                        {Object.entries(statistics.messages.by_status).map(([status, count], index) => (
+                                            <div key={status} className={`flex items-center justify-between py-1 px-2 rounded-lg transition-colors ${
+                                                index % 2 === 0 
+                                                    ? 'bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9]' 
+                                                    : 'bg-white'
+                                            } hover:bg-gradient-to-b hover:from-[#f0f2f8] hover:to-[#e8ebf5]`}>
                                                 <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
                                                     {t(`statistics.messages.statuses.${status}`)}
                                                 </span>
@@ -346,13 +354,13 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={Calendar} label={t('statistics.appointments.total')} value={statistics.appointments.total} />
-                                    <StatRow icon={Send} label={t('statistics.appointments.reminderSent')} value={statistics.appointments.reminder_sent} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.appointments.confirmed')} value={statistics.appointments.confirmed} />
-                                    <StatRow icon={XCircle} label={t('statistics.appointments.cancelled')} value={statistics.appointments.cancelled} />
-                                    <StatRow icon={CalendarIcon} label={t('statistics.appointments.rescheduled')} value={statistics.appointments.rescheduled} />
-                                    <StatRow icon={Clock} label={t('statistics.appointments.pending')} value={statistics.appointments.pending} />
-                                    <StatRow icon={AlertCircle} label={t('statistics.appointments.failed')} value={statistics.appointments.failed} />
+                                    <StatRow icon={Calendar} label={t('statistics.appointments.total')} value={statistics.appointments.total} index={0} />
+                                    <StatRow icon={Send} label={t('statistics.appointments.reminderSent')} value={statistics.appointments.reminder_sent} index={1} />
+                                    <StatRow icon={CheckCircle2} label={t('statistics.appointments.confirmed')} value={statistics.appointments.confirmed} index={2} />
+                                    <StatRow icon={XCircle} label={t('statistics.appointments.cancelled')} value={statistics.appointments.cancelled} index={3} />
+                                    <StatRow icon={CalendarIcon} label={t('statistics.appointments.rescheduled')} value={statistics.appointments.rescheduled} index={4} />
+                                    <StatRow icon={Clock} label={t('statistics.appointments.pending')} value={statistics.appointments.pending} index={5} />
+                                    <StatRow icon={AlertCircle} label={t('statistics.appointments.failed')} value={statistics.appointments.failed} index={6} />
                                 </div>
                             </div>
 
@@ -365,11 +373,11 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={MessageSquare} label={t('statistics.conversations.total')} value={statistics.conversations.total} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.conversations.active')} value={statistics.conversations.active} />
-                                    <StatRow icon={Clock} label={t('statistics.conversations.pending')} value={statistics.conversations.pending} />
-                                    <StatRow icon={XCircle} label={t('statistics.conversations.closed')} value={statistics.conversations.closed} />
-                                    <StatRow icon={AlertCircle} label={t('statistics.conversations.unread')} value={statistics.conversations.unread} />
+                                    <StatRow icon={MessageSquare} label={t('statistics.conversations.total')} value={statistics.conversations.total} index={0} />
+                                    <StatRow icon={CheckCircle2} label={t('statistics.conversations.active')} value={statistics.conversations.active} index={1} />
+                                    <StatRow icon={Clock} label={t('statistics.conversations.pending')} value={statistics.conversations.pending} index={2} />
+                                    <StatRow icon={XCircle} label={t('statistics.conversations.closed')} value={statistics.conversations.closed} index={3} />
+                                    <StatRow icon={AlertCircle} label={t('statistics.conversations.unread')} value={statistics.conversations.unread} index={4} />
                                 </div>
                             </div>
 
@@ -382,10 +390,10 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={FileText} label={t('statistics.templates.total')} value={statistics.templates.total} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.templates.successfulSends')} value={statistics.templates.successful_sends} />
-                                    <StatRow icon={XCircle} label={t('statistics.templates.failedSends')} value={statistics.templates.failed_sends} />
-                                    <StatRow icon={Send} label={t('statistics.templates.totalSends')} value={statistics.templates.total_sends} />
+                                    <StatRow icon={FileText} label={t('statistics.templates.total')} value={statistics.templates.total} index={0} />
+                                    <StatRow icon={CheckCircle2} label={t('statistics.templates.successfulSends')} value={statistics.templates.successful_sends} index={1} />
+                                    <StatRow icon={XCircle} label={t('statistics.templates.failedSends')} value={statistics.templates.failed_sends} index={2} />
+                                    <StatRow icon={Send} label={t('statistics.templates.totalSends')} value={statistics.templates.total_sends} index={3} />
                                 </div>
                             </div>
 
@@ -398,9 +406,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={Users} label={t('statistics.users.total')} value={statistics.users.total} />
-                                    <StatRow icon={Users} label={t('statistics.users.admins')} value={statistics.users.admins} />
-                                    <StatRow icon={Users} label={t('statistics.users.advisors')} value={statistics.users.advisors} />
+                                    <StatRow icon={Users} label={t('statistics.users.total')} value={statistics.users.total} index={0} />
+                                    <StatRow icon={Users} label={t('statistics.users.admins')} value={statistics.users.admins} index={1} />
+                                    <StatRow icon={Users} label={t('statistics.users.advisors')} value={statistics.users.advisors} index={2} />
                                 </div>
                             </div>
                         </div>
