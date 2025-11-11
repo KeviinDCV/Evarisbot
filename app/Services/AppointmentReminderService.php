@@ -218,7 +218,7 @@ class AppointmentReminderService
             'type' => 'template',
             'template' => [
                 'name' => $templateName,
-                'language' => ['code' => 'es'],
+                'language' => ['code' => 'es_CO'],
                 'components' => $components
             ]
         ];
