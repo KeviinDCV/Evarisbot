@@ -155,7 +155,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             {/* Enviados */}
                             <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-[0_2px_8px_rgba(16,185,129,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
                                         <Send className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
@@ -168,7 +168,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             {/* Pendientes */}
                             <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-amber-500 to-amber-600 shadow-[0_2px_8px_rgba(245,158,11,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
                                         <Clock className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
@@ -181,7 +181,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             {/* Fallidos */}
                             <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-red-500 to-red-600 shadow-[0_2px_8px_rgba(239,68,68,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
                                         <XCircle className="w-6 h-6 text-white" />
                                     </div>
                                     <div>

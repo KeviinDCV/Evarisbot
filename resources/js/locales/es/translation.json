@@ -334,11 +334,82 @@
     "conversations": "Conversaciones",
     "appointments": "Citas",
     "templates": "Plantillas",
+    "statistics": "Estadísticas",
     "users": "Usuarios",
     "settings": "Configuración",
     "profile": "Perfil",
     "administration": "Administración",
     "repository": "Repository",
     "documentation": "Documentation"
+  },
+  "statistics": {
+    "title": "Estadísticas",
+    "subtitle": "Visualiza todas las métricas del sistema",
+    "export": "Exportar a Excel",
+    "exporting": "Exportando...",
+    "filters": {
+      "title": "Filtros de Fecha",
+      "period": "Período",
+      "custom": "Rango Personalizado",
+      "startDate": "Fecha Inicio",
+      "endDate": "Fecha Fin",
+      "apply": "Aplicar Filtros",
+      "periods": {
+        "today": "Hoy",
+        "week": "Esta Semana",
+        "month": "Este Mes",
+        "year": "Este Año",
+        "all": "Todo el Tiempo"
+      }
+    },
+    "messages": {
+      "title": "Mensajes",
+      "sent": "Enviados",
+      "answered": "Contestados",
+      "confirmed": "Confirmados",
+      "cancelled": "Cancelados",
+      "rescheduled": "Reprogramados",
+      "byStatus": "Por Estado",
+      "statuses": {
+        "pending": "Pendientes",
+        "sent": "Enviados",
+        "delivered": "Entregados",
+        "read": "Leídos",
+        "failed": "Fallidos"
+      }
+    },
+    "appointments": {
+      "title": "Citas",
+      "total": "Total",
+      "reminderSent": "Recordatorios Enviados",
+      "confirmed": "Confirmadas",
+      "cancelled": "Canceladas",
+      "rescheduled": "Reprogramadas",
+      "pending": "Pendientes",
+      "failed": "Fallidas",
+      "byStatus": "Por Estado"
+    },
+    "conversations": {
+      "title": "Conversaciones",
+      "total": "Total",
+      "active": "Activas",
+      "pending": "Pendientes",
+      "closed": "Cerradas",
+      "unread": "Con Mensajes Sin Leer",
+      "byStatus": "Por Estado"
+    },
+    "templates": {
+      "title": "Plantillas",
+      "total": "Total",
+      "successfulSends": "Envíos Exitosos",
+      "failedSends": "Envíos Fallidos",
+      "totalSends": "Total de Envíos"
+    },
+    "users": {
+      "title": "Usuarios",
+      "total": "Total",
+      "admins": "Administradores",
+      "advisors": "Asesores"
+    }
   }
 }

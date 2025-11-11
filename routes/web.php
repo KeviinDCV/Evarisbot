@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\StatisticsController;
 use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
@@ -67,6 +68,12 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/settings/whatsapp', 'updateWhatsApp')->name('settings.whatsapp');
         Route::post('/settings/test-whatsapp', 'testWhatsAppConnection')->name('settings.test-whatsapp');
         Route::get('/settings/business-profile', 'getBusinessProfile')->name('settings.business-profile');
+    });
+    
+    // Estadísticas
+    Route::controller(StatisticsController::class)->prefix('statistics')->name('statistics.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/export', 'export')->name('export');
     });
 });
 

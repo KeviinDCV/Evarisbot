@@ -334,11 +334,82 @@
     "conversations": "Conversations",
     "appointments": "Appointments",
     "templates": "Templates",
+    "statistics": "Statistics",
     "users": "Users",
     "settings": "Settings",
     "profile": "Profile",
     "administration": "Administration",
     "repository": "Repository",
     "documentation": "Documentation"
+  },
+  "statistics": {
+    "title": "Statistics",
+    "subtitle": "View all system metrics",
+    "export": "Export to Excel",
+    "exporting": "Exporting...",
+    "filters": {
+      "title": "Date Filters",
+      "period": "Period",
+      "custom": "Custom Range",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "apply": "Apply Filters",
+      "periods": {
+        "today": "Today",
+        "week": "This Week",
+        "month": "This Month",
+        "year": "This Year",
+        "all": "All Time"
+      }
+    },
+    "messages": {
+      "title": "Messages",
+      "sent": "Sent",
+      "answered": "Answered",
+      "confirmed": "Confirmed",
+      "cancelled": "Cancelled",
+      "rescheduled": "Rescheduled",
+      "byStatus": "By Status",
+      "statuses": {
+        "pending": "Pending",
+        "sent": "Sent",
+        "delivered": "Delivered",
+        "read": "Read",
+        "failed": "Failed"
+      }
+    },
+    "appointments": {
+      "title": "Appointments",
+      "total": "Total",
+      "reminderSent": "Reminders Sent",
+      "confirmed": "Confirmed",
+      "cancelled": "Cancelled",
+      "rescheduled": "Rescheduled",
+      "pending": "Pending",
+      "failed": "Failed",
+      "byStatus": "By Status"
+    },
+    "conversations": {
+      "title": "Conversations",
+      "total": "Total",
+      "active": "Active",
+      "pending": "Pending",
+      "closed": "Closed",
+      "unread": "Unread Messages",
+      "byStatus": "By Status"
+    },
+    "templates": {
+      "title": "Templates",
+      "total": "Total",
+      "successfulSends": "Successful Sends",
+      "failedSends": "Failed Sends",
+      "totalSends": "Total Sends"
+    },
+    "users": {
+      "title": "Users",
+      "total": "Total",
+      "admins": "Administrators",
+      "advisors": "Advisors"
+    }
   }
 }
