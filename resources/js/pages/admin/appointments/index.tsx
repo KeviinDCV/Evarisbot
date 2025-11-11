@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, useForm } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle } from 'lucide-react';
 import { FormEventHandler, useState, useMemo } from 'react';
 
 interface Appointment {
@@ -30,11 +30,19 @@ interface Appointment {
     duracion?: string;
     ageperdes_g?: string;
     dia?: string;
+    reminder_sent?: boolean;
+    reminder_sent_at?: string;
+    reminder_status?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
 }
 
 interface AppointmentIndexProps {
     appointments: Appointment[];
     totalAppointments?: number;
+    remindersStats?: {
+        sent: number;
+        pending: number;
+        failed: number;
+    };
     uploadedFile?: {
         name: string;
         path: string;
@@ -44,7 +52,7 @@ interface AppointmentIndexProps {
     };
 }
 
-export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, uploadedFile }: AppointmentIndexProps) {
+export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile }: AppointmentIndexProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -140,6 +148,50 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             Carga un archivo Excel con las citas programadas para enviar recordatorios automáticos
                         </p>
                     </div>
+
+                    {/* Reminders Stats */}
+                    {remindersStats && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            {/* Enviados */}
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-emerald-500 to-emerald-600 shadow-[0_2px_8px_rgba(16,185,129,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                        <Send className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold text-[#2e3f84]">{remindersStats.sent}</p>
+                                        <p className="text-sm text-[#6b7494]">Recordatorios Enviados</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Pendientes */}
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-amber-500 to-amber-600 shadow-[0_2px_8px_rgba(245,158,11,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                        <Clock className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold text-[#2e3f84]">{remindersStats.pending}</p>
+                                        <p className="text-sm text-[#6b7494]">Por Enviar</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Fallidos */}
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-b from-red-500 to-red-600 shadow-[0_2px_8px_rgba(239,68,68,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                        <XCircle className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold text-[#2e3f84]">{remindersStats.failed}</p>
+                                        <p className="text-sm text-[#6b7494]">Fallidos</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Upload Section */}
                     <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6"
@@ -297,13 +349,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">#</th>
                                         <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Paciente</th>
                                         <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Teléfono</th>
-                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Documento</th>
                                         <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Fecha Cita</th>
                                         <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Hora</th>
                                         <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Médico</th>
                                         <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Especialidad</th>
-                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Consultorio</th>
-                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Observaciones</th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Recordatorio</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-[#e5e7f0]">
@@ -322,9 +372,6 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 {appointment.pactel || '-'}
                                             </td>
                                             <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
-                                                {appointment.citdoc || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
                                                 {appointment.citfc || '-'}
                                             </td>
                                             <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
@@ -336,11 +383,34 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
                                                 {appointment.espnom || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
-                                                {appointment.citcon || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 text-[#6b7494] max-w-xs truncate" title={appointment.citobsobs || '-'}>
-                                                {appointment.citobsobs || '-'}
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                {appointment.reminder_sent ? (
+                                                    <div className="flex items-center gap-2">
+                                                        {appointment.reminder_status === 'sent' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium">
+                                                                <CheckCircle2 className="w-3 h-3" />
+                                                                Enviado
+                                                            </span>
+                                                        )}
+                                                        {appointment.reminder_status === 'failed' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium">
+                                                                <XCircle className="w-3 h-3" />
+                                                                Fallido
+                                                            </span>
+                                                        )}
+                                                        {appointment.reminder_status === 'delivered' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">
+                                                                <CheckCircle2 className="w-3 h-3" />
+                                                                Entregado
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium">
+                                                        <Clock className="w-3 h-3" />
+                                                        Pendiente
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}

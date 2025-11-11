@@ -424,6 +424,9 @@ class WhatsAppService
                 return $existingMessage;
             }
 
+            // Detectar si es una respuesta a un recordatorio de cita
+            $isAppointmentResponse = $this->handleAppointmentResponse($from, $messageData);
+
             // Extraer información del contacto
             $contactName = null;
             $profilePictureUrl = null;
@@ -581,6 +584,99 @@ class WhatsAppService
                 'data' => $messageData,
             ]);
             return null;
+        }
+    }
+
+    /**
+     * Manejar respuestas a recordatorios de citas
+     */
+    private function handleAppointmentResponse(string $from, array $messageData): bool
+    {
+        try {
+            // Obtener el contenido del mensaje
+            $messageText = $messageData['text']['body'] ?? null;
+
+            if (!$messageText) {
+                return false;
+            }
+
+            // Normalizar el texto
+            $messageText = trim($messageText);
+
+            // Buscar cita con recordatorio enviado para este número
+            $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . substr($from, -10) . '%')
+                ->where('reminder_sent', true)
+                ->whereDate('citfc', '>=', now())
+                ->orderBy('citfc', 'asc')
+                ->first();
+
+            if (!$appointment) {
+                return false;
+            }
+
+            $responseMessage = null;
+
+            // Detectar tipo de respuesta
+            if (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
+                // Confirmación de asistencia
+                $appointment->update([
+                    'reminder_status' => 'confirmed',
+                    'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
+                ]);
+
+                $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$appointment->citfc->format('d/m/Y')} a las {$appointment->cithr}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+
+                Log::info('Appointment confirmed by patient', [
+                    'appointment_id' => $appointment->id,
+                    'phone' => $from,
+                ]);
+
+            } elseif (preg_match('/cancelar|cancelo|no.*asistir|no.*podré|❌/i', $messageText)) {
+                // Cancelación
+                $appointment->update([
+                    'reminder_status' => 'cancelled',
+                    'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
+                ]);
+
+                $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$appointment->citfc->format('d/m/Y')}.\n\nUn asesor se comunicará con usted para reprogramar.\n\n_HUV - Evaristo García_";
+
+                Log::info('Appointment cancelled by patient', [
+                    'appointment_id' => $appointment->id,
+                    'phone' => $from,
+                ]);
+
+            } elseif (preg_match('/reprogramar|cambiar|mover|📅/i', $messageText)) {
+                // Solicitud de reprogramación
+                $appointment->update([
+                    'reminder_status' => 'reschedule_requested',
+                    'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente solicitó reprogramación vía WhatsApp"
+                ]);
+
+                $responseMessage = "📅 *Solicitud de reprogramación recibida*\n\nHemos registrado su solicitud para reprogramar la cita del {$appointment->citfc->format('d/m/Y')}.\n\nUn asesor se comunicará con usted en breve para coordinar una nueva fecha.\n\n_HUV - Evaristo García_";
+
+                Log::info('Appointment reschedule requested by patient', [
+                    'appointment_id' => $appointment->id,
+                    'phone' => $from,
+                ]);
+
+            } else {
+                // Respuesta no reconocida
+                return false;
+            }
+
+            // Enviar respuesta automática
+            if ($responseMessage) {
+                $this->sendTextMessage($from, $responseMessage);
+            }
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('Handle appointment response exception', [
+                'error' => $e->getMessage(),
+                'from' => $from,
+            ]);
+            return false;
         }
     }
 }

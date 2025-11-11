@@ -35,13 +35,22 @@ class AppointmentController extends Controller
                 'espnom' => $apt->espnom,
                 'citcon' => $apt->citcon,
                 'citobsobs' => $apt->citobsobs,
+                'reminder_sent' => $apt->reminder_sent,
+                'reminder_sent_at' => $apt->reminder_sent_at?->format('Y-m-d H:i'),
+                'reminder_status' => $apt->reminder_status,
             ]);
         
         $totalAppointments = Appointment::where('uploaded_by', auth()->id())->count();
+        $remindersStats = [
+            'sent' => Appointment::where('uploaded_by', auth()->id())->where('reminder_sent', true)->count(),
+            'pending' => Appointment::where('uploaded_by', auth()->id())->where('reminder_sent', false)->whereNotNull('citfc')->count(),
+            'failed' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'failed')->count(),
+        ];
         
         return Inertia::render('admin/appointments/index', [
             'appointments' => $appointments,
             'totalAppointments' => $totalAppointments,
+            'remindersStats' => $remindersStats,
             'uploadedFile' => session('uploaded_file'),
         ]);
     }
