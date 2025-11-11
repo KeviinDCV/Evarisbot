@@ -635,6 +635,9 @@ class WhatsAppService
             }
 
             $responseMessage = null;
+            
+            // Formatear hora para respuestas
+            $horaFormateada = $this->formatHoraForResponse($appointment->cithor);
 
             // Detectar tipo de respuesta
             if (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
@@ -644,7 +647,7 @@ class WhatsAppService
                     'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
                 ]);
 
-                $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$appointment->citfc->format('d/m/Y')} a las {$appointment->cithr}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$appointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
 
                 Log::info('Appointment confirmed by patient', [
                     'appointment_id' => $appointment->id,
@@ -658,7 +661,7 @@ class WhatsAppService
                     'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
                 ]);
 
-                $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$appointment->citfc->format('d/m/Y')}.\n\nUn asesor se comunicará con usted para reprogramar.\n\n_HUV - Evaristo García_";
+                $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$appointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nUn asesor se comunicará con usted para reprogramar.\n\n_HUV - Evaristo García_";
 
                 Log::info('Appointment cancelled by patient', [
                     'appointment_id' => $appointment->id,
@@ -684,9 +687,41 @@ class WhatsAppService
                 return false;
             }
 
-            // Enviar respuesta automática
+            // Enviar respuesta automática y guardar en BD
             if ($responseMessage) {
-                $this->sendTextMessage($from, $responseMessage);
+                // Enviar mensaje a WhatsApp
+                $result = $this->sendTextMessage($from, $responseMessage);
+                
+                // Guardar mensaje en la conversación
+                if ($result && isset($result['messages'][0]['id'])) {
+                    $messageId = $result['messages'][0]['id'];
+                    
+                    // Obtener o crear conversación
+                    $conversation = \App\Models\Conversation::firstOrCreate(
+                        ['phone_number' => $from],
+                        [
+                            'contact_name' => $appointment->nom_paciente,
+                            'status' => 'active',
+                            'last_message_at' => now()
+                        ]
+                    );
+                    
+                    // Guardar mensaje de respuesta
+                    \App\Models\Message::create([
+                        'conversation_id' => $conversation->id,
+                        'content' => $responseMessage,
+                        'message_type' => 'text',
+                        'is_from_user' => false,
+                        'whatsapp_message_id' => $messageId,
+                        'status' => 'sent',
+                        'sent_by' => null // Sistema automático
+                    ]);
+                    
+                    Log::info('Automatic response saved', [
+                        'conversation_id' => $conversation->id,
+                        'message_id' => $messageId
+                    ]);
+                }
             }
 
             return true;
@@ -698,5 +733,38 @@ class WhatsAppService
             ]);
             return false;
         }
+    }
+    
+    /**
+     * Formatea la hora de 24h a 12h con AM/PM para respuestas
+     */
+    private function formatHoraForResponse($cithor): string
+    {
+        if (!$cithor) {
+            return 'No especificada';
+        }
+        
+        try {
+            // Intentar parsear como Carbon si es datetime
+            if ($cithor instanceof \Carbon\Carbon) {
+                return $cithor->format('h:i A');
+            } else {
+                // Es string, convertir de 24h a 12h con AM/PM
+                $timeParts = explode(':', $cithor);
+                if (count($timeParts) >= 2) {
+                    $hours = (int)$timeParts[0];
+                    $minutes = $timeParts[1];
+                    $ampm = $hours >= 12 ? 'PM' : 'AM';
+                    $hours12 = $hours % 12;
+                    if ($hours12 === 0) $hours12 = 12;
+                    return sprintf('%02d:%s %s', $hours12, $minutes, $ampm);
+                }
+            }
+        } catch (\Exception $e) {
+            // Si falla, usar el valor original
+            return (string)$cithor;
+        }
+        
+        return 'No especificada';
     }
 }

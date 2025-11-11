@@ -167,9 +167,11 @@ class AppointmentReminderService
      */
     protected function prepareTemplateParameters(Appointment $appointment): array
     {
-        // Formatear fecha y hora
+        // Formatear fecha
         $fecha = $appointment->citfc ? $appointment->citfc->locale('es')->isoFormat('dddd D [de] MMMM [de] YYYY') : 'No especificada';
-        $hora = $appointment->cithor ? $appointment->cithor->format('h:i A') : 'No especificada';
+        
+        // Formatear hora usando el método centralizado
+        $hora = $this->formatHora($appointment->cithor);
         
         return [
             [
@@ -191,7 +193,9 @@ class AppointmentReminderService
     protected function generateReminderText(Appointment $appointment): string
     {
         $fecha = $appointment->citfc ? $appointment->citfc->locale('es')->isoFormat('dddd D [de] MMMM [de] YYYY') : 'No especificada';
-        $hora = $appointment->cithor ? $appointment->cithor->format('h:i A') : 'No especificada';
+        
+        // Formatear hora usando el mismo método
+        $hora = $this->formatHora($appointment->cithor);
         
         return "🏥 *Recordatorio de Cita Médica*\n\n" .
                "Hola {$appointment->nom_paciente}, le recordamos su cita médica:\n\n" .
@@ -201,6 +205,39 @@ class AppointmentReminderService
                "🏥 *Especialidad:* {$appointment->espnom}\n\n" .
                "Por favor, llegue 15 minutos antes de su cita.\n\n" .
                "Si no puede asistir, responda a este mensaje para reprogramar.";
+    }
+    
+    /**
+     * Formatea la hora de 24h a 12h con AM/PM
+     */
+    protected function formatHora($cithor): string
+    {
+        if (!$cithor) {
+            return 'No especificada';
+        }
+        
+        try {
+            // Intentar parsear como Carbon si es datetime
+            if ($cithor instanceof \Carbon\Carbon) {
+                return $cithor->format('h:i A');
+            } else {
+                // Es string, convertir de 24h a 12h con AM/PM
+                $timeParts = explode(':', $cithor);
+                if (count($timeParts) >= 2) {
+                    $hours = (int)$timeParts[0];
+                    $minutes = $timeParts[1];
+                    $ampm = $hours >= 12 ? 'PM' : 'AM';
+                    $hours12 = $hours % 12;
+                    if ($hours12 === 0) $hours12 = 12;
+                    return sprintf('%02d:%s %s', $hours12, $minutes, $ampm);
+                }
+            }
+        } catch (\Exception $e) {
+            // Si falla, usar el valor original
+            return $cithor;
+        }
+        
+        return 'No especificada';
     }
 
     /**
