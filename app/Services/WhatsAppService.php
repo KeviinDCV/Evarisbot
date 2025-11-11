@@ -424,8 +424,8 @@ class WhatsAppService
                 return $existingMessage;
             }
 
-            // Detectar si es una respuesta a un recordatorio de cita
-            $isAppointmentResponse = $this->handleAppointmentResponse($from, $messageData);
+            // Buscar si hay un appointment asociado (sin enviar respuesta todavía)
+            $appointment = $this->findAppointmentForResponse($from, $messageData);
 
             // Extraer información del contacto
             $contactName = null;
@@ -438,21 +438,37 @@ class WhatsAppService
                 }
             }
 
-            // Buscar o crear conversación
-            $conversationData = [
-                'status' => 'in_progress',
-                'last_message_at' => now(),
-            ];
-
-            // Agregar nombre del contacto si existe
-            if ($contactName) {
-                $conversationData['contact_name'] = $contactName;
+            // Si es respuesta de appointment y tiene conversación asociada, usar esa
+            $conversation = null;
+            if ($appointment && $appointment->conversation_id) {
+                $conversation = Conversation::find($appointment->conversation_id);
+                
+                if ($conversation) {
+                    Log::info('Using appointment conversation', [
+                        'conversation_id' => $conversation->id,
+                        'appointment_id' => $appointment->id
+                    ]);
+                }
             }
 
-            $conversation = Conversation::firstOrCreate(
-                ['phone_number' => '+' . $from],
-                $conversationData
-            );
+            // Si no hay conversación del appointment, buscar o crear por teléfono
+            if (!$conversation) {
+                // Buscar o crear conversación
+                $conversationData = [
+                    'status' => 'in_progress',
+                    'last_message_at' => now(),
+                ];
+
+                // Agregar nombre del contacto si existe
+                if ($contactName) {
+                    $conversationData['contact_name'] = $contactName;
+                }
+
+                $conversation = Conversation::firstOrCreate(
+                    ['phone_number' => $from],
+                    $conversationData
+                );
+            }
 
             // Actualizar nombre si cambió y no estaba vacío antes
             if ($contactName && $conversation->contact_name !== $contactName) {
@@ -580,6 +596,11 @@ class WhatsAppService
                 'message_id' => $message->id,
             ]);
 
+            // DESPUÉS de guardar el mensaje del usuario, procesar respuesta automática de appointment
+            if ($appointment) {
+                $this->sendAppointmentAutoResponse($from, $messageData, $appointment, $conversation);
+            }
+
             return $message;
 
         } catch (\Exception $e) {
@@ -592,32 +613,28 @@ class WhatsAppService
     }
 
     /**
-     * Manejar respuestas a recordatorios de citas
+     * Busca un appointment asociado a este mensaje (sin enviar respuesta)
      */
-    private function handleAppointmentResponse(string $from, array $messageData): bool
+    private function findAppointmentForResponse(string $from, array $messageData): ?\App\Models\Appointment
     {
         try {
-            // Obtener el contenido del mensaje (puede ser texto o botón)
+            // Obtener el contenido del mensaje
             $messageText = $messageData['text']['body'] ?? 
                           $messageData['button']['text'] ?? 
                           $messageData['button']['payload'] ?? 
                           null;
 
             if (!$messageText) {
-                return false;
+                return null;
             }
 
-            // Normalizar el texto
+            // Verificar si el mensaje contiene palabras clave de respuesta
             $messageText = trim($messageText);
-            
-            Log::info('Procesando respuesta de cita', [
-                'from' => $from,
-                'message' => $messageText,
-                'type' => $messageData['type'] ?? 'unknown'
-            ]);
+            if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|reprogramar|cambiar|mover|✅|❌|📅/i', $messageText)) {
+                return null;
+            }
 
-            // Buscar cita con recordatorio enviado para este número
-            // Usar los últimos 10 dígitos para búsqueda flexible
+            // Buscar cita con recordatorio enviado
             $phoneDigits = substr(preg_replace('/[^0-9]/', '', $from), -10);
             
             $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
@@ -626,14 +643,36 @@ class WhatsAppService
                 ->orderBy('citfc', 'asc')
                 ->first();
 
-            if (!$appointment) {
-                Log::info('No se encontró cita para respuesta', [
-                    'from' => $from,
-                    'phone_digits' => $phoneDigits
-                ]);
-                return false;
+            return $appointment;
+
+        } catch (\Exception $e) {
+            Log::error('Find appointment exception', [
+                'error' => $e->getMessage(),
+                'from' => $from,
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Envía y guarda la respuesta automática del appointment
+     */
+    private function sendAppointmentAutoResponse(string $from, array $messageData, \App\Models\Appointment $appointment, \App\Models\Conversation $conversation): void
+    {
+        try {
+            // Obtener el contenido del mensaje
+            $messageText = $messageData['text']['body'] ?? 
+                          $messageData['button']['text'] ?? 
+                          $messageData['button']['payload'] ?? 
+                          null;
+
+            if (!$messageText) {
+                return;
             }
 
+            // Normalizar el texto
+            $messageText = trim($messageText);
+            
             $responseMessage = null;
             
             // Formatear hora para respuestas
@@ -684,7 +723,7 @@ class WhatsAppService
 
             } else {
                 // Respuesta no reconocida
-                return false;
+                return;
             }
 
             // Enviar respuesta automática y guardar en BD
@@ -692,19 +731,15 @@ class WhatsAppService
                 // Enviar mensaje a WhatsApp
                 $result = $this->sendTextMessage($from, $responseMessage);
                 
-                // Guardar mensaje en la conversación
-                if ($result && isset($result['messages'][0]['id'])) {
-                    $messageId = $result['messages'][0]['id'];
-                    
-                    // Obtener o crear conversación
-                    $conversation = \App\Models\Conversation::firstOrCreate(
-                        ['phone_number' => $from],
-                        [
-                            'contact_name' => $appointment->nom_paciente,
-                            'status' => 'active',
-                            'last_message_at' => now()
-                        ]
-                    );
+                Log::info('Send automatic response result', [
+                    'success' => $result['success'] ?? false,
+                    'message_id' => $result['message_id'] ?? null,
+                    'error' => $result['error'] ?? null
+                ]);
+                
+                // Guardar mensaje en la conversación (usar la conversación pasada como parámetro)
+                if (($result['success'] ?? false) && isset($result['message_id'])) {
+                    $messageId = $result['message_id'];
                     
                     // Guardar mensaje de respuesta
                     \App\Models\Message::create([
@@ -717,21 +752,24 @@ class WhatsAppService
                         'sent_by' => null // Sistema automático
                     ]);
                     
-                    Log::info('Automatic response saved', [
+                    Log::info('Automatic response saved to database', [
                         'conversation_id' => $conversation->id,
-                        'message_id' => $messageId
+                        'message_id' => $messageId,
+                        'appointment_id' => $appointment->id
+                    ]);
+                } else {
+                    Log::error('Failed to save automatic response', [
+                        'result' => $result,
+                        'from' => $from
                     ]);
                 }
             }
 
-            return true;
-
         } catch (\Exception $e) {
-            Log::error('Handle appointment response exception', [
+            Log::error('Send appointment auto response exception', [
                 'error' => $e->getMessage(),
                 'from' => $from,
             ]);
-            return false;
         }
     }
     
