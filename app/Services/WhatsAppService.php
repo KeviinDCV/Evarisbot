@@ -482,6 +482,10 @@ class WhatsAppService
             if (isset($messageData['text'])) {
                 $content = $messageData['text']['body'];
                 $messageType = 'text';
+            } elseif (isset($messageData['button'])) {
+                // Mensaje de respuesta de botón
+                $content = $messageData['button']['text'] ?? $messageData['button']['payload'] ?? 'Botón presionado';
+                $messageType = 'text'; // Los botones se tratan como texto
             } elseif (isset($messageData['image'])) {
                 $content = $messageData['image']['caption'] ?? 'Imagen';
                 $messageType = 'image';
@@ -593,8 +597,11 @@ class WhatsAppService
     private function handleAppointmentResponse(string $from, array $messageData): bool
     {
         try {
-            // Obtener el contenido del mensaje
-            $messageText = $messageData['text']['body'] ?? null;
+            // Obtener el contenido del mensaje (puede ser texto o botón)
+            $messageText = $messageData['text']['body'] ?? 
+                          $messageData['button']['text'] ?? 
+                          $messageData['button']['payload'] ?? 
+                          null;
 
             if (!$messageText) {
                 return false;
@@ -602,15 +609,28 @@ class WhatsAppService
 
             // Normalizar el texto
             $messageText = trim($messageText);
+            
+            Log::info('Procesando respuesta de cita', [
+                'from' => $from,
+                'message' => $messageText,
+                'type' => $messageData['type'] ?? 'unknown'
+            ]);
 
             // Buscar cita con recordatorio enviado para este número
-            $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . substr($from, -10) . '%')
+            // Usar los últimos 10 dígitos para búsqueda flexible
+            $phoneDigits = substr(preg_replace('/[^0-9]/', '', $from), -10);
+            
+            $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
                 ->where('reminder_sent', true)
                 ->whereDate('citfc', '>=', now())
                 ->orderBy('citfc', 'asc')
                 ->first();
 
             if (!$appointment) {
+                Log::info('No se encontró cita para respuesta', [
+                    'from' => $from,
+                    'phone_digits' => $phoneDigits
+                ]);
                 return false;
             }
 

@@ -112,6 +112,12 @@ class AppointmentReminderService
         // Formatear número de teléfono (eliminar caracteres no numéricos)
         $phoneNumber = preg_replace('/[^0-9]/', '', $appointment->pactel);
         
+        // Agregar código de país si no lo tiene (Colombia = 57)
+        if (strlen($phoneNumber) === 10) {
+            // Número colombiano de 10 dígitos (ej: 3045782893)
+            $phoneNumber = '57' . $phoneNumber;
+        }
+        
         // Preparar parámetros del template
         $parameters = $this->prepareTemplateParameters($appointment);
         
@@ -122,9 +128,9 @@ class AppointmentReminderService
             if (isset($response['messages'][0]['id'])) {
                 $messageId = $response['messages'][0]['id'];
                 
-                // Buscar o crear conversación
+                // Buscar o crear conversación (con formato internacional +57...)
                 $conversation = Conversation::firstOrCreate(
-                    ['phone_number' => $phoneNumber],
+                    ['phone_number' => '+' . $phoneNumber],
                     [
                         'contact_name' => $appointment->nom_paciente,
                         'status' => 'active',
