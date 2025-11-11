@@ -20,8 +20,11 @@ class AppointmentReminderService
 
     /**
      * Procesa el envío de recordatorios para el día
+     * 
+     * @param int|null $limit Límite de mensajes a enviar en esta ejecución
+     * @return array
      */
-    public function processReminders(): array
+    public function processReminders(?int $limit = null): array
     {
         // Verificar si los recordatorios están habilitados
         if (!Setting::get('reminder_enabled', 'true') === 'true') {
@@ -30,7 +33,15 @@ class AppointmentReminderService
         }
 
         $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
-        $maxPerDay = (int) Setting::get('reminder_max_per_day', '500');
+        $maxPerDay = $limit ?? (int) Setting::get('reminder_max_per_day', '500');
+        
+        // Rate limiting settings (mensajes por minuto)
+        $rateLimit = (int) Setting::get('reminders_rate_limit', '20'); // 20 msg/min por defecto
+        $batchSize = (int) Setting::get('reminders_batch_size', '50'); // 50 por lote
+        
+        // Calcular delay entre mensajes (en microsegundos)
+        // Si queremos 20 msg/min = 1 mensaje cada 3 segundos
+        $delayBetweenMessages = ($rateLimit > 0) ? (60 / $rateLimit) * 1000000 : 0;
         
         // Obtener citas que necesitan recordatorio
         $appointments = $this->getAppointmentsNeedingReminder($daysInAdvance, $maxPerDay);
@@ -39,7 +50,13 @@ class AppointmentReminderService
         $failed = 0;
         $skipped = 0;
 
-        foreach ($appointments as $appointment) {
+        Log::info("Procesando recordatorios", [
+            'total_appointments' => count($appointments),
+            'rate_limit' => $rateLimit . ' msg/min',
+            'delay_per_message' => round($delayBetweenMessages / 1000000, 2) . ' seg',
+        ]);
+
+        foreach ($appointments as $index => $appointment) {
             try {
                 // Validar número de teléfono
                 if (empty($appointment->pactel)) {
@@ -56,7 +73,8 @@ class AppointmentReminderService
                     Log::info("Recordatorio enviado", [
                         'appointment_id' => $appointment->id,
                         'phone' => $appointment->pactel,
-                        'message_id' => $result['message_id']
+                        'message_id' => $result['message_id'],
+                        'progress' => ($index + 1) . '/' . count($appointments)
                     ]);
                 } else {
                     $failed++;
@@ -66,6 +84,12 @@ class AppointmentReminderService
                         'error' => $result['error']
                     ]);
                 }
+                
+                // Rate limiting: esperar entre mensajes
+                if ($delayBetweenMessages > 0 && ($index + 1) < count($appointments)) {
+                    usleep((int)$delayBetweenMessages);
+                }
+                
             } catch (\Exception $e) {
                 $failed++;
                 $appointment->markReminderFailed($e->getMessage());
