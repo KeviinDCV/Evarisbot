@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, useForm, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, CalendarClock } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -33,7 +33,7 @@ interface Appointment {
     dia?: string;
     reminder_sent?: boolean;
     reminder_sent_at?: string;
-    reminder_status?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+    reminder_status?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'confirmed' | 'cancelled' | 'reschedule_requested';
 }
 
 interface AppointmentIndexProps {
@@ -63,10 +63,18 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     const [isPaused, setIsPaused] = useState(reminderPaused);
     const [isProcessing, setIsProcessing] = useState(reminderProcessing);
     const [isLoading, setIsLoading] = useState(false);
+    const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, failed: 0 });
     
     const { data, setData, post, processing, errors, reset } = useForm({
         file: null as File | null,
     });
+
+    // Sincronizar estadísticas locales con las del servidor cuando cambian
+    useEffect(() => {
+        if (remindersStats) {
+            setLocalStats(remindersStats);
+        }
+    }, [remindersStats]);
 
     // Actualizar estado cada 5 segundos si está procesando
     useEffect(() => {
@@ -85,7 +93,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     
                     // Actualizar estadísticas si están disponibles
                     if (data.pending_count !== undefined) {
-                        router.reload({ only: ['remindersStats', 'reminderProcessing', 'reminderPaused'] });
+                        router.reload({ 
+                            only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
+                            onSuccess: (page) => {
+                                if (page.props.remindersStats) {
+                                    setLocalStats(page.props.remindersStats);
+                                }
+                            }
+                        });
                     }
                 } catch (error) {
                     console.error('Error al obtener estado:', error);
@@ -184,14 +199,25 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                 setIsProcessing(false); // Si fue síncrono, ya terminó
                 setIsPaused(false);
                 
-                // Mostrar mensaje de éxito con detalles
-                let successMessage = data.message || 'Envío iniciado';
-                if (data.sent !== undefined && data.failed !== undefined) {
-                    successMessage += `\n\nDetalles:\n- Enviados: ${data.sent}\n- Fallidos: ${data.failed}`;
+                // Actualizar estadísticas locales si están disponibles
+                if (data.sent !== undefined && data.failed !== undefined && remindersStats) {
+                    setLocalStats({
+                        sent: remindersStats.sent + (data.sent || 0),
+                        pending: Math.max(0, remindersStats.pending - (data.sent || 0) - (data.failed || 0)),
+                        failed: remindersStats.failed + (data.failed || 0)
+                    });
                 }
-                alert(successMessage);
                 
-                router.reload({ only: ['remindersStats', 'reminderProcessing', 'reminderPaused'] });
+                // Recargar estadísticas desde el servidor para asegurar precisión
+                router.reload({ 
+                    only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
+                    onSuccess: (page) => {
+                        // Actualizar estadísticas locales con los datos del servidor
+                        if (page.props.remindersStats) {
+                            setLocalStats(page.props.remindersStats);
+                        }
+                    }
+                });
             } else {
                 // Mostrar información detallada si está disponible
                 let errorMessage = data.message || 'Error al iniciar el envío';
@@ -349,7 +375,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     </div>
 
                     {/* Control de Recordatorios */}
-                    {remindersStats && remindersStats.pending > 0 && (
+                    {(remindersStats || localStats) && (localStats.pending > 0 || (remindersStats && remindersStats.pending > 0)) && (
                         <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
@@ -358,7 +384,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         Control de Envío de Recordatorios
                                     </h2>
                                     <p className="text-sm text-[#6b7494]">
-                                        {remindersStats.pending} recordatorios pendientes para enviar
+                                        {localStats.pending} recordatorios pendientes para enviar
                                         {isProcessing && !isPaused && (
                                             <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 font-medium">
                                                 <RefreshCw className="w-3 h-3 animate-spin" />
@@ -377,7 +403,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     {!isProcessing && !isPaused && (
                                         <Button
                                             onClick={handleStartReminders}
-                                            disabled={isLoading || remindersStats.pending === 0}
+                                            disabled={isLoading || localStats.pending === 0}
                                             className="font-semibold text-white transition-all duration-200 border-0"
                                             style={{
                                                 backgroundColor: 'var(--primary-base)',
@@ -484,11 +510,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     )}
                                 </div>
                             </div>
-                            {remindersStats.pending > 1000 && (
+                            {localStats.pending > 1000 && (
                                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                                     <p className="text-sm text-amber-800">
                                         <AlertCircle className="w-4 h-4 inline mr-1" />
-                                        <strong>Advertencia:</strong> Tienes {remindersStats.pending} recordatorios pendientes. 
+                                        <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes. 
                                         El sistema respetará el límite de 1,000 mensajes por día según las recomendaciones de Meta.
                                     </p>
                                 </div>
@@ -497,7 +523,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     )}
 
                     {/* Reminders Stats */}
-                    {remindersStats && (
+                    {(remindersStats || localStats) && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             {/* Enviados */}
                             <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
@@ -506,7 +532,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Send className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-[#2e3f84]">{remindersStats.sent}</p>
+                                        <p className="text-2xl font-bold text-[#2e3f84] transition-all duration-300 transform scale-100 hover:scale-105">
+                                            {localStats.sent.toLocaleString()}
+                                        </p>
                                         <p className="text-sm text-[#6b7494]">Recordatorios Enviados</p>
                                     </div>
                                 </div>
@@ -519,7 +547,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Clock className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-[#2e3f84]">{remindersStats.pending}</p>
+                                        <p className="text-2xl font-bold text-[#2e3f84] transition-all duration-300 transform scale-100 hover:scale-105">
+                                            {localStats.pending.toLocaleString()}
+                                        </p>
                                         <p className="text-sm text-[#6b7494]">Por Enviar</p>
                                     </div>
                                 </div>
@@ -532,7 +562,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <XCircle className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-[#2e3f84]">{remindersStats.failed}</p>
+                                        <p className="text-2xl font-bold text-[#2e3f84] transition-all duration-300 transform scale-100 hover:scale-105">
+                                            {localStats.failed.toLocaleString()}
+                                        </p>
                                         <p className="text-sm text-[#6b7494]">Fallidos</p>
                                     </div>
                                 </div>
@@ -675,16 +707,43 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 </p>
                             </div>
                             
-                            {/* Buscador */}
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494]" />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar por paciente, teléfono, médico..."
-                                    value={searchTerm}
-                                    onChange={(e) => handleSearch(e.target.value)}
-                                    className="pl-10 pr-4 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 w-full md:w-80 text-sm"
-                                />
+                            <div className="flex items-center gap-3">
+                                {/* Buscador */}
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494]" />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar por paciente, teléfono, médico..."
+                                        value={searchTerm}
+                                        onChange={(e) => handleSearch(e.target.value)}
+                                        className="pl-10 pr-4 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 w-full md:w-80 text-sm"
+                                    />
+                                </div>
+                                
+                                {/* Botón para abrir página dedicada */}
+                                <Button
+                                    onClick={() => router.visit('/admin/appointments/view')}
+                                    className="font-semibold text-white transition-all duration-200 border-0 flex items-center gap-2"
+                                    style={{
+                                        backgroundColor: 'var(--primary-base)',
+                                        boxShadow: 'var(--shadow-md)',
+                                        padding: '0.5rem 1rem',
+                                        fontSize: 'var(--text-sm)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
+                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                    }}
+                                >
+                                    <ExternalLink className="w-4 h-4" />
+                                    Ver Todas las Citas
+                                </Button>
                             </div>
                         </div>
 
@@ -749,6 +808,30 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">
                                                                 <CheckCircle2 className="w-3 h-3" />
                                                                 Entregado
+                                                            </span>
+                                                        )}
+                                                        {appointment.reminder_status === 'confirmed' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50 text-green-700 text-xs font-medium">
+                                                                <CalendarCheck className="w-3 h-3" />
+                                                                Confirmada
+                                                            </span>
+                                                        )}
+                                                        {appointment.reminder_status === 'cancelled' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium">
+                                                                <CalendarX className="w-3 h-3" />
+                                                                Cancelada
+                                                            </span>
+                                                        )}
+                                                        {appointment.reminder_status === 'reschedule_requested' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-700 text-xs font-medium">
+                                                                <CalendarClock className="w-3 h-3" />
+                                                                Reprogramar
+                                                            </span>
+                                                        )}
+                                                        {appointment.reminder_status === 'read' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-medium">
+                                                                <CheckCircle2 className="w-3 h-3" />
+                                                                Leído
                                                             </span>
                                                         )}
                                                     </div>

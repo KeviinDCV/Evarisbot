@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     // Gestión de Citas
     Route::controller(\App\Http\Controllers\AppointmentController::class)->prefix('appointments')->name('appointments.')->group(function () {
         Route::get('/', 'index')->name('index');
+        Route::get('/view', 'view')->name('view');
         Route::post('/upload', 'upload')->name('upload');
         Route::post('/process', 'process')->name('process');
         Route::post('/reminders/start', 'startReminders')->name('reminders.start');

@@ -66,6 +66,76 @@ class AppointmentController extends Controller
     }
 
     /**
+     * Mostrar página dedicada con todas las citas y filtros
+     */
+    public function view(Request $request)
+    {
+        $query = Appointment::where('uploaded_by', auth()->id());
+        
+        // Aplicar filtro por estado de recordatorio
+        $filter = $request->get('filter', 'all');
+        if ($filter !== 'all') {
+            if ($filter === 'pending') {
+                $query->where('reminder_sent', false);
+            } elseif ($filter === 'confirmed') {
+                $query->where('reminder_status', 'confirmed');
+            } elseif ($filter === 'cancelled') {
+                $query->where('reminder_status', 'cancelled');
+            } elseif ($filter === 'reschedule_requested') {
+                $query->where('reminder_status', 'reschedule_requested');
+            }
+        }
+        
+        // Búsqueda
+        $search = $request->get('search');
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('nom_paciente', 'LIKE', "%{$search}%")
+                  ->orWhere('pactel', 'LIKE', "%{$search}%")
+                  ->orWhere('mednom', 'LIKE', "%{$search}%")
+                  ->orWhere('espnom', 'LIKE', "%{$search}%");
+            });
+        }
+        
+        // Paginación
+        $perPage = 20;
+        $appointments = $query->orderBy('created_at', 'desc')
+            ->paginate($perPage)
+            ->through(fn($apt) => [
+                'id' => $apt->id,
+                'citead' => $apt->citead,
+                'nom_paciente' => $apt->nom_paciente,
+                'pactel' => $apt->pactel,
+                'citdoc' => $apt->citdoc,
+                'citfc' => $apt->citfc?->format('Y-m-d'),
+                'cithor' => $apt->cithor?->format('H:i'),
+                'mednom' => $apt->mednom,
+                'espnom' => $apt->espnom,
+                'citcon' => $apt->citcon,
+                'citobsobs' => $apt->citobsobs,
+                'reminder_sent' => $apt->reminder_sent,
+                'reminder_sent_at' => $apt->reminder_sent_at?->format('Y-m-d H:i'),
+                'reminder_status' => $apt->reminder_status,
+            ]);
+        
+        // Estadísticas por filtro
+        $stats = [
+            'all' => Appointment::where('uploaded_by', auth()->id())->count(),
+            'pending' => Appointment::where('uploaded_by', auth()->id())->where('reminder_sent', false)->count(),
+            'confirmed' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'confirmed')->count(),
+            'cancelled' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'cancelled')->count(),
+            'reschedule_requested' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'reschedule_requested')->count(),
+        ];
+        
+        return Inertia::render('admin/appointments/view', [
+            'appointments' => $appointments,
+            'filter' => $filter,
+            'search' => $search,
+            'stats' => $stats,
+        ]);
+    }
+
+    /**
      * Subir archivo Excel con citas
      */
     public function upload(Request $request)
@@ -334,14 +404,13 @@ class AppointmentController extends Controller
             }
 
             // Obtener configuración
-            // Por defecto 1 día: si hoy es 12/11, busca citas para 13/11 (mañana)
-            $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '1');
+            // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana)
+            $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
             $maxPerDay = (int) Setting::get('reminder_max_per_day', '1000');
             $messagesPerMinute = (int) Setting::get('reminder_messages_per_minute', '20'); // Por defecto 20/min para respetar límites
             
             // Calcular fecha objetivo
-            // Si hoy es 12/11/2025 y daysInAdvance = 1, entonces mañana = 13/11/2025
-            // Si daysInAdvance = 2, entonces pasado mañana = 14/11/2025
+            // Si hoy es 12/11/2025 y daysInAdvance = 2, entonces pasado mañana = 14/11/2025
             $targetDate = now()->addDays($daysInAdvance)->startOfDay();
             
             // Log para verificar el cálculo
@@ -758,8 +827,8 @@ class AppointmentController extends Controller
         $paused = Setting::get('reminder_paused', 'false') === 'true';
         $processing = Setting::get('reminder_processing', 'false') === 'true';
         
-        // Por defecto 1 día: si hoy es 12/11, busca citas para 13/11 (mañana)
-        $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '1');
+        // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana)
+        $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
         $targetDate = now()->addDays($daysInAdvance)->startOfDay();
         
         $pendingCount = Appointment::query()

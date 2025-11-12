@@ -73,8 +73,8 @@ class SendAppointmentReminders extends Command
      */
     protected function dryRun(AppointmentReminderService $reminderService): array
     {
-        // Por defecto 1 día: si hoy es 12/11, busca citas para 13/11 (mañana)
-        $daysInAdvance = (int) \App\Models\Setting::get('reminder_days_in_advance', '1');
+        // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana)
+        $daysInAdvance = (int) \App\Models\Setting::get('reminder_days_in_advance', '2');
         $maxPerDay = $this->option('limit') ?? (int) \App\Models\Setting::get('reminder_max_per_day', '500');
         
         $targetDate = now()->addDays($daysInAdvance)->startOfDay();
