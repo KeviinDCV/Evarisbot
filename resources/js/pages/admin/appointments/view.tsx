@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, CalendarClock, Clock, Filter, ArrowLeft } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -30,7 +30,7 @@ interface Appointment {
     citobsobs?: string;
     reminder_sent?: boolean;
     reminder_sent_at?: string;
-    reminder_status?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'confirmed' | 'cancelled' | 'reschedule_requested';
+    reminder_status?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'confirmed' | 'cancelled';
 }
 
 interface PaginatedAppointments {
@@ -54,7 +54,6 @@ interface AppointmentsViewProps {
         pending: number;
         confirmed: number;
         cancelled: number;
-        reschedule_requested: number;
     };
 }
 
@@ -90,7 +89,6 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         { key: 'pending', label: 'Pendientes', icon: Clock, count: stats.pending },
         { key: 'confirmed', label: 'Confirmadas', icon: CalendarCheck, count: stats.confirmed },
         { key: 'cancelled', label: 'Canceladas', icon: CalendarX, count: stats.cancelled },
-        { key: 'reschedule_requested', label: 'Reprogramar', icon: CalendarClock, count: stats.reschedule_requested },
     ];
 
     const getStatusBadge = (appointment: Appointment) => {
@@ -137,13 +135,6 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium">
                         <CalendarX className="w-3 h-3" />
                         Cancelada
-                    </span>
-                );
-            case 'reschedule_requested':
-                return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-700 text-xs font-medium">
-                        <CalendarClock className="w-3 h-3" />
-                        Reprogramar
                     </span>
                 );
             case 'read':

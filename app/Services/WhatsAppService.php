@@ -675,7 +675,7 @@ class WhatsAppService
 
             // Verificar si el mensaje contiene palabras clave de respuesta
             $messageText = trim($messageText);
-            if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|reprogramar|cambiar|mover|✅|❌|📅/i', $messageText)) {
+            if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|✅|❌/i', $messageText)) {
                 return null;
             }
 
@@ -745,23 +745,9 @@ class WhatsAppService
                     'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
                 ]);
 
-                $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$appointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nUn asesor se comunicará con usted para reprogramar.\n\n_HUV - Evaristo García_";
+                $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$appointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nUn asesor se comunicará con usted para coordinar una nueva fecha.\n\n_HUV - Evaristo García_";
 
                 Log::info('Appointment cancelled by patient', [
-                    'appointment_id' => $appointment->id,
-                    'phone' => $from,
-                ]);
-
-            } elseif (preg_match('/reprogramar|cambiar|mover|📅/i', $messageText)) {
-                // Solicitud de reprogramación
-                $appointment->update([
-                    'reminder_status' => 'reschedule_requested',
-                    'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente solicitó reprogramación vía WhatsApp"
-                ]);
-
-                $responseMessage = "📅 *Solicitud de reprogramación recibida*\n\nHemos registrado su solicitud para reprogramar la cita del {$appointment->citfc->format('d/m/Y')}.\n\nUn asesor se comunicará con usted en breve para coordinar una nueva fecha.\n\n_HUV - Evaristo García_";
-
-                Log::info('Appointment reschedule requested by patient', [
                     'appointment_id' => $appointment->id,
                     'phone' => $from,
                 ]);

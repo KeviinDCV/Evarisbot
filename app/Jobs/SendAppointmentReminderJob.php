@@ -65,14 +65,24 @@ class SendAppointmentReminderJob implements ShouldQueue
             $result = $reminderService->sendReminder($appointment);
             
             if (!$result['success']) {
+                // Actualizar progreso de fallidos
+                $this->updateProgress(false);
                 throw new \Exception($result['error'] ?? 'Error desconocido');
             }
+
+            // Actualizar progreso de enviados exitosamente
+            $this->updateProgress(true);
 
             Log::info('Recordatorio enviado exitosamente', [
                 'appointment_id' => $this->appointmentId,
                 'message_id' => $result['message_id'] ?? null
             ]);
         } catch (\Exception $e) {
+            // Si no se actualizó antes, actualizar ahora como fallido
+            if (!isset($result) || !$result['success']) {
+                $this->updateProgress(false);
+            }
+            
             Log::error('Error enviando recordatorio', [
                 'appointment_id' => $this->appointmentId,
                 'error' => $e->getMessage()
@@ -94,10 +104,37 @@ class SendAppointmentReminderJob implements ShouldQueue
             $appointment->markReminderFailed($exception->getMessage());
         }
 
+        // Actualizar progreso como fallido
+        $this->updateProgress(false);
+
         Log::error('Job de recordatorio falló después de todos los reintentos', [
             'appointment_id' => $this->appointmentId,
             'error' => $exception->getMessage()
         ]);
+    }
+
+    /**
+     * Actualizar progreso del envío masivo
+     */
+    private function updateProgress(bool $success): void
+    {
+        try {
+            if ($success) {
+                // Incrementar contador de enviados
+                $currentSent = (int) Setting::get('reminder_progress_sent', '0');
+                Setting::set('reminder_progress_sent', (string) ($currentSent + 1));
+            } else {
+                // Incrementar contador de fallidos
+                $currentFailed = (int) Setting::get('reminder_progress_failed', '0');
+                Setting::set('reminder_progress_failed', (string) ($currentFailed + 1));
+            }
+        } catch (\Exception $e) {
+            // No fallar el job si hay error actualizando progreso
+            Log::warning('Error actualizando progreso', [
+                'appointment_id' => $this->appointmentId,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }
 

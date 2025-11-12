@@ -105,16 +105,14 @@ class StatisticsController extends Controller
             $byStatus[$status] = $statusQuery->where('status', $status)->count();
         }
 
-        // Confirmados, cancelados, reprogramados (basados en appointments)
+        // Confirmados, cancelados (basados en appointments)
         // Estos son los clics en los botones de respuesta
         $confirmed = Appointment::where('reminder_status', 'confirmed');
         $cancelled = Appointment::where('reminder_status', 'cancelled');
-        $rescheduled = Appointment::where('reminder_status', 'reschedule_requested');
 
         if ($startDate && $endDate) {
             $confirmed->whereBetween('updated_at', [$startDate, $endDate]);
             $cancelled->whereBetween('updated_at', [$startDate, $endDate]);
-            $rescheduled->whereBetween('updated_at', [$startDate, $endDate]);
         }
 
         return [
@@ -122,7 +120,6 @@ class StatisticsController extends Controller
             'answered' => $answered,
             'confirmed' => $confirmed->count(),
             'cancelled' => $cancelled->count(),
-            'rescheduled' => $rescheduled->count(),
             'by_status' => $byStatus,
         ];
     }
@@ -169,7 +166,7 @@ class StatisticsController extends Controller
 
         // Por estado de recordatorio
         $byStatus = [];
-        foreach (['pending', 'sent', 'delivered', 'read', 'failed', 'confirmed', 'cancelled', 'reschedule_requested'] as $status) {
+        foreach (['pending', 'sent', 'delivered', 'read', 'failed', 'confirmed', 'cancelled'] as $status) {
             $statusQuery = clone $query;
             $byStatus[$status] = $statusQuery->where('reminder_status', $status)->count();
         }
@@ -179,7 +176,6 @@ class StatisticsController extends Controller
             'reminder_sent' => $reminderSent,
             'confirmed' => $byStatus['confirmed'],
             'cancelled' => $byStatus['cancelled'],
-            'rescheduled' => $byStatus['reschedule_requested'],
             'pending' => $byStatus['pending'],
             'failed' => $byStatus['failed'],
             'by_status' => $byStatus,

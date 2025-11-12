@@ -247,6 +247,7 @@ class AppointmentReminderService
 
     /**
      * Genera texto del recordatorio para guardar en BD
+     * Este texto debe coincidir con la plantilla aprobada por Meta
      */
     protected function generateReminderText(Appointment $appointment): string
     {
@@ -255,14 +256,15 @@ class AppointmentReminderService
         // Formatear hora usando el mismo método
         $hora = $this->formatHora($appointment->cithor);
         
-        return "🏥 *Recordatorio de Cita Médica*\n\n" .
-               "Hola {$appointment->nom_paciente}, le recordamos su cita médica:\n\n" .
-               "📅 *Fecha:* {$fecha}\n" .
-               "⏰ *Hora:* {$hora}\n" .
-               "👨‍⚕️ *Médico:* {$appointment->mednom}\n" .
-               "🏥 *Especialidad:* {$appointment->espnom}\n\n" .
-               "Por favor, llegue 15 minutos antes de su cita.\n\n" .
-               "Si no puede asistir, responda a este mensaje para reprogramar.";
+        return "Estimado(a) {$appointment->nom_paciente},\n\n" .
+               "Le recordamos que tiene una cita médica programada en el Hospital Universitario del Valle.\n\n" .
+               "Detalles de la cita:\n\n" .
+               "Fecha: {$fecha}\n" .
+               "Hora: {$hora}\n" .
+               "Médico: {$appointment->mednom}\n" .
+               "Especialidad: {$appointment->espnom}\n\n" .
+               "Dirección: Calle 5 #36-08, barrio San Fernando\n\n" .
+               "Por favor, llegue con anticipación y traiga su documento de identificación.";
     }
     
     /**

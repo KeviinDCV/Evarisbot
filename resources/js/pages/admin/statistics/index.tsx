@@ -13,7 +13,6 @@ interface Statistics {
         answered: number;
         confirmed: number;
         cancelled: number;
-        rescheduled: number;
         by_status: {
             pending: number;
             sent: number;
@@ -27,7 +26,6 @@ interface Statistics {
         reminder_sent: number;
         confirmed: number;
         cancelled: number;
-        rescheduled: number;
         pending: number;
         failed: number;
         by_status: {
@@ -135,7 +133,6 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     const appointmentsData = [
         { name: t('statistics.appointments.confirmed'), value: statistics.appointments.confirmed, color: COLORS.success },
         { name: t('statistics.appointments.cancelled'), value: statistics.appointments.cancelled, color: COLORS.danger },
-        { name: t('statistics.appointments.rescheduled'), value: statistics.appointments.rescheduled, color: COLORS.warning },
         { name: t('statistics.appointments.pending'), value: statistics.appointments.pending, color: COLORS.info },
     ];
 
@@ -320,7 +317,6 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <StatRow icon={MessageSquare} label={t('statistics.messages.answered')} value={statistics.messages.answered} index={1} />
                                     <StatRow icon={CheckCircle2} label={t('statistics.messages.confirmed')} value={statistics.messages.confirmed} index={2} />
                                     <StatRow icon={XCircle} label={t('statistics.messages.cancelled')} value={statistics.messages.cancelled} index={3} />
-                                    <StatRow icon={CalendarIcon} label={t('statistics.messages.rescheduled')} value={statistics.messages.rescheduled} index={4} />
                                 </div>
                                 <div className="mt-2 pt-2 border-t border-gray-200">
                                     <h3 className="font-semibold mb-1.5" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
@@ -358,9 +354,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <StatRow icon={Send} label={t('statistics.appointments.reminderSent')} value={statistics.appointments.reminder_sent} index={1} />
                                     <StatRow icon={CheckCircle2} label={t('statistics.appointments.confirmed')} value={statistics.appointments.confirmed} index={2} />
                                     <StatRow icon={XCircle} label={t('statistics.appointments.cancelled')} value={statistics.appointments.cancelled} index={3} />
-                                    <StatRow icon={CalendarIcon} label={t('statistics.appointments.rescheduled')} value={statistics.appointments.rescheduled} index={4} />
-                                    <StatRow icon={Clock} label={t('statistics.appointments.pending')} value={statistics.appointments.pending} index={5} />
-                                    <StatRow icon={AlertCircle} label={t('statistics.appointments.failed')} value={statistics.appointments.failed} index={6} />
+                                    <StatRow icon={Clock} label={t('statistics.appointments.pending')} value={statistics.appointments.pending} index={4} />
+                                    <StatRow icon={AlertCircle} label={t('statistics.appointments.failed')} value={statistics.appointments.failed} index={5} />
                                 </div>
                             </div>
 

@@ -122,7 +122,6 @@ class StatisticsExport
             ['Contestados', $this->statistics['messages']['answered']],
             ['Confirmados', $this->statistics['messages']['confirmed']],
             ['Cancelados', $this->statistics['messages']['cancelled']],
-            ['Reprogramados', $this->statistics['messages']['rescheduled']],
         ], self::COLOR_INFO);
         $row += 8;
 
@@ -132,7 +131,6 @@ class StatisticsExport
             ['Recordatorios enviados', $this->statistics['appointments']['reminder_sent']],
             ['Confirmadas', $this->statistics['appointments']['confirmed']],
             ['Canceladas', $this->statistics['appointments']['cancelled']],
-            ['Reprogramadas', $this->statistics['appointments']['rescheduled']],
             ['Pendientes', $this->statistics['appointments']['pending']],
             ['Fallidas', $this->statistics['appointments']['failed']],
         ], self::COLOR_PRIMARY);
@@ -192,7 +190,6 @@ class StatisticsExport
             ['Contestados', $this->statistics['messages']['answered']],
             ['Confirmados', $this->statistics['messages']['confirmed']],
             ['Cancelados', $this->statistics['messages']['cancelled']],
-            ['Reprogramados', $this->statistics['messages']['rescheduled']],
         ];
 
         $dataRow = 0;
@@ -245,7 +242,6 @@ class StatisticsExport
             ['Recordatorios enviados', $this->statistics['appointments']['reminder_sent']],
             ['Confirmadas', $this->statistics['appointments']['confirmed']],
             ['Canceladas', $this->statistics['appointments']['cancelled']],
-            ['Reprogramadas', $this->statistics['appointments']['rescheduled']],
             ['Pendientes', $this->statistics['appointments']['pending']],
             ['Fallidas', $this->statistics['appointments']['failed']],
         ];

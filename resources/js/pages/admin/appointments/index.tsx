@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, useForm, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, CalendarClock } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -33,7 +33,7 @@ interface Appointment {
     dia?: string;
     reminder_sent?: boolean;
     reminder_sent_at?: string;
-    reminder_status?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'confirmed' | 'cancelled' | 'reschedule_requested';
+    reminder_status?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'confirmed' | 'cancelled';
 }
 
 interface AppointmentIndexProps {
@@ -455,7 +455,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 Enviando...
                                             </span>
                                         )}
-                                        {isPaused && (
+                                        {isProcessing && isPaused && (
                                             <span className="ml-2 inline-flex items-center gap-1 text-amber-600 font-medium">
                                                 <Pause className="w-3 h-3" />
                                                 Pausado
@@ -580,7 +580,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             </Button>
                                         </>
                                     )}
-                                    {isPaused && (
+                                    {isProcessing && isPaused && (
                                         <Button
                                             onClick={handleResumeReminders}
                                             disabled={isLoading}
@@ -807,16 +807,16 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
                             
                             <div className="flex items-center gap-3">
-                                {/* Buscador */}
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494]" />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar por paciente, teléfono, médico..."
-                                        value={searchTerm}
-                                        onChange={(e) => handleSearch(e.target.value)}
-                                        className="pl-10 pr-4 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 w-full md:w-80 text-sm"
-                                    />
+                            {/* Buscador */}
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494]" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por paciente, teléfono, médico..."
+                                    value={searchTerm}
+                                    onChange={(e) => handleSearch(e.target.value)}
+                                    className="pl-10 pr-4 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 w-full md:w-80 text-sm"
+                                />
                                 </div>
                                 
                                 {/* Botón para abrir página dedicada */}
@@ -919,12 +919,6 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium">
                                                                 <CalendarX className="w-3 h-3" />
                                                                 Cancelada
-                                                            </span>
-                                                        )}
-                                                        {appointment.reminder_status === 'reschedule_requested' && (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-700 text-xs font-medium">
-                                                                <CalendarClock className="w-3 h-3" />
-                                                                Reprogramar
                                                             </span>
                                                         )}
                                                         {appointment.reminder_status === 'read' && (

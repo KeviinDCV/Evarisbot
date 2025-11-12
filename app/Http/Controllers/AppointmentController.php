@@ -31,19 +31,25 @@ class AppointmentController extends Controller
                     $batch = Bus::findBatch($batchId);
                     if (!$batch || $batch->finished() || $batch->cancelled()) {
                         Setting::set('reminder_processing', 'false');
+                        Setting::set('reminder_paused', 'false'); // Limpiar estado pausado también
                         Setting::remove('reminder_batch_id');
                         $reminderProcessing = false;
                     }
                 } catch (\Exception $e) {
                     Setting::set('reminder_processing', 'false');
+                    Setting::set('reminder_paused', 'false'); // Limpiar estado pausado también
                     Setting::remove('reminder_batch_id');
                     $reminderProcessing = false;
                 }
             } else {
                 // No hay batch ID pero está marcado como processing, limpiar
                 Setting::set('reminder_processing', 'false');
+                Setting::set('reminder_paused', 'false'); // Limpiar estado pausado también
                 $reminderProcessing = false;
             }
+        } else {
+            // Si no hay proceso activo, asegurar que el estado pausado también esté limpio
+            Setting::set('reminder_paused', 'false');
         }
         
         // Cargar solo las primeras 50 citas del usuario actual
@@ -70,13 +76,9 @@ class AppointmentController extends Controller
         
         $totalAppointments = Appointment::where('uploaded_by', auth()->id())->count();
         
-        // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana)
-        $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
-        $targetDate = now()->addDays($daysInAdvance)->startOfDay();
-        
+        // Obtener todas las citas pendientes (sin filtrar por fecha)
         $pendingCount = Appointment::query()
             ->where('uploaded_by', auth()->id())
-            ->whereDate('citfc', $targetDate)
             ->where('reminder_sent', false)
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
@@ -117,8 +119,6 @@ class AppointmentController extends Controller
                 $query->where('reminder_status', 'confirmed');
             } elseif ($filter === 'cancelled') {
                 $query->where('reminder_status', 'cancelled');
-            } elseif ($filter === 'reschedule_requested') {
-                $query->where('reminder_status', 'reschedule_requested');
             }
         }
         
@@ -160,7 +160,6 @@ class AppointmentController extends Controller
             'pending' => Appointment::where('uploaded_by', auth()->id())->where('reminder_sent', false)->count(),
             'confirmed' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'confirmed')->count(),
             'cancelled' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'cancelled')->count(),
-            'reschedule_requested' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'reschedule_requested')->count(),
         ];
         
         return Inertia::render('admin/appointments/view', [
@@ -427,6 +426,7 @@ class AppointmentController extends Controller
 
     /**
      * Iniciar envío de recordatorios
+     * Envía TODAS las citas pendientes respetando los límites de Meta
      */
     public function startReminders(Request $request)
     {
@@ -439,141 +439,36 @@ class AppointmentController extends Controller
                 ], 400);
             }
 
-            // Obtener configuración
-            // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana)
-            $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
-            $maxPerDay = (int) Setting::get('reminder_max_per_day', '1000');
-            $messagesPerMinute = (int) Setting::get('reminder_messages_per_minute', '20'); // Por defecto 20/min para respetar límites
+            // Obtener configuración de rate limiting
+            // Límites de Meta WhatsApp Business API:
+            // - Máximo 1,000 conversaciones iniciadas por día
+            // - Recomendado: 1 mensaje por segundo, 20 mensajes por minuto
+            $maxPerDay = (int) Setting::get('reminder_max_per_day', '1000'); // Límite diario de Meta
+            $messagesPerSecond = (float) Setting::get('reminder_messages_per_second', '1'); // 1 msg/seg por defecto
+            $messagesPerMinute = (int) Setting::get('reminder_messages_per_minute', '20'); // 20 msg/min por defecto
             
-            // Calcular fecha objetivo
-            // Si hoy es 12/11/2025 y daysInAdvance = 2, entonces pasado mañana = 14/11/2025
-            $targetDate = now()->addDays($daysInAdvance)->startOfDay();
-            
-            // Log para verificar el cálculo
-            Log::info('Cálculo de fecha objetivo', [
-                'current_date' => now()->format('Y-m-d H:i:s'),
-                'current_date_only' => now()->format('Y-m-d'),
-                'days_in_advance' => $daysInAdvance,
-                'target_date' => $targetDate->format('Y-m-d H:i:s'),
-                'target_date_only' => $targetDate->format('Y-m-d'),
-            ]);
-            
-            // Debug: Obtener información sobre las citas disponibles
-            $allPendingAppointments = Appointment::query()
-                ->where('uploaded_by', auth()->id())
-                ->where('reminder_sent', false)
-                ->whereNotNull('citfc')
-                ->whereNotNull('pactel')
-                ->get();
-            
-            // Obtener fechas únicas de citas pendientes con conteo
-            $datesWithCount = $allPendingAppointments
-                ->groupBy(fn($apt) => $apt->citfc ? $apt->citfc->format('Y-m-d') : null)
-                ->filter(fn($group, $date) => $date !== null)
-                ->map(fn($group, $date) => [
-                    'date' => $date,
-                    'count' => $group->count()
-                ])
-                ->sortBy('date')
-                ->values()
-                ->toArray();
-            
-            $availableDates = array_column($datesWithCount, 'date');
-            
-            // Verificar si hay citas para la fecha objetivo exacta
-            $exactDateCount = $allPendingAppointments
-                ->filter(fn($apt) => $apt->citfc && $apt->citfc->format('Y-m-d') === $targetDate->format('Y-m-d'))
-                ->count();
-            
-            // Verificar citas para mañana y pasado mañana
-            $tomorrow = now()->addDay()->startOfDay();
-            $dayAfterTomorrow = now()->addDays(2)->startOfDay();
-            $tomorrowCount = $allPendingAppointments
-                ->filter(fn($apt) => $apt->citfc && $apt->citfc->format('Y-m-d') === $tomorrow->format('Y-m-d'))
-                ->count();
-            $dayAfterTomorrowCount = $allPendingAppointments
-                ->filter(fn($apt) => $apt->citfc && $apt->citfc->format('Y-m-d') === $dayAfterTomorrow->format('Y-m-d'))
-                ->count();
-            
-            // Obtener citas pendientes del usuario actual para la fecha objetivo
-            // Usar whereDate que es más confiable para campos de tipo date
-            $targetDateString = $targetDate->format('Y-m-d');
-            
+            // Obtener TODAS las citas pendientes del usuario actual (sin filtrar por fecha)
             $appointments = Appointment::query()
                 ->where('uploaded_by', auth()->id())
-                ->whereDate('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('citfc')
                 ->whereNotNull('pactel')
-                ->limit($maxPerDay)
+                ->orderBy('citfc', 'asc') // Ordenar por fecha de cita
+                ->limit($maxPerDay) // Respetar límite diario de Meta
                 ->pluck('id');
             
-            // Verificar con SQL directo para debug
-            $rawQuery = DB::select("
-                SELECT id, citfc, nom_paciente, reminder_sent 
-                FROM appointments 
-                WHERE uploaded_by = ? 
-                AND citfc = ? 
-                AND reminder_sent = 0 
-                AND citfc IS NOT NULL 
-                AND pactel IS NOT NULL 
-                LIMIT 5
-            ", [auth()->id(), $targetDateString]);
-            
-            // Log para debug
-            Log::info('Buscando citas para recordatorio', [
+            Log::info('Iniciando envío de recordatorios masivos', [
                 'user_id' => auth()->id(),
-                'target_date' => $targetDateString,
-                'current_date' => now()->format('Y-m-d'),
-                'days_in_advance' => $daysInAdvance,
-                'found_count_eloquent' => $appointments->count(),
-                'found_count_raw' => count($rawQuery),
-                'raw_results' => $rawQuery
+                'total_pending_appointments' => $appointments->count(),
+                'max_per_day' => $maxPerDay,
+                'messages_per_second' => $messagesPerSecond,
+                'messages_per_minute' => $messagesPerMinute
             ]);
 
             if ($appointments->isEmpty()) {
-                // Información de debug útil
-                $targetDateFormatted = $targetDate->format('Y-m-d');
-                $currentDateFormatted = now()->format('Y-m-d');
-                
-                $message = "No hay citas pendientes para enviar recordatorios para la fecha {$targetDateFormatted} (en {$daysInAdvance} días desde hoy).";
-                
-                if (!empty($availableDates)) {
-                    $message .= "\n\nFechas disponibles con citas pendientes: " . implode(', ', array_slice($availableDates, 0, 10));
-                    if (count($availableDates) > 10) {
-                        $message .= " y " . (count($availableDates) - 10) . " más.";
-                    }
-                } else {
-                    $message .= "\n\nNo hay citas pendientes en ninguna fecha.";
-                }
-                
-                Log::warning('No se encontraron citas para recordatorio', [
-                    'user_id' => auth()->id(),
-                    'target_date' => $targetDateFormatted,
-                    'current_date' => $currentDateFormatted,
-                    'days_in_advance' => $daysInAdvance,
-                    'available_dates' => $availableDates,
-                    'total_pending' => $allPendingAppointments->count(),
-                    'exact_date_count' => $exactDateCount,
-                    'tomorrow_count' => $tomorrowCount,
-                    'day_after_tomorrow_count' => $dayAfterTomorrowCount,
-                    'dates_with_count' => $datesWithCount
-                ]);
-                
                 return response()->json([
                     'success' => false,
-                    'message' => $message,
-                    'debug' => [
-                        'target_date' => $targetDateFormatted,
-                        'current_date' => $currentDateFormatted,
-                        'days_in_advance' => $daysInAdvance,
-                        'available_dates' => $availableDates,
-                        'total_pending_appointments' => $allPendingAppointments->count(),
-                        'exact_date_count' => $exactDateCount,
-                        'tomorrow_count' => $tomorrowCount,
-                        'day_after_tomorrow_count' => $dayAfterTomorrowCount,
-                        'dates_with_count' => $datesWithCount
-                    ]
+                    'message' => 'No hay citas pendientes para enviar recordatorios.'
                 ], 400);
             }
 
@@ -581,50 +476,51 @@ class AppointmentController extends Controller
             Setting::set('reminder_processing', 'true');
             Setting::set('reminder_paused', 'false');
 
-            // Calcular delay entre mensajes (en segundos)
-            $delayBetweenMessages = 60 / $messagesPerMinute; // Ej: 60/20 = 3 segundos entre mensajes
+            // Calcular delay entre mensajes respetando límites de Meta
+            // Meta recomienda: 1 mensaje por segundo máximo
+            // Usamos el más restrictivo entre mensajes por segundo y mensajes por minuto
+            $delayBetweenMessages = max(1 / $messagesPerSecond, 60 / $messagesPerMinute); // En segundos
             
-            // Para cPanel: procesar de manera síncrona en lotes pequeños para evitar timeouts
-            // Procesar máximo 15 por vez para evitar timeouts del servidor
             $totalAppointments = $appointments->count();
-            $maxSynchronousBatch = 15; // Máximo de mensajes por lote síncrono
-            $processSynchronously = $totalAppointments <= $maxSynchronousBatch;
             
             // Guardar progreso inicial
             Setting::set('reminder_progress_total', (string) $totalAppointments);
             Setting::set('reminder_progress_sent', '0');
             Setting::set('reminder_progress_failed', '0');
             
+            // Para pocas citas (menos de 20), procesar de manera síncrona
+            // Esto evita depender de un worker de cola cuando hay pocos mensajes
+            $maxSynchronousBatch = 20;
+            $processSynchronously = $totalAppointments <= $maxSynchronousBatch;
+            
             if ($processSynchronously) {
-                // Procesar de manera síncrona en un solo lote
+                // Procesar de manera síncrona
                 $sent = 0;
                 $failed = 0;
+                $reminderService = app(AppointmentReminderService::class);
                 
                 try {
-                    foreach ($appointments as $index => $appointmentId) {
-                        try {
-                            // Verificar si está pausado antes de cada envío
-                            if (Setting::get('reminder_paused', 'false') === 'true') {
-                                Setting::set('reminder_processing', 'false');
-                                Setting::remove('reminder_progress_sent');
-                                Setting::remove('reminder_progress_failed');
-                                Setting::remove('reminder_progress_total');
-                                return response()->json([
-                                    'success' => false,
-                                    'message' => 'El envío fue pausado',
-                                    'sent' => $sent,
-                                    'failed' => $failed
-                                ], 400);
-                            }
-                            
-                            $appointment = Appointment::find($appointmentId);
-                            if ($appointment && !$appointment->reminder_sent) {
-                                $reminderService = app(AppointmentReminderService::class);
+                    foreach ($appointments as $appointmentId) {
+                        // Verificar si está pausado antes de cada envío
+                        if (Setting::get('reminder_paused', 'false') === 'true') {
+                            Setting::set('reminder_processing', 'false');
+                            Setting::set('reminder_paused', 'false');
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'El envío fue pausado',
+                                'sent' => $sent,
+                                'failed' => $failed,
+                                'total' => $totalAppointments
+                            ], 400);
+                        }
+                        
+                        $appointment = Appointment::find($appointmentId);
+                        if ($appointment && !$appointment->reminder_sent) {
+                            try {
                                 $result = $reminderService->sendReminder($appointment);
                                 
                                 if ($result['success']) {
                                     $sent++;
-                                    // Actualizar progreso en tiempo real
                                     Setting::set('reminder_progress_sent', (string) $sent);
                                     Log::info('Recordatorio enviado exitosamente (síncrono)', [
                                         'appointment_id' => $appointmentId,
@@ -633,64 +529,38 @@ class AppointmentController extends Controller
                                     ]);
                                 } else {
                                     $failed++;
-                                    // Actualizar progreso en tiempo real
                                     Setting::set('reminder_progress_failed', (string) $failed);
                                     Log::error('Error enviando recordatorio (síncrono)', [
                                         'appointment_id' => $appointmentId,
                                         'error' => $result['error'] ?? 'Error desconocido',
                                         'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
                                     ]);
-                                    
-                                    // Si hay un error de rate limit, esperar más tiempo
-                                    if (str_contains(strtolower($result['error'] ?? ''), 'rate limit') || 
-                                        str_contains(strtolower($result['error'] ?? ''), 'too many requests')) {
-                                        Log::warning('Rate limit detectado, esperando 60 segundos', [
-                                            'appointment_id' => $appointmentId
-                                        ]);
-                                        sleep(60); // Esperar 1 minuto antes de continuar
-                                    }
                                 }
-                            } else {
-                                Log::warning('Appointment no encontrado o ya enviado', [
+                            } catch (\Exception $e) {
+                                $failed++;
+                                Setting::set('reminder_progress_failed', (string) $failed);
+                                Log::error('Excepción enviando recordatorio síncrono', [
                                     'appointment_id' => $appointmentId,
-                                    'found' => $appointment !== null,
-                                    'already_sent' => $appointment?->reminder_sent ?? false
+                                    'error' => $e->getMessage(),
+                                    'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
                                 ]);
                             }
-                            
-                            // Delay entre mensajes para respetar rate limiting
-                            if ($delayBetweenMessages > 0) {
+                        }
+                        
+                        // Delay entre mensajes para respetar rate limiting (excepto en el último)
+                        if ($delayBetweenMessages > 0) {
+                            $appointmentIds = $appointments->toArray();
+                            $isLast = $appointmentId === end($appointmentIds);
+                            if (!$isLast) {
                                 usleep($delayBetweenMessages * 1000000); // Convertir segundos a microsegundos
-                            }
-                        } catch (\Exception $e) {
-                            $failed++;
-                            // Actualizar progreso en tiempo real
-                            Setting::set('reminder_progress_failed', (string) $failed);
-                            Log::error('Error enviando recordatorio síncrono', [
-                                'appointment_id' => $appointmentId,
-                                'error' => $e->getMessage(),
-                                'trace' => $e->getTraceAsString(),
-                                'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
-                            ]);
-                            
-                            // Si es un error crítico, detener el proceso
-                            if (str_contains(strtolower($e->getMessage()), 'timeout') || 
-                                str_contains(strtolower($e->getMessage()), 'connection')) {
-                                Log::error('Error crítico detectado, deteniendo proceso síncrono', [
-                                    'appointment_id' => $appointmentId,
-                                    'error' => $e->getMessage()
-                                ]);
-                                break;
                             }
                         }
                     }
                 } finally {
-                    // Siempre limpiar el estado, incluso si hay error
+                    // Limpiar estado
                     Setting::set('reminder_processing', 'false');
+                    Setting::set('reminder_paused', 'false');
                     Setting::remove('reminder_batch_id');
-                    Setting::remove('reminder_progress_sent');
-                    Setting::remove('reminder_progress_failed');
-                    Setting::remove('reminder_progress_total');
                 }
                 
                 Log::info('Recordatorios enviados síncronamente', [
@@ -713,36 +583,45 @@ class AppointmentController extends Controller
                 ]);
             }
             
-            // Para muchos jobs, usar batch con queue
-            // Crear jobs con delays escalonados
+            // Para muchos mensajes, usar batch con queue
+            // Crear jobs con delays escalonados para respetar rate limiting
             $jobs = [];
-            $delay = 0;
+            $delay = 0; // Delay inicial en segundos
             
             foreach ($appointments as $appointmentId) {
                 $jobs[] = (new SendAppointmentReminderJob($appointmentId))
-                    ->delay($delay);
+                    ->delay(now()->addSeconds($delay));
                 
+                // Incrementar delay para el siguiente mensaje
+                // Esto asegura que respetamos el límite de 1 mensaje por segundo
                 $delay += $delayBetweenMessages;
             }
 
             // Despachar todos los jobs
             $batch = Bus::batch($jobs)
-                ->name('Envío de Recordatorios - ' . now()->format('Y-m-d H:i'))
+                ->name('Envío de Recordatorios Masivos - ' . now()->format('Y-m-d H:i'))
                 ->allowFailures()
                 ->then(function (\Illuminate\Bus\Batch $batch) {
                     // Cuando todos los jobs terminan
                     Setting::set('reminder_processing', 'false');
-                    Setting::remove('reminder_batch_id'); // Limpiar batch ID
+                    Setting::remove('reminder_batch_id');
+                    
+                    // Obtener progreso final
+                    $progressSent = (int) Setting::get('reminder_progress_sent', '0');
+                    $progressFailed = (int) Setting::get('reminder_progress_failed', '0');
+                    
                     Log::info('Batch de recordatorios completado', [
                         'total_jobs' => $batch->totalJobs,
                         'processed_jobs' => $batch->processedJobs(),
-                        'failed_jobs' => $batch->failedJobs
+                        'failed_jobs' => $batch->failedJobs,
+                        'sent' => $progressSent,
+                        'failed' => $progressFailed
                     ]);
                 })
                 ->catch(function (\Illuminate\Bus\Batch $batch, \Throwable $e) {
                     // Si hay un error crítico
                     Setting::set('reminder_processing', 'false');
-                    Setting::remove('reminder_batch_id'); // Limpiar batch ID
+                    Setting::remove('reminder_batch_id');
                     Log::error('Error crítico en batch de recordatorios', [
                         'error' => $e->getMessage()
                     ]);
@@ -750,18 +629,19 @@ class AppointmentController extends Controller
                 ->finally(function (\Illuminate\Bus\Batch $batch) {
                     // Siempre se ejecuta al final
                     Setting::set('reminder_processing', 'false');
-                    Setting::remove('reminder_batch_id'); // Limpiar batch ID
+                    Setting::remove('reminder_batch_id');
                 })
                 ->dispatch();
             
             // Guardar el ID del batch para poder cancelarlo después
             Setting::set('reminder_batch_id', $batch->id);
 
-            Log::info('Iniciado envío de recordatorios', [
+            Log::info('Iniciado envío de recordatorios masivos', [
                 'total_appointments' => $appointments->count(),
-                'target_date' => $targetDate->format('Y-m-d'),
+                'messages_per_second' => $messagesPerSecond,
                 'messages_per_minute' => $messagesPerMinute,
                 'delay_between_messages' => $delayBetweenMessages,
+                'estimated_time_minutes' => ceil(($appointments->count() * $delayBetweenMessages) / 60),
                 'user_id' => auth()->id()
             ]);
 
@@ -910,7 +790,7 @@ class AppointmentController extends Controller
         $progressTotal = (int) Setting::get('reminder_progress_total', '0');
         
         // Verificar si realmente hay un proceso corriendo
-        // Si está marcado como "processing" pero no hay batch activo, limpiar el estado
+        // Usar siempre el progreso guardado en Settings ya que los jobs lo actualizan en tiempo real
         if ($processing) {
             $batchId = Setting::get('reminder_batch_id');
             if ($batchId) {
@@ -931,34 +811,23 @@ class AppointmentController extends Controller
                             'batch_id' => $batchId
                         ]);
                     } else {
-                        // Si hay batch activo, obtener progreso del batch
-                        $progressTotal = $batch->totalJobs;
-                        $progressSent = $batch->processedJobs() - $batch->failedJobs;
-                        $progressFailed = $batch->failedJobs;
+                        // Batch activo: usar progreso guardado en Settings (actualizado por los jobs)
+                        // El progreso guardado es más preciso porque se actualiza después de cada envío
+                        $progressTotal = max($progressTotal, $batch->totalJobs); // Usar el máximo entre ambos
                     }
                 } catch (\Exception $e) {
-                    // Si no se puede encontrar el batch, probablemente ya terminó
-                    Setting::set('reminder_processing', 'false');
-                    Setting::remove('reminder_batch_id');
-                    Setting::remove('reminder_progress_sent');
-                    Setting::remove('reminder_progress_failed');
-                    Setting::remove('reminder_progress_total');
-                    $processing = false;
-                    $progressSent = 0;
-                    $progressFailed = 0;
-                    $progressTotal = 0;
-                    Log::info('Estado de procesamiento limpiado - batch no encontrado', [
+                    // Si no se puede encontrar el batch, usar progreso guardado
+                    // El progreso guardado sigue siendo válido mientras los jobs se ejecutan
+                    Log::info('Batch no encontrado, usando progreso guardado', [
                         'batch_id' => $batchId,
                         'error' => $e->getMessage()
                     ]);
                 }
-            } else {
-                // Proceso síncrono - usar progreso guardado
-                // Si no hay progreso guardado pero está procesando, puede ser que acaba de empezar
             }
+            // Si no hay batchId pero está procesando, usar progreso guardado (puede ser proceso síncrono)
         } else {
-            // No está procesando, limpiar progreso
-            if ($progressTotal > 0) {
+            // No está procesando, limpiar progreso solo si terminó completamente
+            if ($progressTotal > 0 && $progressSent + $progressFailed >= $progressTotal) {
                 Setting::remove('reminder_progress_sent');
                 Setting::remove('reminder_progress_failed');
                 Setting::remove('reminder_progress_total');
@@ -968,13 +837,9 @@ class AppointmentController extends Controller
             }
         }
         
-        // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana)
-        $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
-        $targetDate = now()->addDays($daysInAdvance)->startOfDay();
-        
+        // Obtener todas las citas pendientes (sin filtrar por fecha)
         $pendingCount = Appointment::query()
             ->where('uploaded_by', auth()->id())
-            ->whereDate('citfc', $targetDate)
             ->where('reminder_sent', false)
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
@@ -986,7 +851,6 @@ class AppointmentController extends Controller
                 'paused' => $paused,
                 'processing' => $processing,
                 'pending_count' => $pendingCount,
-                'target_date' => $targetDate->format('Y-m-d'),
                 'progress' => [
                     'sent' => $progressSent,
                     'failed' => $progressFailed,
