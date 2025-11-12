@@ -590,17 +590,25 @@ class AppointmentController extends Controller
             $maxSynchronousBatch = 15; // Máximo de mensajes por lote síncrono
             $processSynchronously = $totalAppointments <= $maxSynchronousBatch;
             
+            // Guardar progreso inicial
+            Setting::set('reminder_progress_total', (string) $totalAppointments);
+            Setting::set('reminder_progress_sent', '0');
+            Setting::set('reminder_progress_failed', '0');
+            
             if ($processSynchronously) {
                 // Procesar de manera síncrona en un solo lote
                 $sent = 0;
                 $failed = 0;
                 
                 try {
-                    foreach ($appointments as $appointmentId) {
+                    foreach ($appointments as $index => $appointmentId) {
                         try {
                             // Verificar si está pausado antes de cada envío
                             if (Setting::get('reminder_paused', 'false') === 'true') {
                                 Setting::set('reminder_processing', 'false');
+                                Setting::remove('reminder_progress_sent');
+                                Setting::remove('reminder_progress_failed');
+                                Setting::remove('reminder_progress_total');
                                 return response()->json([
                                     'success' => false,
                                     'message' => 'El envío fue pausado',
@@ -616,15 +624,21 @@ class AppointmentController extends Controller
                                 
                                 if ($result['success']) {
                                     $sent++;
+                                    // Actualizar progreso en tiempo real
+                                    Setting::set('reminder_progress_sent', (string) $sent);
                                     Log::info('Recordatorio enviado exitosamente (síncrono)', [
                                         'appointment_id' => $appointmentId,
-                                        'message_id' => $result['message_id'] ?? null
+                                        'message_id' => $result['message_id'] ?? null,
+                                        'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
                                     ]);
                                 } else {
                                     $failed++;
+                                    // Actualizar progreso en tiempo real
+                                    Setting::set('reminder_progress_failed', (string) $failed);
                                     Log::error('Error enviando recordatorio (síncrono)', [
                                         'appointment_id' => $appointmentId,
-                                        'error' => $result['error'] ?? 'Error desconocido'
+                                        'error' => $result['error'] ?? 'Error desconocido',
+                                        'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
                                     ]);
                                     
                                     // Si hay un error de rate limit, esperar más tiempo
@@ -650,10 +664,13 @@ class AppointmentController extends Controller
                             }
                         } catch (\Exception $e) {
                             $failed++;
+                            // Actualizar progreso en tiempo real
+                            Setting::set('reminder_progress_failed', (string) $failed);
                             Log::error('Error enviando recordatorio síncrono', [
                                 'appointment_id' => $appointmentId,
                                 'error' => $e->getMessage(),
-                                'trace' => $e->getTraceAsString()
+                                'trace' => $e->getTraceAsString(),
+                                'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
                             ]);
                             
                             // Si es un error crítico, detener el proceso
@@ -671,6 +688,9 @@ class AppointmentController extends Controller
                     // Siempre limpiar el estado, incluso si hay error
                     Setting::set('reminder_processing', 'false');
                     Setting::remove('reminder_batch_id');
+                    Setting::remove('reminder_progress_sent');
+                    Setting::remove('reminder_progress_failed');
+                    Setting::remove('reminder_progress_total');
                 }
                 
                 Log::info('Recordatorios enviados síncronamente', [
@@ -852,6 +872,9 @@ class AppointmentController extends Controller
             Setting::set('reminder_paused', 'true');
             Setting::set('reminder_processing', 'false');
             Setting::remove('reminder_batch_id');
+            Setting::remove('reminder_progress_sent');
+            Setting::remove('reminder_progress_failed');
+            Setting::remove('reminder_progress_total');
             
             Log::info('Recordatorios detenidos completamente', [
                 'user_id' => auth()->id()
@@ -874,12 +897,17 @@ class AppointmentController extends Controller
     }
 
     /**
-     * Obtener estado del proceso de recordatorios
+     * Obtener estado del proceso de recordatorios con progreso en tiempo real
      */
     public function getReminderStatus()
     {
         $paused = Setting::get('reminder_paused', 'false') === 'true';
         $processing = Setting::get('reminder_processing', 'false') === 'true';
+        
+        // Obtener progreso guardado
+        $progressSent = (int) Setting::get('reminder_progress_sent', '0');
+        $progressFailed = (int) Setting::get('reminder_progress_failed', '0');
+        $progressTotal = (int) Setting::get('reminder_progress_total', '0');
         
         // Verificar si realmente hay un proceso corriendo
         // Si está marcado como "processing" pero no hay batch activo, limpiar el estado
@@ -892,27 +920,51 @@ class AppointmentController extends Controller
                         // El batch terminó pero el estado quedó como "processing", limpiarlo
                         Setting::set('reminder_processing', 'false');
                         Setting::remove('reminder_batch_id');
+                        Setting::remove('reminder_progress_sent');
+                        Setting::remove('reminder_progress_failed');
+                        Setting::remove('reminder_progress_total');
                         $processing = false;
+                        $progressSent = 0;
+                        $progressFailed = 0;
+                        $progressTotal = 0;
                         Log::info('Estado de procesamiento limpiado - batch terminado', [
                             'batch_id' => $batchId
                         ]);
+                    } else {
+                        // Si hay batch activo, obtener progreso del batch
+                        $progressTotal = $batch->totalJobs;
+                        $progressSent = $batch->processedJobs() - $batch->failedJobs;
+                        $progressFailed = $batch->failedJobs;
                     }
                 } catch (\Exception $e) {
                     // Si no se puede encontrar el batch, probablemente ya terminó
                     Setting::set('reminder_processing', 'false');
                     Setting::remove('reminder_batch_id');
+                    Setting::remove('reminder_progress_sent');
+                    Setting::remove('reminder_progress_failed');
+                    Setting::remove('reminder_progress_total');
                     $processing = false;
+                    $progressSent = 0;
+                    $progressFailed = 0;
+                    $progressTotal = 0;
                     Log::info('Estado de procesamiento limpiado - batch no encontrado', [
                         'batch_id' => $batchId,
                         'error' => $e->getMessage()
                     ]);
                 }
             } else {
-                // No hay batch ID pero está marcado como processing, limpiar
-                // Esto puede pasar si el proceso síncrono terminó pero hubo un error
-                Setting::set('reminder_processing', 'false');
-                $processing = false;
-                Log::info('Estado de procesamiento limpiado - sin batch ID');
+                // Proceso síncrono - usar progreso guardado
+                // Si no hay progreso guardado pero está procesando, puede ser que acaba de empezar
+            }
+        } else {
+            // No está procesando, limpiar progreso
+            if ($progressTotal > 0) {
+                Setting::remove('reminder_progress_sent');
+                Setting::remove('reminder_progress_failed');
+                Setting::remove('reminder_progress_total');
+                $progressSent = 0;
+                $progressFailed = 0;
+                $progressTotal = 0;
             }
         }
         
@@ -934,7 +986,14 @@ class AppointmentController extends Controller
                 'paused' => $paused,
                 'processing' => $processing,
                 'pending_count' => $pendingCount,
-                'target_date' => $targetDate->format('Y-m-d')
+                'target_date' => $targetDate->format('Y-m-d'),
+                'progress' => [
+                    'sent' => $progressSent,
+                    'failed' => $progressFailed,
+                    'total' => $progressTotal,
+                    'pending' => max(0, $progressTotal - $progressSent - $progressFailed),
+                    'percentage' => $progressTotal > 0 ? round(($progressSent + $progressFailed) / $progressTotal * 100) : 0
+                ]
             ]);
         }
 

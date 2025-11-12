@@ -13,6 +13,27 @@ use Inertia\Inertia;
 class ConversationController extends Controller
 {
     /**
+     * Obtener el contador de conversaciones con mensajes no leídos
+     */
+    public function getUnreadCount()
+    {
+        if (auth()->user()->isAdvisor()) {
+            // Si es asesor, solo contar las asignadas a él
+            $count = Conversation::where('assigned_to', auth()->id())
+                ->where('unread_count', '>', 0)
+                ->count();
+        } else {
+            // Si es admin, contar todas las conversaciones con mensajes no leídos
+            $count = Conversation::where('unread_count', '>', 0)
+                ->count();
+        }
+
+        return response()->json([
+            'count' => $count
+        ]);
+    }
+
+    /**
      * Mostrar la lista de conversaciones
      */
     public function index(Request $request)

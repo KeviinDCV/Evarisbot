@@ -88,6 +88,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     // Conversaciones (WhatsApp) - Accesible para Admin y Asesores
     Route::controller(\App\Http\Controllers\ConversationController::class)->prefix('chat')->group(function () {
         Route::get('/', 'index')->name('chat.index');
+        Route::get('/unread-count', 'getUnreadCount')->name('chat.unread-count');
         Route::get('/{conversation}', 'show')->name('chat.show');
         Route::post('/{conversation}/send', 'sendMessage')->name('chat.send');
         Route::post('/{conversation}/assign', 'assign')->name('chat.assign');

@@ -38,6 +38,21 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
+        // Contar conversaciones con mensajes no leídos
+        $unreadConversationsCount = 0;
+        if ($request->user()) {
+            // Si el usuario es asesor, solo contar las asignadas a él
+            if ($request->user()->role === 'advisor') {
+                $unreadConversationsCount = \App\Models\Conversation::where('assigned_to', $request->user()->id)
+                    ->where('unread_count', '>', 0)
+                    ->count();
+            } else {
+                // Si es admin, contar todas las conversaciones con mensajes no leídos
+                $unreadConversationsCount = \App\Models\Conversation::where('unread_count', '>', 0)
+                    ->count();
+            }
+        }
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -46,6 +61,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'unreadConversationsCount' => $unreadConversationsCount,
         ];
     }
 }

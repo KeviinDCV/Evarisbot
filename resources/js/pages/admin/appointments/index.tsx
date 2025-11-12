@@ -64,6 +64,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     const [isProcessing, setIsProcessing] = useState(reminderProcessing);
     const [isLoading, setIsLoading] = useState(false);
     const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, failed: 0 });
+    const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; pending: number; percentage: number } | null>(null);
     
     const { data, setData, post, processing, errors, reset } = useForm({
         file: null as File | null,
@@ -76,10 +77,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         }
     }, [remindersStats]);
 
-    // Actualizar estado cada 5 segundos si está procesando
+    // Actualizar estado cada 1 segundo si está procesando (más frecuente para mejor feedback)
     useEffect(() => {
         if (isProcessing) {
-            const interval = setInterval(async () => {
+            // Primera actualización inmediata
+            const updateStatus = async () => {
                 try {
                     const response = await fetch('/admin/appointments/reminders/status', {
                         headers: {
@@ -90,6 +92,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     
                     setIsPaused(data.paused || false);
                     setIsProcessing(data.processing || false);
+                    
+                    // Actualizar progreso en tiempo real
+                    if (data.progress && data.progress.total > 0) {
+                        setProgress(data.progress);
+                    }
                     
                     // Actualizar estadísticas si están disponibles
                     if (data.pending_count !== undefined) {
@@ -102,14 +109,28 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             }
                         });
                     }
+                    
+                    // Si terminó el proceso, limpiar progreso después de un momento
+                    if (!data.processing && data.progress && data.progress.percentage >= 100) {
+                        setTimeout(() => {
+                            setIsProcessing(false);
+                            setProgress(null);
+                        }, 3000);
+                    }
                 } catch (error) {
                     console.error('Error al obtener estado:', error);
                 }
-            }, 5000);
+            };
+            
+            // Actualizar inmediatamente
+            updateStatus();
+            
+            // Luego actualizar cada 1 segundo
+            const interval = setInterval(updateStatus, 1000);
 
             return () => clearInterval(interval);
         }
-    }, [isProcessing]);
+    }, [isProcessing, router]);
 
     // Filtrar citas por búsqueda
     const filteredAppointments = useMemo(() => {
@@ -184,6 +205,22 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
     const handleStartReminders = async () => {
         setIsLoading(true);
+        
+        // Establecer estado de procesamiento inmediatamente para mostrar la barra de progreso
+        setIsProcessing(true);
+        setIsPaused(false);
+        
+        // Inicializar progreso con el total de pendientes (estimado)
+        if (localStats.pending > 0) {
+            setProgress({
+                sent: 0,
+                failed: 0,
+                total: localStats.pending,
+                pending: localStats.pending,
+                percentage: 0
+            });
+        }
+        
         try {
             const response = await fetch('/admin/appointments/reminders/start', {
                 method: 'POST',
@@ -196,8 +233,26 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
             const data = await response.json();
             
             if (data.success) {
-                setIsProcessing(false); // Si fue síncrono, ya terminó
-                setIsPaused(false);
+                // Si fue síncrono y terminó inmediatamente, actualizar progreso final
+                if (data.sent !== undefined && data.failed !== undefined && data.total !== undefined) {
+                    setProgress({
+                        sent: data.sent,
+                        failed: data.failed,
+                        total: data.total,
+                        pending: Math.max(0, data.total - data.sent - data.failed),
+                        percentage: data.total > 0 ? Math.round(((data.sent + data.failed) / data.total) * 100) : 100
+                    });
+                    
+                    // Esperar un momento para mostrar el resultado final antes de limpiar
+                    setTimeout(() => {
+                        setIsProcessing(false);
+                        setIsPaused(false);
+                        setProgress(null);
+                    }, 3000);
+                } else {
+                    // Si es asíncrono, el polling se encargará de actualizar el progreso
+                    // El estado ya está establecido arriba
+                }
                 
                 // Actualizar estadísticas locales si están disponibles
                 if (data.sent !== undefined && data.failed !== undefined && remindersStats) {
@@ -219,6 +274,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     }
                 });
             } else {
+                // Si hay error, limpiar el estado de procesamiento
+                setIsProcessing(false);
+                setProgress(null);
                 // Mostrar información detallada si está disponible
                 let errorMessage = data.message || 'Error al iniciar el envío';
                 
@@ -262,10 +320,16 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                 }
                 
                 alert(errorMessage);
+                // Limpiar estado si hay error
+                setIsProcessing(false);
+                setProgress(null);
             }
         } catch (error) {
             console.error('Error:', error);
             alert('Error al iniciar el envío de recordatorios');
+            // Limpiar estado si hay error
+            setIsProcessing(false);
+            setProgress(null);
         } finally {
             setIsLoading(false);
         }
@@ -398,12 +462,45 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             </span>
                                         )}
                                     </p>
+                                    
+                                    {/* Barra de progreso en tiempo real */}
+                                    {(isProcessing || (progress && progress.total > 0)) && progress && progress.total > 0 && (
+                                        <div className="mt-4 space-y-2">
+                                            <div className="flex items-center justify-between text-xs text-[#6b7494]">
+                                                <span>Progreso del envío</span>
+                                                <span className="font-medium text-[#2e3f84]">
+                                                    {progress.percentage}% ({progress.sent + progress.failed} / {progress.total})
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-[#e5e7f0] rounded-full h-2.5 overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-[#22c55e] to-[#16a34a] transition-all duration-500 ease-out rounded-full"
+                                                    style={{ width: `${Math.min(progress.percentage, 100)}%` }}
+                                                />
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <div className="flex items-center gap-4 flex-wrap">
+                                                    <span className="text-emerald-600 font-medium">
+                                                        ✓ Enviados: {progress.sent}
+                                                    </span>
+                                                    {progress.failed > 0 && (
+                                                        <span className="text-red-600 font-medium">
+                                                            ✗ Fallidos: {progress.failed}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-[#6b7494]">
+                                                        ⏳ Pendientes: {progress.pending}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex gap-3">
                                     {!isProcessing && !isPaused && (
                                         <Button
                                             onClick={handleStartReminders}
-                                            disabled={isLoading || localStats.pending === 0}
+                                            disabled={isLoading || isProcessing || localStats.pending === 0}
                                             className="font-semibold text-white transition-all duration-200 border-0"
                                             style={{
                                                 backgroundColor: 'var(--primary-base)',
@@ -413,9 +510,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 fontSize: 'var(--text-sm)',
                                             }}
                                             onMouseEnter={(e) => {
-                                                e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                                if (!isLoading && !isProcessing) {
+                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                }
                                             }}
                                             onMouseLeave={(e) => {
                                                 e.currentTarget.style.backgroundColor = 'var(--primary-base)';
@@ -424,7 +523,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             }}
                                         >
                                             <Play className="w-4 h-4 mr-2" />
-                                            {isLoading ? 'Iniciando...' : 'Comenzar Envío'}
+                                            {isLoading || isProcessing ? 'Iniciando...' : 'Comenzar Envío'}
                                         </Button>
                                     )}
                                     {isProcessing && !isPaused && (

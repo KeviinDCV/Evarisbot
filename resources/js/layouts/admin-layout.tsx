@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { type PropsWithChildren, type ReactNode, useState } from 'react';
+import { type PropsWithChildren, type ReactNode, useState, useEffect } from 'react';
 import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText, Calendar, BarChart3 } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -15,10 +15,41 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutProps>) {
     const { t } = useTranslation();
-    const { auth } = usePage().props as any;
+    const { auth, unreadConversationsCount: initialUnreadCount = 0 } = usePage().props as any;
     const currentUrl = usePage().url;
     const getInitials = useInitials();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [unreadConversationsCount, setUnreadConversationsCount] = useState(initialUnreadCount);
+
+    // Actualizar el contador de conversaciones no leídas cada 5 segundos
+    useEffect(() => {
+        const updateUnreadCount = async () => {
+            try {
+                const response = await fetch('/admin/chat/unread-count', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    setUnreadConversationsCount(data.count || 0);
+                }
+            } catch (error) {
+                // Silenciar errores de red
+                console.error('Error al actualizar contador de conversaciones:', error);
+            }
+        };
+
+        // Actualizar inmediatamente
+        updateUnreadCount();
+
+        // Actualizar cada 5 segundos
+        const interval = setInterval(updateUnreadCount, 5000);
+
+        return () => clearInterval(interval);
+    }, []);
 
     const menuItems = [
         {
@@ -125,15 +156,29 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`flex items-center gap-3 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl transition-all duration-200 ${
+                                className={`flex items-center justify-between gap-3 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl transition-all duration-200 relative ${
                                     isActive
                                         ? 'bg-gradient-to-b from-white to-[#fafbfc] text-[#2e3f84] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06),0_2px_4px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] scale-[1.02]'
                                         : 'text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white hover:shadow-[0_1px_2px_rgba(255,255,255,0.08),0_2px_4px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.15)] hover:scale-[1.01] active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:scale-100'
                                 }`}
                                 onClick={() => setIsMobileMenuOpen(false)}
                             >
-                                <Icon className="w-5 h-5 flex-shrink-0" />
-                                <span className="text-sm lg:text-base">{item.title}</span>
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                    <Icon className="w-5 h-5 flex-shrink-0" />
+                                    <span className="text-sm lg:text-base">{item.title}</span>
+                                </div>
+                                {/* Badge de notificación para Conversaciones */}
+                                {item.href === '/admin/chat' && unreadConversationsCount > 0 && (
+                                    <span className={`
+                                        flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold
+                                        ${isActive 
+                                            ? 'bg-gradient-to-b from-[#ef4444] to-[#dc2626] text-white shadow-[0_1px_2px_rgba(239,68,68,0.3),0_2px_4px_rgba(239,68,68,0.2)]' 
+                                            : 'bg-gradient-to-b from-[#ef4444] to-[#dc2626] text-white shadow-[0_1px_2px_rgba(239,68,68,0.4),0_2px_4px_rgba(239,68,68,0.3)]'
+                                        }
+                                    `}>
+                                        {unreadConversationsCount > 99 ? '99+' : unreadConversationsCount}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}
