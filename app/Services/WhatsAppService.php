@@ -451,8 +451,47 @@ class WhatsAppService
                 }
             }
 
-            // Si no hay conversación del appointment, buscar o crear por teléfono
+            // Si no hay conversación del appointment, buscar primero si hay alguna conversación existente
+            // asociada a un appointment reciente del mismo número
             if (!$conversation) {
+                // Normalizar número de teléfono para búsqueda
+                // El $from viene de WhatsApp y puede tener formato "+573001234567" o "573001234567"
+                $normalizedFrom = ltrim($from, '+');
+                $phoneDigits = substr(preg_replace('/[^0-9]/', '', $normalizedFrom), -10);
+                
+                // Buscar appointment reciente (últimos 30 días) con conversación asociada
+                $recentAppointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
+                    ->whereNotNull('conversation_id')
+                    ->where('reminder_sent', true)
+                    ->whereDate('citfc', '>=', now()->subDays(30))
+                    ->orderBy('citfc', 'desc')
+                    ->first();
+                
+                if ($recentAppointment && $recentAppointment->conversation_id) {
+                    $conversation = Conversation::find($recentAppointment->conversation_id);
+                    
+                    if ($conversation) {
+                        Log::info('Using recent appointment conversation', [
+                            'conversation_id' => $conversation->id,
+                            'appointment_id' => $recentAppointment->id,
+                            'phone' => $from,
+                            'normalized_phone' => $normalizedFrom,
+                            'phone_digits' => $phoneDigits
+                        ]);
+                    }
+                }
+            }
+
+            // Si aún no hay conversación, buscar o crear por teléfono
+            if (!$conversation) {
+                // Normalizar formato del número para que coincida con el formato usado al crear conversaciones
+                // Las conversaciones se crean con formato "+573001234567" en AppointmentReminderService
+                $normalizedPhone = $from;
+                if (!str_starts_with($normalizedPhone, '+')) {
+                    // Si no tiene +, agregarlo
+                    $normalizedPhone = '+' . ltrim($normalizedPhone, '+');
+                }
+                
                 // Buscar o crear conversación
                 $conversationData = [
                     'status' => 'in_progress',
@@ -465,9 +504,15 @@ class WhatsAppService
                 }
 
                 $conversation = Conversation::firstOrCreate(
-                    ['phone_number' => $from],
+                    ['phone_number' => $normalizedPhone],
                     $conversationData
                 );
+                
+                Log::info('Created or found conversation by phone', [
+                    'conversation_id' => $conversation->id,
+                    'phone' => $from,
+                    'normalized_phone' => $normalizedPhone
+                ]);
             }
 
             // Actualizar nombre si cambió y no estaba vacío antes
