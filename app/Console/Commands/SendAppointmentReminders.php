@@ -14,8 +14,7 @@ class SendAppointmentReminders extends Command
      */
     protected $signature = 'appointments:send-reminders
                             {--dry-run : Ejecutar sin enviar mensajes reales}
-                            {--limit= : Limitar número de recordatorios a enviar}
-                            {--force : Forzar envío ignorando el setting reminders_enabled}';
+                            {--limit= : Limitar número de recordatorios a enviar}';
 
     /**
      * The console command description.
@@ -32,22 +31,6 @@ class SendAppointmentReminders extends Command
         $this->info('🚀 Iniciando proceso de recordatorios de citas...');
         $this->newLine();
 
-        // Verificar si el sistema está habilitado
-        $remindersEnabled = \App\Models\Setting::get('reminders_enabled', 'false') === 'true';
-        
-        if (!$remindersEnabled && !$this->option('force')) {
-            $this->warn('⚠️  Sistema de recordatorios PAUSADO');
-            $this->warn('   Para activarlo: ve a /admin/appointments y presiona "Iniciar Envío"');
-            $this->warn('   O usa --force para enviar de todos modos');
-            $this->newLine();
-            return Command::SUCCESS;
-        }
-
-        if ($this->option('force')) {
-            $this->warn('⚠️  Forzando envío (ignorando estado pausado)');
-            $this->newLine();
-        }
-
         if ($this->option('dry-run')) {
             $this->warn('⚠️  Modo DRY-RUN: No se enviarán mensajes reales');
             $this->newLine();
@@ -59,8 +42,7 @@ class SendAppointmentReminders extends Command
             if ($this->option('dry-run')) {
                 $result = $this->dryRun($reminderService);
             } else {
-                $limit = $this->option('limit');
-                $result = $reminderService->processReminders($limit);
+                $result = $reminderService->processReminders();
             }
             
             $duration = now()->diffInSeconds($startTime);
@@ -76,7 +58,6 @@ class SendAppointmentReminders extends Command
                     ['❌ Fallidos', $result['failed']],
                     ['⏭️  Omitidos', $result['skipped']],
                     ['⏱️  Duración', "{$duration} segundos"],
-                    ['📊 Promedio', $result['sent'] > 0 ? round($result['sent'] / max($duration, 1), 2) . ' msg/seg' : 'N/A'],
                 ]
             );
             
@@ -92,7 +73,8 @@ class SendAppointmentReminders extends Command
      */
     protected function dryRun(AppointmentReminderService $reminderService): array
     {
-        $daysInAdvance = (int) \App\Models\Setting::get('reminder_days_in_advance', '2');
+        // Por defecto 1 día: si hoy es 12/11, busca citas para 13/11 (mañana)
+        $daysInAdvance = (int) \App\Models\Setting::get('reminder_days_in_advance', '1');
         $maxPerDay = $this->option('limit') ?? (int) \App\Models\Setting::get('reminder_max_per_day', '500');
         
         $targetDate = now()->addDays($daysInAdvance)->startOfDay();

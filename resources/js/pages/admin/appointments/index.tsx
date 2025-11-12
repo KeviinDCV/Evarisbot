@@ -1,7 +1,8 @@
 import AdminLayout from '@/layouts/admin-layout';
-import { Head, useForm } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle } from 'lucide-react';
-import { FormEventHandler, useState, useMemo } from 'react';
+import { Head, useForm, router } from '@inertiajs/react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square } from 'lucide-react';
+import { FormEventHandler, useState, useMemo, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 
 interface Appointment {
     id: number;
@@ -50,17 +51,50 @@ interface AppointmentIndexProps {
         uploaded_at: string;
         total_rows?: number;
     };
+    reminderPaused?: boolean;
+    reminderProcessing?: boolean;
 }
 
-export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile }: AppointmentIndexProps) {
+export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false }: AppointmentIndexProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
+    const [isPaused, setIsPaused] = useState(reminderPaused);
+    const [isProcessing, setIsProcessing] = useState(reminderProcessing);
+    const [isLoading, setIsLoading] = useState(false);
     
     const { data, setData, post, processing, errors, reset } = useForm({
         file: null as File | null,
     });
+
+    // Actualizar estado cada 5 segundos si está procesando
+    useEffect(() => {
+        if (isProcessing) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch('/admin/appointments/reminders/status', {
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                    });
+                    const data = await response.json();
+                    
+                    setIsPaused(data.paused || false);
+                    setIsProcessing(data.processing || false);
+                    
+                    // Actualizar estadísticas si están disponibles
+                    if (data.pending_count !== undefined) {
+                        router.reload({ only: ['remindersStats', 'reminderProcessing', 'reminderPaused'] });
+                    }
+                } catch (error) {
+                    console.error('Error al obtener estado:', error);
+                }
+            }, 5000);
+
+            return () => clearInterval(interval);
+        }
+    }, [isProcessing]);
 
     // Filtrar citas por búsqueda
     const filteredAppointments = useMemo(() => {
@@ -133,6 +167,171 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
     };
 
+    const handleStartReminders = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch('/admin/appointments/reminders/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                setIsProcessing(false); // Si fue síncrono, ya terminó
+                setIsPaused(false);
+                
+                // Mostrar mensaje de éxito con detalles
+                let successMessage = data.message || 'Envío iniciado';
+                if (data.sent !== undefined && data.failed !== undefined) {
+                    successMessage += `\n\nDetalles:\n- Enviados: ${data.sent}\n- Fallidos: ${data.failed}`;
+                }
+                alert(successMessage);
+                
+                router.reload({ only: ['remindersStats', 'reminderProcessing', 'reminderPaused'] });
+            } else {
+                // Mostrar información detallada si está disponible
+                let errorMessage = data.message || 'Error al iniciar el envío';
+                
+                if (data.debug) {
+                    errorMessage += '\n\nInformación de depuración:';
+                    errorMessage += `\n- Fecha objetivo: ${data.debug.target_date}`;
+                    errorMessage += `\n- Fecha actual: ${data.debug.current_date}`;
+                    errorMessage += `\n- Días de anticipación: ${data.debug.days_in_advance}`;
+                    errorMessage += `\n- Total citas pendientes: ${data.debug.total_pending_appointments}`;
+                    
+                    if (data.debug.exact_date_count !== undefined) {
+                        errorMessage += `\n- Citas para fecha objetivo (${data.debug.target_date}): ${data.debug.exact_date_count}`;
+                    }
+                    
+                    if (data.debug.tomorrow_count !== undefined) {
+                        const tomorrow = new Date();
+                        tomorrow.setDate(tomorrow.getDate() + 1);
+                        errorMessage += `\n- Citas para mañana (${tomorrow.toISOString().split('T')[0]}): ${data.debug.tomorrow_count}`;
+                    }
+                    
+                    if (data.debug.day_after_tomorrow_count !== undefined) {
+                        const dayAfter = new Date();
+                        dayAfter.setDate(dayAfter.getDate() + 2);
+                        errorMessage += `\n- Citas para pasado mañana (${dayAfter.toISOString().split('T')[0]}): ${data.debug.day_after_tomorrow_count}`;
+                    }
+                    
+                    if (data.debug.dates_with_count && data.debug.dates_with_count.length > 0) {
+                        errorMessage += '\n\nFechas con citas pendientes:';
+                        data.debug.dates_with_count.slice(0, 10).forEach((item: { date: string; count: number }) => {
+                            errorMessage += `\n  - ${item.date}: ${item.count} citas`;
+                        });
+                        if (data.debug.dates_with_count.length > 10) {
+                            errorMessage += `\n  ... y ${data.debug.dates_with_count.length - 10} fechas más`;
+                        }
+                    } else if (data.debug.available_dates && data.debug.available_dates.length > 0) {
+                        errorMessage += `\n- Fechas disponibles: ${data.debug.available_dates.slice(0, 5).join(', ')}`;
+                        if (data.debug.available_dates.length > 5) {
+                            errorMessage += ` y ${data.debug.available_dates.length - 5} más`;
+                        }
+                    }
+                }
+                
+                alert(errorMessage);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al iniciar el envío de recordatorios');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handlePauseReminders = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch('/admin/appointments/reminders/pause', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                setIsPaused(true);
+                router.reload({ only: ['reminderPaused'] });
+            } else {
+                alert(data.message || 'Error al pausar');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al pausar el envío de recordatorios');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleResumeReminders = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch('/admin/appointments/reminders/resume', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                setIsPaused(false);
+                router.reload({ only: ['reminderPaused'] });
+            } else {
+                alert(data.message || 'Error al reanudar');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al reanudar el envío de recordatorios');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleStopReminders = async () => {
+        if (!confirm('¿Estás seguro de que deseas detener completamente el envío de recordatorios? Esto cancelará todos los trabajos pendientes.')) {
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch('/admin/appointments/reminders/stop', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                setIsProcessing(false);
+                setIsPaused(false);
+                router.reload({ only: ['remindersStats', 'reminderProcessing', 'reminderPaused'] });
+                alert('El envío de recordatorios ha sido detenido completamente');
+            } else {
+                alert(data.message || 'Error al detener');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al detener el envío de recordatorios');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <AdminLayout>
             <Head title="Citas" />
@@ -148,6 +347,154 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             Carga un archivo Excel con las citas programadas para enviar recordatorios automáticos
                         </p>
                     </div>
+
+                    {/* Control de Recordatorios */}
+                    {remindersStats && remindersStats.pending > 0 && (
+                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
+                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-[#2e3f84] mb-1 flex items-center gap-2">
+                                        <Send className="w-5 h-5" />
+                                        Control de Envío de Recordatorios
+                                    </h2>
+                                    <p className="text-sm text-[#6b7494]">
+                                        {remindersStats.pending} recordatorios pendientes para enviar
+                                        {isProcessing && !isPaused && (
+                                            <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 font-medium">
+                                                <RefreshCw className="w-3 h-3 animate-spin" />
+                                                Enviando...
+                                            </span>
+                                        )}
+                                        {isPaused && (
+                                            <span className="ml-2 inline-flex items-center gap-1 text-amber-600 font-medium">
+                                                <Pause className="w-3 h-3" />
+                                                Pausado
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
+                                <div className="flex gap-3">
+                                    {!isProcessing && !isPaused && (
+                                        <Button
+                                            onClick={handleStartReminders}
+                                            disabled={isLoading || remindersStats.pending === 0}
+                                            className="font-semibold text-white transition-all duration-200 border-0"
+                                            style={{
+                                                backgroundColor: 'var(--primary-base)',
+                                                boxShadow: 'var(--shadow-md)',
+                                                height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                padding: '0 var(--space-lg)',
+                                                fontSize: 'var(--text-sm)',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
+                                                e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                            }}
+                                        >
+                                            <Play className="w-4 h-4 mr-2" />
+                                            {isLoading ? 'Iniciando...' : 'Comenzar Envío'}
+                                        </Button>
+                                    )}
+                                    {isProcessing && !isPaused && (
+                                        <>
+                                            <Button
+                                                onClick={handlePauseReminders}
+                                                disabled={isLoading}
+                                                className="font-semibold text-white transition-all duration-200 border-0"
+                                                style={{
+                                                    backgroundColor: '#F59E0B',
+                                                    boxShadow: 'var(--shadow-md)',
+                                                    height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                    padding: '0 var(--space-lg)',
+                                                    fontSize: 'var(--text-sm)',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.backgroundColor = '#D97706';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.backgroundColor = '#F59E0B';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                }}
+                                            >
+                                                <Pause className="w-4 h-4 mr-2" />
+                                                {isLoading ? 'Pausando...' : 'Pausar'}
+                                            </Button>
+                                            <Button
+                                                onClick={handleStopReminders}
+                                                disabled={isLoading}
+                                                className="font-semibold text-white transition-all duration-200 border-0"
+                                                style={{
+                                                    backgroundColor: '#EF4444',
+                                                    boxShadow: 'var(--shadow-md)',
+                                                    height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                    padding: '0 var(--space-lg)',
+                                                    fontSize: 'var(--text-sm)',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.backgroundColor = '#DC2626';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.backgroundColor = '#EF4444';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                }}
+                                            >
+                                                <Square className="w-4 h-4 mr-2" />
+                                                {isLoading ? 'Deteniendo...' : 'Detener'}
+                                            </Button>
+                                        </>
+                                    )}
+                                    {isPaused && (
+                                        <Button
+                                            onClick={handleResumeReminders}
+                                            disabled={isLoading}
+                                            className="font-semibold text-white transition-all duration-200 border-0"
+                                            style={{
+                                                backgroundColor: '#10B981',
+                                                boxShadow: 'var(--shadow-md)',
+                                                height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                padding: '0 var(--space-lg)',
+                                                fontSize: 'var(--text-sm)',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#059669';
+                                                e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#10B981';
+                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                            }}
+                                        >
+                                            <Play className="w-4 h-4 mr-2" />
+                                            {isLoading ? 'Reanudando...' : 'Reanudar'}
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                            {remindersStats.pending > 1000 && (
+                                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                    <p className="text-sm text-amber-800">
+                                        <AlertCircle className="w-4 h-4 inline mr-1" />
+                                        <strong>Advertencia:</strong> Tienes {remindersStats.pending} recordatorios pendientes. 
+                                        El sistema respetará el límite de 1,000 mensajes por día según las recomendaciones de Meta.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Reminders Stats */}
                     {remindersStats && (

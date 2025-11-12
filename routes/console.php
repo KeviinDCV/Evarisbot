@@ -16,3 +16,10 @@ Schedule::command('appointments:send-reminders')
     ->withoutOverlapping()
     ->onOneServer()
     ->runInBackground();
+
+// Procesar cola de recordatorios cada minuto (para cPanel)
+// Esto procesa cualquier job que haya quedado pendiente en la cola
+Schedule::command('reminders:process-queue --limit=50')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();
