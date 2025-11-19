@@ -745,7 +745,7 @@ class WhatsAppService
                     'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
                 ]);
 
-                $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$appointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nUn asesor se comunicará con usted para coordinar una nueva fecha.\n\n_HUV - Evaristo García_";
+                $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$appointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\n_HUV - Evaristo García_";
 
                 Log::info('Appointment cancelled by patient', [
                     'appointment_id' => $appointment->id,
