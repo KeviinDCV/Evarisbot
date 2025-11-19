@@ -723,6 +723,20 @@ class WhatsAppService
             // Formatear hora para respuestas
             $horaFormateada = $this->formatHoraForResponse($appointment->cithor);
 
+            // Verificar si la cita ya fue confirmada o cancelada previamente
+            if (in_array($appointment->reminder_status, ['confirmed', 'cancelled'])) {
+                // La cita ya tiene un estado final, no se puede cambiar
+                Log::info('Appointment already has final status, ignoring new response', [
+                    'appointment_id' => $appointment->id,
+                    'current_status' => $appointment->reminder_status,
+                    'phone' => $from,
+                    'attempted_action' => $messageText
+                ]);
+                
+                // No enviar respuesta automática, ya respondió previamente
+                return;
+            }
+
             // Detectar tipo de respuesta
             if (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
                 // Confirmación de asistencia
