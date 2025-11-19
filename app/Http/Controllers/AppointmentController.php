@@ -12,6 +12,8 @@ use App\Models\Appointment;
 use App\Models\Setting;
 use App\Jobs\SendAppointmentReminderJob;
 use App\Services\AppointmentReminderService;
+use App\Exports\AppointmentsExport;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Bus;
@@ -149,6 +151,7 @@ class AppointmentController extends Controller
         if ($search) {
             $query->where(function($q) use ($search) {
                 $q->where('nom_paciente', 'LIKE', "%{$search}%")
+                  ->orWhere('citide', 'LIKE', "%{$search}%")
                   ->orWhere('pactel', 'LIKE', "%{$search}%")
                   ->orWhere('mednom', 'LIKE', "%{$search}%")
                   ->orWhere('espnom', 'LIKE', "%{$search}%");
@@ -163,6 +166,7 @@ class AppointmentController extends Controller
                 'id' => $apt->id,
                 'citead' => $apt->citead,
                 'nom_paciente' => $apt->nom_paciente,
+                'citide' => $apt->citide,
                 'pactel' => $apt->pactel,
                 'citdoc' => $apt->citdoc,
                 'citfc' => $apt->citfc?->format('Y-m-d'),
@@ -192,6 +196,59 @@ class AppointmentController extends Controller
             'date_to' => $dateTo,
             'stats' => $stats,
         ]);
+    }
+
+    /**
+     * Exportar citas a Excel con filtros aplicados
+     */
+    public function export(Request $request)
+    {
+        $query = Appointment::where('uploaded_by', auth()->id());
+        
+        // Aplicar filtro por estado de recordatorio
+        $filter = $request->get('filter', 'all');
+        if ($filter !== 'all') {
+            if ($filter === 'pending') {
+                $query->where('reminder_sent', false);
+            } elseif ($filter === 'confirmed') {
+                $query->where('reminder_status', 'confirmed');
+            } elseif ($filter === 'cancelled') {
+                $query->where('reminder_status', 'cancelled');
+            }
+        }
+        
+        // Filtro por fecha de cita
+        $dateFrom = $request->get('date_from');
+        $dateTo = $request->get('date_to');
+        
+        if ($dateFrom) {
+            $query->whereDate('citfc', '>=', $dateFrom);
+        }
+        
+        if ($dateTo) {
+            $query->whereDate('citfc', '<=', $dateTo);
+        }
+        
+        // Búsqueda
+        $search = $request->get('search');
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('nom_paciente', 'LIKE', "%{$search}%")
+                  ->orWhere('citide', 'LIKE', "%{$search}%")
+                  ->orWhere('pactel', 'LIKE', "%{$search}%")
+                  ->orWhere('mednom', 'LIKE', "%{$search}%")
+                  ->orWhere('espnom', 'LIKE', "%{$search}%");
+            });
+        }
+        
+        // Ordenar por fecha de creación
+        $query->orderBy('created_at', 'desc');
+        
+        // Generar nombre del archivo
+        $fileName = 'citas_' . now()->format('Y-m-d_His') . '.xlsx';
+        
+        // Exportar
+        return Excel::download(new AppointmentsExport($query), $fileName);
     }
 
     /**

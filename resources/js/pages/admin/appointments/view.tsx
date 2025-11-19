@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft, Calendar } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft, Calendar, Download } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -200,21 +200,41 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6">
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
                             <Button
-                                onClick={() => router.visit('/admin/appointments')}
-                                className="font-semibold text-[#2e3f84] transition-all duration-200 border-0 flex items-center gap-2 bg-white hover:bg-[#f8f9fc]"
+                                onClick={() => router.get('/admin/appointments')}
                                 style={{
-                                    boxShadow: 'var(--shadow-md)',
+                                    backgroundColor: 'white',
+                                    color: 'var(--primary-base)',
                                     padding: '0.5rem 1rem',
                                     fontSize: 'var(--text-sm)',
+                                    fontWeight: '500',
+                                    borderRadius: '0.75rem',
+                                    border: '1px solid var(--primary-base)',
+                                    boxShadow: 'var(--shadow-md)',
+                                    transition: 'all 0.2s',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    cursor: 'pointer',
                                 }}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#f8f9fc';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                    e.currentTarget.style.color = 'white';
                                     e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
                                 }}
                                 onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'white';
+                                    e.currentTarget.style.color = 'var(--primary-base)';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                }}
+                                onMouseDown={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                                }}
+                                onMouseUp={(e) => {
                                     e.currentTarget.style.backgroundColor = 'white';
                                     e.currentTarget.style.boxShadow = 'var(--shadow-md)';
                                     e.currentTarget.style.transform = 'translateY(0)';
@@ -223,6 +243,47 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 <ArrowLeft className="w-4 h-4" />
                                 Volver a Citas
                             </Button>
+
+                            <a
+                                href={`/admin/appointments/export?filter=${filter}&search=${searchTerm || ''}&date_from=${dateFrom || ''}&date_to=${dateTo || ''}`}
+                                style={{
+                                    backgroundColor: 'var(--primary-base)',
+                                    backgroundImage: 'var(--gradient-shine)',
+                                    color: 'white',
+                                    padding: '0.5rem 1rem',
+                                    fontSize: 'var(--text-sm)',
+                                    fontWeight: '600',
+                                    borderRadius: '0.75rem',
+                                    boxShadow: 'var(--shadow-md)',
+                                    transition: 'all 0.2s',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    cursor: 'pointer',
+                                    textDecoration: 'none',
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                }}
+                                onMouseDown={(e) => {
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                                }}
+                                onMouseUp={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                }}
+                            >
+                                <Download className="w-4 h-4" />
+                                Exportar a Excel
+                            </a>
                         </div>
                         <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#2e3f84]">
                             Gestión de Citas
@@ -313,7 +374,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494]" />
                         <input
                             type="text"
-                            placeholder="Buscar por paciente, teléfono, médico, especialidad..."
+                            placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
                             value={searchTerm}
                             onChange={(e) => handleSearch(e.target.value)}
                             className="w-full pl-10 pr-4 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
@@ -339,6 +400,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 <tr>
                                     <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">#</th>
                                     <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Paciente</th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Cédula</th>
                                     <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Teléfono</th>
                                     <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Fecha Cita</th>
                                     <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Hora</th>
@@ -359,6 +421,9 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                             </td>
                                             <td className="px-4 py-3 text-[#2e3f84] font-medium whitespace-nowrap">
                                                 {appointment.nom_paciente || '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-[#2e3f84] font-semibold whitespace-nowrap">
+                                                {appointment.citide || '-'}
                                             </td>
                                             <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
                                                 {appointment.pactel || '-'}
@@ -382,7 +447,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-8 text-center text-[#6b7494]">
+                                        <td colSpan={9} className="px-4 py-8 text-center text-[#6b7494]">
                                             No se encontraron citas con los filtros seleccionados
                                         </td>
                                     </tr>
