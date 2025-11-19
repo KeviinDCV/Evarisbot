@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, useForm, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, TestTube2 } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -61,9 +61,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
     const [isPaused, setIsPaused] = useState(reminderPaused);
-    const [isProcessing, setIsProcessing] = useState(reminderProcessing);
+    // Solo inicializar como procesando si realmente hay citas pendientes Y está procesando
+    const [isProcessing, setIsProcessing] = useState(reminderProcessing && (remindersStats?.pending ?? 0) > 0);
     const [isLoading, setIsLoading] = useState(false);
     const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, failed: 0 });
+    // Solo inicializar progreso si realmente está procesando Y hay citas pendientes
     const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; pending: number; percentage: number } | null>(null);
     
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -77,60 +79,109 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         }
     }, [remindersStats]);
 
-    // Actualizar estado cada 1 segundo si está procesando (más frecuente para mejor feedback)
+    // Limpiar estado de procesamiento y progreso si no hay citas pendientes
     useEffect(() => {
-        if (isProcessing) {
-            // Primera actualización inmediata
-            const updateStatus = async () => {
-                try {
-                    const response = await fetch('/admin/appointments/reminders/status', {
-                        headers: {
-                            'Accept': 'application/json',
-                        },
-                    });
-                    const data = await response.json();
-                    
-                    setIsPaused(data.paused || false);
-                    setIsProcessing(data.processing || false);
-                    
-                    // Actualizar progreso en tiempo real
-                    if (data.progress && data.progress.total > 0) {
-                        setProgress(data.progress);
-                    }
-                    
-                    // Actualizar estadísticas si están disponibles
-                    if (data.pending_count !== undefined) {
-                        router.reload({ 
-                            only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
-                            onSuccess: (page) => {
-                                if (page.props.remindersStats) {
-                                    setLocalStats(page.props.remindersStats);
-                                }
-                            }
-                        });
-                    }
-                    
-                    // Si terminó el proceso, limpiar progreso después de un momento
-                    if (!data.processing && data.progress && data.progress.percentage >= 100) {
-                        setTimeout(() => {
-                            setIsProcessing(false);
-                            setProgress(null);
-                        }, 3000);
-                    }
-                } catch (error) {
-                    console.error('Error al obtener estado:', error);
-                }
-            };
-            
-            // Actualizar inmediatamente
-            updateStatus();
-            
-            // Luego actualizar cada 1 segundo
-            const interval = setInterval(updateStatus, 1000);
-
-            return () => clearInterval(interval);
+        const hasPending = (remindersStats?.pending ?? 0) > 0;
+        if (!hasPending) {
+            // Si no hay citas pendientes, limpiar todo el estado
+            setIsProcessing(false);
+            setIsPaused(false);
+            setProgress(null);
+        } else if (!reminderProcessing) {
+            // Si hay citas pendientes pero no está procesando, limpiar solo el estado de procesamiento
+            setIsProcessing(false);
+            setIsPaused(false);
+            setProgress(null);
         }
-    }, [isProcessing, router]);
+    }, [remindersStats, reminderProcessing]);
+
+    // Actualizar estado cada 500ms si está procesando para capturar actualizaciones en tiempo real
+    useEffect(() => {
+        // Solo hacer polling si realmente está procesando Y hay citas pendientes
+        if (!isProcessing || !reminderProcessing || (localStats.pending ?? 0) === 0) {
+            // Si no está procesando, limpiar progreso inmediatamente
+            if (progress) {
+                setProgress(null);
+            }
+            setIsProcessing(false);
+            return;
+        }
+
+        let updateCount = 0;
+        let shouldStop = false;
+        let intervalId: NodeJS.Timeout | null = null;
+        
+        // Primera actualización inmediata
+        const updateStatus = async () => {
+            if (shouldStop) return;
+            
+            try {
+                const response = await fetch('/admin/appointments/reminders/status?' + new Date().getTime(), {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Cache-Control': 'no-cache',
+                    },
+                });
+                const data = await response.json();
+                
+                setIsPaused(data.paused || false);
+                setIsProcessing(data.processing || false);
+                
+                // Si el servidor dice que no está procesando, detener polling inmediatamente
+                if (!data.processing) {
+                    shouldStop = true;
+                    setIsProcessing(false);
+                    setProgress(null);
+                    if (intervalId) {
+                        clearInterval(intervalId);
+                        intervalId = null;
+                    }
+                    return;
+                }
+                
+                // Actualizar progreso en tiempo real solo si hay progreso válido
+                if (data.progress && data.progress.total > 0) {
+                    setProgress(data.progress);
+                } else {
+                    setProgress(null);
+                }
+                
+                // Actualizar estadísticas cada 3 segundos (cada 6 consultas con 500ms) para no sobrecargar
+                updateCount++;
+                if (updateCount % 6 === 0 && data.pending_count !== undefined) {
+                    router.reload({ 
+                        only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
+                        onSuccess: (page: any) => {
+                            if (page.props.remindersStats) {
+                                setLocalStats(page.props.remindersStats as { sent: number; pending: number; failed: number });
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error al obtener estado:', error);
+            }
+        };
+        
+        // Actualizar inmediatamente
+        updateStatus();
+        
+        // Luego actualizar cada 500ms (más espaciado para reducir carga)
+        intervalId = setInterval(() => {
+            if (!shouldStop) {
+                updateStatus();
+            } else if (intervalId) {
+                clearInterval(intervalId);
+            }
+        }, 500);
+
+        return () => {
+            shouldStop = true;
+            if (intervalId) {
+                clearInterval(intervalId);
+            }
+        };
+    }, [isProcessing, reminderProcessing, localStats.pending, router, progress]);
 
     // Filtrar citas por búsqueda
     const filteredAppointments = useMemo(() => {
@@ -266,10 +317,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                 // Recargar estadísticas desde el servidor para asegurar precisión
                 router.reload({ 
                     only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
-                    onSuccess: (page) => {
+                    onSuccess: (page: any) => {
                         // Actualizar estadísticas locales con los datos del servidor
                         if (page.props.remindersStats) {
-                            setLocalStats(page.props.remindersStats);
+                            setLocalStats(page.props.remindersStats as { sent: number; pending: number; failed: number });
                         }
                     }
                 });
@@ -389,6 +440,51 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         }
     };
 
+    const handleTestMode = async () => {
+        const phoneNumber = prompt('Ingresa tu número de teléfono (ej: 3001234567) para recibir todos los recordatorios de prueba:');
+        
+        if (!phoneNumber) {
+            return;
+        }
+
+        // Validar formato básico
+        const cleanPhone = phoneNumber.replace(/\D/g, '');
+        if (cleanPhone.length < 10) {
+            alert('Por favor ingresa un número de teléfono válido de 10 dígitos');
+            return;
+        }
+
+        if (!confirm(`¿Estás seguro de cambiar TODOS los números pendientes al ${cleanPhone}? Esto es solo para pruebas.`)) {
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch('/admin/appointments/update-pending-phones', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({ phone_number: cleanPhone }),
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(data.message);
+                router.reload();
+            } else {
+                alert(data.message || 'Error al actualizar números');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al activar modo prueba');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleStopReminders = async () => {
         if (!confirm('¿Estás seguro de que deseas detener completamente el envío de recordatorios? Esto cancelará todos los trabajos pendientes.')) {
             return;
@@ -439,7 +535,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     </div>
 
                     {/* Control de Recordatorios */}
-                    {(remindersStats || localStats) && (localStats.pending > 0 || (remindersStats && remindersStats.pending > 0)) && (
+                    {(remindersStats || localStats) && (
                         <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
@@ -448,23 +544,31 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         Control de Envío de Recordatorios
                                     </h2>
                                     <p className="text-sm text-[#6b7494]">
-                                        {localStats.pending} recordatorios pendientes para enviar
-                                        {isProcessing && !isPaused && (
-                                            <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 font-medium">
-                                                <RefreshCw className="w-3 h-3 animate-spin" />
-                                                Enviando...
-                                            </span>
-                                        )}
-                                        {isProcessing && isPaused && (
-                                            <span className="ml-2 inline-flex items-center gap-1 text-amber-600 font-medium">
-                                                <Pause className="w-3 h-3" />
-                                                Pausado
+                                        {localStats.pending > 0 ? (
+                                            <>
+                                                {localStats.pending} recordatorios pendientes para enviar (pasado mañana)
+                                                {isProcessing && !isPaused && (
+                                                    <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 font-medium">
+                                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                                        Enviando...
+                                                    </span>
+                                                )}
+                                                {isProcessing && isPaused && (
+                                                    <span className="ml-2 inline-flex items-center gap-1 text-amber-600 font-medium">
+                                                        <Pause className="w-3 h-3" />
+                                                        Pausado
+                                                    </span>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <span className="text-amber-600">
+                                                No hay citas pendientes para pasado mañana. Solo se envían recordatorios para citas de pasado mañana (2 días desde hoy).
                                             </span>
                                         )}
                                     </p>
                                     
-                                    {/* Barra de progreso en tiempo real */}
-                                    {(isProcessing || (progress && progress.total > 0)) && progress && progress.total > 0 && (
+                                    {/* Barra de progreso en tiempo real - solo mostrar cuando hay proceso activo Y progreso válido */}
+                                    {isProcessing && reminderProcessing && progress && progress.total > 0 && (
                                         <div className="mt-4 space-y-2">
                                             <div className="flex items-center justify-between text-xs text-[#6b7494]">
                                                 <span>Progreso del envío</span>
@@ -497,34 +601,63 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     )}
                                 </div>
                                 <div className="flex gap-3">
-                                    {!isProcessing && !isPaused && (
-                                        <Button
-                                            onClick={handleStartReminders}
-                                            disabled={isLoading || isProcessing || localStats.pending === 0}
-                                            className="font-semibold text-white transition-all duration-200 border-0"
-                                            style={{
-                                                backgroundColor: 'var(--primary-base)',
-                                                boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
-                                                padding: '0 var(--space-lg)',
-                                                fontSize: 'var(--text-sm)',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!isLoading && !isProcessing) {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                            }}
-                                        >
-                                            <Play className="w-4 h-4 mr-2" />
-                                            {isLoading || isProcessing ? 'Iniciando...' : 'Comenzar Envío'}
-                                        </Button>
+                                    {!isProcessing && !isPaused && localStats.pending > 0 && (
+                                        <>
+                                            <Button
+                                                onClick={handleStartReminders}
+                                                disabled={isLoading || isProcessing}
+                                                className="font-semibold text-white transition-all duration-200 border-0"
+                                                style={{
+                                                    backgroundColor: 'var(--primary-base)',
+                                                    boxShadow: 'var(--shadow-md)',
+                                                    height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                    padding: '0 var(--space-lg)',
+                                                    fontSize: 'var(--text-sm)',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (!isLoading && !isProcessing) {
+                                                        e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
+                                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                }}
+                                            >
+                                                <Play className="w-4 h-4 mr-2" />
+                                                {isLoading || isProcessing ? 'Iniciando...' : 'Comenzar Envío'}
+                                            </Button>
+                                            <Button
+                                                onClick={handleTestMode}
+                                                disabled={isLoading || isProcessing}
+                                                className="font-semibold text-white transition-all duration-200 border-0"
+                                                style={{
+                                                    backgroundColor: '#8B5CF6',
+                                                    boxShadow: 'var(--shadow-md)',
+                                                    height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                    padding: '0 var(--space-lg)',
+                                                    fontSize: 'var(--text-sm)',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (!isLoading && !isProcessing) {
+                                                        e.currentTarget.style.backgroundColor = '#7C3AED';
+                                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.backgroundColor = '#8B5CF6';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                }}
+                                            >
+                                                <TestTube2 className="w-4 h-4 mr-2" />
+                                                Modo Prueba
+                                            </Button>
+                                        </>
                                     )}
                                     {isProcessing && !isPaused && (
                                         <>

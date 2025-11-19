@@ -221,6 +221,26 @@ class AppointmentReminderService
     }
 
     /**
+     * Limpia texto para cumplir requisitos de Meta WhatsApp
+     * - Sin saltos de línea
+     * - Sin tabs
+     * - Máximo 4 espacios consecutivos
+     */
+    protected function cleanTextForWhatsApp(string $text): string
+    {
+        // Eliminar saltos de línea y tabs
+        $text = str_replace(["\n", "\r", "\t"], ' ', $text);
+        
+        // Reducir múltiples espacios a máximo 2 (para ser conservadores)
+        $text = preg_replace('/\s{3,}/', '  ', $text);
+        
+        // Trim espacios al inicio y final
+        $text = trim($text);
+        
+        return $text;
+    }
+
+    /**
      * Prepara parámetros para el template
      */
     protected function prepareTemplateParameters(Appointment $appointment): array
@@ -231,15 +251,20 @@ class AppointmentReminderService
         // Formatear hora usando el método centralizado
         $hora = $this->formatHora($appointment->cithor);
         
+        // Limpiar todos los textos para cumplir requisitos de Meta
+        $paciente = $this->cleanTextForWhatsApp($appointment->nom_paciente ?? 'Paciente');
+        $medico = $this->cleanTextForWhatsApp($appointment->mednom ?? 'No especificado');
+        $especialidad = $this->cleanTextForWhatsApp($appointment->espnom ?? 'No especificada');
+        
         return [
             [
                 'type' => 'body',
                 'parameters' => [
-                    ['type' => 'text', 'text' => $appointment->nom_paciente ?? 'Paciente'],
+                    ['type' => 'text', 'text' => $paciente],
                     ['type' => 'text', 'text' => $fecha],
                     ['type' => 'text', 'text' => $hora],
-                    ['type' => 'text', 'text' => $appointment->mednom ?? 'No especificado'],
-                    ['type' => 'text', 'text' => $appointment->espnom ?? 'No especificada'],
+                    ['type' => 'text', 'text' => $medico],
+                    ['type' => 'text', 'text' => $especialidad],
                 ]
             ]
         ];

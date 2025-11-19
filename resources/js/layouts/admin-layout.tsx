@@ -215,7 +215,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                     </div>
                     
                     <Link
-                        href={logout().url}
+                        href={logout()}
                         method="post"
                         as="button"
                         className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-gradient-to-b hover:from-red-500/20 hover:to-red-600/15 hover:text-white rounded-xl transition-all duration-200 hover:shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:translate-x-0 mt-2 pt-3 relative before:absolute before:top-0 before:left-0 before:right-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"

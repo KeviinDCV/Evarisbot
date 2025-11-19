@@ -11,6 +11,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class SendAppointmentReminderJob implements ShouldQueue
@@ -120,13 +122,23 @@ class SendAppointmentReminderJob implements ShouldQueue
     {
         try {
             if ($success) {
-                // Incrementar contador de enviados
-                $currentSent = (int) Setting::get('reminder_progress_sent', '0');
-                Setting::set('reminder_progress_sent', (string) ($currentSent + 1));
+                // Incrementar contador de enviados directamente en BD sin caché
+                $currentSent = (int) DB::table('settings')->where('key', 'reminder_progress_sent')->value('value') ?? 0;
+                $newSent = $currentSent + 1;
+                DB::table('settings')->updateOrInsert(
+                    ['key' => 'reminder_progress_sent'],
+                    ['value' => (string) $newSent, 'updated_at' => now()]
+                );
+                Cache::forget('setting.reminder_progress_sent');
             } else {
-                // Incrementar contador de fallidos
-                $currentFailed = (int) Setting::get('reminder_progress_failed', '0');
-                Setting::set('reminder_progress_failed', (string) ($currentFailed + 1));
+                // Incrementar contador de fallidos directamente en BD sin caché
+                $currentFailed = (int) DB::table('settings')->where('key', 'reminder_progress_failed')->value('value') ?? 0;
+                $newFailed = $currentFailed + 1;
+                DB::table('settings')->updateOrInsert(
+                    ['key' => 'reminder_progress_failed'],
+                    ['value' => (string) $newFailed, 'updated_at' => now()]
+                );
+                Cache::forget('setting.reminder_progress_failed');
             }
         } catch (\Exception $e) {
             // No fallar el job si hay error actualizando progreso

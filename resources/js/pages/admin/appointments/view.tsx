@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -49,6 +49,8 @@ interface AppointmentsViewProps {
     appointments: PaginatedAppointments;
     filter: string;
     search?: string;
+    date_from?: string;
+    date_to?: string;
     stats: {
         all: number;
         pending: number;
@@ -57,15 +59,19 @@ interface AppointmentsViewProps {
     };
 }
 
-export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, stats }: AppointmentsViewProps) {
+export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, stats }: AppointmentsViewProps) {
     const [filter, setFilter] = useState(initialFilter || 'all');
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
+    const [dateFrom, setDateFrom] = useState(initialDateFrom || '');
+    const [dateTo, setDateTo] = useState(initialDateTo || '');
 
     const handleFilterChange = (newFilter: string) => {
         setFilter(newFilter);
         router.get('/admin/appointments/view', {
             filter: newFilter,
             search: searchTerm || undefined,
+            date_from: dateFrom || undefined,
+            date_to: dateTo || undefined,
         }, {
             preserveState: true,
             preserveScroll: true,
@@ -77,10 +83,42 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         router.get('/admin/appointments/view', {
             filter,
             search: value || undefined,
+            date_from: dateFrom || undefined,
+            date_to: dateTo || undefined,
         }, {
             preserveState: true,
             preserveScroll: true,
             replace: true,
+        });
+    };
+
+    const handleDateChange = (type: 'from' | 'to', value: string) => {
+        if (type === 'from') {
+            setDateFrom(value);
+        } else {
+            setDateTo(value);
+        }
+        
+        router.get('/admin/appointments/view', {
+            filter,
+            search: searchTerm || undefined,
+            date_from: type === 'from' ? (value || undefined) : (dateFrom || undefined),
+            date_to: type === 'to' ? (value || undefined) : (dateTo || undefined),
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
+
+    const handleClearDates = () => {
+        setDateFrom('');
+        setDateTo('');
+        router.get('/admin/appointments/view', {
+            filter,
+            search: searchTerm || undefined,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
         });
     };
 
@@ -225,6 +263,49 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 </button>
                             ))}
                         </div>
+                    </div>
+
+                    {/* Filtro por Fecha */}
+                    <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-[#2e3f84] mb-2 flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            Filtrar por Fecha de Cita
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-[#6b7494] mb-1">Desde</label>
+                                <input
+                                    type="date"
+                                    value={dateFrom}
+                                    onChange={(e) => handleDateChange('from', e.target.value)}
+                                    className="w-full px-3 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-[#6b7494] mb-1">Hasta</label>
+                                <input
+                                    type="date"
+                                    value={dateTo}
+                                    onChange={(e) => handleDateChange('to', e.target.value)}
+                                    className="w-full px-3 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
+                                />
+                            </div>
+                            <div className="flex items-end">
+                                <button
+                                    onClick={handleClearDates}
+                                    disabled={!dateFrom && !dateTo}
+                                    className="w-full px-4 py-2 rounded-xl border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] hover:text-[#2e3f84] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
+                                >
+                                    Limpiar Fechas
+                                </button>
+                            </div>
+                        </div>
+                        {(dateFrom || dateTo) && (
+                            <p className="mt-2 text-xs text-[#2e3f84] flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                Filtrando citas {dateFrom && `desde ${dateFrom}`} {dateFrom && dateTo && '-'} {dateTo && `hasta ${dateTo}`}
+                            </p>
+                        )}
                     </div>
 
                     {/* Buscador */}

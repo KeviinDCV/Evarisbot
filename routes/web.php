@@ -66,6 +66,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
         Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
+        Route::post('/update-pending-phones', 'updatePendingPhones')->name('update-pending-phones');
     });
     
     // Configuración del sistema
