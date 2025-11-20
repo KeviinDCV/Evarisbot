@@ -8,22 +8,29 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
 
 class MessageSent implements ShouldBroadcast
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, InteractsWithSockets;
 
-    public $message;
-    public $conversation;
+    // Usar propiedades simples en lugar de SerializesModels para evitar fugas de memoria
+    public int $messageId;
+    public int $conversationId;
+    public string $content;
+    public bool $isFromUser;
+    public ?int $sentBy;
 
     /**
      * Create a new event instance.
      */
     public function __construct(Message $message, Conversation $conversation)
     {
-        $this->message = $message;
-        $this->conversation = $conversation;
+        // Solo extraer datos necesarios, no almacenar modelos completos
+        $this->messageId = $message->id;
+        $this->conversationId = $conversation->id;
+        $this->content = $message->content;
+        $this->isFromUser = $message->is_from_user;
+        $this->sentBy = $message->sent_by;
     }
 
     /**
@@ -50,12 +57,11 @@ class MessageSent implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'message_id' => $this->message->id,
-            'conversation_id' => $this->conversation->id,
-            'content' => $this->message->content,
-            'is_from_user' => $this->message->is_from_user,
-            'sent_by' => $this->message->sent_by,
-            'created_at' => $this->message->created_at,
+            'message_id' => $this->messageId,
+            'conversation_id' => $this->conversationId,
+            'content' => $this->content,
+            'is_from_user' => $this->isFromUser,
+            'sent_by' => $this->sentBy,
         ];
     }
 }

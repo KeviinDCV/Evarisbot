@@ -41,6 +41,9 @@ return [
             'queue' => env('DB_QUEUE', 'default'),
             'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
             'after_commit' => false,
+            // Límites de memoria para workers
+            'memory' => (int) env('QUEUE_MEMORY_LIMIT', 512), // 512MB máximo
+            'timeout' => (int) env('QUEUE_TIMEOUT', 60), // 60 segundos timeout
         ],
 
         'beanstalkd' => [

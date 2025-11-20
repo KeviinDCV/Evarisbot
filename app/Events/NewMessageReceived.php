@@ -11,22 +11,38 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
 
 class NewMessageReceived implements ShouldBroadcastNow
 {
-    use Dispatchable, InteractsWithSockets, SerializesModels;
+    use Dispatchable, InteractsWithSockets;
 
-    public $message;
-    public $conversation;
+    // Datos primitivos para evitar fugas de memoria
+    public array $messageData;
+    public array $conversationData;
 
     /**
      * Create a new event instance.
      */
     public function __construct(Message $message, Conversation $conversation)
     {
-        $this->message = $message;
-        $this->conversation = $conversation;
+        // Extraer solo datos necesarios, no modelos completos
+        $this->messageData = [
+            'id' => $message->id,
+            'conversation_id' => $message->conversation_id,
+            'content' => $message->content,
+            'message_type' => $message->message_type,
+            'is_from_user' => $message->is_from_user,
+            'status' => $message->status,
+            'created_at' => $message->created_at->toISOString(),
+        ];
+
+        $this->conversationData = [
+            'id' => $conversation->id,
+            'phone_number' => $conversation->phone_number,
+            'contact_name' => $conversation->contact_name,
+            'unread_count' => $conversation->unread_count,
+            'last_message_at' => $conversation->last_message_at?->toISOString(),
+        ];
     }
 
     /**
@@ -55,22 +71,8 @@ class NewMessageReceived implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         return [
-            'message' => [
-                'id' => $this->message->id,
-                'conversation_id' => $this->message->conversation_id,
-                'content' => $this->message->content,
-                'message_type' => $this->message->message_type,
-                'is_from_user' => $this->message->is_from_user,
-                'status' => $this->message->status,
-                'created_at' => $this->message->created_at->toISOString(),
-            ],
-            'conversation' => [
-                'id' => $this->conversation->id,
-                'phone_number' => $this->conversation->phone_number,
-                'contact_name' => $this->conversation->contact_name,
-                'unread_count' => $this->conversation->unread_count,
-                'last_message_at' => $this->conversation->last_message_at?->toISOString(),
-            ],
+            'message' => $this->messageData,
+            'conversation' => $this->conversationData,
         ];
     }
 }
