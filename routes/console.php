@@ -66,3 +66,17 @@ Schedule::command('cleanup:logs')
     ->onFailure(function () {
         \Illuminate\Support\Facades\Log::error('❌ Error en limpieza automática de logs');
     });
+
+// Reinicio automático de servicios
+// Se ejecuta diariamente a las 4:00 AM para liberar memoria acumulada
+Schedule::command('services:restart --force')
+    ->dailyAt('04:00')
+    ->timezone('America/Bogota')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->when(function () {
+        return config('optimization.enabled', false);
+    })
+    ->onSuccess(function () {
+        \Illuminate\Support\Facades\Log::info('✅ Servicios reiniciados automáticamente');
+    });

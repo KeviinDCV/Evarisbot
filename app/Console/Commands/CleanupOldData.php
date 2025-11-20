@@ -118,8 +118,16 @@ class CleanupOldData extends Command
 
             // 7. Optimizar base de datos
             if (!$dryRun) {
-                DB::statement('VACUUM');
-                $this->info("✅ Base de datos optimizada (VACUUM ejecutado)");
+                $driver = DB::connection()->getDriverName();
+                
+                if ($driver === 'sqlite') {
+                    DB::statement('VACUUM');
+                    $this->info("✅ Base de datos optimizada (VACUUM ejecutado)");
+                } elseif ($driver === 'mysql') {
+                    // Para MySQL/MariaDB
+                    DB::statement('OPTIMIZE TABLE messages, conversations, jobs, failed_jobs, sessions, cache');
+                    $this->info("✅ Base de datos optimizada (OPTIMIZE TABLE ejecutado)");
+                }
             }
 
             $this->newLine();
