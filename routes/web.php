@@ -63,6 +63,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/upload', 'upload')->name('upload');
         Route::post('/process', 'process')->name('process');
         Route::post('/reminders/start', 'startReminders')->name('reminders.start');
+        Route::post('/reminders/start-day-before', 'startRemindersDayBefore')->name('reminders.start-day-before');
         Route::post('/reminders/pause', 'pauseReminders')->name('reminders.pause');
         Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
         Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');

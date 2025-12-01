@@ -96,9 +96,22 @@ class AppointmentController extends Controller
             ->whereNotNull('pactel')
             ->count();
         
+        // Obtener citas pendientes para MAÑANA (1 día desde hoy) - para el botón "Enviar Día Antes"
+        $tomorrowDate = now()->addDays(1)->startOfDay();
+        $tomorrowDateString = $tomorrowDate->format('Y-m-d');
+        
+        $pendingTomorrowCount = Appointment::query()
+            ->where('uploaded_by', auth()->id())
+            ->whereDate('citfc', '=', $tomorrowDateString)
+            ->where('reminder_sent', false)
+            ->whereNotNull('citfc')
+            ->whereNotNull('pactel')
+            ->count();
+        
         $remindersStats = [
             'sent' => Appointment::where('uploaded_by', auth()->id())->where('reminder_sent', true)->count(),
             'pending' => $pendingCount,
+            'pending_tomorrow' => $pendingTomorrowCount,
             'failed' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'failed')->count(),
         ];
         
@@ -616,9 +629,12 @@ class AppointmentController extends Controller
                 }
             }
 
-            // Obtener configuración
+            // Obtener configuración de días de anticipación
             // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana)
-            $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
+            // Si se pasa en el request, usar ese valor (para envío 1 día antes)
+            $daysInAdvance = $request->has('days_in_advance') 
+                ? (int) $request->input('days_in_advance')
+                : (int) Setting::get('reminder_days_in_advance', '2');
             
             // Límites de Meta WhatsApp Business API:
             // - Máximo 1,000 conversaciones iniciadas por día (24 horas)
@@ -654,9 +670,10 @@ class AppointmentController extends Controller
             ]);
 
             if ($appointments->isEmpty()) {
+                $dateLabel = $daysInAdvance === 1 ? 'mañana' : ($daysInAdvance === 2 ? 'pasado mañana' : "en {$daysInAdvance} días");
                 return response()->json([
                     'success' => false,
-                    'message' => "No hay citas pendientes para enviar recordatorios para la fecha {$targetDateString} (pasado mañana)."
+                    'message' => "No hay citas pendientes para enviar recordatorios para la fecha {$targetDateString} ({$dateLabel})."
                 ], 400);
             }
 
@@ -864,6 +881,17 @@ class AppointmentController extends Controller
                 'message' => 'Error al iniciar el envío: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Iniciar envío de recordatorios 1 día antes (mañana)
+     * Para citas que no se enviaron a tiempo (2 días antes)
+     */
+    public function startRemindersDayBefore(Request $request)
+    {
+        // Usar el mismo método pero con 1 día de anticipación
+        $request->merge(['days_in_advance' => 1]);
+        return $this->startReminders($request);
     }
 
     /**

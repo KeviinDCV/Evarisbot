@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, TestTube2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -42,6 +42,7 @@ interface AppointmentIndexProps {
     remindersStats?: {
         sent: number;
         pending: number;
+        pending_tomorrow: number;
         failed: number;
     };
     uploadedFile?: {
@@ -70,7 +71,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     // Solo inicializar como procesando si realmente hay citas pendientes Y está procesando
     const [isProcessing, setIsProcessing] = useState(reminderProcessing && (remindersStats?.pending ?? 0) > 0);
     const [isLoading, setIsLoading] = useState(false);
-    const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, failed: 0 });
+    const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, pending_tomorrow: 0, failed: 0 });
     // Solo inicializar progreso si realmente está procesando Y hay citas pendientes
     const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; pending: number; percentage: number } | null>(null);
     
@@ -166,7 +167,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                         only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
                         onSuccess: (page: any) => {
                             if (page.props.remindersStats) {
-                                setLocalStats(page.props.remindersStats as { sent: number; pending: number; failed: number });
+                                setLocalStats(page.props.remindersStats as { sent: number; pending: number; pending_tomorrow: number; failed: number });
                             }
                         }
                     });
@@ -323,6 +324,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     setLocalStats({
                         sent: remindersStats.sent + (data.sent || 0),
                         pending: Math.max(0, remindersStats.pending - (data.sent || 0) - (data.failed || 0)),
+                        pending_tomorrow: remindersStats.pending_tomorrow ?? 0,
                         failed: remindersStats.failed + (data.failed || 0)
                     });
                 }
@@ -333,7 +335,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     onSuccess: (page: any) => {
                         // Actualizar estadísticas locales con los datos del servidor
                         if (page.props.remindersStats) {
-                            setLocalStats(page.props.remindersStats as { sent: number; pending: number; failed: number });
+                            setLocalStats(page.props.remindersStats as { sent: number; pending: number; pending_tomorrow: number; failed: number });
                         }
                     }
                 });
@@ -453,46 +455,46 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         }
     };
 
-    const handleTestMode = async () => {
-        const phoneNumber = prompt('Ingresa tu número de teléfono (ej: 3001234567) para recibir todos los recordatorios de prueba:');
-        
-        if (!phoneNumber) {
-            return;
-        }
-
-        // Validar formato básico
-        const cleanPhone = phoneNumber.replace(/\D/g, '');
-        if (cleanPhone.length < 10) {
-            alert('Por favor ingresa un número de teléfono válido de 10 dígitos');
-            return;
-        }
-
-        if (!confirm(`¿Estás seguro de cambiar TODOS los números pendientes al ${cleanPhone}? Esto es solo para pruebas.`)) {
+    const handleStartRemindersDayBefore = async () => {
+        if (!confirm(`¿Estás seguro de enviar ${localStats.pending_tomorrow} recordatorios para las citas de MAÑANA? Esto es para citas que no se enviaron a tiempo (2 días antes).`)) {
             return;
         }
 
         setIsLoading(true);
+        setIsProcessing(true);
+        setIsPaused(false);
+        
         try {
-            const response = await fetch('/admin/appointments/update-pending-phones', {
+            const response = await fetch('/admin/appointments/reminders/start-day-before', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
-                body: JSON.stringify({ phone_number: cleanPhone }),
             });
 
             const data = await response.json();
             
             if (data.success) {
-                alert(data.message);
-                router.reload();
+                // Recargar estadísticas desde el servidor
+                router.reload({ 
+                    only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
+                    onSuccess: (page: any) => {
+                        if (page.props.remindersStats) {
+                            setLocalStats(page.props.remindersStats as { sent: number; pending: number; pending_tomorrow: number; failed: number });
+                        }
+                    }
+                });
             } else {
-                alert(data.message || 'Error al actualizar números');
+                setIsProcessing(false);
+                setProgress(null);
+                alert(data.message || 'Error al iniciar el envío para mañana');
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al activar modo prueba');
+            alert('Error al iniciar el envío de recordatorios para mañana');
+            setIsProcessing(false);
+            setProgress(null);
         } finally {
             setIsLoading(false);
         }
@@ -587,10 +589,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Send className="w-5 h-5" />
                                         Control de Envío de Recordatorios
                                     </h2>
-                                    <p className="text-sm text-[#6b7494]">
+                                    <div className="text-sm text-[#6b7494] space-y-1">
                                         {localStats.pending > 0 ? (
-                                            <>
-                                                {localStats.pending} recordatorios pendientes para enviar (pasado mañana)
+                                            <p>
+                                                <strong className="text-[#2e3f84]">{localStats.pending}</strong> recordatorios pendientes para <strong>pasado mañana</strong> (2 días)
                                                 {isProcessing && !isPaused && (
                                                     <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 font-medium">
                                                         <RefreshCw className="w-3 h-3 animate-spin" />
@@ -603,13 +605,19 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                         Pausado
                                                     </span>
                                                 )}
-                                            </>
+                                            </p>
                                         ) : (
-                                            <span className="text-amber-600">
-                                                No hay citas pendientes para pasado mañana. Solo se envían recordatorios para citas de pasado mañana (2 días desde hoy).
-                                            </span>
+                                            <p className="text-amber-600">
+                                                No hay citas pendientes para pasado mañana.
+                                            </p>
                                         )}
-                                    </p>
+                                        {localStats.pending_tomorrow > 0 && (
+                                            <p className="text-amber-600">
+                                                <CalendarCheck className="w-4 h-4 inline mr-1" />
+                                                <strong>{localStats.pending_tomorrow}</strong> citas para <strong>mañana</strong> sin recordatorio enviado (usa "Enviar Día Antes")
+                                            </p>
+                                        )}
+                                    </div>
                                     
                                     {/* Barra de progreso en tiempo real - solo mostrar cuando hay proceso activo Y progreso válido */}
                                     {isProcessing && reminderProcessing && progress && progress.total > 0 && (
@@ -674,33 +682,35 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 <Play className="w-4 h-4 mr-2" />
                                                 {isLoading || isProcessing ? 'Iniciando...' : 'Comenzar Envío'}
                                             </Button>
-                                            <Button
-                                                onClick={handleTestMode}
-                                                disabled={isLoading || isProcessing}
-                                                className="font-semibold text-white transition-all duration-200 border-0"
-                                                style={{
-                                                    backgroundColor: '#8B5CF6',
-                                                    boxShadow: 'var(--shadow-md)',
-                                                    height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
-                                                    padding: '0 var(--space-lg)',
-                                                    fontSize: 'var(--text-sm)',
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    if (!isLoading && !isProcessing) {
-                                                        e.currentTarget.style.backgroundColor = '#7C3AED';
-                                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                                    }
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.backgroundColor = '#8B5CF6';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                }}
-                                            >
-                                                <TestTube2 className="w-4 h-4 mr-2" />
-                                                Modo Prueba
-                                            </Button>
+                                            {localStats.pending_tomorrow > 0 && (
+                                                <Button
+                                                    onClick={handleStartRemindersDayBefore}
+                                                    disabled={isLoading || isProcessing}
+                                                    className="font-semibold text-white transition-all duration-200 border-0"
+                                                    style={{
+                                                        backgroundColor: '#F59E0B',
+                                                        boxShadow: 'var(--shadow-md)',
+                                                        height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                        padding: '0 var(--space-lg)',
+                                                        fontSize: 'var(--text-sm)',
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        if (!isLoading && !isProcessing) {
+                                                            e.currentTarget.style.backgroundColor = '#D97706';
+                                                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                                        }
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.backgroundColor = '#F59E0B';
+                                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                        e.currentTarget.style.transform = 'translateY(0)';
+                                                    }}
+                                                >
+                                                    <CalendarCheck className="w-4 h-4 mr-2" />
+                                                    Enviar Día Antes ({localStats.pending_tomorrow})
+                                                </Button>
+                                            )}
                                         </>
                                     )}
                                     {isProcessing && !isPaused && (
@@ -790,8 +800,17 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                                     <p className="text-sm text-amber-800">
                                         <AlertCircle className="w-4 h-4 inline mr-1" />
-                                        <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes. 
+                                        <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana. 
                                         El sistema respetará el límite de 1,000 mensajes por día según las recomendaciones de Meta.
+                                    </p>
+                                </div>
+                            )}
+                            {localStats.pending_tomorrow > 1000 && (
+                                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                    <p className="text-sm text-amber-800">
+                                        <AlertCircle className="w-4 h-4 inline mr-1" />
+                                        <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio. 
+                                        El sistema respetará el límite de 1,000 mensajes por día.
                                     </p>
                                 </div>
                             )}
