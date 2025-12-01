@@ -270,24 +270,32 @@ class AppointmentController extends Controller
             $fullPath = Storage::path($path);
 
             // Procesar y guardar en BD
-            $totalRows = $this->processAndSaveExcel($fullPath);
+            $result = $this->processAndSaveExcel($fullPath);
 
             Log::info('Archivo de citas subido y procesado', [
                 'filename' => $fileName,
                 'path' => $path,
                 'size' => $file->getSize(),
-                'total_rows' => $totalRows,
+                'total_processed' => $result['processed'],
+                'total_duplicates' => $result['duplicates'],
                 'user_id' => auth()->id(),
             ]);
 
+            // Construir mensaje de éxito con información de duplicados
+            $successMessage = "Archivo subido exitosamente. Se procesaron {$result['processed']} citas.";
+            if ($result['duplicates'] > 0) {
+                $successMessage .= " Se omitieron {$result['duplicates']} citas porque ya estaban registradas.";
+            }
+
             return redirect()->route('admin.appointments.index')->with([
-                'success' => "Archivo subido exitosamente. Se procesaron {$totalRows} citas.",
+                'success' => $successMessage,
                 'uploaded_file' => [
                     'name' => $originalName,
                     'path' => $path,
                     'size' => $file->getSize(),
                     'uploaded_at' => now()->toDateTimeString(),
-                    'total_rows' => $totalRows,
+                    'total_rows' => $result['processed'],
+                    'duplicates' => $result['duplicates'],
                 ],
             ]);
         } catch (\Exception $e) {
@@ -305,8 +313,9 @@ class AppointmentController extends Controller
 
     /**
      * Procesar archivo Excel y guardar en BD
+     * @return array{processed: int, duplicates: int}
      */
-    private function processAndSaveExcel(string $filePath): int
+    private function processAndSaveExcel(string $filePath): array
     {
         try {
             // Aumentar límite de memoria a 2GB
@@ -365,6 +374,7 @@ class AppointmentController extends Controller
             $chunkSize = 100;
             $totalRows = $highestRow;
             $totalProcessed = 0;
+            $totalDuplicates = 0;
             $batchData = [];
             
             for ($startRow = 2; $startRow <= $totalRows; $startRow += $chunkSize) {
@@ -465,6 +475,14 @@ class AppointmentController extends Controller
                         }
                     }
                     
+                    // Verificar si la cita ya existe (duplicado)
+                    $isDuplicate = $this->isAppointmentDuplicate($appointment);
+                    
+                    if ($isDuplicate) {
+                        $totalDuplicates++;
+                        continue; // Omitir esta cita
+                    }
+                    
                     $batchData[] = $appointment;
                     $totalProcessed++;
                     
@@ -493,7 +511,15 @@ class AppointmentController extends Controller
             unset($spreadsheet, $worksheet, $batchData);
             gc_collect_cycles();
             
-            return $totalProcessed;
+            Log::info('Procesamiento completado', [
+                'processed' => $totalProcessed,
+                'duplicates' => $totalDuplicates,
+            ]);
+            
+            return [
+                'processed' => $totalProcessed,
+                'duplicates' => $totalDuplicates,
+            ];
         } catch (\Exception $e) {
             Log::error('Error procesando archivo Excel', [
                 'error' => $e->getMessage(),
@@ -503,6 +529,43 @@ class AppointmentController extends Controller
             
             throw $e;
         }
+    }
+
+    /**
+     * Verificar si una cita ya existe en la base de datos
+     * Compara por: citead (admisión), citfc (fecha), cithor (hora), citide (cédula), citmed (médico)
+     */
+    private function isAppointmentDuplicate(array $appointment): bool
+    {
+        // Campos clave para identificar una cita única
+        $query = DB::table('appointments');
+        
+        // Comparar número de admisión (si existe, es el identificador más único)
+        if (!empty($appointment['citead'])) {
+            $query->where('citead', $appointment['citead']);
+        }
+        
+        // Comparar fecha de cita
+        if (!empty($appointment['citfc'])) {
+            $query->where('citfc', $appointment['citfc']);
+        }
+        
+        // Comparar hora de cita
+        if (!empty($appointment['cithor'])) {
+            $query->where('cithor', $appointment['cithor']);
+        }
+        
+        // Comparar cédula del paciente
+        if (!empty($appointment['citide'])) {
+            $query->where('citide', $appointment['citide']);
+        }
+        
+        // Comparar código del médico
+        if (!empty($appointment['citmed'])) {
+            $query->where('citmed', $appointment['citmed']);
+        }
+        
+        return $query->exists();
     }
 
     /**

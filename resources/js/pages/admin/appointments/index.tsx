@@ -1,5 +1,5 @@
 import AdminLayout from '@/layouts/admin-layout';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, TestTube2 } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -53,9 +53,15 @@ interface AppointmentIndexProps {
     };
     reminderPaused?: boolean;
     reminderProcessing?: boolean;
+    flash?: {
+        success?: string;
+        error?: string;
+    };
 }
 
 export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false }: AppointmentIndexProps) {
+    const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
+    const [showFlashMessage, setShowFlashMessage] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -71,6 +77,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     const { data, setData, post, processing, errors, reset } = useForm({
         file: null as File | null,
     });
+
+    // Resetear visibilidad del mensaje flash cuando cambie
+    useEffect(() => {
+        if (flash?.success || flash?.error) {
+            setShowFlashMessage(true);
+        }
+    }, [flash?.success, flash?.error]);
 
     // Sincronizar estadísticas locales con las del servidor cuando cambian
     useEffect(() => {
@@ -533,6 +546,37 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             Carga un archivo Excel con las citas programadas para enviar recordatorios automáticos
                         </p>
                     </div>
+
+                    {/* Mensaje Flash de Éxito/Error */}
+                    {showFlashMessage && (flash?.success || flash?.error) && (
+                        <div 
+                            className={`mb-6 p-4 rounded-xl flex items-start gap-3 transition-all duration-300 ${
+                                flash?.success 
+                                    ? 'bg-emerald-50 text-emerald-800' 
+                                    : 'bg-red-50 text-red-800'
+                            }`}
+                            style={{
+                                boxShadow: flash?.success 
+                                    ? '0 2px 8px -2px rgba(16, 185, 129, 0.15)' 
+                                    : '0 2px 8px -2px rgba(239, 68, 68, 0.15)',
+                            }}
+                        >
+                            {flash?.success ? (
+                                <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0 text-emerald-600" />
+                            ) : (
+                                <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-red-600" />
+                            )}
+                            <div className="flex-1">
+                                <p className="font-medium">{flash?.success || flash?.error}</p>
+                            </div>
+                            <button 
+                                onClick={() => setShowFlashMessage(false)}
+                                className="p-1 hover:bg-black/5 rounded-lg transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
 
                     {/* Control de Recordatorios */}
                     {(remindersStats || localStats) && (
