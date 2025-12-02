@@ -19,9 +19,10 @@ import {
     MapPin,
     User,
     FileAudio,
-    Smile
+    Smile,
+    ArrowDown
 } from 'lucide-react';
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -99,19 +100,92 @@ export default function ConversationsIndex({ conversations, selectedConversation
     const [contextMenu, setContextMenu] = useState<{ conversationId: number; x: number; y: number } | null>(null);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Estados para control de scroll inteligente
+    const [isAtBottom, setIsAtBottom] = useState(true);
+    const [newMessagesCount, setNewMessagesCount] = useState(0);
+    const lastMessageCountRef = useRef(0);
     
     const { data, setData, post, reset, processing } = useForm({
         content: '',
         media_file: null as File | null,
     });
 
-    // Scroll automático al final cuando hay nuevos mensajes
+    // Función para verificar si el usuario está cerca del final
+    const checkIfAtBottom = useCallback(() => {
+        const container = messagesContainerRef.current;
+        if (!container) return true;
+        
+        const threshold = 100; // Píxeles de tolerancia
+        const isBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+        return isBottom;
+    }, []);
+
+    // Función para ir al final del chat
+    const scrollToBottom = useCallback((smooth = true) => {
+        messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+        setIsAtBottom(true);
+        setNewMessagesCount(0);
+    }, []);
+
+    // Detectar scroll del usuario
     useEffect(() => {
-        if (selectedConversation?.messages) {
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        const container = messagesContainerRef.current;
+        if (!container) return;
+
+        const handleScroll = () => {
+            const atBottom = checkIfAtBottom();
+            setIsAtBottom(atBottom);
+            
+            // Si el usuario llegó al final, limpiar contador de nuevos mensajes
+            if (atBottom) {
+                setNewMessagesCount(0);
+            }
+        };
+
+        container.addEventListener('scroll', handleScroll);
+        return () => container.removeEventListener('scroll', handleScroll);
+    }, [checkIfAtBottom, selectedConversation?.id]);
+
+    // Scroll automático al final SOLO si el usuario ya estaba al final
+    useEffect(() => {
+        const messages = selectedConversation?.messages;
+        if (!messages) return;
+        
+        const currentCount = messages.length;
+        const previousCount = lastMessageCountRef.current;
+        
+        // Si es una nueva conversación, ir al final inmediatamente
+        if (previousCount === 0 && currentCount > 0) {
+            scrollToBottom(false);
+            lastMessageCountRef.current = currentCount;
+            return;
         }
-    }, [selectedConversation?.messages]);
+        
+        // Si hay nuevos mensajes
+        if (currentCount > previousCount) {
+            const newCount = currentCount - previousCount;
+            
+            if (isAtBottom) {
+                // Si el usuario está al final, hacer scroll automático
+                scrollToBottom();
+            } else {
+                // Si el usuario está leyendo arriba, mostrar indicador de nuevos mensajes
+                setNewMessagesCount(prev => prev + newCount);
+            }
+        }
+        
+        lastMessageCountRef.current = currentCount;
+    }, [selectedConversation?.messages, isAtBottom, scrollToBottom]);
+
+    // Resetear cuando cambia la conversación
+    useEffect(() => {
+        lastMessageCountRef.current = 0;
+        setNewMessagesCount(0);
+        setIsAtBottom(true);
+    }, [selectedConversation?.id]);
 
     // Detectar tecla Escape para cerrar el chat
     useEffect(() => {
@@ -137,15 +211,23 @@ export default function ConversationsIndex({ conversations, selectedConversation
 
     // Polling para actualizar la lista de conversaciones (siempre activo)
     useEffect(() => {
-        // Actualizar lista de conversaciones cada 3 segundos
+        let isActive = true;
+        
+        // Actualizar lista de conversaciones cada 5 segundos
         const conversationsInterval = setInterval(() => {
+            if (!isActive) return;
+            
             router.reload({ 
                 only: ['conversations'],
+                onError: () => {
+                    // Silenciar errores de conflicto para evitar spam en consola
+                },
             });
-        }, 3000); // 3 segundos
+        }, 5000); // 5 segundos para reducir carga
 
         // Cleanup: detener polling al desmontar
         return () => {
+            isActive = false;
             clearInterval(conversationsInterval);
         };
     }, []);
@@ -154,16 +236,24 @@ export default function ConversationsIndex({ conversations, selectedConversation
     useEffect(() => {
         // Solo hacer polling si hay una conversación seleccionada
         if (!selectedConversation) return;
+        
+        let isActive = true;
 
-        // Consultar cada 3 segundos si hay mensajes nuevos en la conversación actual
+        // Consultar cada 5 segundos si hay mensajes nuevos en la conversación actual
         const messagesInterval = setInterval(() => {
+            if (!isActive) return;
+            
             router.reload({ 
                 only: ['selectedConversation'],
+                onError: () => {
+                    // Silenciar errores de conflicto para evitar spam en consola
+                },
             });
-        }, 3000); // 3 segundos
+        }, 5000); // 5 segundos para reducir carga
 
         // Cleanup: detener polling al desmontar
         return () => {
+            isActive = false;
             clearInterval(messagesInterval);
         };
     }, [selectedConversation?.id]);
@@ -677,7 +767,10 @@ export default function ConversationsIndex({ conversations, selectedConversation
                         </div>
 
                         {/* Área de Mensajes */}
-                        <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 bg-[#f8f9fc]">
+                        <div 
+                            ref={messagesContainerRef}
+                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 bg-[#f8f9fc] relative"
+                        >
                             {!selectedConversation.messages || selectedConversation.messages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-[#6b7494]">
                                     <p>{t('conversations.noMessagesInConversation')}</p>
@@ -820,6 +913,21 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                     
                                     <div ref={messagesEndRef} />
                                 </div>
+                            )}
+                            
+                            {/* Botón flotante para ir al final + indicador de nuevos mensajes */}
+                            {!isAtBottom && (
+                                <button
+                                    onClick={() => scrollToBottom()}
+                                    className="absolute bottom-4 right-4 flex items-center gap-2 bg-gradient-to-b from-white to-[#fafbfc] hover:from-[#fafbfc] hover:to-[#f0f2f8] text-[#2e3f84] px-3 py-2 rounded-full shadow-[0_2px_8px_rgba(46,63,132,0.15),0_4px_16px_rgba(46,63,132,0.1)] transition-all duration-200 hover:shadow-[0_4px_12px_rgba(46,63,132,0.2),0_8px_24px_rgba(46,63,132,0.15)] z-10"
+                                >
+                                    {newMessagesCount > 0 && (
+                                        <span className="bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                                            {newMessagesCount > 99 ? '99+' : newMessagesCount}
+                                        </span>
+                                    )}
+                                    <ArrowDown className="w-4 h-4" />
+                                </button>
                             )}
                         </div>
 
