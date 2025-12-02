@@ -82,10 +82,35 @@ class TemplateController extends Controller
      */
     public function store(StoreTemplateRequest $request)
     {
-        $template = Template::create([
-            ...$request->validated(),
+        $data = [
+            'name' => $request->input('name'),
+            'content' => $request->input('content'),
+            'is_active' => $request->boolean('is_active'),
             'created_by' => auth()->id(),
-        ]);
+            'message_type' => 'text',
+            'media_url' => null,
+            'media_filename' => null,
+        ];
+
+        // Procesar archivo multimedia si existe
+        if ($request->hasFile('media_file')) {
+            $file = $request->file('media_file');
+            $path = $file->store('templates', 'public');
+            $data['media_url'] = '/storage/' . $path;
+            $data['media_filename'] = $file->getClientOriginalName();
+            
+            // Detectar tipo de mensaje según extensión
+            $extension = strtolower($file->getClientOriginalExtension());
+            if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                $data['message_type'] = 'image';
+            } elseif (in_array($extension, ['mp4', 'mov', 'avi', '3gp'])) {
+                $data['message_type'] = 'video';
+            } else {
+                $data['message_type'] = 'document';
+            }
+        }
+
+        Template::create($data);
 
         return redirect()->route('admin.templates.index')
             ->with('success', 'Plantilla creada exitosamente.');
@@ -151,10 +176,50 @@ class TemplateController extends Controller
      */
     public function update(UpdateTemplateRequest $request, Template $template)
     {
-        $template->update([
-            ...$request->validated(),
+        $data = [
+            'name' => $request->input('name'),
+            'content' => $request->input('content'),
+            'is_active' => $request->boolean('is_active'),
             'updated_by' => auth()->id(),
-        ]);
+        ];
+
+        // Si se solicita eliminar el archivo multimedia
+        if ($request->boolean('remove_media')) {
+            // Eliminar archivo anterior si existe
+            if ($template->media_url) {
+                $oldPath = str_replace('/storage/', '', $template->media_url);
+                \Storage::disk('public')->delete($oldPath);
+            }
+            $data['media_url'] = null;
+            $data['media_filename'] = null;
+            $data['message_type'] = 'text';
+        }
+
+        // Procesar nuevo archivo multimedia si existe
+        if ($request->hasFile('media_file')) {
+            // Eliminar archivo anterior si existe
+            if ($template->media_url) {
+                $oldPath = str_replace('/storage/', '', $template->media_url);
+                \Storage::disk('public')->delete($oldPath);
+            }
+            
+            $file = $request->file('media_file');
+            $path = $file->store('templates', 'public');
+            $data['media_url'] = '/storage/' . $path;
+            $data['media_filename'] = $file->getClientOriginalName();
+            
+            // Detectar tipo de mensaje según extensión
+            $extension = strtolower($file->getClientOriginalExtension());
+            if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                $data['message_type'] = 'image';
+            } elseif (in_array($extension, ['mp4', 'mov', 'avi', '3gp'])) {
+                $data['message_type'] = 'video';
+            } else {
+                $data['message_type'] = 'document';
+            }
+        }
+
+        $template->update($data);
 
         return redirect()->route('admin.templates.index')
             ->with('success', 'Plantilla actualizada exitosamente.');

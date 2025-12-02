@@ -61,22 +61,49 @@ class ConversationController extends Controller
             }
         }
 
-        // Buscar por nombre o teléfono
-        if ($request->has('search')) {
-            $search = $request->search;
+        // Buscar por nombre, teléfono o contenido de mensajes
+        if ($request->has('search') && !empty($request->search)) {
+            $search = trim($request->search);
             $query->where(function ($q) use ($search) {
+                // Buscar en nombre de contacto
                 $q->where('contact_name', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%");
+                  // Buscar en número de teléfono
+                  ->orWhere('phone_number', 'like', "%{$search}%")
+                  // Buscar en el contenido de los mensajes
+                  ->orWhereHas('messages', function ($messageQuery) use ($search) {
+                      $messageQuery->where('content', 'like', "%{$search}%");
+                  });
             });
         }
 
-        $conversations = $query->get();
+        // Paginación: cargar solo 50 conversaciones a la vez para mejor rendimiento
+        $perPage = 50;
+        $page = $request->get('page', 1);
+        
+        $conversations = $query
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'last_message_at'])
+            ->limit($perPage)
+            ->offset(($page - 1) * $perPage)
+            ->get();
+        
+        // Contar total solo si es la primera página (para evitar queries innecesarias)
+        $hasMore = $conversations->count() === $perPage;
 
         // Obtener todos los usuarios (asesores) disponibles para asignación
         $users = User::select('id', 'name', 'role')->get();
 
+        // Si es una petición de paginación (AJAX), devolver solo las conversaciones
+        if ($request->wantsJson() || $request->has('page')) {
+            return response()->json([
+                'conversations' => $conversations,
+                'hasMore' => $hasMore,
+                'page' => (int) $page,
+            ]);
+        }
+
         return Inertia::render('conversations/index', [
             'conversations' => $conversations,
+            'hasMore' => $hasMore,
             'users' => $users,
             'filters' => $request->only(['status', 'assigned', 'search']),
         ]);
@@ -114,15 +141,26 @@ class ConversationController extends Controller
             }
         }
 
-        if ($request->has('search')) {
-            $search = $request->search;
+        // Buscar por nombre, teléfono o contenido de mensajes
+        if ($request->has('search') && !empty($request->search)) {
+            $search = trim($request->search);
             $query->where(function ($q) use ($search) {
                 $q->where('contact_name', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%");
+                  ->orWhere('phone_number', 'like', "%{$search}%")
+                  ->orWhereHas('messages', function ($messageQuery) use ($search) {
+                      $messageQuery->where('content', 'like', "%{$search}%");
+                  });
             });
         }
 
-        $conversations = $query->get();
+        // Paginación: cargar solo 50 conversaciones
+        $perPage = 50;
+        $conversations = $query
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'last_message_at'])
+            ->limit($perPage)
+            ->get();
+        
+        $hasMore = $conversations->count() === $perPage;
         
         // Cargar la conversación seleccionada con todos sus mensajes
         $conversation->load(['messages.sender', 'assignedUser']);
@@ -135,6 +173,7 @@ class ConversationController extends Controller
 
         return Inertia::render('conversations/index', [
             'conversations' => $conversations,
+            'hasMore' => $hasMore,
             'selectedConversation' => $conversation,
             'users' => $users,
             'filters' => $request->only(['status', 'assigned', 'search']),

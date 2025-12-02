@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Templates;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateTemplateRequest extends FormRequest
 {
@@ -24,22 +23,17 @@ class UpdateTemplateRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'subject' => ['nullable', 'string', 'max:255'],
             'content' => ['required', 'string', 'max:4096'],
             'is_active' => ['boolean'],
-            'message_type' => ['required', Rule::in(['text', 'image', 'document'])],
-            'media_url' => [
+            // El archivo multimedia es opcional (puede mantener el existente o subir uno nuevo)
+            'media_file' => [
                 'nullable',
-                'string',
-                'max:500',
-                Rule::requiredIf(fn() => in_array($this->message_type, ['image', 'document']))
+                'file',
+                'mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,3gp,pdf,doc,docx',
+                'max:20480', // 20MB máximo
             ],
-            'media_filename' => [
-                'nullable',
-                'string',
-                'max:255',
-                Rule::requiredIf(fn() => in_array($this->message_type, ['image', 'document']))
-            ],
+            // Para eliminar el archivo existente
+            'remove_media' => ['nullable', 'boolean'],
         ];
     }
 
@@ -51,12 +45,11 @@ class UpdateTemplateRequest extends FormRequest
         return [
             'name.required' => 'El nombre de la plantilla es obligatorio.',
             'name.max' => 'El nombre no puede exceder 255 caracteres.',
-            'content.required' => 'El contenido de la plantilla es obligatorio.',
-            'content.max' => 'El contenido no puede exceder 4096 caracteres.',
-            'message_type.required' => 'El tipo de mensaje es obligatorio.',
-            'message_type.in' => 'El tipo de mensaje debe ser: texto, imagen o documento.',
-            'media_url.required_if' => 'La URL del archivo es obligatoria para mensajes con imagen o documento.',
-            'media_filename.required_if' => 'El nombre del archivo es obligatorio para mensajes con imagen o documento.',
+            'content.required' => 'El mensaje de la plantilla es obligatorio.',
+            'content.max' => 'El mensaje no puede exceder 4096 caracteres.',
+            'media_file.file' => 'El archivo adjunto debe ser un archivo válido.',
+            'media_file.mimes' => 'El archivo debe ser: imagen (jpg, png, gif, webp), video (mp4, mov, avi, 3gp) o documento (pdf, doc, docx).',
+            'media_file.max' => 'El archivo no puede exceder 20MB.',
         ];
     }
 }

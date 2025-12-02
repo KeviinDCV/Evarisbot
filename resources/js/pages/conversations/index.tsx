@@ -79,6 +79,7 @@ interface User {
 
 interface ConversationsIndexProps {
     conversations: Conversation[];
+    hasMore?: boolean;
     selectedConversation?: Conversation;
     users: User[];
     filters: {
@@ -88,7 +89,7 @@ interface ConversationsIndexProps {
     };
 }
 
-export default function ConversationsIndex({ conversations, selectedConversation, users, filters }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, filters }: ConversationsIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -101,7 +102,14 @@ export default function ConversationsIndex({ conversations, selectedConversation
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const conversationsListRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Estados para scroll infinito de conversaciones
+    const [localConversations, setLocalConversations] = useState<Conversation[]>(initialConversations);
+    const [hasMore, setHasMore] = useState(initialHasMore);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
     
     // Estados para control de scroll inteligente
     const [isAtBottom, setIsAtBottom] = useState(true);
@@ -187,6 +195,58 @@ export default function ConversationsIndex({ conversations, selectedConversation
         setIsAtBottom(true);
     }, [selectedConversation?.id]);
 
+    // Sincronizar conversaciones cuando cambian desde el servidor
+    useEffect(() => {
+        setLocalConversations(initialConversations);
+        setHasMore(initialHasMore);
+        setCurrentPage(1);
+    }, [initialConversations, initialHasMore]);
+
+    // Función para cargar más conversaciones (scroll infinito)
+    const loadMoreConversations = useCallback(async () => {
+        if (isLoadingMore || !hasMore) return;
+        
+        setIsLoadingMore(true);
+        const nextPage = currentPage + 1;
+        
+        try {
+            const response = await fetch(`/admin/chat?page=${nextPage}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setLocalConversations(prev => [...prev, ...data.conversations]);
+                setHasMore(data.hasMore);
+                setCurrentPage(nextPage);
+            }
+        } catch (error) {
+            console.error('Error cargando más conversaciones:', error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [isLoadingMore, hasMore, currentPage]);
+
+    // Detectar scroll al final de la lista de conversaciones
+    useEffect(() => {
+        const container = conversationsListRef.current;
+        if (!container) return;
+
+        const handleScroll = () => {
+            const { scrollTop, scrollHeight, clientHeight } = container;
+            // Si llegamos al 80% del scroll, cargar más
+            if (scrollTop + clientHeight >= scrollHeight * 0.8 && hasMore && !isLoadingMore) {
+                loadMoreConversations();
+            }
+        };
+
+        container.addEventListener('scroll', handleScroll);
+        return () => container.removeEventListener('scroll', handleScroll);
+    }, [hasMore, isLoadingMore, loadMoreConversations]);
+
     // Detectar tecla Escape para cerrar el chat
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
@@ -258,21 +318,44 @@ export default function ConversationsIndex({ conversations, selectedConversation
         };
     }, [selectedConversation?.id]);
 
+    // Debounce para la búsqueda
+    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    
     const handleSearch = (value: string) => {
         setSearch(value);
         
-        // Si hay una conversación seleccionada, mantenerla abierta
-        const url = selectedConversation 
-            ? `/admin/chat/${selectedConversation.id}`
-            : '/admin/chat';
+        // Cancelar búsqueda anterior si existe
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
         
-        router.get(url, { search: value }, {
-            preserveState: true,
-            preserveScroll: true,
-            replace: true,
-            only: ['conversations'], // Solo actualizar la lista de conversaciones
-        });
+        // Esperar 400ms antes de buscar (debounce)
+        searchTimeoutRef.current = setTimeout(() => {
+            // Resetear página y conversaciones locales para nueva búsqueda
+            setCurrentPage(1);
+            
+            // Si hay una conversación seleccionada, mantenerla abierta
+            const url = selectedConversation 
+                ? `/admin/chat/${selectedConversation.id}`
+                : '/admin/chat';
+            
+            router.get(url, { search: value }, {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                only: ['conversations', 'hasMore'],
+            });
+        }, 400);
     };
+    
+    // Limpiar timeout al desmontar
+    useEffect(() => {
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, []);
 
     const formatTime = (date: string | null) => {
         if (!date) return '';
@@ -489,8 +572,11 @@ export default function ConversationsIndex({ conversations, selectedConversation
                     </div>
 
                     {/* Lista de Conversaciones */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-2 pt-4">
-                        {conversations.length === 0 ? (
+                    <div 
+                        ref={conversationsListRef}
+                        className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-2 pt-4"
+                    >
+                        {localConversations.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-[#6b7494] p-8">
                                 <MessageSquare className="w-16 h-16 mb-4 text-[#9fa5c0]" />
                                 <p className="text-center text-sm">
@@ -501,7 +587,8 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                 </p>
                             </div>
                         ) : (
-                            conversations.map((conversation) => (
+                            <>
+                            {localConversations.map((conversation: Conversation) => (
                                 <button
                                     key={conversation.id}
                                     onClick={() => router.get(`/admin/chat/${conversation.id}`, {}, { preserveScroll: true, preserveState: true })}
@@ -548,13 +635,28 @@ export default function ConversationsIndex({ conversations, selectedConversation
                                         </div>
                                     </div>
                                 </button>
-                            ))
+                            ))}
+                            
+                            {/* Indicador de carga de más conversaciones */}
+                            {isLoadingMore && (
+                                <div className="py-4 text-center">
+                                    <div className="inline-block w-5 h-5 border-2 border-[#2e3f84] border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                            )}
+                            
+                            {/* Indicador de más conversaciones */}
+                            {hasMore && !isLoadingMore && (
+                                <div className="py-2 text-center text-xs text-[#6b7494]">
+                                    Desplaza para cargar más...
+                                </div>
+                            )}
+                            </>
                         )}
                     </div>
 
                     {/* Menú Contextual */}
                     {contextMenu && (() => {
-                        const conversation = conversations.find(c => c.id === contextMenu.conversationId);
+                        const conversation = localConversations.find((c: Conversation) => c.id === contextMenu.conversationId);
                         if (!conversation) return null;
                         
                         return (
@@ -916,19 +1018,21 @@ export default function ConversationsIndex({ conversations, selectedConversation
                             )}
                             
                             {/* Botón flotante para ir al final + indicador de nuevos mensajes */}
-                            {!isAtBottom && (
-                                <button
-                                    onClick={() => scrollToBottom()}
-                                    className="absolute bottom-4 right-4 flex items-center gap-2 bg-gradient-to-b from-white to-[#fafbfc] hover:from-[#fafbfc] hover:to-[#f0f2f8] text-[#2e3f84] px-3 py-2 rounded-full shadow-[0_2px_8px_rgba(46,63,132,0.15),0_4px_16px_rgba(46,63,132,0.1)] transition-all duration-200 hover:shadow-[0_4px_12px_rgba(46,63,132,0.2),0_8px_24px_rgba(46,63,132,0.15)] z-10"
-                                >
-                                    {newMessagesCount > 0 && (
-                                        <span className="bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                                            {newMessagesCount > 99 ? '99+' : newMessagesCount}
-                                        </span>
-                                    )}
-                                    <ArrowDown className="w-4 h-4" />
-                                </button>
-                            )}
+                            <button
+                                onClick={() => scrollToBottom()}
+                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 bg-gradient-to-b from-white to-[#fafbfc] hover:from-[#fafbfc] hover:to-[#f0f2f8] text-[#2e3f84] px-3 py-2 rounded-full shadow-[0_2px_8px_rgba(46,63,132,0.15),0_4px_16px_rgba(46,63,132,0.1)] hover:shadow-[0_4px_12px_rgba(46,63,132,0.2),0_8px_24px_rgba(46,63,132,0.15)] z-10 transition-all duration-300 ${
+                                    isAtBottom 
+                                        ? 'opacity-0 translate-y-4 pointer-events-none' 
+                                        : 'opacity-100 translate-y-0'
+                                }`}
+                            >
+                                {newMessagesCount > 0 && (
+                                    <span className="bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                                        {newMessagesCount > 99 ? '99+' : newMessagesCount}
+                                    </span>
+                                )}
+                                <ArrowDown className="w-4 h-4" />
+                            </button>
                         </div>
 
                         {/* Área de Entrada de Mensaje */}

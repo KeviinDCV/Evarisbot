@@ -1,35 +1,77 @@
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm, Link, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import InputError from '@/components/input-error';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Paperclip, X, Image, Video, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useRef, useState } from 'react';
 
 export default function CreateTemplate() {
     const { t } = useTranslation();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [preview, setPreview] = useState<string | null>(null);
+    
     const { data, setData, post, processing, errors } = useForm({
         name: '',
-        subject: '',
         content: '',
         is_active: false,
-        message_type: 'text',
-        media_url: '',
-        media_filename: '',
+        media_file: null as File | null,
     });
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+            setData('media_file', file);
+            
+            // Crear preview para imágenes
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => setPreview(e.target?.result as string);
+                reader.readAsDataURL(file);
+            } else {
+                setPreview(null);
+            }
+        }
+    };
+
+    const handleRemoveFile = () => {
+        setSelectedFile(null);
+        setPreview(null);
+        setData('media_file', null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const getFileIcon = () => {
+        if (!selectedFile) return null;
+        if (selectedFile.type.startsWith('image/')) return <Image className="w-5 h-5" />;
+        if (selectedFile.type.startsWith('video/')) return <Video className="w-5 h-5" />;
+        return <FileText className="w-5 h-5" />;
+    };
+
+    const getFileType = () => {
+        if (!selectedFile) return '';
+        if (selectedFile.type.startsWith('image/')) return 'Imagen';
+        if (selectedFile.type.startsWith('video/')) return 'Video';
+        return 'Documento';
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post('/admin/templates');
+        router.post('/admin/templates', {
+            name: data.name,
+            content: data.content,
+            is_active: data.is_active,
+            media_file: data.media_file,
+        }, {
+            forceFormData: true,
+        });
     };
 
     return (
@@ -72,79 +114,7 @@ export default function CreateTemplate() {
                                 <InputError message={errors.name} />
                             </div>
 
-                            {/* Asunto */}
-                            <div className="space-y-2">
-                                <Label htmlFor="subject" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                    {t('templates.subjectOptional')}
-                                </Label>
-                                <Input
-                                    id="subject"
-                                    type="text"
-                                    value={data.subject}
-                                    onChange={(e) => setData('subject', e.target.value)}
-                                    placeholder={t('templates.subjectPlaceholder')}
-                                    className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200"
-                                />
-                                <InputError message={errors.subject} />
-                            </div>
-
-                            {/* Tipo de Mensaje */}
-                            <div className="space-y-2">
-                                <Label htmlFor="message_type" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                    {t('templates.type')}
-                                </Label>
-                                <Select
-                                    value={data.message_type}
-                                    onValueChange={(value) => setData('message_type', value as 'text' | 'image' | 'document')}
-                                >
-                                    <SelectTrigger className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200">
-                                        <SelectValue placeholder={t('templates.selectType')} />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_2px_4px_rgba(46,63,132,0.08),0_4px_8px_rgba(46,63,132,0.12),0_8px_20px_rgba(46,63,132,0.16),inset_0_1px_0_rgba(255,255,255,0.9)] border-0 rounded-xl">
-                                        <SelectItem value="text" className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] focus:bg-[#f0f2f8] cursor-pointer rounded-lg transition-all duration-150">{t('templates.types.text')}</SelectItem>
-                                        <SelectItem value="image" className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] focus:bg-[#f0f2f8] cursor-pointer rounded-lg transition-all duration-150">{t('templates.types.image')}</SelectItem>
-                                        <SelectItem value="document" className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] focus:bg-[#f0f2f8] cursor-pointer rounded-lg transition-all duration-150">{t('templates.types.document')}</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <InputError message={errors.message_type} />
-                            </div>
-
-                            {/* Campos de Media si no es texto */}
-                            {data.message_type !== 'text' && (
-                                <>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="media_url" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                            {t('templates.mediaUrl')}
-                                        </Label>
-                                        <Input
-                                            id="media_url"
-                                            type="url"
-                                            value={data.media_url}
-                                            onChange={(e) => setData('media_url', e.target.value)}
-                                            placeholder={t('templates.mediaUrlPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200"
-                                        />
-                                        <InputError message={errors.media_url} />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="media_filename" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                            {t('templates.mediaFilename')}
-                                        </Label>
-                                        <Input
-                                            id="media_filename"
-                                            type="text"
-                                            value={data.media_filename}
-                                            onChange={(e) => setData('media_filename', e.target.value)}
-                                            placeholder={t('templates.mediaFilenamePlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200"
-                                        />
-                                        <InputError message={errors.media_filename} />
-                                    </div>
-                                </>
-                            )}
-
-                            {/* Contenido */}
+                            {/* Mensaje */}
                             <div className="space-y-2">
                                 <Label htmlFor="content" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
                                     {t('templates.content')}
@@ -162,6 +132,61 @@ export default function CreateTemplate() {
                                     {t('templates.characters')}: {data.content.length} / 4096
                                 </p>
                                 <InputError message={errors.content} />
+                            </div>
+
+                            {/* Archivo Adjunto (Opcional) */}
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                    Archivo adjunto (opcional)
+                                </Label>
+                                <p className="text-xs text-[#6b7494] mb-2">
+                                    Puedes adjuntar una imagen, video o documento. Formatos soportados: JPG, PNG, GIF, MP4, MOV, PDF, DOC. Máximo 20MB.
+                                </p>
+                                
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*,video/*,.pdf,.doc,.docx"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
+                                />
+                                
+                                {!selectedFile ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="w-full p-4 border-2 border-dashed border-[#dde1f0] rounded-xl hover:border-[#2e3f84] hover:bg-[#f8f9fc] transition-all duration-200 flex flex-col items-center gap-2 text-[#6b7494]"
+                                    >
+                                        <Paperclip className="w-8 h-8" />
+                                        <span className="text-sm">Haz clic para seleccionar un archivo</span>
+                                    </button>
+                                ) : (
+                                    <div className="p-4 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                            {preview ? (
+                                                <img src={preview} alt="Preview" className="w-16 h-16 object-cover rounded-lg" />
+                                            ) : (
+                                                <div className="w-16 h-16 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] rounded-lg flex items-center justify-center text-white">
+                                                    {getFileIcon()}
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-[#2e3f84] truncate">{selectedFile.name}</p>
+                                                <p className="text-xs text-[#6b7494]">
+                                                    {getFileType()} • {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveFile}
+                                                className="p-2 text-[#6b7494] hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                            >
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                <InputError message={errors.media_file} />
                             </div>
 
                             {/* Activar Plantilla */}
