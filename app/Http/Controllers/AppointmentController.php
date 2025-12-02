@@ -708,12 +708,13 @@ class AppointmentController extends Controller
                 ]);
             }
             
-            // PROCESAMIENTO ILIMITADO: El sistema puede manejar miles de mensajes
-            // Gracias a fastcgi_finish_request() y ignore_user_abort(), el servidor
-            // no se cuelga y continúa procesando en background sin importar el volumen
+            // =====================================================
+            // PROCESAMIENTO SÍNCRONO EN BACKGROUND
+            // Usa fastcgi_finish_request() para liberar la conexión HTTP
+            // El proceso PHP continúa ejecutándose en segundo plano
+            // =====================================================
             
             // Calcular timeout dinámico basado en volumen
-            // Fórmula: (mensajes × 3 segundos promedio) + 20% de margen
             $estimatedSeconds = (int) ($totalAppointments * 3.5);
             $timeout = max(1800, $estimatedSeconds); // Mínimo 30 minutos
             set_time_limit($timeout);
@@ -722,10 +723,9 @@ class AppointmentController extends Controller
             ignore_user_abort(true);
             
             // Enviar respuesta inmediata al frontend ANTES de procesar
-            // Esto previene que la conexión HTTP se cierre durante el envío largo
             response()->json([
                 'success' => true,
-                'message' => 'Proceso de envío iniciado',
+                'message' => "Proceso iniciado. Se enviarán {$totalAppointments} recordatorios.",
                 'total' => $totalAppointments,
                 'processing' => true
             ])->send();
@@ -741,132 +741,80 @@ class AppointmentController extends Controller
             $reminderService = app(AppointmentReminderService::class);
             
             try {
-                    $currentBatchCount = 0;
-                    $appointmentsArray = $appointments->toArray();
-                    $currentBatchNumber = 1;
-                    $totalBatches = ceil(count($appointmentsArray) / $batchSize);
+                foreach ($appointments as $index => $appointmentId) {
+                    // Verificar si está pausado antes de cada envío
+                    if (Setting::get('reminder_paused', 'false') === 'true') {
+                        Setting::set('reminder_processing', 'false');
+                        Setting::set('reminder_paused', 'false');
+                        Log::info('Envío pausado por usuario', [
+                            'sent' => $sent,
+                            'failed' => $failed,
+                            'total' => $totalAppointments
+                        ]);
+                        return;
+                    }
                     
-                    foreach ($appointments as $index => $appointmentId) {
-                        // Verificar si está pausado antes de cada envío
-                        if (Setting::get('reminder_paused', 'false') === 'true') {
-                            Setting::set('reminder_processing', 'false');
-                            Setting::set('reminder_paused', 'false');
-                            Log::info('Envío pausado por usuario', [
-                                'sent' => $sent,
-                                'failed' => $failed,
-                                'total' => $totalAppointments
-                            ]);
-                            return; // Ya enviamos respuesta arriba con ->send()
-                        }
-                        
-                        $appointment = Appointment::find($appointmentId);
-                        if ($appointment && !$appointment->reminder_sent) {
-                            try {
-                                $result = $reminderService->sendReminder($appointment);
-                                
-                                if ($result['success']) {
-                                    $sent++;
-                                    // Actualizar progreso ANTES del delay para que el frontend lo capture
-                                    DB::table('settings')->updateOrInsert(
-                                        ['key' => 'reminder_progress_sent'],
-                                        ['value' => (string) $sent, 'updated_at' => now()]
-                                    );
-                                    Cache::forget('setting.reminder_progress_sent');
-                                    
-                                    Log::info('Recordatorio enviado exitosamente (síncrono)', [
-                                        'appointment_id' => $appointmentId,
-                                        'message_id' => $result['message_id'] ?? null,
-                                        'batch' => $currentBatchNumber,
-                                        'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
-                                    ]);
-                                } else {
-                                    $failed++;
-                                    // Actualizar progreso ANTES del delay
-                                    DB::table('settings')->updateOrInsert(
-                                        ['key' => 'reminder_progress_failed'],
-                                        ['value' => (string) $failed, 'updated_at' => now()]
-                                    );
-                                    Cache::forget('setting.reminder_progress_failed');
-                                    
-                                    Log::error('Error enviando recordatorio (síncrono)', [
-                                        'appointment_id' => $appointmentId,
-                                        'error' => $result['error'] ?? 'Error desconocido',
-                                        'batch' => $currentBatchNumber,
-                                        'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
-                                    ]);
-                                }
-                            } catch (\Exception $e) {
+                    $appointment = Appointment::find($appointmentId);
+                    if ($appointment && !$appointment->reminder_sent) {
+                        try {
+                            $result = $reminderService->sendReminder($appointment);
+                            
+                            if ($result['success']) {
+                                $sent++;
+                                DB::table('settings')->updateOrInsert(
+                                    ['key' => 'reminder_progress_sent'],
+                                    ['value' => (string) $sent, 'updated_at' => now()]
+                                );
+                                Cache::forget('setting.reminder_progress_sent');
+                            } else {
                                 $failed++;
-                                // Actualizar directamente en BD y limpiar caché inmediatamente
                                 DB::table('settings')->updateOrInsert(
                                     ['key' => 'reminder_progress_failed'],
                                     ['value' => (string) $failed, 'updated_at' => now()]
                                 );
                                 Cache::forget('setting.reminder_progress_failed');
-                                Log::error('Excepción enviando recordatorio síncrono', [
+                                
+                                Log::error('Error enviando recordatorio', [
                                     'appointment_id' => $appointmentId,
-                                    'error' => $e->getMessage(),
-                                    'batch' => $currentBatchNumber,
-                                    'progress' => ['sent' => $sent, 'failed' => $failed, 'total' => $totalAppointments]
+                                    'error' => $result['error'] ?? 'Error desconocido'
                                 ]);
                             }
-                        }
-                        
-                        $currentBatchCount++;
-                        $isLastInBatch = ($currentBatchCount >= $batchSize);
-                        $isLast = ($index === count($appointmentsArray) - 1);
-                        
-                        // Delay entre mensajes para respetar rate limiting de Meta
-                        if ($delayBetweenMessages > 0 && !$isLast) {
-                            $seconds = (int) $delayBetweenMessages;
-                            $microseconds = (int) (($delayBetweenMessages - $seconds) * 1000000);
+                        } catch (\Exception $e) {
+                            $failed++;
+                            DB::table('settings')->updateOrInsert(
+                                ['key' => 'reminder_progress_failed'],
+                                ['value' => (string) $failed, 'updated_at' => now()]
+                            );
+                            Cache::forget('setting.reminder_progress_failed');
                             
-                            if ($seconds > 0) {
-                                sleep($seconds);
-                            }
-                            if ($microseconds > 0) {
-                                usleep($microseconds);
-                            }
-                        }
-                        
-                        // Pausa entre lotes
-                        if ($isLastInBatch && !$isLast) {
-                            Log::info('Lote completado, pausando...', [
-                                'batch' => $currentBatchNumber,
-                                'total_batches' => $totalBatches,
-                                'sent' => $sent,
-                                'failed' => $failed,
-                                'pause_seconds' => $batchPauseSeconds
-                            ]);
-                            
-                            sleep($batchPauseSeconds);
-                            $currentBatchCount = 0;
-                            $currentBatchNumber++;
-                            
-                            Log::info('Continuando con siguiente lote...', [
-                                'batch' => $currentBatchNumber,
-                                'remaining' => ($totalAppointments - $sent - $failed)
+                            Log::error('Excepción enviando recordatorio', [
+                                'appointment_id' => $appointmentId,
+                                'error' => $e->getMessage()
                             ]);
                         }
                     }
-                } finally {
-                    // Limpiar estado y progreso
-                    Setting::set('reminder_processing', 'false');
-                    Setting::set('reminder_paused', 'false');
-                    Setting::remove('reminder_batch_id');
-                    Setting::remove('reminder_progress_sent');
-                    Setting::remove('reminder_progress_failed');
-                    Setting::remove('reminder_progress_total');
+                    
+                    // Delay entre mensajes para respetar rate limiting de Meta (3 seg = 20/min)
+                    if ($delayBetweenMessages > 0 && $index < count($appointments->toArray()) - 1) {
+                        usleep((int)($delayBetweenMessages * 1000000));
+                    }
                 }
+            } finally {
+                // Limpiar estado y progreso
+                Setting::set('reminder_processing', 'false');
+                Setting::set('reminder_paused', 'false');
+                Setting::remove('reminder_batch_id');
+                Setting::remove('reminder_progress_sent');
+                Setting::remove('reminder_progress_failed');
+                Setting::remove('reminder_progress_total');
+            }
             
-            Log::info('Recordatorios enviados en background', [
+            Log::info('Recordatorios enviados completamente', [
                 'sent' => $sent,
                 'failed' => $failed,
                 'total' => $totalAppointments
             ]);
             
-            // No retornar respuesta porque ya se envió arriba con ->send()
-            // Simplemente terminar el método
             return;
         } catch (\Exception $e) {
             Setting::set('reminder_processing', 'false');
@@ -1087,8 +1035,10 @@ class AppointmentController extends Controller
                         $progressFailed = 0;
                         $progressTotal = 0;
                     } else {
-                        // Batch activo: usar progreso guardado en Settings
-                        $progressTotal = max($progressTotal, $batch->totalJobs);
+                        // Batch activo: obtener progreso directamente del batch de Laravel (más preciso)
+                        $progressTotal = $batch->totalJobs;
+                        $progressSent = $batch->processedJobs() - $batch->failedJobs;
+                        $progressFailed = $batch->failedJobs;
                     }
                 } catch (\Exception $e) {
                     // Si no se puede encontrar el batch, limpiar estado

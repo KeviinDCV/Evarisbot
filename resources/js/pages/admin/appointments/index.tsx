@@ -652,66 +652,66 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         </div>
                                     )}
                                 </div>
-                                <div className="flex gap-3">
+                                <div className="flex gap-3 flex-wrap">
+                                    {/* Botón para enviar citas de pasado mañana */}
                                     {!isProcessing && !isPaused && localStats.pending > 0 && (
-                                        <>
-                                            <Button
-                                                onClick={handleStartReminders}
-                                                disabled={isLoading || isProcessing}
-                                                className="font-semibold text-white transition-all duration-200 border-0"
-                                                style={{
-                                                    backgroundColor: 'var(--primary-base)',
-                                                    boxShadow: 'var(--shadow-md)',
-                                                    height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
-                                                    padding: '0 var(--space-lg)',
-                                                    fontSize: 'var(--text-sm)',
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    if (!isLoading && !isProcessing) {
-                                                        e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                                    }
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                }}
-                                            >
-                                                <Play className="w-4 h-4 mr-2" />
-                                                {isLoading || isProcessing ? 'Iniciando...' : 'Comenzar Envío'}
-                                            </Button>
-                                            {localStats.pending_tomorrow > 0 && (
-                                                <Button
-                                                    onClick={handleStartRemindersDayBefore}
-                                                    disabled={isLoading || isProcessing}
-                                                    className="font-semibold text-white transition-all duration-200 border-0"
-                                                    style={{
-                                                        backgroundColor: '#F59E0B',
-                                                        boxShadow: 'var(--shadow-md)',
-                                                        height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
-                                                        padding: '0 var(--space-lg)',
-                                                        fontSize: 'var(--text-sm)',
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                        if (!isLoading && !isProcessing) {
-                                                            e.currentTarget.style.backgroundColor = '#D97706';
-                                                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                            e.currentTarget.style.transform = 'translateY(-2px)';
-                                                        }
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.currentTarget.style.backgroundColor = '#F59E0B';
-                                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                        e.currentTarget.style.transform = 'translateY(0)';
-                                                    }}
-                                                >
-                                                    <CalendarCheck className="w-4 h-4 mr-2" />
-                                                    Enviar Día Antes ({localStats.pending_tomorrow})
-                                                </Button>
-                                            )}
-                                        </>
+                                        <Button
+                                            onClick={handleStartReminders}
+                                            disabled={isLoading || isProcessing}
+                                            className="font-semibold text-white transition-all duration-200 border-0"
+                                            style={{
+                                                backgroundColor: 'var(--primary-base)',
+                                                boxShadow: 'var(--shadow-md)',
+                                                height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                padding: '0 var(--space-lg)',
+                                                fontSize: 'var(--text-sm)',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!isLoading && !isProcessing) {
+                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                            }}
+                                        >
+                                            <Play className="w-4 h-4 mr-2" />
+                                            {isLoading || isProcessing ? 'Iniciando...' : `Comenzar Envío (${localStats.pending})`}
+                                        </Button>
+                                    )}
+                                    {/* Botón para enviar citas de mañana - independiente */}
+                                    {!isProcessing && !isPaused && localStats.pending_tomorrow > 0 && (
+                                        <Button
+                                            onClick={handleStartRemindersDayBefore}
+                                            disabled={isLoading || isProcessing}
+                                            className="font-semibold text-white transition-all duration-200 border-0"
+                                            style={{
+                                                backgroundColor: '#F59E0B',
+                                                boxShadow: 'var(--shadow-md)',
+                                                height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                padding: '0 var(--space-lg)',
+                                                fontSize: 'var(--text-sm)',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!isLoading && !isProcessing) {
+                                                    e.currentTarget.style.backgroundColor = '#D97706';
+                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#F59E0B';
+                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                            }}
+                                        >
+                                            <CalendarCheck className="w-4 h-4 mr-2" />
+                                            Enviar Día Antes ({localStats.pending_tomorrow})
+                                        </Button>
                                     )}
                                     {isProcessing && !isPaused && (
                                         <>
