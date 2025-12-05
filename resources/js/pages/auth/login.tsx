@@ -52,7 +52,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder={t('auth.emailPlaceholder')}
-                                    className="w-full rounded-lg border-0 placeholder:text-gray-400 transition-all duration-200"
+                                    className="w-full rounded-none border-0 placeholder:text-gray-400 transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                         color: 'var(--primary-base)',
@@ -92,7 +92,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder={t('auth.passwordPlaceholder')}
-                                    className="w-full rounded-lg border-0 placeholder:text-gray-400 transition-all duration-200"
+                                    className="w-full rounded-none border-0 placeholder:text-gray-400 transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                         color: 'var(--primary-base)',
@@ -115,7 +115,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
 
                             <Button
                                 type="submit"
-                                className="w-full rounded-lg font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
+                                className="w-full rounded-none font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
                                 style={{
                                     ...{
                                         backgroundColor: 'var(--primary-base)',

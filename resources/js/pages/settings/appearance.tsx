@@ -25,7 +25,7 @@ export default function Appearance() {
                         title="Appearance settings"
                         description="Update your account's appearance settings"
                     />
-                    <div className="rounded-lg border border-gray-200 bg-white p-6">
+                    <div className="rounded-none border border-gray-200 bg-white p-6">
                         <p className="text-sm text-gray-600">
                             La aplicación está configurada para usar únicamente el modo claro institucional.
                         </p>

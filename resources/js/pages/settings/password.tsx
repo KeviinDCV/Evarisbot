@@ -23,7 +23,7 @@ export default function Password() {
                     <p className="text-sm text-gray-600">Asegúrate de usar una contraseña segura para proteger tu cuenta</p>
                 </div>
 
-                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6">
+                    <div className="bg-white rounded-none border border-gray-200 shadow-sm p-6">
                         <Form
                             {...PasswordController.update.form()}
                             options={{

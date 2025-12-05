@@ -113,7 +113,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                     <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: 'var(--space-lg)' }}>
                         {/* Lista de Destinatarios */}
                         <div 
-                            className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-6 lg:col-span-2 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]"
+                            className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-6 lg:col-span-2 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]"
                             style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -132,7 +132,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                             {/* Enviar a Todos */}
                             <div 
                                 onClick={toggleAll}
-                                className="rounded-lg p-4 cursor-pointer transition-all duration-200"
+                                className="rounded-none p-4 cursor-pointer transition-all duration-200"
                                 style={{
                                     backgroundColor: sendToAll ? 'var(--primary-base)' : 'var(--layer-base)',
                                     color: sendToAll ? 'white' : 'var(--primary-base)',
@@ -143,7 +143,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                 }}
                             >
                                 <div 
-                                    className="rounded-md flex items-center justify-center"
+                                    className="rounded-none flex items-center justify-center"
                                     style={{
                                         width: '24px',
                                         height: '24px',
@@ -173,7 +173,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                     onChange={(e) => setSearch(e.target.value)}
                                     placeholder="Buscar por nombre o teléfono..."
                                     disabled={sendToAll}
-                                    className="pl-10 border-0 rounded-lg transition-all duration-200"
+                                    className="pl-10 border-0 rounded-none transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                         boxShadow: 'var(--shadow-inset-sm)',
@@ -200,7 +200,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                         <div
                                             key={recipient.id}
                                             onClick={() => toggleRecipient(recipient.id)}
-                                            className="rounded-lg p-3 cursor-pointer transition-all duration-200"
+                                            className="rounded-none p-3 cursor-pointer transition-all duration-200"
                                             style={{
                                                 backgroundColor: isSelected ? 'var(--primary-base)' : 'var(--layer-base)',
                                                 color: isSelected ? 'white' : 'var(--primary-base)',
@@ -247,7 +247,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
 
                         {/* Panel de Resumen y Envío */}
                         <div 
-                            className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-6 lg:col-span-1 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]"
+                            className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-6 lg:col-span-1 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]"
                             style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -263,7 +263,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
 
                             {/* Vista Previa */}
                             <div 
-                                className="rounded-lg p-4"
+                                className="rounded-none p-4"
                                 style={{
                                     backgroundColor: 'var(--layer-base)',
                                     display: 'flex',
@@ -289,7 +289,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
 
                             {/* Estadísticas */}
                             <div 
-                                className="rounded-lg p-4"
+                                className="rounded-none p-4"
                                 style={{
                                     backgroundColor: 'var(--layer-base)',
                                 }}
@@ -303,7 +303,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                             {/* Mensaje de Advertencia */}
                             {canSend && (
                                 <div 
-                                    className="rounded-lg p-3"
+                                    className="rounded-none p-3"
                                     style={{
                                         backgroundColor: 'rgba(234, 179, 8, 0.1)',
                                         border: '1px solid rgba(234, 179, 8, 0.3)',

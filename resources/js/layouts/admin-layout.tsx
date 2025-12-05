@@ -99,7 +99,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             {/* Mobile Menu Button - Floating Action Button */}
             <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white rounded-xl shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] active:translate-y-0 transition-all duration-200"
+                className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white rounded-none shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] active:translate-y-0 transition-all duration-200"
             >
                 {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -139,7 +139,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                         {/* Close button only on mobile */}
                         <button
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="lg:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
+                            className="lg:hidden p-2 hover:bg-white/10 rounded-none transition-colors"
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -156,7 +156,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`flex items-center justify-between gap-3 px-3 lg:px-4 py-2.5 lg:py-3 rounded-xl transition-all duration-200 relative ${
+                                className={`flex items-center justify-between gap-3 px-3 lg:px-4 py-2.5 lg:py-3 rounded-none transition-all duration-200 relative ${
                                     isActive
                                         ? 'bg-gradient-to-b from-white to-[#fafbfc] text-[#2e3f84] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06),0_2px_4px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] scale-[1.02]'
                                         : 'text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white hover:shadow-[0_1px_2px_rgba(255,255,255,0.08),0_2px_4px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.15)] hover:scale-[1.01] active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:scale-100'
@@ -202,7 +202,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                     <div className="mb-2">
                         <Link
                             href="/settings/profile"
-                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white rounded-xl transition-all duration-200 hover:shadow-[0_1px_2px_rgba(255,255,255,0.1),0_2px_4px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.15)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)] active:translate-x-0"
+                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white rounded-none transition-all duration-200 hover:shadow-[0_1px_2px_rgba(255,255,255,0.1),0_2px_4px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.15)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)] active:translate-x-0"
                         >
                             <User className="w-4 h-4" />
                             <span>{t('navigation.profile')}</span>
@@ -218,7 +218,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                         href={logout()}
                         method="post"
                         as="button"
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-gradient-to-b hover:from-red-500/20 hover:to-red-600/15 hover:text-white rounded-xl transition-all duration-200 hover:shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:translate-x-0 mt-2 pt-3 relative before:absolute before:top-0 before:left-0 before:right-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-gradient-to-b hover:from-red-500/20 hover:to-red-600/15 hover:text-white rounded-none transition-all duration-200 hover:shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:translate-x-0 mt-2 pt-3 relative before:absolute before:top-0 before:left-0 before:right-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
                     >
                         <LogOut className="w-4 h-4" />
                         <span>{t('common.logout')}</span>

@@ -74,7 +74,7 @@ const COLORS = {
 };
 
 const StatRow = ({ icon: Icon, label, value, index }: { icon: any; label: string; value: number; index?: number }) => (
-    <div className={`flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors ${
+    <div className={`flex items-center justify-between py-1.5 px-2 rounded-none transition-colors ${
         index !== undefined && index % 2 === 0 
             ? 'bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9]' 
             : 'bg-white'
@@ -169,7 +169,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
                             <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
                                 {/* Switch para gráficos */}
-                                <div className="flex items-center gap-3 bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-2 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                                <div className="flex items-center gap-3 bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-2 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]">
                                     <Table2 className={`w-4 h-4 transition-colors ${!showCharts ? 'text-[#2e3f84]' : 'text-gray-400'}`} />
                                     <label className="relative inline-flex items-center cursor-pointer">
                                         <input
@@ -213,7 +213,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
                         {/* Filtros */}
                         <form onSubmit={handleFilterSubmit}>
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                                 <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
                                     <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                         {t('statistics.filters.period')}
@@ -221,7 +221,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <select
                                         value={period}
                                         onChange={(e) => setPeriod(e.target.value)}
-                                        className="w-full border-0 rounded-lg transition-all duration-200"
+                                        className="w-full border-0 rounded-none transition-all duration-200"
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
                                             boxShadow: 'var(--shadow-inset-sm)',
@@ -245,7 +245,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         type="date"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
-                                        className="border-0 rounded-lg transition-all duration-200"
+                                        className="border-0 rounded-none transition-all duration-200"
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
                                             boxShadow: 'var(--shadow-inset-sm)',
@@ -262,7 +262,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         type="date"
                                         value={endDate}
                                         onChange={(e) => setEndDate(e.target.value)}
-                                        className="border-0 rounded-lg transition-all duration-200"
+                                        className="border-0 rounded-none transition-all duration-200"
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
                                             boxShadow: 'var(--shadow-inset-sm)',
@@ -305,7 +305,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                         /* Vista de Estadísticas - Bento Grid */
                         <div className="grid grid-cols-2 gap-4">
                             {/* Mensajes */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
                                     <MessageSquare className="w-3.5 h-3.5 text-[#2e3f84]" />
                                     <h2 className="font-bold" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
@@ -324,7 +324,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h3>
                                     <div className="space-y-1">
                                         {Object.entries(statistics.messages.by_status).map(([status, count], index) => (
-                                            <div key={status} className={`flex items-center justify-between py-1 px-2 rounded-lg transition-colors ${
+                                            <div key={status} className={`flex items-center justify-between py-1 px-2 rounded-none transition-colors ${
                                                 index % 2 === 0 
                                                     ? 'bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9]' 
                                                     : 'bg-white'
@@ -342,7 +342,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Citas */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
                                     <Calendar className="w-3.5 h-3.5 text-[#2e3f84]" />
                                     <h2 className="font-bold" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
@@ -360,7 +360,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Conversaciones */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
                                     <MessageSquare className="w-3.5 h-3.5 text-[#2e3f84]" />
                                     <h2 className="font-bold" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
@@ -377,7 +377,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Plantillas */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
                                     <FileText className="w-3.5 h-3.5 text-[#2e3f84]" />
                                     <h2 className="font-bold" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
@@ -393,7 +393,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Usuarios */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
                                     <Users className="w-3.5 h-3.5 text-[#2e3f84]" />
                                     <h2 className="font-bold" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
@@ -411,7 +411,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                         /* Vista de Gráficos - Bento Grid */
                         <div className="grid grid-cols-2 gap-4 auto-rows-fr">
                             {/* Estadísticas Generales - Ocupa 2 columnas */}
-                            <div className="col-span-2 bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="col-span-2 bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
                                 <h2 className="font-bold mb-3 flex items-center gap-2" style={{ fontSize: 'var(--text-base)', color: 'var(--primary-base)' }}>
                                     <BarChart3 className="w-4 h-4" />
                                     Estadísticas Generales
@@ -442,7 +442,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Mensajes por Estado */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
                                 <h2 className="font-bold mb-3 flex items-center gap-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     <MessageSquare className="w-4 h-4" />
                                     {t('statistics.messages.byStatus')}
@@ -477,7 +477,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Citas por Estado */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
                                 <h2 className="font-bold mb-3 flex items-center gap-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     <Calendar className="w-4 h-4" />
                                     {t('statistics.appointments.title')}
@@ -512,7 +512,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Conversaciones */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
                                 <h2 className="font-bold mb-3 flex items-center gap-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     <MessageSquare className="w-4 h-4" />
                                     {t('statistics.conversations.title')}
@@ -543,7 +543,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Plantillas */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
                                 <h2 className="font-bold mb-3 flex items-center gap-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     <FileText className="w-4 h-4" />
                                     {t('statistics.templates.title')}
@@ -577,7 +577,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Usuarios */}
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
                                 <h2 className="font-bold mb-3 flex items-center gap-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     <Users className="w-4 h-4" />
                                     {t('statistics.users.title')}

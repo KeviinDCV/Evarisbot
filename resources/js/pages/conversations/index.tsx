@@ -20,7 +20,9 @@ import {
     User,
     FileAudio,
     Smile,
-    ArrowDown
+    ArrowDown,
+    UserPlus,
+    Trash2
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -100,6 +102,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [contextMenu, setContextMenu] = useState<{ conversationId: number; x: number; y: number } | null>(null);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [showAssignModal, setShowAssignModal] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
@@ -566,7 +569,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 placeholder={t('conversations.searchPlaceholder')}
                                 value={search}
                                 onChange={(e) => handleSearch(e.target.value)}
-                                className="pl-10 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] focus:shadow-[0_2px_4px_rgba(46,63,132,0.08),0_3px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-lg transition-all duration-200"
+                                className="pl-10 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] focus:shadow-[0_2px_4px_rgba(46,63,132,0.08),0_3px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none transition-all duration-200"
                             />
                         </div>
                     </div>
@@ -593,7 +596,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     key={conversation.id}
                                     onClick={() => router.get(`/admin/chat/${conversation.id}`, {}, { preserveScroll: true, preserveState: true })}
                                     onContextMenu={(e) => handleContextMenu(e, conversation.id)}
-                                    className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-xl ${
+                                    className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-none ${
                                         selectedConversation?.id === conversation.id 
                                             ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]' 
                                             : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] shadow-[0_1px_2px_rgba(46,63,132,0.04)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_4px_8px_rgba(46,63,132,0.08)]'
@@ -661,7 +664,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         
                         return (
                             <div 
-                                className="fixed bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50 min-w-[200px]"
+                                className="fixed bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[200px]"
                                 style={{ 
                                     top: `${contextMenu.y}px`, 
                                     left: `${contextMenu.x}px` 
@@ -719,7 +722,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 {/* En mobile: muestra solo cuando hay selección | En desktop: siempre visible */}
                 {!selectedConversation ? (
                     <div className="hidden md:flex flex-1 items-center justify-center bg-[#f0f2f8]">
-                        <div className="text-center text-[#6b7494] bg-gradient-to-b from-white to-[#fafbfc] p-8 md:p-12 rounded-2xl shadow-[0_4px_8px_rgba(46,63,132,0.06),0_12px_24px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                        <div className="text-center text-[#6b7494] bg-gradient-to-b from-white to-[#fafbfc] p-8 md:p-12 rounded-none shadow-[0_4px_8px_rgba(46,63,132,0.06),0_12px_24px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
                             <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#9fa5c0]" />
                             <h3 className="text-xl font-semibold text-[#2e3f84] mb-2">
                                 {t('conversations.selectConversation')}
@@ -785,8 +788,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 )}
                             </div>
 
-                            {/* Menú de Acciones y Cerrar */}
+                            {/* Acciones y Cerrar */}
                             <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                                {/* Botón Asignar - Solo Admin */}
+                                {isAdmin && (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm"
+                                        onClick={() => setShowAssignModal(true)}
+                                        className="hover:bg-[#f0f2f8] text-[#2e3f84]"
+                                        title={t('conversations.assignConversation')}
+                                    >
+                                        <UserPlus className="w-5 h-5" />
+                                    </Button>
+                                )}
+
+                                {/* Menú de Tres Puntos */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button variant="ghost" size="sm">
@@ -794,32 +811,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-56 bg-white">
-                                        {/* Asignar conversación - Solo Admin */}
-                                        {isAdmin && (
-                                            <>
-                                                <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 uppercase">
-                                                    {t('conversations.assignConversation')}
-                                                </div>
-                                                {users.map((user) => (
-                                                    <DropdownMenuItem 
-                                                        key={user.id}
-                                                        onClick={() => handleAssign(user.id)} 
-                                                        className="cursor-pointer hover:bg-gray-100"
-                                                    >
-                                                        <span className={selectedConversation.assigned_to === user.id ? 'font-bold text-[#2e3f84]' : ''}>
-                                                            {user.name} {user.role === 'admin' ? t('users.roleAdmin') : t('users.roleAdvisor')}
-                                                        </span>
-                                                        {selectedConversation.assigned_to === user.id && (
-                                                            <Check className="w-4 h-4 ml-auto text-[#2e3f84]" />
-                                                        )}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                                
-                                                <DropdownMenuSeparator />
-                                            </>
-                                        )}
-                                        
-                                        {/* Marcar como resuelta / Reabrir - Todos */}
+                                        {/* Marcar como resuelta / Reabrir */}
                                         {selectedConversation.status === 'resolved' ? (
                                             <DropdownMenuItem 
                                                 onClick={() => handleStatusChange('active')}
@@ -838,20 +830,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </DropdownMenuItem>
                                         )}
                                         
-                                        {/* Eliminar chat - Solo Admin */}
-                                        {isAdmin && (
-                                            <>
-                                                <DropdownMenuSeparator />
-                                                
-                                                <DropdownMenuItem
-                                                    onClick={handleHideChat}
-                                                    className="cursor-pointer hover:bg-red-50 text-red-600"
-                                                >
-                                                    <X className="w-4 h-4 mr-2" />
-                                                    {t('conversations.deleteChat')}
-                                                </DropdownMenuItem>
-                                            </>
-                                        )}
+                                        {/* Eliminar chat */}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            onClick={handleHideChat}
+                                            className="cursor-pointer hover:bg-red-50 text-red-600"
+                                        >
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            {t('conversations.deleteChat')}
+                                        </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 
@@ -885,7 +872,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'}`}
                                         >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] rounded-2xl px-3 md:px-4 py-2 ${
+                                                className={`max-w-[85%] md:max-w-[70%] rounded-none px-3 md:px-4 py-2 ${
                                                     message.is_from_user
                                                         ? 'bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
                                                         : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
@@ -904,7 +891,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         <img 
                                                             src={message.media_url} 
                                                             alt={message.content}
-                                                            className="max-w-full max-h-96 rounded-lg object-cover"
+                                                            className="max-w-full max-h-96 rounded-none object-cover"
                                                             loading="lazy"
                                                         />
                                                         {message.content && message.content !== 'Imagen' && (
@@ -918,7 +905,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         <video 
                                                             src={message.media_url}
                                                             controls
-                                                            className="max-w-full max-h-96 rounded-lg"
+                                                            className="max-w-full max-h-96 rounded-none"
                                                             preload="metadata"
                                                         >
                                                             Your browser does not support video playback.
@@ -1004,7 +991,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     {/* Indicador de "escribiendo..." - Se mostrará cuando se implemente en backend */}
                                     {/* Ejemplo de cómo se vería: */}
                                     {/* <div className="flex justify-start">
-                                        <div className="bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-2xl px-4 py-3">
+                                        <div className="bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none px-4 py-3">
                                             <div className="flex items-center gap-1">
                                                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                                                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -1039,7 +1026,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-[#f0f2f8]">
                             {/* Preview del archivo seleccionado */}
                             {selectedFile && (
-                                <div className="mb-2 flex items-center gap-2 p-2 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-lg">
+                                <div className="mb-2 flex items-center gap-2 p-2 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-none">
                                     <Paperclip className="w-4 h-4 text-[#2e3f84]" />
                                     <span className="text-sm text-[#2e3f84] flex-1 truncate">{selectedFile.name}</span>
                                     <Button
@@ -1080,7 +1067,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     value={data.content}
                                     onChange={(e) => setData('content', e.target.value)}
                                     placeholder={t('conversations.messagePlaceholder')}
-                                    className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 bg-gradient-to-b from-white to-[#fafbfc] focus:ring-2 focus:ring-[#2e3f84] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-xl transition-shadow duration-200"
+                                    className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 bg-gradient-to-b from-white to-[#fafbfc] focus:ring-2 focus:ring-[#2e3f84] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none transition-shadow duration-200"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
                                             e.preventDefault();
@@ -1146,6 +1133,64 @@ export default function ConversationsIndex({ conversations: initialConversations
                             className="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-[0_2px_4px_rgba(239,68,68,0.3)]"
                         >
                             Sí, eliminar conversación
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Asignación */}
+            <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+                <DialogContent className="sm:max-w-md bg-gradient-to-b from-white to-[#fafbfc] border-0 shadow-[0_4px_12px_rgba(46,63,132,0.15),0_8px_24px_rgba(46,63,132,0.2)]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-[#2e3f84] flex items-center gap-2">
+                            <UserPlus className="w-6 h-6 text-[#2e3f84]" />
+                            {t('conversations.assignConversation')}
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-[#6b7494]">
+                            Selecciona un asesor para asignar esta conversación
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-2 max-h-[300px] overflow-y-auto">
+                        {users.map((user) => (
+                            <button
+                                key={user.id}
+                                onClick={() => {
+                                    handleAssign(user.id);
+                                    setShowAssignModal(false);
+                                }}
+                                className={`w-full flex items-center gap-3 p-3 rounded-none transition-all duration-200 ${
+                                    selectedConversation?.assigned_to === user.id
+                                        ? 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_8px_rgba(46,63,132,0.3)]'
+                                        : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] hover:from-[#e8ebf5] hover:to-[#e0e4f0] text-[#2e3f84]'
+                                }`}
+                            >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
+                                    selectedConversation?.assigned_to === user.id
+                                        ? 'bg-white/20 text-white'
+                                        : 'bg-[#2e3f84] text-white'
+                                }`}>
+                                    {user.name[0]?.toUpperCase()}
+                                </div>
+                                <div className="flex-1 text-left">
+                                    <p className="font-semibold">{user.name}</p>
+                                    <p className={`text-xs ${selectedConversation?.assigned_to === user.id ? 'text-white/70' : 'text-[#6b7494]'}`}>
+                                        {user.role === 'admin' ? t('users.roleAdmin') : t('users.roleAdvisor')}
+                                    </p>
+                                </div>
+                                {selectedConversation?.assigned_to === user.id && (
+                                    <Check className="w-5 h-5" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowAssignModal(false)}
+                            className="w-full border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] hover:from-[#e8ebf5] hover:to-[#e0e4f0]"
+                        >
+                            Cerrar
                         </Button>
                     </DialogFooter>
                 </DialogContent>

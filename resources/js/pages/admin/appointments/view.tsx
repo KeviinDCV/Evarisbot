@@ -132,7 +132,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
     const getStatusBadge = (appointment: Appointment) => {
         if (!appointment.reminder_sent) {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-amber-50 text-amber-700 text-xs font-medium">
                     <Clock className="w-3 h-3" />
                     Pendiente
                 </span>
@@ -142,49 +142,49 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         switch (appointment.reminder_status) {
             case 'sent':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 text-emerald-700 text-xs font-medium">
                         <CalendarCheck className="w-3 h-3" />
                         Enviado
                     </span>
                 );
             case 'failed':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 text-red-700 text-xs font-medium">
                         <CalendarX className="w-3 h-3" />
                         Fallido
                     </span>
                 );
             case 'delivered':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-blue-50 text-blue-700 text-xs font-medium">
                         <CalendarCheck className="w-3 h-3" />
                         Entregado
                     </span>
                 );
             case 'confirmed':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-green-50 text-green-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-green-50 text-green-700 text-xs font-medium">
                         <CalendarCheck className="w-3 h-3" />
                         Confirmada
                     </span>
                 );
             case 'cancelled':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 text-red-700 text-xs font-medium">
                         <CalendarX className="w-3 h-3" />
                         Cancelada
                     </span>
                 );
             case 'read':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-indigo-50 text-indigo-700 text-xs font-medium">
                         <CalendarCheck className="w-3 h-3" />
                         Leído
                     </span>
                 );
             default:
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 text-gray-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-gray-50 text-gray-700 text-xs font-medium">
                         <Clock className="w-3 h-3" />
                         Pendiente
                     </span>
@@ -209,7 +209,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     padding: '0.5rem 1rem',
                                     fontSize: 'var(--text-sm)',
                                     fontWeight: '500',
-                                    borderRadius: '0.75rem',
+                                    borderRadius: '0',
                                     border: '1px solid var(--primary-base)',
                                     boxShadow: 'var(--shadow-md)',
                                     transition: 'all 0.2s',
@@ -253,7 +253,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     padding: '0.5rem 1rem',
                                     fontSize: 'var(--text-sm)',
                                     fontWeight: '600',
-                                    borderRadius: '0.75rem',
+                                    borderRadius: '0',
                                     boxShadow: 'var(--shadow-md)',
                                     transition: 'all 0.2s',
                                     display: 'inline-flex',
@@ -294,7 +294,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                     </div>
 
                 {/* Filtros */}
-                <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
+                <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
                     <div className="mb-4">
                         <h2 className="text-lg font-semibold text-[#2e3f84] mb-3 flex items-center gap-2">
                             <Filter className="w-5 h-5" />
@@ -306,7 +306,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     key={key}
                                     onClick={() => handleFilterChange(key)}
                                     className={`
-                                        flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200
+                                        flex items-center gap-2 px-4 py-2 rounded-none font-medium text-sm transition-all duration-200
                                         ${filter === key
                                             ? 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_8px_rgba(46,63,132,0.25)]'
                                             : 'bg-white text-[#6b7494] border border-[#d4d8e8] hover:border-[#2e3f84] hover:text-[#2e3f84]'
@@ -316,7 +316,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <Icon className="w-4 h-4" />
                                     <span>{label}</span>
                                     <span className={`
-                                        px-2 py-0.5 rounded-full text-xs
+                                        px-2 py-0.5 rounded-none text-xs
                                         ${filter === key ? 'bg-white/20 text-white' : 'bg-[#f4f5f9] text-[#6b7494]'}
                                     `}>
                                         {count.toLocaleString()}
@@ -339,7 +339,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     type="date"
                                     value={dateFrom}
                                     onChange={(e) => handleDateChange('from', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
+                                    className="w-full px-3 py-2 rounded-none border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
                                 />
                             </div>
                             <div>
@@ -348,14 +348,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     type="date"
                                     value={dateTo}
                                     onChange={(e) => handleDateChange('to', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
+                                    className="w-full px-3 py-2 rounded-none border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
                                 />
                             </div>
                             <div className="flex items-end">
                                 <button
                                     onClick={handleClearDates}
                                     disabled={!dateFrom && !dateTo}
-                                    className="w-full px-4 py-2 rounded-xl border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] hover:text-[#2e3f84] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
+                                    className="w-full px-4 py-2 rounded-none border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] hover:text-[#2e3f84] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
                                 >
                                     Limpiar Fechas
                                 </button>
@@ -377,13 +377,13 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                             placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
                             value={searchTerm}
                             onChange={(e) => handleSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
+                            className="w-full pl-10 pr-4 py-2 rounded-none border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
                         />
                     </div>
                 </div>
 
                 {/* Tabla */}
-                <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
+                <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
                     <div className="mb-4">
                         <h2 className="text-lg font-semibold text-[#2e3f84]">
                             Resultados ({appointments.total})
@@ -394,7 +394,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                     </div>
 
                     {/* Tabla con scroll horizontal */}
-                    <div className="overflow-x-auto rounded-xl border border-[#d4d8e8]">
+                    <div className="overflow-x-auto rounded-none border border-[#d4d8e8]">
                         <table className="w-full text-sm">
                             <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
                                 <tr>
@@ -466,7 +466,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 <button
                                     onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                     disabled={!appointments.prev_page_url}
-                                    className="px-3 py-2 rounded-lg border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
+                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
                                 >
                                     <ChevronLeft className="w-4 h-4" />
                                     Anterior
@@ -474,7 +474,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 <button
                                     onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                     disabled={!appointments.next_page_url}
-                                    className="px-3 py-2 rounded-lg border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
+                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
                                 >
                                     Siguiente
                                     <ChevronRight className="w-4 h-4" />

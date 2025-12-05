@@ -276,7 +276,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                                     className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'}`}
                                 >
                                     <div
-                                        className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                                        className={`max-w-[70%] rounded-none px-4 py-2 ${
                                             message.is_from_user
                                                 ? 'bg-white border border-gray-200'
                                                 : 'bg-[#2e3f84] text-white'

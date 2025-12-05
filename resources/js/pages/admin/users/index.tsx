@@ -99,7 +99,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </div>
 
                         {/* Filtros */}
-                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
+                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                             <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
                                 <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     {t('common.search')}
@@ -111,7 +111,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
                                         placeholder={t('users.searchPlaceholder')}
-                                        className="pl-10 border-0 rounded-lg transition-all duration-200"
+                                        className="pl-10 border-0 rounded-none transition-all duration-200"
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
                                             boxShadow: 'var(--shadow-inset-sm)',
@@ -129,7 +129,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 <select
                                     value={roleFilter}
                                     onChange={(e) => setRoleFilter(e.target.value)}
-                                    className="w-full border-0 rounded-lg transition-all duration-200"
+                                    className="w-full border-0 rounded-none transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                         boxShadow: 'var(--shadow-inset-sm)',
@@ -151,7 +151,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         {filteredUsers.map((user) => (
                             <div
                                 key={user.id}
-                                className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300"
+                                className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300"
                                 style={{
                                     display: 'flex',
                                     flexDirection: 'column',
@@ -181,7 +181,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                                 {/* Stats */}
                                 <div 
-                                    className="rounded-lg p-3"
+                                    className="rounded-none p-3"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                     }}
@@ -227,7 +227,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                     {/* Empty State */}
                     {filteredUsers.length === 0 && (
-                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-xl p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
                             <UserCircle className="w-16 h-16 mx-auto mb-4 text-gray-400" />
                             <h3 className="font-bold mb-2" style={{ fontSize: 'var(--text-xl)', color: 'var(--primary-base)' }}>
                                 {t('users.noUsers')}

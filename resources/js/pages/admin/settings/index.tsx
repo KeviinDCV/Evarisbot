@@ -138,7 +138,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
 
                         {/* WhatsApp Config */}
                         <div>
-                            <form onSubmit={handleWhatsAppSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-2xl shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 h-full">
+                            <form onSubmit={handleWhatsAppSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 h-full">
                                 <div className="mb-4">
                                     <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">{t('settings.whatsapp.apiTitle')}</h2>
                                     <p className="text-xs md:text-sm text-[#6b7494] mt-1">
@@ -153,7 +153,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                             {t('settings.whatsapp.accessToken')}
                                         </Label>
                                         {settings.whatsapp.token && (
-                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-lg">
+                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-none">
                                                 <p className="text-xs text-[#6b7494] truncate font-mono">●●●●{settings.whatsapp.token.slice(-4)}</p>
                                             </div>
                                         )}
@@ -163,7 +163,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                             value={whatsappForm.data.whatsapp_token}
                                             onChange={(e) => whatsappForm.setData('whatsapp_token', e.target.value)}
                                             placeholder={settings.whatsapp.token ? t('settings.whatsapp.updateToken') : t('settings.whatsapp.accessTokenPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 font-mono text-xs md:text-sm"
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 font-mono text-xs md:text-sm"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_token} />
                                     </div>
@@ -179,7 +179,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                             value={whatsappForm.data.whatsapp_phone_id}
                                             onChange={(e) => whatsappForm.setData('whatsapp_phone_id', e.target.value)}
                                             placeholder={t('settings.whatsapp.phoneIdPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 text-xs md:text-sm"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_phone_id} />
                                     </div>
@@ -195,7 +195,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                             value={whatsappForm.data.whatsapp_business_account_id}
                                             onChange={(e) => whatsappForm.setData('whatsapp_business_account_id', e.target.value)}
                                             placeholder={t('settings.whatsapp.businessAccountIdPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 text-xs md:text-sm"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_business_account_id} />
                                     </div>
@@ -206,7 +206,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                             {t('settings.whatsapp.verifyToken')}
                                         </Label>
                                         {settings.whatsapp.verify_token && (
-                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-lg">
+                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-none">
                                                 <p className="text-xs text-[#6b7494] truncate">●●●●{settings.whatsapp.verify_token.slice(-4)}</p>
                                             </div>
                                         )}
@@ -216,7 +216,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                             value={whatsappForm.data.whatsapp_verify_token}
                                             onChange={(e) => whatsappForm.setData('whatsapp_verify_token', e.target.value)}
                                             placeholder={settings.whatsapp.verify_token ? t('settings.whatsapp.update') : t('settings.whatsapp.verifyTokenPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200 text-xs md:text-sm"
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 text-xs md:text-sm"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_verify_token} />
                                     </div>
@@ -226,7 +226,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                 {connectionStatus.type && (
                                     <div className="mt-4 md:col-span-2">
                                         <div
-                                            className={`flex items-center gap-2 p-3 rounded-xl ${
+                                            className={`flex items-center gap-2 p-3 rounded-none ${
                                                 connectionStatus.type === 'success'
                                                     ? 'bg-gradient-to-b from-green-50 to-green-100/50 text-green-700 shadow-[0_1px_2px_rgba(34,197,94,0.15),0_2px_4px_rgba(34,197,94,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
                                                     : 'bg-gradient-to-b from-red-50 to-red-100/50 text-red-700 shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
@@ -293,7 +293,7 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
 
                                 {/* Business Profile Info */}
                                 {businessProfile && (
-                                    <div className="mt-4 p-4 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-xl shadow-[0_1px_2px_rgba(46,63,132,0.1),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] md:col-span-2">
+                                    <div className="mt-4 p-4 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.1),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] md:col-span-2">
                                         <h3 className="text-sm font-semibold text-[#2e3f84] mb-3">WhatsApp Business Profile</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                                             <div>

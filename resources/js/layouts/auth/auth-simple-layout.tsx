@@ -62,7 +62,7 @@ export default function AuthSimpleLayout({
                     
                     {/* Caja del Card - Padding y spacing responsivos */}
                     <div 
-                        className="rounded-2xl relative transition-all duration-300" 
+                        className="rounded-none relative transition-all duration-300" 
                         style={{ 
                             backgroundColor: 'var(--layer-deep)', 
                             boxShadow: 'var(--shadow-xl)',
