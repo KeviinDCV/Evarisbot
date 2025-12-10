@@ -15,15 +15,28 @@ interface LanguageSelectorProps {
 
 export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps) {
     const { i18n, t } = useTranslation();
-    const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
+    
+    // Normalizar el código de idioma (ej: 'es-ES' -> 'es', 'en-US' -> 'en')
+    const normalizeLanguage = (lng: string): string => {
+        const baseCode = lng?.split('-')[0]?.toLowerCase() || 'es';
+        return ['es', 'en'].includes(baseCode) ? baseCode : 'es';
+    };
+    
+    const [currentLanguage, setCurrentLanguage] = useState(normalizeLanguage(i18n.language));
 
     useEffect(() => {
         // Sincronizar el estado cuando cambia el idioma
         const handleLanguageChange = (lng: string) => {
-            setCurrentLanguage(lng);
+            setCurrentLanguage(normalizeLanguage(lng));
         };
 
         i18n.on('languageChanged', handleLanguageChange);
+        
+        // Sincronizar al montar si el idioma actual no está normalizado
+        const normalized = normalizeLanguage(i18n.language);
+        if (i18n.language !== normalized) {
+            i18n.changeLanguage(normalized);
+        }
 
         return () => {
             i18n.off('languageChanged', handleLanguageChange);
@@ -40,7 +53,7 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
         { code: 'en', name: 'English', flag: '🇺🇸' },
     ];
 
-    const currentLang = languages.find(lang => lang.code === currentLanguage);
+    const currentLang = languages.find(lang => lang.code === currentLanguage) || languages[0];
 
     if (variant === 'admin') {
         return (

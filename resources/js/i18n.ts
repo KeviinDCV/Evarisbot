@@ -23,7 +23,8 @@ i18n
     // Inicializa i18next
     .init({
         resources,
-        fallbackLng: 'en', // Idioma por defecto cambiado a inglés para video de Meta
+        fallbackLng: 'es', // Idioma por defecto: español
+        lng: 'es', // Forzar español como idioma inicial
         debug: false, // Debug desactivado para producción
 
         interpolation: {
@@ -31,7 +32,7 @@ i18n
         },
 
         detection: {
-            // Orden de detección de idioma
+            // Orden de detección de idioma - localStorage primero para respetar selección del usuario
             order: ['localStorage', 'navigator'],
             // Caché del idioma en localStorage
             caches: ['localStorage'],

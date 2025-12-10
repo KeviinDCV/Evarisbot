@@ -48,13 +48,13 @@ export default function AuthSimpleLayout({
                     <div 
                         className="flex justify-center"
                         style={{ 
-                            marginBottom: 'var(--space-md)' // Espaciado aumentado
+                            marginBottom: 'var(--space-sm)'
                         }}
                     >
                         <AppLogoIcon 
                             className="object-contain drop-shadow-lg transition-all duration-300" 
                             style={{
-                                height: 'clamp(8rem, 8rem + 3vw, 12rem)', // 128px-192px fluido (mucho más grande)
+                                height: 'clamp(4rem, 4rem + 1vw, 5.5rem)', // 64px-88px fluido (más compacto)
                                 width: 'auto'
                             }}
                         />

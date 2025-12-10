@@ -7,6 +7,8 @@ import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/routes/login';
 import { Form, Head } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
+import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface LoginProps {
     status?: string;
@@ -15,6 +17,7 @@ interface LoginProps {
 
 export default function Login({ status, canResetPassword }: LoginProps) {
     const { t } = useTranslation();
+    const [showPassword, setShowPassword] = useState(false);
     
     return (
         <AuthLayout
@@ -57,7 +60,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                         backgroundColor: 'var(--layer-base)',
                                         color: 'var(--primary-base)',
                                         boxShadow: 'var(--shadow-inset-sm)',
-                                        height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                        height: 'clamp(2.25rem, 2.25rem + 0.25vw, 2.5rem)',
                                         padding: '0 var(--space-base)',
                                         fontSize: 'var(--text-base)'
                                     }}
@@ -84,32 +87,47 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                 >
                                     {t('common.password')}
                                 </Label>
-                                <Input
-                                    id="password"
-                                    type="password"
-                                    name="password"
-                                    required
-                                    tabIndex={2}
-                                    autoComplete="current-password"
-                                    placeholder={t('auth.passwordPlaceholder')}
-                                    className="w-full rounded-none border-0 placeholder:text-gray-400 transition-all duration-200"
-                                    style={{
-                                        backgroundColor: 'var(--layer-base)',
-                                        color: 'var(--primary-base)',
-                                        boxShadow: 'var(--shadow-inset-sm)',
-                                        height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
-                                        padding: '0 var(--space-base)',
-                                        fontSize: 'var(--text-base)'
-                                    }}
-                                    onFocus={(e) => {
-                                        e.target.style.backgroundColor = 'var(--layer-elevated)';
-                                        e.target.style.boxShadow = 'var(--shadow-inset-md)'; // Deeper inset on focus
-                                    }}
-                                    onBlur={(e) => {
-                                        e.target.style.backgroundColor = 'var(--layer-base)';
-                                        e.target.style.boxShadow = 'var(--shadow-inset-sm)';
-                                    }}
-                                />
+                                <div className="relative">
+                                    <Input
+                                        id="password"
+                                        type={showPassword ? 'text' : 'password'}
+                                        name="password"
+                                        required
+                                        tabIndex={2}
+                                        autoComplete="current-password"
+                                        placeholder={t('auth.passwordPlaceholder')}
+                                        className="w-full rounded-none border-0 placeholder:text-gray-400 transition-all duration-200 pr-10"
+                                        style={{
+                                            backgroundColor: 'var(--layer-base)',
+                                            color: 'var(--primary-base)',
+                                            boxShadow: 'var(--shadow-inset-sm)',
+                                            height: 'clamp(2.25rem, 2.25rem + 0.25vw, 2.5rem)',
+                                            padding: '0 var(--space-base)',
+                                            paddingRight: '2.5rem',
+                                            fontSize: 'var(--text-base)'
+                                        }}
+                                        onFocus={(e) => {
+                                            e.target.style.backgroundColor = 'var(--layer-elevated)';
+                                            e.target.style.boxShadow = 'var(--shadow-inset-md)';
+                                        }}
+                                        onBlur={(e) => {
+                                            e.target.style.backgroundColor = 'var(--layer-base)';
+                                            e.target.style.boxShadow = 'var(--shadow-inset-sm)';
+                                        }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#6b7494] hover:text-[#2e3f84] transition-colors duration-200"
+                                        tabIndex={-1}
+                                    >
+                                        {showPassword ? (
+                                            <EyeOff className="w-4 h-4" />
+                                        ) : (
+                                            <Eye className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                </div>
                                 <InputError message={errors.password} />
                             </div>
 
@@ -121,7 +139,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                         backgroundColor: 'var(--primary-base)',
                                         boxShadow: 'var(--shadow-md)',
                                         backgroundImage: 'var(--gradient-shine)',
-                                        height: 'clamp(2.75rem, 2.75rem + 0.75vw, 3.5rem)',
+                                        height: 'clamp(2.5rem, 2.5rem + 0.25vw, 2.75rem)',
                                         fontSize: 'var(--text-base)',
                                         marginTop: 'var(--space-sm)'
                                     }

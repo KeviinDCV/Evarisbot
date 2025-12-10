@@ -190,7 +190,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         backgroundColor: 'var(--primary-base)',
                                         boxShadow: 'var(--shadow-md)',
                                         backgroundImage: 'var(--gradient-shine)',
-                                        height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                        height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                         padding: '0 var(--space-lg)',
                                         fontSize: 'var(--text-sm)',
                                     }}
@@ -225,7 +225,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
                                             boxShadow: 'var(--shadow-inset-sm)',
-                                            height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
                                             padding: '0 var(--space-base)',
                                         }}
@@ -249,7 +249,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
                                             boxShadow: 'var(--shadow-inset-sm)',
-                                            height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
                                         }}
                                     />
@@ -266,7 +266,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
                                             boxShadow: 'var(--shadow-inset-sm)',
-                                            height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
                                         }}
                                     />
@@ -278,7 +278,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         style={{
                                             backgroundColor: 'var(--primary-base)',
                                             boxShadow: 'var(--shadow-md)',
-                                            height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             padding: '0 var(--space-lg)',
                                             fontSize: 'var(--text-sm)',
                                         }}

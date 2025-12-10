@@ -42,9 +42,10 @@ class ConversationController extends Controller
             ->where('status', '!=', 'closed') // No mostrar conversaciones cerradas
             ->orderBy('last_message_at', 'desc');
 
-        // Si es asesor, solo ver conversaciones asignadas a él
+        // Si es asesor, solo ver conversaciones asignadas a él y que no estén resueltas
         if (auth()->user()->isAdvisor()) {
-            $query->where('assigned_to', auth()->id());
+            $query->where('assigned_to', auth()->id())
+                  ->where('status', '!=', 'resolved'); // Asesores no ven conversaciones resueltas
         }
 
         // Filtrar por estado si se proporciona
@@ -123,9 +124,10 @@ class ConversationController extends Controller
             ->where('status', '!=', 'closed') // No mostrar conversaciones cerradas
             ->orderBy('last_message_at', 'desc');
 
-        // Si es asesor, solo ver sus conversaciones
+        // Si es asesor, solo ver sus conversaciones y que no estén resueltas
         if (auth()->user()->isAdvisor()) {
-            $query->where('assigned_to', auth()->id());
+            $query->where('assigned_to', auth()->id())
+                  ->where('status', '!=', 'resolved'); // Asesores no ven conversaciones resueltas
         }
 
         // Aplicar filtros si existen (solo admin)
@@ -344,6 +346,11 @@ class ConversationController extends Controller
 
         $conversation->update(['status' => $validated['status']]);
 
+        // Si es asesor y marca como resuelta, redirigir al índice (la conversación desaparecerá de su lista)
+        if (auth()->user()->isAdvisor() && $validated['status'] === 'resolved') {
+            return redirect()->route('admin.chat.index')->with('success', 'Conversación marcada como resuelta.');
+        }
+
         return back()->with('success', 'Estado actualizado.');
     }
 
@@ -360,5 +367,104 @@ class ConversationController extends Controller
         ]);
 
         return redirect()->route('admin.chat.index')->with('success', 'Conversación eliminada exitosamente.');
+    }
+
+    /**
+     * Crear una nueva conversación (iniciar chat con un número)
+     * 
+     * IMPORTANTE: Según las políticas de Meta/WhatsApp Business API:
+     * - Solo puedes iniciar conversaciones usando plantillas aprobadas
+     * - O si el usuario te ha escrito en las últimas 24 horas
+     * - Esta función crea la conversación y permite enviar el primer mensaje
+     */
+    public function store(Request $request, WhatsAppService $whatsappService)
+    {
+        $validated = $request->validate([
+            'phone_number' => 'required|string|min:10|max:20',
+            'contact_name' => 'nullable|string|max:255',
+            'message' => 'required|string|max:4096',
+        ]);
+
+        // Formatear número de teléfono (eliminar caracteres no numéricos excepto +)
+        $phoneNumber = preg_replace('/[^0-9+]/', '', $validated['phone_number']);
+        
+        // Asegurar que tenga el formato correcto (con código de país)
+        if (!str_starts_with($phoneNumber, '+')) {
+            // Si no tiene +, asumir que es Colombia (+57)
+            if (strlen($phoneNumber) === 10) {
+                $phoneNumber = '57' . $phoneNumber;
+            }
+        } else {
+            $phoneNumber = ltrim($phoneNumber, '+');
+        }
+
+        // Buscar si ya existe una conversación con este número
+        $conversation = Conversation::where('phone_number', $phoneNumber)->first();
+
+        if ($conversation) {
+            // Si existe pero está cerrada, reactivarla
+            if ($conversation->status === 'closed') {
+                $conversation->update([
+                    'status' => 'active',
+                    'last_message_at' => now(),
+                ]);
+            }
+        } else {
+            // Crear nueva conversación
+            $conversation = Conversation::create([
+                'phone_number' => $phoneNumber,
+                'contact_name' => $validated['contact_name'] ?? null,
+                'status' => 'active',
+                'assigned_to' => auth()->id(),
+                'last_message_at' => now(),
+                'unread_count' => 0,
+            ]);
+        }
+
+        // Crear el mensaje en la base de datos
+        $message = $conversation->messages()->create([
+            'content' => $validated['message'],
+            'message_type' => 'text',
+            'is_from_user' => false,
+            'sent_by' => auth()->id(),
+            'status' => 'pending',
+        ]);
+
+        // Enviar mensaje usando WhatsApp Business API
+        if ($whatsappService->isConfigured()) {
+            $result = $whatsappService->sendTextMessage(
+                $phoneNumber,
+                $validated['message']
+            );
+
+            if ($result && $result['success']) {
+                $message->update([
+                    'status' => 'sent',
+                    'whatsapp_message_id' => $result['message_id'] ?? null,
+                ]);
+            } else {
+                $message->update([
+                    'status' => 'failed',
+                    'error_message' => $result['error'] ?? 'Error desconocido al enviar mensaje',
+                ]);
+                
+                return back()->withErrors([
+                    'message' => 'No se pudo enviar el mensaje: ' . ($result['error'] ?? 'Error desconocido')
+                ]);
+            }
+        } else {
+            $message->update([
+                'status' => 'failed',
+                'error_message' => 'WhatsApp API no está configurada',
+            ]);
+            
+            return back()->withErrors([
+                'message' => 'WhatsApp API no está configurada. Por favor, configúrala en Ajustes.'
+            ]);
+        }
+
+        // Redirigir a la conversación creada
+        return redirect()->route('admin.chat.show', $conversation->id)
+            ->with('success', 'Conversación iniciada exitosamente.');
     }
 }

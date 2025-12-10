@@ -177,7 +177,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                         boxShadow: 'var(--shadow-inset-sm)',
-                                        height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                        height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                         fontSize: 'var(--text-sm)',
                                     }}
                                 />
@@ -325,7 +325,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                         backgroundColor: canSend ? 'var(--primary-base)' : 'gray',
                                         boxShadow: canSend ? 'var(--shadow-md)' : 'none',
                                         backgroundImage: canSend ? 'var(--gradient-shine)' : 'none',
-                                        height: 'clamp(2.75rem, 2.75rem + 0.75vw, 3.5rem)',
+                                        height: 'clamp(2.5rem, 2.5rem + 0.15vw, 2.75rem)',
                                         fontSize: 'var(--text-base)',
                                         opacity: canSend ? 1 : 0.5,
                                         cursor: canSend ? 'pointer' : 'not-allowed',

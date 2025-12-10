@@ -662,7 +662,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             style={{
                                                 backgroundColor: 'var(--primary-base)',
                                                 boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                                 padding: '0 var(--space-lg)',
                                                 fontSize: 'var(--text-sm)',
                                             }}
@@ -692,7 +692,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             style={{
                                                 backgroundColor: '#F59E0B',
                                                 boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                                 padding: '0 var(--space-lg)',
                                                 fontSize: 'var(--text-sm)',
                                             }}
@@ -722,7 +722,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 style={{
                                                     backgroundColor: '#F59E0B',
                                                     boxShadow: 'var(--shadow-md)',
-                                                    height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                                     padding: '0 var(--space-lg)',
                                                     fontSize: 'var(--text-sm)',
                                                 }}
@@ -747,7 +747,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 style={{
                                                     backgroundColor: '#EF4444',
                                                     boxShadow: 'var(--shadow-md)',
-                                                    height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                                     padding: '0 var(--space-lg)',
                                                     fontSize: 'var(--text-sm)',
                                                 }}
@@ -775,7 +775,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             style={{
                                                 backgroundColor: '#10B981',
                                                 boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.5rem, 2.5rem + 0.5vw, 3rem)',
+                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                                 padding: '0 var(--space-lg)',
                                                 fontSize: 'var(--text-sm)',
                                             }}
@@ -796,21 +796,21 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     )}
                                 </div>
                             </div>
-                            {localStats.pending > 1000 && (
+                            {localStats.pending > 2000 && (
                                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-none">
                                     <p className="text-sm text-amber-800">
                                         <AlertCircle className="w-4 h-4 inline mr-1" />
                                         <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana. 
-                                        El sistema respetará el límite de 1,000 mensajes por día según las recomendaciones de Meta.
+                                        El sistema respetará el límite de 2,000 mensajes por día según las políticas de Meta.
                                     </p>
                                 </div>
                             )}
-                            {localStats.pending_tomorrow > 1000 && (
+                            {localStats.pending_tomorrow > 2000 && (
                                 <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-none">
                                     <p className="text-sm text-amber-800">
                                         <AlertCircle className="w-4 h-4 inline mr-1" />
                                         <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio. 
-                                        El sistema respetará el límite de 1,000 mensajes por día.
+                                        El sistema respetará el límite de 2,000 mensajes por día.
                                     </p>
                                 </div>
                             )}

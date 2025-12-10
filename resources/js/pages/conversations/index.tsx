@@ -22,7 +22,9 @@ import {
     Smile,
     ArrowDown,
     UserPlus,
-    Trash2
+    Trash2,
+    Plus,
+    AlertCircle
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -103,6 +105,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [contextMenu, setContextMenu] = useState<{ conversationId: number; x: number; y: number } | null>(null);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
+    const [showNewChatModal, setShowNewChatModal] = useState(false);
+    const [newChatData, setNewChatData] = useState({ phone_number: '', contact_name: '', message: '' });
+    const [newChatError, setNewChatError] = useState('');
+    const [isCreatingChat, setIsCreatingChat] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
@@ -559,7 +565,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                 }`}>
                     {/* Header */}
                     <div className="p-3 md:p-4 bg-[#dde1f0]">
-                        <h2 className="text-lg md:text-xl font-bold text-[#2e3f84] mb-2 md:mb-3">{t('conversations.title')}</h2>
+                        <div className="flex items-center justify-between mb-2 md:mb-3">
+                            <h2 className="text-lg md:text-xl font-bold text-[#2e3f84]">{t('conversations.title')}</h2>
+                            {/* Botón para nueva conversación - Solo administradores */}
+                            {isAdmin && (
+                                <button
+                                    onClick={() => setShowNewChatModal(true)}
+                                    className="p-2 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                    title={t('conversations.newConversation')}
+                                >
+                                    <Plus className="w-5 h-5" />
+                                </button>
+                            )}
+                        </div>
                         
                         {/* Búsqueda */}
                         <div className="relative">
@@ -634,7 +652,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         </p>
                                         <div className="flex items-center gap-2 mt-1">
                                             <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
-                                            <span className="text-xs text-[#6b7494] capitalize">{conversation.status}</span>
+                                            <span className="text-xs text-[#6b7494]">{getStatusLabel(conversation.status)}</span>
                                         </div>
                                     </div>
                                 </button>
@@ -830,15 +848,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </DropdownMenuItem>
                                         )}
                                         
-                                        {/* Eliminar chat */}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                            onClick={handleHideChat}
-                                            className="cursor-pointer hover:bg-red-50 text-red-600"
-                                        >
-                                            <Trash2 className="w-4 h-4 mr-2" />
-                                            {t('conversations.deleteChat')}
-                                        </DropdownMenuItem>
+                                        {/* Eliminar chat - Solo administradores */}
+                                        {isAdmin && (
+                                            <>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    onClick={handleHideChat}
+                                                    className="cursor-pointer hover:bg-red-50 text-red-600"
+                                                >
+                                                    <Trash2 className="w-4 h-4 mr-2" />
+                                                    {t('conversations.deleteChat')}
+                                                </DropdownMenuItem>
+                                            </>
+                                        )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 
@@ -1193,6 +1215,146 @@ export default function ConversationsIndex({ conversations: initialConversations
                             Cerrar
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Nueva Conversación */}
+            <Dialog open={showNewChatModal} onOpenChange={(open) => {
+                setShowNewChatModal(open);
+                if (!open) {
+                    setNewChatData({ phone_number: '', contact_name: '', message: '' });
+                    setNewChatError('');
+                }
+            }}>
+                <DialogContent className="sm:max-w-lg bg-gradient-to-b from-white to-[#fafbfc] border-0 shadow-[0_4px_12px_rgba(46,63,132,0.15),0_8px_24px_rgba(46,63,132,0.2)]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-[#2e3f84] flex items-center gap-2">
+                            <Plus className="w-6 h-6 text-[#2e3f84]" />
+                            {t('conversations.newConversation')}
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-[#6b7494]">
+                            {t('conversations.newConversationDescription')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    {/* Advertencia sobre políticas de Meta */}
+                    <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-none">
+                        <div className="flex items-start gap-2">
+                            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                            <div className="text-sm text-amber-800">
+                                <strong>Importante:</strong> Según las políticas de WhatsApp Business API, solo puedes iniciar conversaciones si el usuario te ha escrito en las últimas 24 horas, o usando plantillas aprobadas por Meta.
+                            </div>
+                        </div>
+                    </div>
+
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        setNewChatError('');
+                        
+                        if (!newChatData.phone_number.trim()) {
+                            setNewChatError('El número de teléfono es requerido');
+                            return;
+                        }
+                        if (!newChatData.message.trim()) {
+                            setNewChatError('El mensaje es requerido');
+                            return;
+                        }
+                        
+                        setIsCreatingChat(true);
+                        router.post('/admin/chat/create', newChatData, {
+                            onSuccess: () => {
+                                setShowNewChatModal(false);
+                                setNewChatData({ phone_number: '', contact_name: '', message: '' });
+                                setIsCreatingChat(false);
+                            },
+                            onError: (errors) => {
+                                setNewChatError(errors.message || errors.phone_number || 'Error al crear la conversación');
+                                setIsCreatingChat(false);
+                            },
+                        });
+                    }} className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-[#2e3f84]">
+                                {t('conversations.phoneNumber')} *
+                            </label>
+                            <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#6b7494] w-4 h-4" />
+                                <Input
+                                    type="tel"
+                                    placeholder="3001234567 o +573001234567"
+                                    value={newChatData.phone_number}
+                                    onChange={(e) => setNewChatData({ ...newChatData, phone_number: e.target.value })}
+                                    className="pl-10 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] rounded-none"
+                                />
+                            </div>
+                            <p className="text-xs text-[#6b7494]">
+                                Ingresa el número con o sin código de país. Si no incluyes código, se asumirá +57 (Colombia).
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-[#2e3f84]">
+                                {t('conversations.contactName')} (opcional)
+                            </label>
+                            <div className="relative">
+                                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#6b7494] w-4 h-4" />
+                                <Input
+                                    type="text"
+                                    placeholder="Nombre del contacto"
+                                    value={newChatData.contact_name}
+                                    onChange={(e) => setNewChatData({ ...newChatData, contact_name: e.target.value })}
+                                    className="pl-10 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] rounded-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-[#2e3f84]">
+                                {t('conversations.message')} *
+                            </label>
+                            <Textarea
+                                placeholder="Escribe tu mensaje..."
+                                value={newChatData.message}
+                                onChange={(e) => setNewChatData({ ...newChatData, message: e.target.value })}
+                                rows={4}
+                                className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] rounded-none resize-none"
+                            />
+                        </div>
+
+                        {newChatError && (
+                            <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded-none">
+                                <p className="text-sm text-red-800">{newChatError}</p>
+                            </div>
+                        )}
+
+                        <DialogFooter className="gap-2 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowNewChatModal(false)}
+                                className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] hover:from-[#e8ebf5] hover:to-[#e0e4f0]"
+                            >
+                                {t('common.cancel')}
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={isCreatingChat}
+                                className="bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white border-0 shadow-[0_2px_4px_rgba(46,63,132,0.2)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.3)]"
+                            >
+                                {isCreatingChat ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                        Enviando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="w-4 h-4 mr-2" />
+                                        {t('conversations.startConversation')}
+                                    </>
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
             </Dialog>
         </AdminLayout>
