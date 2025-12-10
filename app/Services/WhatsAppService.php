@@ -494,7 +494,7 @@ class WhatsAppService
                 
                 // Buscar o crear conversación
                 $conversationData = [
-                    'status' => 'in_progress',
+                    'status' => 'active',
                     'last_message_at' => now(),
                 ];
 
@@ -520,16 +520,16 @@ class WhatsAppService
                 $conversation->update(['contact_name' => $contactName]);
             }
 
-            // Si la conversación estaba cerrada/resuelta, reactivarla cuando llega un mensaje nuevo
-            if (in_array($conversation->status, ['resolved', 'closed'])) {
+            // Si la conversación estaba resuelta, reactivarla cuando llega un mensaje nuevo
+            if ($conversation->status === 'resolved') {
                 $conversation->update([
-                    'status' => 'in_progress',
+                    'status' => 'active',
                     'last_message_at' => now(),
                     'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
                               'Conversación reactivada automáticamente por mensaje entrante el ' . now()->format('Y-m-d H:i:s')
                 ]);
                 
-                Log::info('Conversation reactivated from closed/resolved', [
+                Log::info('Conversation reactivated from resolved', [
                     'conversation_id' => $conversation->id,
                     'phone_number' => $conversation->phone_number,
                 ]);

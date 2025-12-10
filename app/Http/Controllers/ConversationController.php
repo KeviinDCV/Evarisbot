@@ -39,17 +39,16 @@ class ConversationController extends Controller
     public function index(Request $request)
     {
         $query = Conversation::with(['lastMessage', 'assignedUser'])
-            ->where('status', '!=', 'closed') // No mostrar conversaciones cerradas
             ->orderBy('last_message_at', 'desc');
 
-        // Si es asesor, solo ver conversaciones asignadas a él y que no estén resueltas
+        // Si es asesor, solo ver conversaciones activas asignadas a él
         if (auth()->user()->isAdvisor()) {
             $query->where('assigned_to', auth()->id())
-                  ->where('status', '!=', 'resolved'); // Asesores no ven conversaciones resueltas
+                  ->where('status', 'active'); // Asesores solo ven conversaciones activas
         }
 
-        // Filtrar por estado si se proporciona
-        if ($request->has('status') && $request->status !== 'all') {
+        // Filtrar por estado si se proporciona (solo admin)
+        if (auth()->user()->isAdmin() && $request->has('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
@@ -121,13 +120,12 @@ class ConversationController extends Controller
         }
 
         $query = Conversation::with(['lastMessage', 'assignedUser'])
-            ->where('status', '!=', 'closed') // No mostrar conversaciones cerradas
             ->orderBy('last_message_at', 'desc');
 
-        // Si es asesor, solo ver sus conversaciones y que no estén resueltas
+        // Si es asesor, solo ver conversaciones activas asignadas a él
         if (auth()->user()->isAdvisor()) {
             $query->where('assigned_to', auth()->id())
-                  ->where('status', '!=', 'resolved'); // Asesores no ven conversaciones resueltas
+                  ->where('status', 'active'); // Asesores solo ven conversaciones activas
         }
 
         // Aplicar filtros si existen (solo admin)
@@ -329,7 +327,7 @@ class ConversationController extends Controller
 
         $conversation->update([
             'assigned_to' => $validated['user_id'] ?? auth()->id(),
-            'status' => 'in_progress',
+            'status' => 'active',
         ]);
 
         return back()->with('success', 'Conversación asignada exitosamente.');
@@ -341,7 +339,7 @@ class ConversationController extends Controller
     public function updateStatus(Request $request, Conversation $conversation)
     {
         $validated = $request->validate([
-            'status' => 'required|in:active,pending,in_progress,resolved,closed',
+            'status' => 'required|in:active,resolved',
         ]);
 
         $conversation->update(['status' => $validated['status']]);
@@ -355,18 +353,18 @@ class ConversationController extends Controller
     }
 
     /**
-     * Ocultar conversación (no elimina de BD)
+     * Ocultar conversación (marcar como resuelta)
      */
     public function hide(Conversation $conversation)
     {
-        // Marcar como cerrada y oculta para que no aparezca en las consultas
+        // Marcar como resuelta
         $conversation->update([
-            'status' => 'closed',
+            'status' => 'resolved',
             'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
-                      'Chat ocultado por ' . auth()->user()->name . ' el ' . now()->format('Y-m-d H:i:s')
+                      'Chat marcado como resuelto por ' . auth()->user()->name . ' el ' . now()->format('Y-m-d H:i:s')
         ]);
 
-        return redirect()->route('admin.chat.index')->with('success', 'Conversación eliminada exitosamente.');
+        return redirect()->route('admin.chat.index')->with('success', 'Conversación marcada como resuelta.');
     }
 
     /**
@@ -402,8 +400,8 @@ class ConversationController extends Controller
         $conversation = Conversation::where('phone_number', $phoneNumber)->first();
 
         if ($conversation) {
-            // Si existe pero está cerrada, reactivarla
-            if ($conversation->status === 'closed') {
+            // Si existe pero está resuelta, reactivarla
+            if ($conversation->status === 'resolved') {
                 $conversation->update([
                     'status' => 'active',
                     'last_message_at' => now(),

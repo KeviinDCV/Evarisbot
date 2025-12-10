@@ -387,10 +387,6 @@ export default function ConversationsIndex({ conversations: initialConversations
         switch (status) {
             case 'active':
                 return 'bg-green-500';
-            case 'pending':
-                return 'bg-yellow-500';
-            case 'in_progress':
-                return 'bg-blue-500';
             case 'resolved':
                 return 'bg-gray-400';
             default:
@@ -401,10 +397,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const getStatusLabel = (status: string) => {
         const labels: Record<string, string> = {
             active: t('conversations.statusLabels.active'),
-            pending: t('conversations.statusLabels.pending'),
-            in_progress: t('conversations.statusLabels.inProgress'),
             resolved: t('conversations.statusLabels.resolved'),
-            closed: t('conversations.statusLabels.closed'),
         };
         return labels[status] || status;
     };

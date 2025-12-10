@@ -117,10 +117,7 @@
     },
     "statusLabels": {
       "active": "Activa",
-      "pending": "Pendiente",
-      "inProgress": "En progreso",
-      "resolved": "Resuelta",
-      "closed": "Cerrada"
+      "resolved": "Resuelta"
     }
   },
   "templates": {
