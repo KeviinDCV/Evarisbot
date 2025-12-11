@@ -24,7 +24,9 @@ import {
     UserPlus,
     Trash2,
     Plus,
-    AlertCircle
+    AlertCircle,
+    Filter,
+    Users
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -109,6 +111,9 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [newChatData, setNewChatData] = useState({ phone_number: '', contact_name: '', message: '' });
     const [newChatError, setNewChatError] = useState('');
     const [isCreatingChat, setIsCreatingChat] = useState(false);
+    const [advisorSearchQuery, setAdvisorSearchQuery] = useState('');
+    const [filterByAdvisor, setFilterByAdvisor] = useState<number | null>(null);
+    const [showAdvisorFilter, setShowAdvisorFilter] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
@@ -301,6 +306,18 @@ export default function ConversationsIndex({ conversations: initialConversations
         };
     }, []);
 
+    // Cerrar dropdown de filtro cuando se hace clic fuera
+    useEffect(() => {
+        const handleClickOutside = () => {
+            if (showAdvisorFilter) {
+                setShowAdvisorFilter(false);
+            }
+        };
+        
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [showAdvisorFilter]);
+
     // Polling para actualización de mensajes en conversación seleccionada
     useEffect(() => {
         // Solo hacer polling si hay una conversación seleccionada
@@ -401,6 +418,23 @@ export default function ConversationsIndex({ conversations: initialConversations
         };
         return labels[status] || status;
     };
+
+    // Obtener asesores que tienen chats activos asignados
+    const advisorsWithActiveChats = users.filter(user => 
+        localConversations.some(conv => 
+            conv.assigned_to === user.id && conv.status !== 'resolved'
+        )
+    );
+
+    // Filtrar asesores por búsqueda
+    const filteredAdvisors = users.filter(user => 
+        user.name.toLowerCase().includes(advisorSearchQuery.toLowerCase())
+    );
+
+    // Conversaciones filtradas por asesor
+    const displayedConversations = filterByAdvisor 
+        ? localConversations.filter(conv => conv.assigned_to === filterByAdvisor)
+        : localConversations;
 
     const getStatusIcon = (status: string) => {
         switch (status) {
@@ -573,6 +607,71 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </button>
                             )}
                             */}
+                            
+                            {/* Botón de filtro por asesor - Solo Admin */}
+                            {isAdmin && advisorsWithActiveChats.length > 0 && (
+                                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                        onClick={() => setShowAdvisorFilter(!showAdvisorFilter)}
+                                        className={`p-2 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
+                                            filterByAdvisor 
+                                                ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white' 
+                                                : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
+                                        }`}
+                                        title={t('conversations.filterByAdvisor')}
+                                    >
+                                        <Filter className="w-5 h-5" />
+                                    </button>
+                                    
+                                    {/* Dropdown de filtro por asesor */}
+                                    {showAdvisorFilter && (
+                                        <div className="absolute right-0 top-full mt-1 bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar">
+                                            <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
+                                                {t('conversations.filterByAdvisor')}
+                                            </div>
+                                            
+                                            {/* Opción para mostrar todos */}
+                                            <button
+                                                onClick={() => {
+                                                    setFilterByAdvisor(null);
+                                                    setShowAdvisorFilter(false);
+                                                }}
+                                                className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
+                                                    !filterByAdvisor ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
+                                                }`}
+                                            >
+                                                <span>{t('common.all')}</span>
+                                                {!filterByAdvisor && <Check className="w-4 h-4 text-[#2e3f84]" />}
+                                            </button>
+                                            
+                                            <div className="border-t border-gray-200 my-1"></div>
+                                            
+                                            {/* Lista de asesores con chats activos */}
+                                            {advisorsWithActiveChats.map((user) => {
+                                                const chatCount = localConversations.filter(c => c.assigned_to === user.id && c.status !== 'resolved').length;
+                                                return (
+                                                    <button
+                                                        key={user.id}
+                                                        onClick={() => {
+                                                            setFilterByAdvisor(user.id);
+                                                            setShowAdvisorFilter(false);
+                                                        }}
+                                                        className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
+                                                            filterByAdvisor === user.id ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
+                                                        }`}
+                                                    >
+                                                        <span className="truncate">{user.name}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs text-gray-400">{chatCount}</span>
+                                                            {filterByAdvisor === user.id && <Check className="w-4 h-4 text-[#2e3f84]" />}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         
                         {/* Búsqueda */}
@@ -605,7 +704,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             </div>
                         ) : (
                             <>
-                            {localConversations.map((conversation: Conversation) => (
+                            {displayedConversations.map((conversation: Conversation) => (
                                 <button
                                     key={conversation.id}
                                     onClick={() => router.get(`/admin/chat/${conversation.id}`, {}, { preserveScroll: true, preserveState: true })}
@@ -646,9 +745,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         <p className="text-xs md:text-sm text-[#6b7494] truncate">
                                             {conversation.last_message?.content || t('conversations.noMessages')}
                                         </p>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
-                                            <span className="text-xs text-[#6b7494]">{getStatusLabel(conversation.status)}</span>
+                                        <div className="flex items-center justify-between mt-1">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
+                                                <span className="text-xs text-[#6b7494]">{getStatusLabel(conversation.status)}</span>
+                                            </div>
+                                            {/* Mostrar asesor asignado (solo si no está resuelta) */}
+                                            {conversation.assigned_user && conversation.status !== 'resolved' && (
+                                                <span className="text-[10px] text-[#6b7494] bg-[#e8ebf5] px-1.5 py-0.5 rounded truncate max-w-[80px]" title={conversation.assigned_user.name}>
+                                                    {conversation.assigned_user.name.split(' ')[0]}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </button>
@@ -678,10 +785,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                         
                         return (
                             <div 
-                                className="fixed bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[200px]"
+                                className="fixed bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[220px]"
                                 style={{ 
                                     top: `${contextMenu.y}px`, 
-                                    left: `${contextMenu.x}px` 
+                                    left: `${contextMenu.x}px`,
+                                    maxHeight: '400px'
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                             >
@@ -691,20 +799,51 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
                                             {t('conversations.assignConversation')}
                                         </div>
-                                        {users.map((user) => (
-                                            <button
-                                                key={user.id}
-                                                onClick={() => handleAssignFromContext(conversation.id, user.id)}
-                                                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between"
-                                            >
-                                                <span className={conversation.assigned_to === user.id ? 'font-bold text-[#2e3f84]' : ''}>
-                                                    {user.name} {user.role === 'admin' ? t('users.roleAdmin') : t('users.roleAdvisor')}
-                                                </span>
-                                                {conversation.assigned_to === user.id && (
-                                                    <Check className="w-4 h-4 text-[#2e3f84]" />
-                                                )}
-                                            </button>
-                                        ))}
+                                        
+                                        {/* Buscador de asesores */}
+                                        <div className="px-2 py-1.5">
+                                            <div className="relative">
+                                                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+                                                <input
+                                                    type="text"
+                                                    placeholder={t('conversations.searchAdvisor')}
+                                                    value={advisorSearchQuery}
+                                                    onChange={(e) => setAdvisorSearchQuery(e.target.value)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:border-[#2e3f84] bg-gray-50"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Lista de asesores con scroll */}
+                                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                            {filteredAdvisors.length === 0 ? (
+                                                <div className="px-3 py-2 text-sm text-gray-400 text-center">
+                                                    {t('conversations.noAdvisorsFound')}
+                                                </div>
+                                            ) : (
+                                                filteredAdvisors.map((user) => (
+                                                    <button
+                                                        key={user.id}
+                                                        onClick={() => {
+                                                            handleAssignFromContext(conversation.id, user.id);
+                                                            setAdvisorSearchQuery('');
+                                                        }}
+                                                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between"
+                                                    >
+                                                        <span className={conversation.assigned_to === user.id ? 'font-bold text-[#2e3f84]' : ''}>
+                                                            {user.name}
+                                                            <span className="text-xs text-gray-400 ml-1">
+                                                                ({user.role === 'admin' ? t('users.roleAdmin') : t('users.roleAdvisor')})
+                                                            </span>
+                                                        </span>
+                                                        {conversation.assigned_to === user.id && (
+                                                            <Check className="w-4 h-4 text-[#2e3f84] flex-shrink-0" />
+                                                        )}
+                                                    </button>
+                                                ))
+                                            )}
+                                        </div>
                                         <div className="border-t border-gray-200 my-1"></div>
                                     </>
                                 )}
