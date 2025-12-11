@@ -548,19 +548,21 @@ export default function ConversationsIndex({ conversations: initialConversations
         <AdminLayout>
             <Head title={t('conversations.title')} />
 
-            <div className="h-[calc(100vh-0px)] flex bg-[#f0f2f8]">
+            <div className="h-[calc(100vh-0px)] flex bg-[#f0f2f8] overflow-hidden">
                 {/* Lista de Conversaciones - Izquierda */}
                 {/* Mobile: oculta cuando hay chat | Desktop: siempre visible con toggle */}
-                <div className={`bg-[#e8ebf5] flex-col transition-all duration-300 ${
+                <div className={`bg-[#e8ebf5] flex-col transition-all duration-300 flex-shrink-0 ${
                     selectedConversation ? 'hidden md:flex' : 'flex'
                 } ${
-                    isSidebarVisible ? 'w-full md:w-80 lg:w-96' : 'hidden md:w-0 md:overflow-hidden'
+                    isSidebarVisible ? 'w-full md:w-64 lg:w-72 xl:w-80' : 'hidden md:w-0 md:overflow-hidden'
                 }`}>
                     {/* Header */}
                     <div className="p-3 md:p-4 bg-[#dde1f0]">
                         <div className="flex items-center justify-between mb-2 md:mb-3">
                             <h2 className="text-lg md:text-xl font-bold text-[#2e3f84]">{t('conversations.title')}</h2>
-                            {/* Botón para nueva conversación - Solo administradores */}
+                            {/* Botón para nueva conversación - DESHABILITADO TEMPORALMENTE
+                               Requiere plantillas aprobadas de Meta para funcionar correctamente.
+                               TODO: Implementar selección de plantillas antes de rehabilitar.
                             {isAdmin && (
                                 <button
                                     onClick={() => setShowNewChatModal(true)}
@@ -570,6 +572,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     <Plus className="w-5 h-5" />
                                 </button>
                             )}
+                            */}
                         </div>
                         
                         {/* Búsqueda */}

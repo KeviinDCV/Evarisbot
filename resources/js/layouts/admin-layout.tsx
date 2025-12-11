@@ -114,13 +114,13 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
             {/* Sidebar - Responsive System of Boxes */}
             <aside className={`
-                bg-gradient-to-b from-[#2a3a78] to-[#2e3f84] text-white flex flex-col 
+                bg-gradient-to-b from-[#2a3a78] to-[#2e3f84] text-white flex flex-col flex-shrink-0
                 shadow-[1px_0_2px_rgba(46,63,132,0.15),2px_0_8px_rgba(46,63,132,0.2),4px_0_20px_rgba(46,63,132,0.15),inset_-1px_0_0_rgba(255,255,255,0.05)]
                 transition-transform duration-300 ease-in-out
                 
                 ${/* Mobile: Overlay sidebar */''}
                 fixed lg:relative top-0 left-0 h-full z-40
-                w-64 lg:w-64 xl:w-72
+                w-56 lg:w-56 xl:w-64
                 
                 ${/* Mobile transform */''}
                 ${
@@ -130,11 +130,11 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 }
             `}>
                 {/* Logo - Elevated Layer */}
-                <div className="p-4 lg:p-6 bg-gradient-to-b from-[#3e4f94]/20 to-transparent drop-shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                            <AppLogoIcon className="h-8 lg:h-10 w-auto object-contain brightness-0 invert" />
-                            <span className="text-lg lg:text-xl font-bold">Evarisbot</span>
+                <div className="p-3 lg:p-4 bg-gradient-to-b from-[#3e4f94]/20 to-transparent drop-shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <AppLogoIcon className="h-7 lg:h-8 w-auto object-contain brightness-0 invert" />
+                            <span className="text-base lg:text-lg font-bold">Evarisbot</span>
                         </div>
                         {/* Close button only on mobile */}
                         <button
@@ -147,7 +147,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 </div>
 
                 {/* Navigation - Mid Layer */}
-                <nav className="flex-1 p-3 lg:p-4 space-y-2 bg-gradient-to-b from-transparent via-[#2e3f84]/30 to-transparent overflow-y-auto">
+                <nav className="flex-1 p-2 lg:p-3 space-y-1 bg-gradient-to-b from-transparent via-[#2e3f84]/30 to-transparent overflow-y-auto">
                     {visibleMenuItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = currentUrl.startsWith(item.href);
@@ -156,16 +156,16 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`flex items-center justify-between gap-3 px-3 lg:px-4 py-2.5 lg:py-3 rounded-none transition-all duration-200 relative ${
+                                className={`flex items-center justify-between gap-2 px-2.5 lg:px-3 py-2 lg:py-2.5 rounded-none transition-all duration-200 relative ${
                                     isActive
                                         ? 'bg-gradient-to-b from-white to-[#fafbfc] text-[#2e3f84] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06),0_2px_4px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] scale-[1.02]'
                                         : 'text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white hover:shadow-[0_1px_2px_rgba(255,255,255,0.08),0_2px_4px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.15)] hover:scale-[1.01] active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:scale-100'
                                 }`}
                                 onClick={() => setIsMobileMenuOpen(false)}
                             >
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <Icon className="w-5 h-5 flex-shrink-0" />
-                                    <span className="text-sm lg:text-base">{item.title}</span>
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <Icon className="w-4 h-4 lg:w-5 lg:h-5 flex-shrink-0" />
+                                    <span className="text-xs lg:text-sm">{item.title}</span>
                                 </div>
                                 {/* Badge de notificación para Conversaciones */}
                                 {item.href === '/admin/chat' && unreadConversationsCount > 0 && (
@@ -185,32 +185,32 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 </nav>
 
                 {/* User Info & Logout - Footer Layer */}
-                <div className="p-3 lg:p-4 bg-gradient-to-t from-[#1e2f74]/30 to-transparent border-t border-white/10 lg:border-0">
-                    <div className="flex items-center gap-3 mb-3">
-                        <Avatar className="h-9 lg:h-10 w-9 lg:w-10 shadow-[0_1px_2px_rgba(0,0,0,0.15),0_2px_4px_rgba(0,0,0,0.2),0_4px_8px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.25)] ring-1 ring-white/10">
+                <div className="p-2 lg:p-3 bg-gradient-to-t from-[#1e2f74]/30 to-transparent border-t border-white/10 lg:border-0">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Avatar className="h-8 lg:h-9 w-8 lg:w-9 shadow-[0_1px_2px_rgba(0,0,0,0.15),0_2px_4px_rgba(0,0,0,0.2),0_4px_8px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.25)] ring-1 ring-white/10">
                             <AvatarImage src={auth.user?.avatar} alt={auth.user?.name} />
-                            <AvatarFallback className="bg-gradient-to-b from-white to-[#f4f5f9] text-[#2e3f84] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.8),inset_0_-1px_0_rgba(0,0,0,0.05)]">
+                            <AvatarFallback className="bg-gradient-to-b from-white to-[#f4f5f9] text-[#2e3f84] text-xs font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.8),inset_0_-1px_0_rgba(0,0,0,0.05)]">
                                 {getInitials(auth.user?.name)}
                             </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs lg:text-sm font-medium truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{auth.user?.name}</p>
-                            <p className="text-xs text-white/70 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)] hidden sm:block">{t('admin.role')}</p>
+                            <p className="text-xs font-medium truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{auth.user?.name}</p>
+                            <p className="text-[10px] text-white/70 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)] hidden sm:block">{t('admin.role')}</p>
                         </div>
                     </div>
                     
-                    <div className="mb-2">
+                    <div className="mb-1">
                         <Link
                             href="/settings/profile"
-                            className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white rounded-none transition-all duration-200 hover:shadow-[0_1px_2px_rgba(255,255,255,0.1),0_2px_4px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.15)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)] active:translate-x-0"
+                            className="flex items-center gap-2 w-full px-2.5 py-1.5 text-xs text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white rounded-none transition-all duration-200 hover:shadow-[0_1px_2px_rgba(255,255,255,0.1),0_2px_4px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.15)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)] active:translate-x-0"
                         >
-                            <User className="w-4 h-4" />
+                            <User className="w-3.5 h-3.5" />
                             <span>{t('navigation.profile')}</span>
                         </Link>
                     </div>
                     
                     {/* Language Selector */}
-                    <div className="mb-2">
+                    <div className="mb-1">
                         <LanguageSelector variant="admin" />
                     </div>
                     
@@ -218,16 +218,16 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                         href={logout()}
                         method="post"
                         as="button"
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-white/80 hover:bg-gradient-to-b hover:from-red-500/20 hover:to-red-600/15 hover:text-white rounded-none transition-all duration-200 hover:shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:translate-x-0 mt-2 pt-3 relative before:absolute before:top-0 before:left-0 before:right-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
+                        className="flex items-center gap-2 w-full px-2.5 py-1.5 text-xs text-white/80 hover:bg-gradient-to-b hover:from-red-500/20 hover:to-red-600/15 hover:text-white rounded-none transition-all duration-200 hover:shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:translate-x-0 mt-1 pt-2 relative before:absolute before:top-0 before:left-0 before:right-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
                     >
-                        <LogOut className="w-4 h-4" />
+                        <LogOut className="w-3.5 h-3.5" />
                         <span>{t('common.logout')}</span>
                     </Link>
                 </div>
             </aside>
 
             {/* Main Content - Adjusts to sidebar */}
-            <main className="flex-1 overflow-auto bg-[#f0f2f8] lg:ml-0 pt-16 lg:pt-0">
+            <main className="flex-1 min-w-0 overflow-auto bg-[#f0f2f8] lg:ml-0 pt-16 lg:pt-0">
                 {children}
             </main>
         </div>

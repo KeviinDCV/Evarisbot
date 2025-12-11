@@ -386,14 +386,14 @@ class ConversationController extends Controller
         // Formatear número de teléfono (eliminar caracteres no numéricos excepto +)
         $phoneNumber = preg_replace('/[^0-9+]/', '', $validated['phone_number']);
         
-        // Asegurar que tenga el formato correcto (con código de país)
+        // Asegurar que tenga el formato correcto (con código de país y +)
         if (!str_starts_with($phoneNumber, '+')) {
             // Si no tiene +, asumir que es Colombia (+57)
             if (strlen($phoneNumber) === 10) {
-                $phoneNumber = '57' . $phoneNumber;
+                $phoneNumber = '+57' . $phoneNumber;
+            } else {
+                $phoneNumber = '+' . $phoneNumber;
             }
-        } else {
-            $phoneNumber = ltrim($phoneNumber, '+');
         }
 
         // Buscar si ya existe una conversación con este número

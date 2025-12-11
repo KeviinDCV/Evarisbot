@@ -111,13 +111,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
     // Actualizar estado cada 500ms si está procesando para capturar actualizaciones en tiempo real
     useEffect(() => {
-        // Solo hacer polling si realmente está procesando Y hay citas pendientes
-        if (!isProcessing || !reminderProcessing || (localStats.pending ?? 0) === 0) {
-            // Si no está procesando, limpiar progreso inmediatamente
-            if (progress) {
-                setProgress(null);
-            }
-            setIsProcessing(false);
+        // Solo hacer polling si el estado local indica que está procesando
+        // No depender de reminderProcessing porque puede tardar en actualizarse
+        if (!isProcessing) {
             return;
         }
 
@@ -141,7 +137,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                 setIsPaused(data.paused || false);
                 setIsProcessing(data.processing || false);
                 
-                // Si el servidor dice que no está procesando, detener polling inmediatamente
+                // Si el servidor dice que no está procesando, detener polling y recargar estadísticas
                 if (!data.processing) {
                     shouldStop = true;
                     setIsProcessing(false);
@@ -150,6 +146,15 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                         clearInterval(intervalId);
                         intervalId = null;
                     }
+                    // Recargar estadísticas finales cuando termine el procesamiento
+                    router.reload({ 
+                        only: ['remindersStats', 'reminderProcessing', 'reminderPaused', 'appointments'],
+                        onSuccess: (page: any) => {
+                            if (page.props.remindersStats) {
+                                setLocalStats(page.props.remindersStats as { sent: number; pending: number; pending_tomorrow: number; failed: number });
+                            }
+                        }
+                    });
                     return;
                 }
                 
@@ -195,7 +200,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                 clearInterval(intervalId);
             }
         };
-    }, [isProcessing, reminderProcessing, localStats.pending, router, progress]);
+    }, [isProcessing, router]);
 
     // Filtrar citas por búsqueda
     const filteredAppointments = useMemo(() => {

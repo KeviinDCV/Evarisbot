@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -19,8 +20,9 @@ class SendAppointmentReminderJob implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $timeout = 300; // 5 minutos por job
+    public $timeout = 60; // 1 minuto por job
     public $tries = 3; // Reintentar hasta 3 veces
+    public $backoff = [10, 30, 60]; // Esperar 10s, 30s, 60s entre reintentos
 
     /**
      * Create a new job instance.
@@ -30,10 +32,33 @@ class SendAppointmentReminderJob implements ShouldQueue
     ) {}
 
     /**
+     * Get the middleware the job should pass through.
+     * Rate limiting: máximo 20 mensajes por minuto (1 cada 3 segundos)
+     */
+    public function middleware(): array
+    {
+        return [
+            new WithoutOverlapping('whatsapp-send', 3), // Un solo mensaje a la vez, liberar después de 3 seg
+        ];
+    }
+
+    /**
+     * Determine the time at which the job should timeout.
+     */
+    public function retryUntil(): \DateTime
+    {
+        return now()->addMinutes(30);
+    }
+
+    /**
      * Execute the job.
      */
     public function handle(AppointmentReminderService $reminderService): void
     {
+        // Rate limiting: esperar 3 segundos antes de enviar cada mensaje
+        // Meta recomienda máximo 20 mensajes por minuto para cuentas nuevas
+        sleep(3);
+        
         // Verificar si el batch fue cancelado
         if ($this->batch() && $this->batch()->cancelled()) {
             Log::info('Batch cancelado, cancelando job', [

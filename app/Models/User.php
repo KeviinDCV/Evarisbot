@@ -48,6 +48,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'last_activity_at' => 'datetime',
         ];
     }
     
@@ -69,5 +70,38 @@ class User extends Authenticatable
     public function isAdvisor(): bool
     {
         return $this->role === 'advisor';
+    }
+    
+    /**
+     * Check if the user is currently online.
+     * A user is considered online if they had activity in the last 5 minutes.
+     *
+     * @return bool
+     */
+    public function isOnline(): bool
+    {
+        if (!$this->last_activity_at) {
+            return false;
+        }
+        
+        return $this->last_activity_at->diffInMinutes(now()) < 5;
+    }
+    
+    /**
+     * Get the online status as a string.
+     *
+     * @return string
+     */
+    public function getOnlineStatus(): string
+    {
+        if ($this->isOnline()) {
+            return 'online';
+        }
+        
+        if ($this->last_activity_at) {
+            return 'offline';
+        }
+        
+        return 'never';
     }
 }

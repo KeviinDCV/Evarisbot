@@ -16,7 +16,18 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::orderBy('created_at', 'desc')->get();
+        $users = User::orderBy('created_at', 'desc')->get()->map(function ($user) {
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role,
+                'created_at' => $user->created_at,
+                'is_online' => $user->isOnline(),
+                'online_status' => $user->getOnlineStatus(),
+                'last_activity_at' => $user->last_activity_at?->toISOString(),
+            ];
+        });
 
         return Inertia::render('admin/users/index', [
             'users' => $users,

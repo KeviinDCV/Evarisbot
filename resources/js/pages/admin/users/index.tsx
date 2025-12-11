@@ -22,6 +22,9 @@ interface User {
     email: string;
     role: 'admin' | 'advisor';
     created_at: string;
+    is_online: boolean;
+    online_status: 'online' | 'offline' | 'never';
+    last_activity_at: string | null;
 }
 
 interface UsersIndexProps {
@@ -51,6 +54,31 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
     const getRoleLabel = (role: string) => {
         return role === 'admin' ? t('users.roles.admin') : t('users.roles.advisor');
+    };
+
+    const formatLastActivity = (lastActivity: string | null) => {
+        if (!lastActivity) return t('users.neverConnected');
+        
+        const date = new Date(lastActivity);
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return t('users.justNow');
+        if (diffMins < 60) return t('users.minutesAgo', { count: diffMins });
+        if (diffHours < 24) return t('users.hoursAgo', { count: diffHours });
+        if (diffDays === 1) return t('users.yesterday');
+        if (diffDays < 7) return t('users.daysAgo', { count: diffDays });
+        
+        return date.toLocaleDateString('es-ES', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
     };
 
     return (
@@ -179,13 +207,37 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     </Badge>
                                 </div>
 
-                                {/* Stats */}
+                                {/* Status & Stats */}
                                 <div 
                                     className="rounded-none p-3"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                     }}
                                 >
+                                    {/* Online Status */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
+                                        <div 
+                                            className={`w-2.5 h-2.5 rounded-full ${
+                                                user.is_online 
+                                                    ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' 
+                                                    : 'bg-gray-400'
+                                            }`}
+                                        />
+                                        <span style={{ 
+                                            fontSize: 'var(--text-sm)', 
+                                            fontWeight: 500,
+                                            color: user.is_online ? '#16a34a' : '#6b7280' 
+                                        }}>
+                                            {user.is_online ? t('users.online') : t('users.offline')}
+                                        </span>
+                                        {!user.is_online && user.last_activity_at && (
+                                            <span style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>
+                                                • {formatLastActivity(user.last_activity_at)}
+                                            </span>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Registered Date */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
                                         <Calendar className="w-4 h-4 text-gray-500" />
                                         <span style={{ fontSize: 'var(--text-xs)', color: 'gray' }}>
