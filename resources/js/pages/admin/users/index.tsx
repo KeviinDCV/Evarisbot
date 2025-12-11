@@ -175,7 +175,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     </div>
 
                     {/* Lista de Usuarios */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 'var(--space-lg)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-md)' }}>
                         {filteredUsers.map((user) => (
                             <div
                                 key={user.id}

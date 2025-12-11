@@ -591,7 +591,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     {/* Lista de Conversaciones */}
                     <div 
                         ref={conversationsListRef}
-                        className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-2 pt-4"
+                        className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-2 pt-4 custom-scrollbar-light"
                     >
                         {localConversations.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-[#6b7494] p-8">
@@ -876,7 +876,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         {/* Área de Mensajes */}
                         <div 
                             ref={messagesContainerRef}
-                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 bg-[#f8f9fc] relative"
+                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 bg-[#f8f9fc] relative custom-scrollbar"
                         >
                             {!selectedConversation.messages || selectedConversation.messages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-[#6b7494]">

@@ -19,31 +19,27 @@ class UpdateLastActivity
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $response = $next($request);
+        
+        // Ejecutar después del request para asegurar que la sesión esté lista
         if (Auth::check()) {
             $userId = Auth::id();
             
-            // Leer directamente de la BD para evitar problemas de cache de sesión
-            $lastActivity = DB::table('users')
-                ->where('id', $userId)
-                ->value('last_activity_at');
+            // Usar cache en memoria para throttling (evitar múltiples queries por request)
+            $cacheKey = 'user_last_activity_' . $userId;
+            $lastUpdate = cache()->get($cacheKey);
             
-            $shouldUpdate = false;
-            
-            if (!$lastActivity) {
-                $shouldUpdate = true;
-            } else {
-                $lastActivityTime = \Carbon\Carbon::parse($lastActivity);
-                $shouldUpdate = now()->diffInSeconds($lastActivityTime) > 60;
-            }
-            
-            // Solo actualizar si han pasado más de 60 segundos desde la última actualización
-            if ($shouldUpdate) {
+            // Solo actualizar cada 60 segundos
+            if (!$lastUpdate || now()->diffInSeconds($lastUpdate) > 60) {
                 DB::table('users')
                     ->where('id', $userId)
                     ->update(['last_activity_at' => now()]);
+                
+                // Guardar en cache por 60 segundos
+                cache()->put($cacheKey, now(), 120);
             }
         }
 
-        return $next($request);
+        return $response;
     }
 }

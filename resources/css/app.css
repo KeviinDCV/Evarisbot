@@ -222,3 +222,53 @@
         outline: none !important;
     }
 }
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(46, 63, 132, 0.2);
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(46, 63, 132, 0.35);
+}
+
+/* Firefox scrollbar */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(46, 63, 132, 0.2) transparent;
+}
+
+/* Dark scrollbar for light backgrounds (conversations list) */
+.custom-scrollbar-light::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.custom-scrollbar-light::-webkit-scrollbar-track {
+    background: rgba(221, 225, 240, 0.5);
+    border-radius: 3px;
+}
+
+.custom-scrollbar-light::-webkit-scrollbar-thumb {
+    background: rgba(46, 63, 132, 0.25);
+    border-radius: 3px;
+}
+
+.custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
+    background: rgba(46, 63, 132, 0.4);
+}
+
+.custom-scrollbar-light {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(46, 63, 132, 0.25) rgba(221, 225, 240, 0.5);
+}
