@@ -97,6 +97,7 @@ class AppointmentReminderService
         return Appointment::query()
             ->whereDate('citfc', $targetDate)
             ->where('reminder_sent', false)
+            ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
             ->limit($limit)
@@ -125,6 +126,19 @@ class AppointmentReminderService
             'length' => strlen($phoneNumber)
         ]);
         
+        // Validar longitud mínima ANTES de intentar enviar
+        // Un número válido colombiano tiene mínimo 10 dígitos (sin código de país)
+        if (strlen($phoneNumber) < 10) {
+            $errorMsg = 'Número de teléfono inválido: ' . $appointment->pactel . ' (muy corto, mínimo 10 dígitos)';
+            Log::warning($errorMsg, [
+                'appointment_id' => $appointment->id,
+                'phone' => $phoneNumber
+            ]);
+            // Marcar como fallido permanentemente para no reintentar
+            $appointment->markReminderFailed($errorMsg);
+            return ['success' => false, 'error' => $errorMsg];
+        }
+        
         // Agregar código de país si no lo tiene (Colombia = 57)
         if (strlen($phoneNumber) === 10) {
             // Número colombiano de 10 dígitos (ej: 3045782893)
@@ -132,21 +146,15 @@ class AppointmentReminderService
             Log::info('Código de país agregado', ['phone' => $phoneNumber]);
         }
         
-        // Log de validación (sin rechazar, dejar que WhatsApp valide)
-        if (strlen($phoneNumber) < 10 || strlen($phoneNumber) > 15) {
-            Log::warning('Número de teléfono con longitud inusual (se intentará enviar de todas formas)', [
-                'phone' => $phoneNumber,
-                'length' => strlen($phoneNumber),
-                'appointment_id' => $appointment->id
-            ]);
-        }
-        
-        // Verificar que empiece con código de país
-        if (!str_starts_with($phoneNumber, '57')) {
-            Log::warning('Número no tiene código de Colombia (se intentará enviar de todas formas)', [
+        // Validar longitud final (con código de país debe ser 12 para Colombia)
+        if (strlen($phoneNumber) < 12 || strlen($phoneNumber) > 15) {
+            $errorMsg = 'Número de teléfono con formato inválido: ' . $appointment->pactel . ' (longitud: ' . strlen($phoneNumber) . ')';
+            Log::warning($errorMsg, [
                 'phone' => $phoneNumber,
                 'appointment_id' => $appointment->id
             ]);
+            $appointment->markReminderFailed($errorMsg);
+            return ['success' => false, 'error' => $errorMsg];
         }
         
         // Preparar parámetros del template

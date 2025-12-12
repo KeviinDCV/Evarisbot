@@ -92,6 +92,7 @@ class AppointmentController extends Controller
             ->where('uploaded_by', auth()->id())
             ->whereDate('citfc', '=', $targetDateString)
             ->where('reminder_sent', false)
+            ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
             ->count();
@@ -104,6 +105,7 @@ class AppointmentController extends Controller
             ->where('uploaded_by', auth()->id())
             ->whereDate('citfc', '=', $tomorrowDateString)
             ->where('reminder_sent', false)
+            ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
             ->count();
