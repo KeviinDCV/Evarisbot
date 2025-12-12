@@ -59,9 +59,9 @@ class AppointmentController extends Controller
             Setting::remove('reminder_progress_total');
         }
         
-        // Cargar solo las primeras 50 citas del usuario actual
+        // Cargar las últimas 50 citas del usuario actual (más recientes primero)
         $appointments = Appointment::where('uploaded_by', auth()->id())
-            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->limit(50)
             ->get()
             ->map(fn($apt) => [
