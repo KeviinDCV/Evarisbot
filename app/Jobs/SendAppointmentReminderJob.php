@@ -55,9 +55,10 @@ class SendAppointmentReminderJob implements ShouldQueue
      */
     public function handle(AppointmentReminderService $reminderService): void
     {
-        // Rate limiting: esperar 3 segundos antes de enviar cada mensaje
-        // Meta recomienda máximo 20 mensajes por minuto para cuentas nuevas
-        sleep(3);
+        // Rate limiting: esperar 6 segundos entre mensajes
+        // Meta limita mensajes al mismo número, con 6 segundos = 10 mensajes/minuto
+        // Esto es seguro para casos donde múltiples citas van al mismo teléfono
+        sleep(6);
         
         // Verificar si el batch fue cancelado
         if ($this->batch() && $this->batch()->cancelled()) {

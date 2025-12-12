@@ -325,12 +325,17 @@ class ConversationController extends Controller
             'user_id' => 'nullable|exists:users,id',
         ]);
 
+        // Si user_id está presente en la petición (incluso si es null), usarlo
+        // Si no está presente, usar el usuario actual
+        $userId = $request->has('user_id') ? $validated['user_id'] : auth()->id();
+        
         $conversation->update([
-            'assigned_to' => $validated['user_id'] ?? auth()->id(),
-            'status' => 'active',
+            'assigned_to' => $userId,
+            'status' => $userId ? 'active' : $conversation->status,
         ]);
 
-        return back()->with('success', 'Conversación asignada exitosamente.');
+        $message = $userId ? 'Conversación asignada exitosamente.' : 'Asignación removida exitosamente.';
+        return back()->with('success', $message);
     }
 
     /**
@@ -339,7 +344,7 @@ class ConversationController extends Controller
     public function updateStatus(Request $request, Conversation $conversation)
     {
         $validated = $request->validate([
-            'status' => 'required|in:active,resolved',
+            'status' => 'required|in:active,pending,resolved',
         ]);
 
         $conversation->update(['status' => $validated['status']]);

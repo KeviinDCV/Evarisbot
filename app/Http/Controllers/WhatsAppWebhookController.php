@@ -112,6 +112,27 @@ class WhatsAppWebhookController extends Controller
                 return;
             }
 
+            // Capturar errores de WhatsApp si el mensaje falló
+            $errorInfo = null;
+            if ($statusType === 'failed') {
+                $errorInfo = $status['errors'] ?? [];
+                $recipientId = $status['recipient_id'] ?? 'unknown';
+                
+                // Obtener código de error específico
+                $errorCode = $errorInfo[0]['code'] ?? 'N/A';
+                $errorTitle = $errorInfo[0]['title'] ?? 'N/A';
+                $errorMessage = $errorInfo[0]['message'] ?? 'N/A';
+                
+                Log::error('=== WHATSAPP MESSAGE FAILED ===', [
+                    'message_id' => $messageId,
+                    'recipient_phone' => $recipientId,
+                    'error_code' => $errorCode,
+                    'error_title' => $errorTitle,
+                    'error_message' => $errorMessage,
+                    'full_errors' => $errorInfo
+                ]);
+            }
+
             // Actualizar estado del mensaje en la base de datos
             \App\Models\Message::where('whatsapp_message_id', $messageId)
                 ->update(['status' => $statusType]);
@@ -119,6 +140,7 @@ class WhatsAppWebhookController extends Controller
             Log::info('Message status updated', [
                 'message_id' => $messageId,
                 'status' => $statusType,
+                'has_errors' => !empty($errorInfo)
             ]);
 
         } catch (\Exception $e) {

@@ -269,6 +269,12 @@ class AppointmentController extends Controller
      */
     public function upload(Request $request)
     {
+        Log::info('=== INICIO SUBIDA DE ARCHIVO ===', [
+            'user_id' => auth()->id(),
+            'has_file' => $request->hasFile('file'),
+            'all_files' => $request->allFiles(),
+        ]);
+        
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // Max 10MB
         ]);
@@ -408,13 +414,15 @@ class AppointmentController extends Controller
                     }
 
                     $appointment = ['uploaded_by' => auth()->id()];
+                    $rowDebug = [];
                     
                     foreach ($columnIndexes as $column => $index) {
                         $value = $row[$index] ?? null;
+                        $rowDebug[$column] = $value;
                         
-                        // Debug: Log del valor de citfc
-                        if ($column === 'citfci') {
-                            Log::info('CITFC DEBUG', [
+                        // Debug solo para la primera fila de datos
+                        if ($totalProcessed === 0 && $totalDuplicates === 0 && $column === 'citfci') {
+                            Log::info('PRIMERA FILA - CITFC DEBUG', [
                                 'raw_value' => $value,
                                 'is_numeric' => is_numeric($value),
                                 'is_string' => is_string($value),
@@ -432,14 +440,40 @@ class AppointmentController extends Controller
                                     $value = null;
                                 }
                             } elseif (is_string($value)) {
-                                // Intentar parsear fecha en formato texto
-                                try {
-                                    $date = \DateTime::createFromFormat('d/m/Y', $value);
-                                    if ($date) {
-                                        $value = $date->format('Y-m-d');
+                                // Intentar parsear fecha en diferentes formatos
+                                $originalValue = trim($value);
+                                $parsedDate = null;
+                                
+                                // Formato AAAA/MM/DD (ej: 2025/12/14)
+                                $date = \DateTime::createFromFormat('Y/m/d', $originalValue);
+                                if ($date && $date->format('Y/m/d') === $originalValue) {
+                                    $parsedDate = $date;
+                                }
+                                
+                                // Formato DD/MM/AAAA (ej: 14/12/2025)
+                                if (!$parsedDate) {
+                                    $date = \DateTime::createFromFormat('d/m/Y', $originalValue);
+                                    if ($date && $date->format('d/m/Y') === $originalValue) {
+                                        $parsedDate = $date;
                                     }
-                                } catch (\Exception $e) {
-                                    $value = null;
+                                }
+                                
+                                // Formato AAAA-MM-DD (ej: 2025-12-14)
+                                if (!$parsedDate) {
+                                    $date = \DateTime::createFromFormat('Y-m-d', $originalValue);
+                                    if ($date && $date->format('Y-m-d') === $originalValue) {
+                                        $parsedDate = $date;
+                                    }
+                                }
+                                
+                                $value = $parsedDate ? $parsedDate->format('Y-m-d') : null;
+                                
+                                // Solo log para primera fila
+                                if ($totalProcessed === 0 && $totalDuplicates === 0) {
+                                    Log::info('CITFC PARSEADO', [
+                                        'original' => $originalValue,
+                                        'parsed' => $value
+                                    ]);
                                 }
                             }
                         }
@@ -469,14 +503,60 @@ class AppointmentController extends Controller
                             }
                         }
                         
-                        // Procesar hora - Excel usa números decimales para tiempo
-                        if ($column === 'cithor' && is_numeric($value)) {
-                            try {
-                                // Excel guarda tiempo como fracción del día
-                                $datetime = Date::excelToDateTimeObject($value);
-                                $value = $datetime->format('H:i:s');
-                            } catch (\Exception $e) {
-                                $value = null;
+                        // Procesar hora - Excel usa números decimales para tiempo o texto
+                        if ($column === 'cithor' && !empty($value)) {
+                            if (is_numeric($value)) {
+                                try {
+                                    // Excel guarda tiempo como fracción del día
+                                    $datetime = Date::excelToDateTimeObject($value);
+                                    $value = $datetime->format('H:i:s');
+                                } catch (\Exception $e) {
+                                    $value = null;
+                                }
+                            } elseif (is_string($value)) {
+                                // Intentar parsear hora en formato texto (ej: 04:30 PM, 16:30)
+                                $originalTimeValue = trim($value);
+                                $parsedTime = null;
+                                
+                                // Formato 12 horas con AM/PM (ej: 04:30 PM)
+                                $time = \DateTime::createFromFormat('h:i A', strtoupper($originalTimeValue));
+                                if ($time) {
+                                    $parsedTime = $time;
+                                }
+                                
+                                // Formato 12 horas con am/pm minúsculas
+                                if (!$parsedTime) {
+                                    $time = \DateTime::createFromFormat('h:i a', strtolower($originalTimeValue));
+                                    if ($time) {
+                                        $parsedTime = $time;
+                                    }
+                                }
+                                
+                                // Formato 24 horas (ej: 16:30)
+                                if (!$parsedTime) {
+                                    $time = \DateTime::createFromFormat('H:i', $originalTimeValue);
+                                    if ($time) {
+                                        $parsedTime = $time;
+                                    }
+                                }
+                                
+                                // Formato 24 horas con segundos (ej: 16:30:00)
+                                if (!$parsedTime) {
+                                    $time = \DateTime::createFromFormat('H:i:s', $originalTimeValue);
+                                    if ($time) {
+                                        $parsedTime = $time;
+                                    }
+                                }
+                                
+                                $value = $parsedTime ? $parsedTime->format('H:i:s') : null;
+                                
+                                // Solo log para primera fila
+                                if ($totalProcessed === 0 && $totalDuplicates === 0) {
+                                    Log::info('CITHOR PARSEADO', [
+                                        'original' => $originalTimeValue,
+                                        'parsed' => $value
+                                    ]);
+                                }
                             }
                         }
                         
@@ -490,6 +570,15 @@ class AppointmentController extends Controller
                     
                     // Verificar si la cita ya existe (duplicado)
                     $isDuplicate = $this->isAppointmentDuplicate($appointment);
+                    
+                    // Log de la primera fila procesada para debug
+                    if ($totalProcessed === 0 && $totalDuplicates === 0) {
+                        Log::info('PRIMERA FILA COMPLETA', [
+                            'raw_data' => $rowDebug,
+                            'processed_appointment' => $appointment,
+                            'is_duplicate' => $isDuplicate
+                        ]);
+                    }
                     
                     if ($isDuplicate) {
                         $totalDuplicates++;
@@ -546,38 +635,35 @@ class AppointmentController extends Controller
 
     /**
      * Verificar si una cita ya existe en la base de datos
-     * Una cita se considera duplicada si tiene el mismo:
-     * - citead (número de admisión) - si existe, es único
-     * - O la combinación de: citfc (fecha) + cithor (hora) + citide (cédula paciente)
+     * Una cita se considera duplicada SOLO si TODOS los datos son exactamente iguales
      */
     private function isAppointmentDuplicate(array $appointment): bool
     {
         // Solo comparar con las citas del usuario actual
         $uploadedBy = $appointment['uploaded_by'] ?? auth()->id();
         
-        // Si tiene número de admisión, es el identificador más único
-        if (!empty($appointment['citead'])) {
-            return DB::table('appointments')
-                ->where('uploaded_by', $uploadedBy)
-                ->where('citead', $appointment['citead'])
-                ->exists();
-        }
-        
-        // Si no tiene citead, verificar por combinación de fecha + hora + cédula
-        // Todos estos campos deben tener valor para considerarse un duplicado válido
-        if (empty($appointment['citfc']) || empty($appointment['citide'])) {
-            // Sin fecha o cédula no podemos determinar duplicado con certeza
-            return false;
-        }
+        // Campos a comparar para determinar duplicado (todos deben coincidir)
+        $fieldsToCompare = [
+            'citead', 'cianom', 'citmed', 'mednom', 'citesp', 'espnom',
+            'citfc', 'cithor', 'citdoc', 'nom_paciente', 'pactel', 'pacnac',
+            'pachis', 'cittid', 'citide', 'citres', 'cittip', 'nom_cotizante',
+            'citcon', 'connom', 'citurg', 'citobsobs', 'duracion', 'ageperdes_g', 'dia'
+        ];
         
         $query = DB::table('appointments')
-            ->where('uploaded_by', $uploadedBy)
-            ->where('citfc', $appointment['citfc'])
-            ->where('citide', $appointment['citide']);
+            ->where('uploaded_by', $uploadedBy);
         
-        // Si tiene hora, incluirla en la comparación
-        if (!empty($appointment['cithor'])) {
-            $query->where('cithor', $appointment['cithor']);
+        // Comparar todos los campos
+        foreach ($fieldsToCompare as $field) {
+            $value = $appointment[$field] ?? null;
+            
+            if ($value === null || $value === '') {
+                $query->where(function($q) use ($field) {
+                    $q->whereNull($field)->orWhere($field, '');
+                });
+            } else {
+                $query->where($field, $value);
+            }
         }
         
         return $query->exists();

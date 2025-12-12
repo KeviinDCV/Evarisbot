@@ -132,6 +132,23 @@ class AppointmentReminderService
             Log::info('Código de país agregado', ['phone' => $phoneNumber]);
         }
         
+        // Log de validación (sin rechazar, dejar que WhatsApp valide)
+        if (strlen($phoneNumber) < 10 || strlen($phoneNumber) > 15) {
+            Log::warning('Número de teléfono con longitud inusual (se intentará enviar de todas formas)', [
+                'phone' => $phoneNumber,
+                'length' => strlen($phoneNumber),
+                'appointment_id' => $appointment->id
+            ]);
+        }
+        
+        // Verificar que empiece con código de país
+        if (!str_starts_with($phoneNumber, '57')) {
+            Log::warning('Número no tiene código de Colombia (se intentará enviar de todas formas)', [
+                'phone' => $phoneNumber,
+                'appointment_id' => $appointment->id
+            ]);
+        }
+        
         // Preparar parámetros del template
         $parameters = $this->prepareTemplateParameters($appointment);
         
@@ -155,10 +172,13 @@ class AppointmentReminderService
             
             if (isset($response['messages'][0]['id'])) {
                 $messageId = $response['messages'][0]['id'];
+                $messageStatus = $response['messages'][0]['message_status'] ?? 'unknown';
                 
                 Log::info('Mensaje enviado exitosamente', [
                     'message_id' => $messageId,
-                    'phone' => $phoneNumber
+                    'phone' => $phoneNumber,
+                    'message_status' => $messageStatus,
+                    'full_response' => $response
                 ]);
                 
                 // Buscar o crear conversación (con formato internacional +57...)
