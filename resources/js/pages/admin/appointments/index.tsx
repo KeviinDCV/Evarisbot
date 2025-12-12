@@ -461,13 +461,22 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     };
 
     const handleStartRemindersDayBefore = async () => {
-        if (!confirm(`¿Estás seguro de enviar ${localStats.pending_tomorrow} recordatorios para las citas de MAÑANA? Esto es para citas que no se enviaron a tiempo (2 días antes).`)) {
-            return;
-        }
-
         setIsLoading(true);
+        
+        // Establecer estado de procesamiento inmediatamente para mostrar la barra de progreso
         setIsProcessing(true);
         setIsPaused(false);
+        
+        // Inicializar progreso con el total de pendientes para mañana
+        if (localStats.pending_tomorrow > 0) {
+            setProgress({
+                sent: 0,
+                failed: 0,
+                total: localStats.pending_tomorrow,
+                pending: localStats.pending_tomorrow,
+                percentage: 0
+            });
+        }
         
         try {
             const response = await fetch('/admin/appointments/reminders/start-day-before', {
