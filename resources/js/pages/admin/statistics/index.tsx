@@ -171,8 +171,10 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 {/* Switch para gráficos */}
                                 <div className="flex items-center gap-3 bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-2 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]">
                                     <Table2 className={`w-4 h-4 transition-colors ${!showCharts ? 'text-[#2e3f84]' : 'text-gray-400'}`} />
-                                    <label className="relative inline-flex items-center cursor-pointer">
+                                    <label htmlFor="show-charts-toggle" className="relative inline-flex items-center cursor-pointer">
                                         <input
+                                            id="show-charts-toggle"
+                                            name="show-charts-toggle"
                                             type="checkbox"
                                             checked={showCharts}
                                             onChange={(e) => setShowCharts(e.target.checked)}
@@ -215,10 +217,12 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                         <form onSubmit={handleFilterSubmit}>
                             <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                                 <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
-                                    <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                    <label htmlFor="stats-period" className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                         {t('statistics.filters.period')}
                                     </label>
                                     <select
+                                        id="stats-period"
+                                        name="stats-period"
                                         value={period}
                                         onChange={(e) => setPeriod(e.target.value)}
                                         className="w-full border-0 rounded-none transition-all duration-200"
@@ -238,10 +242,12 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </select>
                                 </div>
                                 <div style={{ flex: '1 1 180px', minWidth: '160px' }}>
-                                    <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                    <label htmlFor="stats-start-date" className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                         {t('statistics.filters.startDate')}
                                     </label>
                                     <Input
+                                        id="stats-start-date"
+                                        name="stats-start-date"
                                         type="date"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
@@ -255,10 +261,12 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     />
                                 </div>
                                 <div style={{ flex: '1 1 180px', minWidth: '160px' }}>
-                                    <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                    <label htmlFor="stats-end-date" className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                         {t('statistics.filters.endDate')}
                                     </label>
                                     <Input
+                                        id="stats-end-date"
+                                        name="stats-end-date"
                                         type="date"
                                         value={endDate}
                                         onChange={(e) => setEndDate(e.target.value)}
@@ -454,7 +462,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                             cx="50%"
                                             cy="50%"
                                             labelLine={false}
-                                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                                            label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
                                             outerRadius={70}
                                             fill="#8884d8"
                                             dataKey="value"
@@ -489,7 +497,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                             cx="50%"
                                             cy="50%"
                                             labelLine={false}
-                                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                                            label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
                                             outerRadius={70}
                                             fill="#8884d8"
                                             dataKey="value"
@@ -592,7 +600,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                             cx="50%"
                                             cy="50%"
                                             labelLine={false}
-                                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                                            label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
                                             outerRadius={70}
                                             fill="#8884d8"
                                             dataKey="value"

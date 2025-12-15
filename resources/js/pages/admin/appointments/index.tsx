@@ -906,8 +906,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 `}
                             >
                                 {!data.file ? (
-                                    <label className="cursor-pointer block">
+                                    <label htmlFor="appointment-file-upload" className="cursor-pointer block">
                                         <input
+                                            id="appointment-file-upload"
+                                            name="appointment-file"
                                             type="file"
                                             className="hidden"
                                             accept=".xlsx,.xls,.csv"
@@ -1019,8 +1021,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             <div className="flex items-center gap-3">
                             {/* Buscador */}
                             <div className="relative">
+                                <label htmlFor="appointment-search" className="sr-only">Buscar citas</label>
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494]" />
                                 <input
+                                    id="appointment-search"
+                                    name="appointment-search"
                                     type="text"
                                     placeholder="Buscar por paciente, teléfono, médico..."
                                     value={searchTerm}

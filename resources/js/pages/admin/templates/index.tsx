@@ -141,12 +141,14 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                         {/* Filtros */}
                         <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                             <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
-                                <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                <label htmlFor="template-search" className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     {t('common.search')}
                                 </label>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                     <Input
+                                        id="template-search"
+                                        name="template-search"
                                         type="text"
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
@@ -164,10 +166,12 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                             </div>
 
                             <div style={{ flex: '0 1 150px' }}>
-                                <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                <label htmlFor="template-status" className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     {t('common.status')}
                                 </label>
                                 <select
+                                    id="template-status"
+                                    name="template-status"
                                     value={statusFilter}
                                     onChange={(e) => setStatusFilter(e.target.value)}
                                     className="w-full border-0 rounded-none transition-all duration-200"
@@ -186,10 +190,12 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                             </div>
 
                             <div style={{ flex: '0 1 150px' }}>
-                                <label className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                <label htmlFor="template-type" className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                     {t('templates.type')}
                                 </label>
                                 <select
+                                    id="template-type"
+                                    name="template-type"
                                     value={typeFilter}
                                     onChange={(e) => setTypeFilter(e.target.value)}
                                     className="w-full border-0 rounded-none transition-all duration-200"

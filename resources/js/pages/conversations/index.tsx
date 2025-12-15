@@ -884,8 +884,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                         
                         {/* Búsqueda */}
                         <div className="relative">
+                            <label htmlFor="conversation-search" className="sr-only">{t('conversations.searchPlaceholder')}</label>
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#6b7494] w-4 h-4" />
                             <Input
+                                id="conversation-search"
+                                name="conversation-search"
                                 type="text"
                                 placeholder={t('conversations.searchPlaceholder')}
                                 value={search}
