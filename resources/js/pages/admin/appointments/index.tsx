@@ -96,17 +96,16 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     // Limpiar estado de procesamiento y progreso si no hay citas pendientes
     useEffect(() => {
         const hasPending = (remindersStats?.pending ?? 0) > 0;
-        if (!hasPending) {
-            // Si no hay citas pendientes, limpiar todo el estado
-            setIsProcessing(false);
-            setIsPaused(false);
-            setProgress(null);
-        } else if (!reminderProcessing) {
-            // Si hay citas pendientes pero no está procesando, limpiar solo el estado de procesamiento
+        const hasPendingTomorrow = (remindersStats?.pending_tomorrow ?? 0) > 0;
+        
+        // Solo limpiar si NO hay citas pendientes de ningún tipo Y el servidor dice que no está procesando
+        if (!hasPending && !hasPendingTomorrow && !reminderProcessing) {
             setIsProcessing(false);
             setIsPaused(false);
             setProgress(null);
         }
+        // NO limpiar automáticamente solo porque reminderProcessing es false
+        // El estado local isProcessing tiene prioridad durante el envío
     }, [remindersStats, reminderProcessing]);
 
     // Actualizar estado cada 500ms si está procesando para capturar actualizaciones en tiempo real
@@ -490,6 +489,34 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
             const data = await response.json();
             
             if (data.success) {
+                // Si fue síncrono y terminó inmediatamente, actualizar progreso final
+                if (data.sent !== undefined && data.failed !== undefined && data.total !== undefined) {
+                    setProgress({
+                        sent: data.sent,
+                        failed: data.failed,
+                        total: data.total,
+                        pending: Math.max(0, data.total - data.sent - data.failed),
+                        percentage: data.total > 0 ? Math.round(((data.sent + data.failed) / data.total) * 100) : 100
+                    });
+                    
+                    // Esperar un momento para mostrar el resultado final antes de limpiar
+                    setTimeout(() => {
+                        setIsProcessing(false);
+                        setIsPaused(false);
+                        setProgress(null);
+                    }, 3000);
+                }
+                
+                // Actualizar estadísticas locales si están disponibles
+                if (data.sent !== undefined && data.failed !== undefined && remindersStats) {
+                    setLocalStats({
+                        sent: remindersStats.sent + (data.sent || 0),
+                        pending: remindersStats.pending,
+                        pending_tomorrow: Math.max(0, remindersStats.pending_tomorrow - (data.sent || 0) - (data.failed || 0)),
+                        failed: remindersStats.failed + (data.failed || 0)
+                    });
+                }
+                
                 // Recargar estadísticas desde el servidor
                 router.reload({ 
                     only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
@@ -633,8 +660,8 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         )}
                                     </div>
                                     
-                                    {/* Barra de progreso en tiempo real - solo mostrar cuando hay proceso activo Y progreso válido */}
-                                    {isProcessing && reminderProcessing && progress && progress.total > 0 && (
+                                    {/* Barra de progreso en tiempo real - usar estado local isProcessing, no depender del servidor */}
+                                    {isProcessing && progress && progress.total > 0 && (
                                         <div className="mt-4 space-y-2">
                                             <div className="flex items-center justify-between text-xs text-[#6b7494]">
                                                 <span>Progreso del envío</span>
