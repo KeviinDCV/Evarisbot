@@ -69,6 +69,19 @@ interface Message {
     };
 }
 
+interface OptimisticMessage {
+    tempId: string;
+    content: string;
+    message_type: string;
+    media_url?: string | null;
+    is_from_user: boolean;
+    status: 'sending' | 'error';
+    created_at: string;
+    sender?: {
+        name: string;
+    };
+}
+
 interface Conversation {
     id: number;
     phone_number: string;
@@ -153,6 +166,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [newMessagesCount, setNewMessagesCount] = useState(0);
     const lastMessageCountRef = useRef(0);
     
+    // Estados para mensajes optimistas (actualización instantánea)
+    const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
+    const messageCountBeforeSendRef = useRef<number>(0);
+    
     const { data, setData, post, reset, processing } = useForm({
         content: '',
         media_file: null as File | null,
@@ -230,7 +247,19 @@ export default function ConversationsIndex({ conversations: initialConversations
         lastMessageCountRef.current = 0;
         setNewMessagesCount(0);
         setIsAtBottom(true);
+        setOptimisticMessages([]); // Limpiar mensajes optimistas al cambiar de conversación
     }, [selectedConversation?.id]);
+
+    // Limpiar mensajes optimistas cuando llegan los mensajes reales del servidor
+    useEffect(() => {
+        if (optimisticMessages.length > 0 && selectedConversation?.messages) {
+            const serverMessageCount = selectedConversation.messages.length;
+            // Si el servidor tiene más mensajes que cuando enviamos, limpiar optimistas
+            if (serverMessageCount > messageCountBeforeSendRef.current) {
+                setOptimisticMessages([]);
+            }
+        }
+    }, [selectedConversation?.messages?.length, optimisticMessages.length]);
 
     // Sincronizar conversaciones cuando cambian desde el servidor
     useEffect(() => {
@@ -629,36 +658,87 @@ export default function ConversationsIndex({ conversations: initialConversations
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         
-        console.log('Submit attempt:', { 
-            content: data.content, 
-            selectedFile, 
-            selectedConversation: selectedConversation?.id 
-        });
+        // Protección contra doble envío
+        if (isSubmitting) {
+            return;
+        }
         
         const hasContent = data.content && data.content.trim().length > 0;
         const hasFile = selectedFile !== null;
         
         if ((!hasContent && !hasFile) || !selectedConversation) {
-            console.log('Validation failed:', { hasContent, hasFile, hasConversation: !!selectedConversation });
             return;
         }
-
-        console.log('Sending message...');
+        
         setIsSubmitting(true);
-        post(`/admin/chat/${selectedConversation.id}/send`, {
-            preserveScroll: true,
-            forceFormData: true,
-            onSuccess: () => {
-                reset();
-                setSelectedFile(null);
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                }
-                setIsSubmitting(false);
+        
+        // Guardar conteo de mensajes actual para detectar cuando llegue el real
+        messageCountBeforeSendRef.current = selectedConversation.messages?.length || 0;
+
+        // Crear mensaje optimista (aparece inmediatamente)
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const optimisticMessage: OptimisticMessage = {
+            tempId,
+            content: data.content || (selectedFile ? `📎 ${selectedFile.name}` : ''),
+            message_type: hasFile ? 'document' : 'text',
+            media_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
+            is_from_user: false,
+            status: 'sending',
+            created_at: new Date().toISOString(),
+            sender: auth?.user ? { name: auth.user.name } : undefined,
+        };
+
+        // Agregar mensaje optimista al estado
+        setOptimisticMessages(prev => [...prev, optimisticMessage]);
+        
+        // Guardar contenido para posible reintento
+        const messageContent = data.content;
+        const messageFile = selectedFile;
+        
+        // Limpiar formulario inmediatamente (mejor UX)
+        reset();
+        setSelectedFile(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+        
+        // Scroll al final para ver el nuevo mensaje
+        setTimeout(() => scrollToBottom(), 50);
+
+        // Enviar al servidor en background usando fetch para no recargar la página
+        const formData = new FormData();
+        formData.append('content', messageContent);
+        if (messageFile) {
+            formData.append('media_file', messageFile);
+        }
+
+        fetch(`/admin/chat/${selectedConversation.id}/send`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
             },
-            onError: () => {
-                setIsSubmitting(false);
-            },
+            body: formData,
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Error al enviar mensaje');
+            return response.json();
+        })
+        .then((data) => {
+            // Marcar como enviado - se eliminará cuando llegue el mensaje real del servidor
+            setOptimisticMessages(prev => 
+                prev.map(m => m.tempId === tempId ? { ...m, status: 'sending' as const } : m)
+            );
+            setIsSubmitting(false);
+        })
+        .catch((error) => {
+            console.error('Error sending message:', error);
+            // Marcar mensaje como error
+            setOptimisticMessages(prev => 
+                prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const } : m)
+            );
+            setIsSubmitting(false);
         });
     };
 
@@ -1566,6 +1646,44 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 }`}>
                                                     <span>{formatTime(message.created_at)}</span>
                                                     {!message.is_from_user && getStatusIcon(message.status)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    
+                                    {/* Mensajes optimistas (enviándose) */}
+                                    {optimisticMessages.map((message) => (
+                                        <div
+                                            key={message.tempId}
+                                            className="flex justify-end"
+                                        >
+                                            <div
+                                                className={`max-w-[85%] md:max-w-[70%] rounded-none px-3 md:px-4 py-2 ${
+                                                    message.status === 'error'
+                                                        ? 'bg-gradient-to-b from-red-400 to-red-500 text-white shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_12px_rgba(239,68,68,0.25)]'
+                                                        : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] opacity-80'
+                                                }`}
+                                            >
+                                                {/* Remitente */}
+                                                {message.sender && (
+                                                    <p className="text-xs opacity-70 mb-1">
+                                                        {message.sender.name}
+                                                    </p>
+                                                )}
+                                                
+                                                {/* Contenido */}
+                                                <p className="text-sm whitespace-pre-wrap break-words">
+                                                    {message.content}
+                                                </p>
+
+                                                {/* Estado del mensaje */}
+                                                <div className="flex items-center justify-end gap-1 mt-1 text-xs text-white opacity-70">
+                                                    <span>{formatTime(message.created_at)}</span>
+                                                    {message.status === 'sending' ? (
+                                                        <Clock className="w-3 h-3 animate-pulse" />
+                                                    ) : (
+                                                        <span className="text-red-200 text-xs">Error al enviar</span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

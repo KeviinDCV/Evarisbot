@@ -313,6 +313,14 @@ class ConversationController extends Controller
         // Emitir evento de broadcasting para actualización en tiempo real
         broadcast(new MessageSent($message->fresh(['sender']), $conversation->fresh(['lastMessage', 'assignedUser'])))->toOthers();
 
+        // Si es petición AJAX/JSON, devolver JSON
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message->fresh(['sender']),
+            ]);
+        }
+
         return back();
     }
 
