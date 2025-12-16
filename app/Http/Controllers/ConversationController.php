@@ -17,11 +17,24 @@ class ConversationController extends Controller
      */
     public function getUnreadCount()
     {
-        if (auth()->user()->isAdvisor()) {
-            // Si es asesor, solo contar las asignadas a él
-            $count = Conversation::where('assigned_to', auth()->id())
-                ->where('unread_count', '>', 0)
-                ->count();
+        $user = auth()->user();
+        
+        if ($user->isAdvisor()) {
+            if ($user->isOnDuty()) {
+                // Asesor de turno: cuenta chats sin asignar + asignados a él
+                $count = Conversation::where(function ($q) {
+                    $q->whereNull('assigned_to')
+                      ->orWhere('assigned_to', auth()->id());
+                })
+                    ->whereIn('status', ['active', 'pending'])
+                    ->where('unread_count', '>', 0)
+                    ->count();
+            } else {
+                // Asesor normal: solo contar las asignadas a él
+                $count = Conversation::where('assigned_to', auth()->id())
+                    ->where('unread_count', '>', 0)
+                    ->count();
+            }
         } else {
             // Si es admin, contar todas las conversaciones con mensajes no leídos
             $count = Conversation::where('unread_count', '>', 0)
@@ -41,14 +54,25 @@ class ConversationController extends Controller
         $query = Conversation::with(['lastMessage', 'assignedUser'])
             ->orderBy('last_message_at', 'desc');
 
-        // Si es asesor, solo ver conversaciones activas asignadas a él
-        if (auth()->user()->isAdvisor()) {
-            $query->where('assigned_to', auth()->id())
-                  ->where('status', 'active'); // Asesores solo ven conversaciones activas
+        $user = auth()->user();
+
+        // Si es asesor, verificar si está de turno
+        if ($user->isAdvisor()) {
+            if ($user->isOnDuty()) {
+                // Asesor de turno: ve chats SIN asignar + chats asignados a él
+                $query->where(function ($q) {
+                    $q->whereNull('assigned_to')  // Sin asignar (pool compartido)
+                      ->orWhere('assigned_to', auth()->id());  // O asignados a él
+                })->whereIn('status', ['active', 'pending']);
+            } else {
+                // Asesor normal: solo ve las asignadas a él
+                $query->where('assigned_to', auth()->id())
+                      ->whereIn('status', ['active', 'pending']);
+            }
         }
 
         // Filtrar por estado si se proporciona (solo admin)
-        if (auth()->user()->isAdmin() && $request->has('status') && $request->status !== 'all') {
+        if ($user->isAdmin() && $request->has('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
         }
 
@@ -114,22 +138,45 @@ class ConversationController extends Controller
      */
     public function show(Request $request, Conversation $conversation)
     {
+        $user = auth()->user();
+        
         // Validar acceso: asesores solo pueden ver conversaciones asignadas a ellos
-        if (auth()->user()->isAdvisor() && $conversation->assigned_to !== auth()->id()) {
-            abort(403, 'No tienes permiso para ver esta conversación.');
+        // EXCEPTO si están de turno (pueden ver sin asignar + las suyas)
+        if ($user->isAdvisor()) {
+            if ($user->isOnDuty()) {
+                // Asesor de turno puede ver: sin asignar O asignadas a él
+                $canAccess = is_null($conversation->assigned_to) || $conversation->assigned_to === auth()->id();
+                if (!$canAccess) {
+                    abort(403, 'No tienes permiso para ver esta conversación.');
+                }
+            } else {
+                // Asesor normal solo ve las asignadas a él
+                if ($conversation->assigned_to !== auth()->id()) {
+                    abort(403, 'No tienes permiso para ver esta conversación.');
+                }
+            }
         }
 
         $query = Conversation::with(['lastMessage', 'assignedUser'])
             ->orderBy('last_message_at', 'desc');
 
-        // Si es asesor, solo ver conversaciones activas asignadas a él
-        if (auth()->user()->isAdvisor()) {
-            $query->where('assigned_to', auth()->id())
-                  ->where('status', 'active'); // Asesores solo ven conversaciones activas
+        // Si es asesor, verificar si está de turno
+        if ($user->isAdvisor()) {
+            if ($user->isOnDuty()) {
+                // Asesor de turno: ve chats SIN asignar + chats asignados a él
+                $query->where(function ($q) {
+                    $q->whereNull('assigned_to')
+                      ->orWhere('assigned_to', auth()->id());
+                })->whereIn('status', ['active', 'pending']);
+            } else {
+                // Asesor normal: solo ve las asignadas a él
+                $query->where('assigned_to', auth()->id())
+                      ->whereIn('status', ['active', 'pending']);
+            }
         }
 
         // Aplicar filtros si existen (solo admin)
-        if (auth()->user()->isAdmin()) {
+        if ($user->isAdmin()) {
             if ($request->has('status') && $request->status !== 'all') {
                 $query->where('status', $request->status);
             }
@@ -240,10 +287,14 @@ class ConversationController extends Controller
             'status' => 'pending',
         ]);
 
-        // Actualizar última actividad de la conversación
-        $conversation->update([
-            'last_message_at' => now(),
-        ]);
+        // Auto-asignar al asesor que responde si el chat no tiene asignación
+        // Esto implementa el "pool compartido" donde el primero en responder toma el chat
+        $updateData = ['last_message_at' => now()];
+        if (is_null($conversation->assigned_to)) {
+            $updateData['assigned_to'] = auth()->id();
+            $updateData['status'] = 'active';
+        }
+        $conversation->update($updateData);
 
         // Enviar mensaje usando WhatsApp Business API
         if ($whatsappService->isConfigured()) {
@@ -355,11 +406,20 @@ class ConversationController extends Controller
             'status' => 'required|in:active,pending,resolved',
         ]);
 
-        $conversation->update(['status' => $validated['status']]);
-
-        // Si es asesor y marca como resuelta, redirigir al índice (la conversación desaparecerá de su lista)
-        if (auth()->user()->isAdvisor() && $validated['status'] === 'resolved') {
-            return redirect()->route('admin.chat.index')->with('success', 'Conversación marcada como resuelta.');
+        // Si se marca como resuelta, también quitar la asignación
+        // Así cuando el cliente vuelva a escribir, no le aparecerá al asesor anterior
+        if ($validated['status'] === 'resolved') {
+            $conversation->update([
+                'status' => $validated['status'],
+                'assigned_to' => null,
+            ]);
+            
+            // Si es asesor, redirigir al índice (ya no tiene acceso a esta conversación)
+            if (auth()->user()->isAdvisor()) {
+                return redirect()->route('admin.chat.index')->with('success', 'Conversación marcada como resuelta.');
+            }
+        } else {
+            $conversation->update(['status' => $validated['status']]);
         }
 
         return back()->with('success', 'Estado actualizado.');

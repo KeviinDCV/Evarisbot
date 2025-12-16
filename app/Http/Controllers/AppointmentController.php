@@ -59,9 +59,8 @@ class AppointmentController extends Controller
             Setting::remove('reminder_progress_total');
         }
         
-        // Cargar las últimas 50 citas del usuario actual (más recientes primero)
-        $appointments = Appointment::where('uploaded_by', auth()->id())
-            ->orderBy('id', 'desc')
+        // Cargar las últimas 50 citas (más recientes primero) - todos los admins ven todas
+        $appointments = Appointment::orderBy('id', 'desc')
             ->limit(50)
             ->get()
             ->map(fn($apt) => [
@@ -81,7 +80,7 @@ class AppointmentController extends Controller
                 'reminder_status' => $apt->reminder_status,
             ]);
         
-        $totalAppointments = Appointment::where('uploaded_by', auth()->id())->count();
+        $totalAppointments = Appointment::count();
         
         // Obtener solo las citas pendientes de pasado mañana (2 días desde hoy)
         $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
@@ -89,7 +88,6 @@ class AppointmentController extends Controller
         $targetDateString = $targetDate->format('Y-m-d');
         
         $pendingCount = Appointment::query()
-            ->where('uploaded_by', auth()->id())
             ->whereDate('citfc', '=', $targetDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
@@ -102,7 +100,6 @@ class AppointmentController extends Controller
         $tomorrowDateString = $tomorrowDate->format('Y-m-d');
         
         $pendingTomorrowCount = Appointment::query()
-            ->where('uploaded_by', auth()->id())
             ->whereDate('citfc', '=', $tomorrowDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
@@ -111,10 +108,10 @@ class AppointmentController extends Controller
             ->count();
         
         $remindersStats = [
-            'sent' => Appointment::where('uploaded_by', auth()->id())->where('reminder_sent', true)->count(),
+            'sent' => Appointment::where('reminder_sent', true)->count(),
             'pending' => $pendingCount,
             'pending_tomorrow' => $pendingTomorrowCount,
-            'failed' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'failed')->count(),
+            'failed' => Appointment::where('reminder_status', 'failed')->count(),
         ];
         
         // Estado de recordatorios
@@ -135,7 +132,7 @@ class AppointmentController extends Controller
      */
     public function view(Request $request)
     {
-        $query = Appointment::where('uploaded_by', auth()->id());
+        $query = Appointment::query();
         
         // Aplicar filtro por estado de recordatorio
         $filter = $request->get('filter', 'all');
@@ -197,10 +194,10 @@ class AppointmentController extends Controller
         
         // Estadísticas por filtro
         $stats = [
-            'all' => Appointment::where('uploaded_by', auth()->id())->count(),
-            'pending' => Appointment::where('uploaded_by', auth()->id())->where('reminder_sent', false)->count(),
-            'confirmed' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'confirmed')->count(),
-            'cancelled' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'cancelled')->count(),
+            'all' => Appointment::count(),
+            'pending' => Appointment::where('reminder_sent', false)->count(),
+            'confirmed' => Appointment::where('reminder_status', 'confirmed')->count(),
+            'cancelled' => Appointment::where('reminder_status', 'cancelled')->count(),
         ];
         
         return Inertia::render('admin/appointments/view', [
@@ -218,7 +215,7 @@ class AppointmentController extends Controller
      */
     public function export(Request $request)
     {
-        $query = Appointment::where('uploaded_by', auth()->id());
+        $query = Appointment::query();
         
         // Aplicar filtro por estado de recordatorio
         $filter = $request->get('filter', 'all');
@@ -735,9 +732,8 @@ class AppointmentController extends Controller
             $targetDate = now()->addDays($daysInAdvance)->startOfDay();
             $targetDateString = $targetDate->format('Y-m-d');
             
-            // Obtener SOLO las citas de pasado mañana del usuario actual
+            // Obtener SOLO las citas de pasado mañana
             $appointments = Appointment::query()
-                ->where('uploaded_by', auth()->id())
                 ->whereDate('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('citfc')
@@ -981,9 +977,8 @@ class AppointmentController extends Controller
             $targetDate = now()->addDays($daysInAdvance)->startOfDay();
             $targetDateString = $targetDate->format('Y-m-d');
             
-            // Actualizar solo las citas pendientes del usuario actual para la fecha objetivo
+            // Actualizar solo las citas pendientes para la fecha objetivo
             $updated = Appointment::query()
-                ->where('uploaded_by', auth()->id())
                 ->whereDate('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('citfc')
@@ -1111,7 +1106,6 @@ class AppointmentController extends Controller
         $targetDateString = $targetDate->format('Y-m-d');
         
         $pendingCount = Appointment::query()
-            ->where('uploaded_by', auth()->id())
             ->whereDate('citfc', '=', $targetDateString)
             ->where('reminder_sent', false)
             ->whereNotNull('citfc')
@@ -1142,8 +1136,7 @@ class AppointmentController extends Controller
 
         // Si se solicita como Inertia (para actualizar la página)
         // Necesitamos cargar todos los datos de la página
-        $appointments = Appointment::where('uploaded_by', auth()->id())
-            ->orderBy('created_at', 'desc')
+        $appointments = Appointment::orderBy('created_at', 'desc')
             ->limit(50)
             ->get()
             ->map(fn($apt) => [
@@ -1163,7 +1156,7 @@ class AppointmentController extends Controller
                 'reminder_status' => $apt->reminder_status,
             ]);
         
-        $totalAppointments = Appointment::where('uploaded_by', auth()->id())->count();
+        $totalAppointments = Appointment::count();
         
         return Inertia::render('admin/appointments/index', [
             'appointments' => $appointments,
@@ -1171,9 +1164,9 @@ class AppointmentController extends Controller
             'reminderPaused' => $paused,
             'reminderProcessing' => $processing,
             'remindersStats' => [
-                'sent' => Appointment::where('uploaded_by', auth()->id())->where('reminder_sent', true)->count(),
+                'sent' => Appointment::where('reminder_sent', true)->count(),
                 'pending' => $pendingCount,
-                'failed' => Appointment::where('uploaded_by', auth()->id())->where('reminder_status', 'failed')->count(),
+                'failed' => Appointment::where('reminder_status', 'failed')->count(),
             ],
             'uploadedFile' => session('uploaded_file'),
         ]);

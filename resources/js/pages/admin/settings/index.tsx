@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Loader2, Users, Check } from 'lucide-react';
 import InputError from '@/components/input-error';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface Settings {
@@ -20,8 +20,16 @@ interface Settings {
     };
 }
 
+interface Advisor {
+    id: number;
+    name: string;
+    email: string;
+    is_on_duty: boolean;
+}
+
 interface SettingsIndexProps {
     settings: Settings;
+    advisors: Advisor[];
 }
 
 interface BusinessProfile {
@@ -33,7 +41,7 @@ interface BusinessProfile {
     messaging_limit: string;
 }
 
-export default function SettingsIndex({ settings }: SettingsIndexProps) {
+export default function SettingsIndex({ settings, advisors }: SettingsIndexProps) {
     const { t } = useTranslation();
     const [testingConnection, setTestingConnection] = useState(false);
     const [loadingProfile, setLoadingProfile] = useState(false);
@@ -42,6 +50,12 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
         type: 'success' | 'error' | null;
         message: string;
     }>({ type: null, message: '' });
+
+    // Estado para asesores de turno
+    const [selectedAdvisors, setSelectedAdvisors] = useState<number[]>(
+        advisors.filter(a => a.is_on_duty).map(a => a.id)
+    );
+    const [savingAdvisors, setSavingAdvisors] = useState(false);
 
     // Formulario de WhatsApp
     const whatsappForm = useForm({
@@ -88,6 +102,26 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
         } finally {
             setTestingConnection(false);
         }
+    };
+
+    // Toggle asesor de turno
+    const toggleAdvisor = (advisorId: number) => {
+        setSelectedAdvisors(prev => 
+            prev.includes(advisorId)
+                ? prev.filter(id => id !== advisorId)
+                : [...prev, advisorId]
+        );
+    };
+
+    // Guardar asesores de turno
+    const saveOnDutyAdvisors = () => {
+        setSavingAdvisors(true);
+        router.post('/admin/settings/on-duty-advisors', {
+            advisor_ids: selectedAdvisors,
+        }, {
+            preserveScroll: true,
+            onFinish: () => setSavingAdvisors(false),
+        });
     };
 
     const getBusinessProfile = async () => {
@@ -326,6 +360,90 @@ export default function SettingsIndex({ settings }: SettingsIndexProps) {
                                     </div>
                                 )}
                             </form>
+                        </div>
+
+                        {/* Asesores de Turno */}
+                        <div className="mt-6">
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
+                                <div className="mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <Users className="w-5 h-5 text-[#2e3f84]" />
+                                        <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">Asesores de Turno</h2>
+                                    </div>
+                                    <p className="text-xs md:text-sm text-[#6b7494] mt-1">
+                                        Selecciona los asesores que recibirán todas las conversaciones. Útil para rotación semanal de turnos.
+                                    </p>
+                                </div>
+
+                                {advisors.length === 0 ? (
+                                    <div className="text-center py-8 text-[#6b7494]">
+                                        <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                        <p className="text-sm">No hay asesores registrados</p>
+                                        <p className="text-xs mt-1">Crea asesores en la sección de Usuarios</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                            {advisors.map((advisor) => (
+                                                <button
+                                                    key={advisor.id}
+                                                    type="button"
+                                                    onClick={() => toggleAdvisor(advisor.id)}
+                                                    className={`w-full flex items-center justify-between p-3 rounded-none transition-all duration-200 ${
+                                                        selectedAdvisors.includes(advisor.id)
+                                                            ? 'bg-gradient-to-b from-[#e8f5e9] to-[#c8e6c9] shadow-[0_1px_2px_rgba(34,197,94,0.1),0_2px_4px_rgba(34,197,94,0.08),inset_0_1px_0_rgba(255,255,255,0.6)]'
+                                                            : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.6)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)]'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${
+                                                            selectedAdvisors.includes(advisor.id)
+                                                                ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a]'
+                                                                : 'bg-gradient-to-b from-[#6b7494] to-[#5a637f]'
+                                                        }`}>
+                                                            {advisor.name.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <p className="text-sm font-medium text-[#2e3f84]">{advisor.name}</p>
+                                                            <p className="text-xs text-[#6b7494]">{advisor.email}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                                        selectedAdvisors.includes(advisor.id)
+                                                            ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
+                                                            : 'bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0]'
+                                                    }`}>
+                                                        {selectedAdvisors.includes(advisor.id) && (
+                                                            <Check className="w-4 h-4" />
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#e8ebf5]">
+                                            <p className="text-xs text-[#6b7494]">
+                                                {selectedAdvisors.length} de {advisors.length} asesor{advisors.length !== 1 ? 'es' : ''} seleccionado{selectedAdvisors.length !== 1 ? 's' : ''}
+                                            </p>
+                                            <Button
+                                                type="button"
+                                                onClick={saveOnDutyAdvisors}
+                                                disabled={savingAdvisors}
+                                                className="bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                            >
+                                                {savingAdvisors ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                        Guardando...
+                                                    </>
+                                                ) : (
+                                                    'Guardar Cambios'
+                                                )}
+                                            </Button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

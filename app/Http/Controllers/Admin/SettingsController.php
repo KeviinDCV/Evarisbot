@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -27,8 +28,15 @@ class SettingsController extends Controller
             ],
         ];
 
+        // Obtener asesores para la sección de turnos
+        $advisors = User::where('role', 'advisor')
+            ->select('id', 'name', 'email', 'is_on_duty')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('admin/settings/index', [
             'settings' => $settings,
+            'advisors' => $advisors,
         ]);
     }
 
@@ -181,5 +189,28 @@ class SettingsController extends Controller
                 'message' => 'Error al conectar: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Actualizar asesores de turno
+     */
+    public function updateOnDutyAdvisors(Request $request)
+    {
+        $validated = $request->validate([
+            'advisor_ids' => 'present|array',
+            'advisor_ids.*' => 'integer|exists:users,id',
+        ]);
+
+        // Desactivar todos los asesores primero
+        User::where('role', 'advisor')->update(['is_on_duty' => false]);
+
+        // Activar solo los seleccionados
+        if (!empty($validated['advisor_ids'])) {
+            User::whereIn('id', $validated['advisor_ids'])
+                ->where('role', 'advisor')
+                ->update(['is_on_duty' => true]);
+        }
+
+        return redirect()->back()->with('success', 'Asesores de turno actualizados exitosamente.');
     }
 }

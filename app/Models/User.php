@@ -23,6 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'is_on_duty',
     ];
 
     /**
@@ -70,6 +71,16 @@ class User extends Authenticatable
     public function isAdvisor(): bool
     {
         return $this->role === 'advisor';
+    }
+    
+    /**
+     * Check if the user is on duty (receiving all conversations).
+     *
+     * @return bool
+     */
+    public function isOnDuty(): bool
+    {
+        return (bool) $this->is_on_duty;
     }
     
     /**

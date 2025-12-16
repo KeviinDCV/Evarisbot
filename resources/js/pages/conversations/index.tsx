@@ -249,6 +249,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         setIsAtBottom(true);
         setOptimisticMessages([]); // Limpiar mensajes optimistas al cambiar de conversación
     }, [selectedConversation?.id]);
+    
 
     // Limpiar mensajes optimistas cuando llegan los mensajes reales del servidor
     useEffect(() => {
@@ -261,12 +262,57 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
     }, [selectedConversation?.messages?.length, optimisticMessages.length]);
 
+    // Ref para trackear el último filtro de búsqueda aplicado
+    const lastSearchFilterRef = useRef<string>(filters.search || '');
+    // Ref para trackear si había conversación seleccionada
+    const lastSelectedConversationRef = useRef<number | null>(selectedConversation?.id || null);
+    
     // Sincronizar conversaciones cuando cambian desde el servidor
     useEffect(() => {
-        setLocalConversations(initialConversations);
-        setHasMore(initialHasMore);
-        setCurrentPage(1);
-    }, [initialConversations, initialHasMore]);
+        const currentSearchFilter = filters.search || '';
+        const searchChanged = currentSearchFilter !== lastSearchFilterRef.current;
+        const selectedChanged = (selectedConversation?.id || null) !== lastSelectedConversationRef.current;
+        
+        // Actualizar refs
+        lastSearchFilterRef.current = currentSearchFilter;
+        lastSelectedConversationRef.current = selectedConversation?.id || null;
+        
+        // Si cambió el filtro de búsqueda o la selección cambió (navegación), resetear completamente
+        if (searchChanged || selectedChanged) {
+            setLocalConversations(initialConversations);
+            setHasMore(initialHasMore);
+            setCurrentPage(1);
+            return;
+        }
+        
+        // Si no cambió nada importante, actualizar sin perder conversaciones cargadas por scroll
+        // pero SÍ eliminar las que ya no están en initialConversations (ej: marcadas como resueltas)
+        setLocalConversations(prev => {
+            // Si es la primera carga (prev vacío), usar initialConversations
+            if (prev.length === 0) {
+                setHasMore(initialHasMore);
+                return initialConversations;
+            }
+            
+            // IDs que vienen del servidor
+            const serverIds = new Set(initialConversations.map(c => c.id));
+            
+            // Filtrar conversaciones locales que aún existen en el servidor
+            // y actualizarlas con datos frescos
+            const updated = prev
+                .filter(conv => serverIds.has(conv.id)) // Eliminar las que ya no están
+                .map(conv => {
+                    const freshConv = initialConversations.find(c => c.id === conv.id);
+                    return freshConv || conv;
+                });
+            
+            // Agregar nuevas conversaciones que no existían (al principio)
+            const existingIds = new Set(updated.map(c => c.id));
+            const newConvs = initialConversations.filter(c => !existingIds.has(c.id));
+            
+            return [...newConvs, ...updated];
+        });
+    }, [initialConversations, filters.search, initialHasMore, selectedConversation?.id]);
 
     // Función para cargar más conversaciones (scroll infinito)
     const loadMoreConversations = useCallback(async () => {
@@ -466,7 +512,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 preserveState: true,
                 preserveScroll: true,
                 replace: true,
-                only: ['conversations', 'hasMore'],
+                only: ['conversations', 'hasMore', 'filters'],
             });
         }, 400);
     };
@@ -558,7 +604,10 @@ export default function ConversationsIndex({ conversations: initialConversations
             });
             if (!isSelectionMode) setIsSelectionMode(true);
         } else {
-            router.get(`/admin/chat/${conversationId}`, {}, { preserveScroll: true, preserveState: true });
+            router.get(`/admin/chat/${conversationId}`, {}, { 
+                preserveScroll: true, 
+                preserveState: true
+            });
         }
     };
 
@@ -973,6 +1022,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 placeholder={t('conversations.searchPlaceholder')}
                                 value={search}
                                 onChange={(e) => handleSearch(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                    }
+                                }}
                                 className="pl-10 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] focus:shadow-[0_2px_4px_rgba(46,63,132,0.08),0_3px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none transition-all duration-200"
                             />
                         </div>
@@ -1442,16 +1496,30 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-56 bg-white">
-                                        {/* Marcar como resuelta / Reabrir */}
-                                        {selectedConversation.status === 'resolved' ? (
+                                        {/* Marcar como Activo */}
+                                        {selectedConversation.status !== 'active' && (
                                             <DropdownMenuItem 
                                                 onClick={() => handleStatusChange('active')}
                                                 className="cursor-pointer hover:bg-gray-100 text-blue-600"
                                             >
                                                 <Check className="w-4 h-4 mr-2" />
-                                                {t('conversations.reopenConversation')}
+                                                Marcar como Activo
                                             </DropdownMenuItem>
-                                        ) : (
+                                        )}
+                                        
+                                        {/* Marcar como Pendiente */}
+                                        {selectedConversation.status !== 'pending' && (
+                                            <DropdownMenuItem 
+                                                onClick={() => handleStatusChange('pending')}
+                                                className="cursor-pointer hover:bg-gray-100 text-yellow-600"
+                                            >
+                                                <Clock className="w-4 h-4 mr-2" />
+                                                Marcar como Pendiente
+                                            </DropdownMenuItem>
+                                        )}
+                                        
+                                        {/* Marcar como Resuelta */}
+                                        {selectedConversation.status !== 'resolved' && (
                                             <DropdownMenuItem 
                                                 onClick={() => handleStatusChange('resolved')}
                                                 className="cursor-pointer hover:bg-gray-100 text-green-600"
