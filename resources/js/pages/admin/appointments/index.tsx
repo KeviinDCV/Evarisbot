@@ -54,13 +54,20 @@ interface AppointmentIndexProps {
     };
     reminderPaused?: boolean;
     reminderProcessing?: boolean;
+    reminderProgress?: {
+        sent: number;
+        failed: number;
+        total: number;
+        pending: number;
+        percentage: number;
+    } | null;
     flash?: {
         success?: string;
         error?: string;
     };
 }
 
-export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false }: AppointmentIndexProps) {
+export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null }: AppointmentIndexProps) {
     const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
     const [showFlashMessage, setShowFlashMessage] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
@@ -68,12 +75,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
     const [isPaused, setIsPaused] = useState(reminderPaused);
-    // Solo inicializar como procesando si realmente hay citas pendientes Y está procesando
-    const [isProcessing, setIsProcessing] = useState(reminderProcessing && (remindersStats?.pending ?? 0) > 0);
+    // Inicializar como procesando si el servidor dice que está procesando
+    // (ya sea para citas de pasado mañana O de mañana)
+    const [isProcessing, setIsProcessing] = useState(reminderProcessing);
     const [isLoading, setIsLoading] = useState(false);
     const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, pending_tomorrow: 0, failed: 0 });
-    // Solo inicializar progreso si realmente está procesando Y hay citas pendientes
-    const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; pending: number; percentage: number } | null>(null);
+    // Inicializar progreso con el valor del servidor si existe
+    const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; pending: number; percentage: number } | null>(initialProgress);
     
     const { data, setData, post, processing, errors, reset } = useForm({
         file: null as File | null,
@@ -93,20 +101,17 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         }
     }, [remindersStats]);
 
-    // Limpiar estado de procesamiento y progreso si no hay citas pendientes
+    // Sincronizar estado de procesamiento y progreso con el servidor
     useEffect(() => {
-        const hasPending = (remindersStats?.pending ?? 0) > 0;
-        const hasPendingTomorrow = (remindersStats?.pending_tomorrow ?? 0) > 0;
-        
-        // Solo limpiar si NO hay citas pendientes de ningún tipo Y el servidor dice que no está procesando
-        if (!hasPending && !hasPendingTomorrow && !reminderProcessing) {
-            setIsProcessing(false);
-            setIsPaused(false);
-            setProgress(null);
+        // Si el servidor dice que está procesando, respetar eso
+        if (reminderProcessing) {
+            setIsProcessing(true);
+            // Sincronizar progreso inicial si existe
+            if (initialProgress) {
+                setProgress(initialProgress);
+            }
         }
-        // NO limpiar automáticamente solo porque reminderProcessing es false
-        // El estado local isProcessing tiene prioridad durante el envío
-    }, [remindersStats, reminderProcessing]);
+    }, [reminderProcessing, initialProgress]);
 
     // Actualizar estado cada 500ms si está procesando para capturar actualizaciones en tiempo real
     useEffect(() => {

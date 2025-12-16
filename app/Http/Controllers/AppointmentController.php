@@ -25,38 +25,48 @@ class AppointmentController extends Controller
      */
     public function index()
     {
-        // Verificar y limpiar el estado de procesamiento si es necesario
+        // Verificar estado de procesamiento y obtener progreso del batch
         $reminderProcessing = Setting::get('reminder_processing', 'false') === 'true';
+        $reminderProgress = null;
+        
         if ($reminderProcessing) {
             $batchId = Setting::get('reminder_batch_id');
             if ($batchId) {
                 try {
                     $batch = Bus::findBatch($batchId);
-                    if (!$batch || $batch->finished() || $batch->cancelled()) {
+                    if ($batch && ($batch->finished() || $batch->cancelled())) {
+                        // Batch terminó, limpiar estado
                         Setting::set('reminder_processing', 'false');
-                        Setting::set('reminder_paused', 'false'); // Limpiar estado pausado también
+                        Setting::set('reminder_paused', 'false');
+                        Setting::remove('reminder_batch_id');
+                        $reminderProcessing = false;
+                    } elseif ($batch) {
+                        // Batch activo - obtener progreso para enviarlo al frontend
+                        $progressSent = $batch->processedJobs() - $batch->failedJobs;
+                        $progressFailed = $batch->failedJobs;
+                        $progressTotal = $batch->totalJobs;
+                        $reminderProgress = [
+                            'sent' => $progressSent,
+                            'failed' => $progressFailed,
+                            'total' => $progressTotal,
+                            'pending' => max(0, $progressTotal - $progressSent - $progressFailed),
+                            'percentage' => $progressTotal > 0 ? round(($progressSent + $progressFailed) / $progressTotal * 100) : 0
+                        ];
+                    } else {
+                        // Batch no encontrado
+                        Log::warning('Batch de recordatorios no encontrado', ['batch_id' => $batchId]);
+                        Setting::set('reminder_processing', 'false');
                         Setting::remove('reminder_batch_id');
                         $reminderProcessing = false;
                     }
                 } catch (\Exception $e) {
-                    Setting::set('reminder_processing', 'false');
-                    Setting::set('reminder_paused', 'false'); // Limpiar estado pausado también
-                    Setting::remove('reminder_batch_id');
-                    $reminderProcessing = false;
+                    Log::error('Error verificando batch de recordatorios', [
+                        'batch_id' => $batchId,
+                        'error' => $e->getMessage()
+                    ]);
+                    // Mantener processing pero sin progreso
                 }
-            } else {
-                // No hay batch ID pero está marcado como processing, limpiar
-                Setting::set('reminder_processing', 'false');
-                Setting::set('reminder_paused', 'false'); // Limpiar estado pausado también
-                $reminderProcessing = false;
             }
-        } else {
-            // Si no hay proceso activo, asegurar que el estado pausado también esté limpio
-            Setting::set('reminder_paused', 'false');
-            // Limpiar progreso guardado si no hay proceso activo
-            Setting::remove('reminder_progress_sent');
-            Setting::remove('reminder_progress_failed');
-            Setting::remove('reminder_progress_total');
         }
         
         // Cargar las últimas 50 citas (más recientes primero) - todos los admins ven todas
@@ -124,6 +134,7 @@ class AppointmentController extends Controller
             'uploadedFile' => session('uploaded_file'),
             'reminderPaused' => $reminderPaused,
             'reminderProcessing' => $reminderProcessing,
+            'reminderProgress' => $reminderProgress,
         ]);
     }
 
@@ -1030,77 +1041,59 @@ class AppointmentController extends Controller
             if ($batchId) {
                 try {
                     $batch = \Illuminate\Support\Facades\Bus::findBatch($batchId);
-                    if (!$batch || $batch->finished() || $batch->cancelled()) {
-                        // El batch terminó pero el estado quedó como "processing", limpiarlo
+                    if ($batch) {
+                        if ($batch->finished() || $batch->cancelled()) {
+                            // El batch terminó, limpiar estado
+                            DB::table('settings')->where('key', 'reminder_processing')->update(['value' => 'false']);
+                            DB::table('settings')->where('key', 'reminder_batch_id')->delete();
+                            Cache::forget('setting.reminder_processing');
+                            Cache::forget('setting.reminder_batch_id');
+                            $processing = false;
+                            // Mantener el progreso final para que el usuario lo vea
+                            $progressTotal = $batch->totalJobs;
+                            $progressSent = $batch->processedJobs() - $batch->failedJobs;
+                            $progressFailed = $batch->failedJobs;
+                        } else {
+                            // Batch activo: obtener progreso directamente del batch de Laravel
+                            $progressTotal = $batch->totalJobs;
+                            $progressSent = $batch->processedJobs() - $batch->failedJobs;
+                            $progressFailed = $batch->failedJobs;
+                        }
+                    } else {
+                        // Batch no encontrado (ID inválido), limpiar
+                        Log::warning('Batch de recordatorios no encontrado en getReminderStatus', ['batch_id' => $batchId]);
                         DB::table('settings')->where('key', 'reminder_processing')->update(['value' => 'false']);
                         DB::table('settings')->where('key', 'reminder_batch_id')->delete();
-                        DB::table('settings')->whereIn('key', ['reminder_progress_sent', 'reminder_progress_failed', 'reminder_progress_total'])->delete();
                         Cache::forget('setting.reminder_processing');
                         Cache::forget('setting.reminder_batch_id');
                         $processing = false;
-                        $progressSent = 0;
-                        $progressFailed = 0;
-                        $progressTotal = 0;
-                    } else {
-                        // Batch activo: obtener progreso directamente del batch de Laravel (más preciso)
-                        $progressTotal = $batch->totalJobs;
-                        $progressSent = $batch->processedJobs() - $batch->failedJobs;
-                        $progressFailed = $batch->failedJobs;
                     }
                 } catch (\Exception $e) {
-                    // Si no se puede encontrar el batch, limpiar estado
-                    DB::table('settings')->where('key', 'reminder_processing')->update(['value' => 'false']);
-                    DB::table('settings')->where('key', 'reminder_batch_id')->delete();
-                    DB::table('settings')->whereIn('key', ['reminder_progress_sent', 'reminder_progress_failed', 'reminder_progress_total'])->delete();
-                    Cache::forget('setting.reminder_processing');
-                    Cache::forget('setting.reminder_batch_id');
-                    $processing = false;
-                    $progressSent = 0;
-                    $progressFailed = 0;
-                    $progressTotal = 0;
+                    // Error al buscar el batch - NO limpiar, el batch puede seguir activo
+                    Log::error('Error al buscar batch de recordatorios', [
+                        'batch_id' => $batchId,
+                        'error' => $e->getMessage()
+                    ]);
+                    // Mantener processing = true y usar progreso guardado en settings
                 }
             } else {
-                // No hay batchId pero está marcado como processing (procesamiento síncrono)
-                // Verificar timeout: si updated_at es mayor a 5 minutos, asumir proceso muerto
+                // No hay batchId pero está marcado como processing
+                // Solo limpiar si han pasado más de 30 minutos sin batch_id (timeout largo)
                 $processingRecord = DB::table('settings')->where('key', 'reminder_processing')->first();
                 $minutesSinceUpdate = $processingRecord ? now()->diffInMinutes($processingRecord->updated_at) : 999;
                 
-                // Limpiar si: progreso inválido, progreso completo, o timeout (>5 minutos sin actualización)
-                $shouldClean = $progressTotal === 0 || 
-                              ($progressTotal > 0 && $progressSent + $progressFailed >= $progressTotal) ||
-                              $minutesSinceUpdate > 5;
-                
-                if ($shouldClean) {
-                    if ($minutesSinceUpdate > 5) {
-                        Log::warning('Proceso de recordatorios detectado como muerto por timeout', [
-                            'minutes_since_update' => $minutesSinceUpdate,
-                            'progress' => ['sent' => $progressSent, 'failed' => $progressFailed, 'total' => $progressTotal]
-                        ]);
-                    }
-                    
+                if ($minutesSinceUpdate > 30) {
+                    Log::warning('Proceso de recordatorios sin batch_id detectado como muerto por timeout', [
+                        'minutes_since_update' => $minutesSinceUpdate
+                    ]);
                     DB::table('settings')->where('key', 'reminder_processing')->update(['value' => 'false']);
-                    DB::table('settings')->where('key', 'reminder_paused')->update(['value' => 'false']);
-                    DB::table('settings')->where('key', 'reminder_batch_id')->delete();
-                    DB::table('settings')->whereIn('key', ['reminder_progress_sent', 'reminder_progress_failed', 'reminder_progress_total'])->delete();
                     Cache::forget('setting.reminder_processing');
-                    Cache::forget('setting.reminder_paused');
                     $processing = false;
-                    $progressSent = 0;
-                    $progressFailed = 0;
-                    $progressTotal = 0;
                 }
-            }
-        } else {
-            // No está procesando, limpiar progreso siempre si existe
-            if ($progressTotal > 0) {
-                DB::table('settings')->whereIn('key', ['reminder_progress_sent', 'reminder_progress_failed', 'reminder_progress_total'])->delete();
-                $progressSent = 0;
-                $progressFailed = 0;
-                $progressTotal = 0;
             }
         }
         
-        // Obtener solo las citas pendientes de pasado mañana (2 días desde hoy) - optimizado
+        // Obtener citas pendientes de pasado mañana (2 días desde hoy)
         $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
         $targetDate = now()->addDays($daysInAdvance)->startOfDay();
         $targetDateString = $targetDate->format('Y-m-d');
@@ -1108,6 +1101,17 @@ class AppointmentController extends Controller
         $pendingCount = Appointment::query()
             ->whereDate('citfc', '=', $targetDateString)
             ->where('reminder_sent', false)
+            ->whereNull('reminder_error')
+            ->whereNotNull('citfc')
+            ->whereNotNull('pactel')
+            ->count();
+        
+        // Obtener citas pendientes para MAÑANA (1 día desde hoy)
+        $tomorrowDateString = now()->addDays(1)->format('Y-m-d');
+        $pendingTomorrowCount = Appointment::query()
+            ->whereDate('citfc', '=', $tomorrowDateString)
+            ->where('reminder_sent', false)
+            ->whereNull('reminder_error')
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
             ->count();
@@ -1166,6 +1170,7 @@ class AppointmentController extends Controller
             'remindersStats' => [
                 'sent' => Appointment::where('reminder_sent', true)->count(),
                 'pending' => $pendingCount,
+                'pending_tomorrow' => $pendingTomorrowCount,
                 'failed' => Appointment::where('reminder_status', 'failed')->count(),
             ],
             'uploadedFile' => session('uploaded_file'),
