@@ -181,9 +181,9 @@ class AppointmentController extends Controller
             });
         }
         
-        // Paginación
+        // Paginación - ordenar por ID descendente para mostrar los más recientes primero
         $perPage = 20;
-        $appointments = $query->orderBy('created_at', 'desc')
+        $appointments = $query->orderBy('id', 'desc')
             ->paginate($perPage)
             ->through(fn($apt) => [
                 'id' => $apt->id,
