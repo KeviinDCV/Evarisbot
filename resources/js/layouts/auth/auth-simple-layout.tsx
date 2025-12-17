@@ -31,61 +31,81 @@ export default function AuthSimpleLayout({
                 <LanguageSelector />
             </div>
             {/* Sistema de cajas flexible: contenedor principal */}
-            <div 
+            <div
                 className="w-full"
-                style={{ 
+                style={{
                     maxWidth: 'var(--container-sm)', // 384px default
                 }}
             >
                 {/* Caja de contenido con espaciado fluido */}
-                <div 
+                <div
                     className="flex flex-col"
-                    style={{ 
+                    style={{
                         gap: 'var(--space-xl)' // 32px entre logo y card
                     }}
                 >
-                    {/* Caja del Logo - Se reorganiza en diferentes viewports */}
-                    <div 
-                        className="flex justify-center"
-                        style={{ 
-                            marginBottom: 'var(--space-sm)'
+                    {/* Logo con título Evarisbot */}
+                    <div
+                        className="flex flex-col items-center"
+                        style={{
+                            marginBottom: 'var(--space-base)'
                         }}
                     >
-                        <AppLogoIcon 
-                            className="object-contain drop-shadow-lg transition-all duration-300" 
+                        <AppLogoIcon
+                            className="object-contain drop-shadow-lg transition-all duration-300 mb-4"
                             style={{
-                                height: 'clamp(4rem, 4rem + 1vw, 5.5rem)', // 64px-88px fluido (más compacto)
+                                height: 'clamp(4rem, 4rem + 1vw, 5rem)',
                                 width: 'auto'
                             }}
                         />
+                        <h1
+                            className="text-center font-bold text-sm tracking-widest uppercase opacity-80"
+                            style={{
+                                color: 'var(--primary-base)',
+                            }}
+                        >
+                            Evarisbot
+                        </h1>
                     </div>
-                    
+
                     {/* Caja del Card - Padding y spacing responsivos */}
-                    <div 
-                        className="rounded-none relative transition-all duration-300" 
-                        style={{ 
-                            backgroundColor: 'var(--layer-deep)', 
+                    <div
+                        className="rounded-none relative transition-all duration-300"
+                        style={{
+                            backgroundColor: 'var(--layer-deep)',
                             boxShadow: 'var(--shadow-xl)',
                             backgroundImage: 'var(--gradient-subtle)',
                             padding: 'clamp(1.5rem, 1.5rem + 1vw, 2.5rem)', // 24px-40px fluido
                         }}
                     >
                         {/* Caja de contenido interno */}
-                        <div style={{ 
+                        <div style={{
                             display: 'flex',
                             flexDirection: 'column',
                             gap: 'var(--space-lg)' // 24px entre título y contenido
                         }}>
-                            <h1 
-                                className="font-bold text-center transition-all duration-300" 
-                                style={{ 
+                            <h2
+                                className="font-bold text-center transition-all duration-300"
+                                style={{
                                     color: 'var(--primary-base)',
-                                    fontSize: 'var(--text-3xl)', // 30px-36px fluido
-                                    lineHeight: '1.2'
+                                    fontSize: 'var(--text-2xl)',
+                                    lineHeight: '1.2',
+                                    marginBottom: 'var(--space-xs)'
                                 }}
                             >
                                 {title}
-                            </h1>
+                            </h2>
+                            {description && (
+                                <p
+                                    className="text-center text-sm"
+                                    style={{
+                                        color: 'var(--text-subtle)',
+                                        marginBottom: 'var(--space-md)'
+                                    }}
+                                >
+                                    {description}
+                                </p>
+                            )}
                             {children}
                         </div>
                     </div>

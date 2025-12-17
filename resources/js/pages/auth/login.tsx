@@ -18,7 +18,7 @@ interface LoginProps {
 export default function Login({ status, canResetPassword }: LoginProps) {
     const { t } = useTranslation();
     const [showPassword, setShowPassword] = useState(false);
-    
+
     return (
         <AuthLayout
             title={t('auth.loginTitle')}
@@ -36,10 +36,10 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                     <>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                                <Label 
-                                    htmlFor="email" 
-                                    className="font-semibold" 
-                                    style={{ 
+                                <Label
+                                    htmlFor="email"
+                                    className="font-semibold"
+                                    style={{
                                         color: 'var(--primary-base)',
                                         fontSize: 'var(--text-sm)'
                                     }}
@@ -77,10 +77,10 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                                <Label 
-                                    htmlFor="password" 
-                                    className="font-semibold" 
-                                    style={{ 
+                                <Label
+                                    htmlFor="password"
+                                    className="font-semibold"
+                                    style={{
                                         color: 'var(--primary-base)',
                                         fontSize: 'var(--text-sm)'
                                     }}

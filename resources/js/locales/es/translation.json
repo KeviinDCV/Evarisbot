@@ -44,7 +44,7 @@
     "rememberMe": "Recuérdame",
     "username": "Nombre de usuario",
     "email": "Correo electrónico",
-    "emailPlaceholder": "ejemplo: usuario@correo.com",
+    "emailPlaceholder": "Ingresa tu email",
     "password": "Contraseña",
     "passwordPlaceholder": "Ingresa tu contraseña",
     "newPassword": "Nueva contraseña",

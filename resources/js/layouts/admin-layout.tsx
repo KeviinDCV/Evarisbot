@@ -31,7 +31,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     setUnreadConversationsCount(data.count || 0);
@@ -112,117 +112,101 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 />
             )}
 
-            {/* Sidebar - Responsive System of Boxes */}
+            {/* Sidebar - Modern Design */}
             <aside className={`
-                bg-gradient-to-b from-[#2a3a78] to-[#2e3f84] text-white flex flex-col flex-shrink-0
-                shadow-[1px_0_2px_rgba(46,63,132,0.15),2px_0_8px_rgba(46,63,132,0.2),4px_0_20px_rgba(46,63,132,0.15),inset_-1px_0_0_rgba(255,255,255,0.05)]
+                w-64 bg-[#2E3A75] flex flex-col justify-between flex-shrink-0 z-20 shadow-xl relative
                 transition-transform duration-300 ease-in-out
                 
                 ${/* Mobile: Overlay sidebar */''}
-                fixed lg:relative top-0 left-0 h-full z-40
-                w-56 lg:w-56 xl:w-64
+                fixed lg:relative top-0 left-0 h-full
                 
                 ${/* Mobile transform */''}
-                ${
-                    isMobileMenuOpen 
-                        ? 'translate-x-0' 
-                        : '-translate-x-full lg:translate-x-0'
+                ${isMobileMenuOpen
+                    ? 'translate-x-0'
+                    : '-translate-x-full lg:translate-x-0'
                 }
             `}>
-                {/* Logo - Elevated Layer */}
-                <div className="p-3 lg:p-4 bg-gradient-to-b from-[#3e4f94]/20 to-transparent drop-shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
-                    <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                            <AppLogoIcon className="h-7 lg:h-8 w-auto object-contain brightness-0 invert" />
-                            <span className="text-base lg:text-lg font-bold">Evarisbot</span>
-                        </div>
+                <div>
+                    {/* Header with logo */}
+                    <div className="h-16 flex items-center px-6 border-b border-white/10 bg-[#1e264d]">
+                        <AppLogoIcon className="h-7 w-auto object-contain brightness-0 invert mr-2" />
+                        <h1 className="text-white font-bold text-lg tracking-wide">Evarisbot</h1>
                         {/* Close button only on mobile */}
                         <button
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="lg:hidden p-2 hover:bg-white/10 rounded-none transition-colors"
+                            className="lg:hidden ml-auto p-2 hover:bg-white/10 rounded-lg transition-colors"
                         >
-                            <X className="w-5 h-5" />
+                            <X className="w-5 h-5 text-white" />
                         </button>
                     </div>
+
+                    {/* Navigation */}
+                    <nav className="mt-4 flex flex-col gap-1 px-2">
+                        {visibleMenuItems.map((item) => {
+                            const Icon = item.icon;
+                            const isActive = currentUrl.startsWith(item.href);
+
+                            return (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    className={`flex items-center px-4 py-3 transition-all rounded-lg group ${isActive
+                                            ? 'bg-white text-[#2E3A75] shadow-md font-semibold'
+                                            : 'text-white/70 hover:bg-white/10 hover:text-white'
+                                        }`}
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    <Icon className={`mr-3 w-[22px] h-[22px] ${!isActive ? 'group-hover:scale-110 transition-transform' : ''}`} />
+                                    <span className="text-sm flex-1">{item.title}</span>
+                                    {/* Badge de notificación para Conversaciones */}
+                                    {item.href === '/admin/chat' && unreadConversationsCount > 0 && (
+                                        <span className="bg-[#FF4D4F] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                                            {unreadConversationsCount > 99 ? '99+' : unreadConversationsCount}
+                                        </span>
+                                    )}
+                                </Link>
+                            );
+                        })}
+                    </nav>
                 </div>
 
-                {/* Navigation - Mid Layer */}
-                <nav className="flex-1 p-2 lg:p-3 space-y-1 bg-gradient-to-b from-transparent via-[#2e3f84]/30 to-transparent overflow-y-auto">
-                    {visibleMenuItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = currentUrl.startsWith(item.href);
-                        
-                        return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`flex items-center justify-between gap-2 px-2.5 lg:px-3 py-2 lg:py-2.5 rounded-none transition-all duration-200 relative ${
-                                    isActive
-                                        ? 'bg-gradient-to-b from-white to-[#fafbfc] text-[#2e3f84] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.06),0_2px_4px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] scale-[1.02]'
-                                        : 'text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white hover:shadow-[0_1px_2px_rgba(255,255,255,0.08),0_2px_4px_rgba(255,255,255,0.12),inset_0_1px_0_rgba(255,255,255,0.15)] hover:scale-[1.01] active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:scale-100'
-                                }`}
-                                onClick={() => setIsMobileMenuOpen(false)}
-                            >
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <Icon className="w-4 h-4 lg:w-5 lg:h-5 flex-shrink-0" />
-                                    <span className="text-xs lg:text-sm">{item.title}</span>
-                                </div>
-                                {/* Badge de notificación para Conversaciones */}
-                                {item.href === '/admin/chat' && unreadConversationsCount > 0 && (
-                                    <span className={`
-                                        flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold
-                                        ${isActive 
-                                            ? 'bg-gradient-to-b from-[#ef4444] to-[#dc2626] text-white shadow-[0_1px_2px_rgba(239,68,68,0.3),0_2px_4px_rgba(239,68,68,0.2)]' 
-                                            : 'bg-gradient-to-b from-[#ef4444] to-[#dc2626] text-white shadow-[0_1px_2px_rgba(239,68,68,0.4),0_2px_4px_rgba(239,68,68,0.3)]'
-                                        }
-                                    `}>
-                                        {unreadConversationsCount > 99 ? '99+' : unreadConversationsCount}
-                                    </span>
-                                )}
-                            </Link>
-                        );
-                    })}
-                </nav>
-
-                {/* User Info & Logout - Footer Layer */}
-                <div className="p-2 lg:p-3 bg-gradient-to-t from-[#1e2f74]/30 to-transparent border-t border-white/10 lg:border-0">
-                    <div className="flex items-center gap-2 mb-2">
-                        <Avatar className="h-8 lg:h-9 w-8 lg:w-9 shadow-[0_1px_2px_rgba(0,0,0,0.15),0_2px_4px_rgba(0,0,0,0.2),0_4px_8px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.25)] ring-1 ring-white/10">
-                            <AvatarImage src={auth.user?.avatar} alt={auth.user?.name} />
-                            <AvatarFallback className="bg-gradient-to-b from-white to-[#f4f5f9] text-[#2e3f84] text-xs font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.8),inset_0_-1px_0_rgba(0,0,0,0.05)]">
-                                {getInitials(auth.user?.name)}
-                            </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">{auth.user?.name}</p>
-                            <p className="text-[10px] text-white/70 drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)] hidden sm:block">{t('admin.role')}</p>
+                {/* User Info & Logout - Footer */}
+                <div className="mb-4 px-4">
+                    <div className="px-4 py-4 bg-white/5 rounded-xl border border-white/5 backdrop-blur-sm">
+                        <div className="flex items-center mb-3">
+                            <Avatar className="h-10 w-10 mr-3 shadow-md border-2 border-white/20">
+                                <AvatarImage src={auth.user?.avatar} alt={auth.user?.name} />
+                                <AvatarFallback className="bg-white text-[#2E3A75] text-sm font-bold">
+                                    {getInitials(auth.user?.name)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="overflow-hidden">
+                                <p className="text-white text-sm font-semibold truncate">{auth.user?.name}</p>
+                                <p className="text-white/60 text-xs truncate">{t('admin.role')}</p>
+                            </div>
                         </div>
+                        <nav className="flex flex-col gap-1">
+                            <Link
+                                href="/settings/profile"
+                                className="flex items-center py-1.5 text-white/70 hover:text-white text-xs transition-colors"
+                            >
+                                <User className="mr-2 w-[18px] h-[18px]" />
+                                {t('navigation.profile')}
+                            </Link>
+                            <div className="flex items-center py-1.5 text-white/70 text-xs">
+                                <LanguageSelector variant="admin" />
+                            </div>
+                            <Link
+                                href={logout()}
+                                method="post"
+                                as="button"
+                                className="flex items-center py-1.5 text-white/70 hover:text-red-300 text-xs mt-2 border-t border-white/10 pt-3 transition-colors"
+                            >
+                                <LogOut className="mr-2 w-[18px] h-[18px]" />
+                                {t('common.logout')}
+                            </Link>
+                        </nav>
                     </div>
-                    
-                    <div className="mb-1">
-                        <Link
-                            href="/settings/profile"
-                            className="flex items-center gap-2 w-full px-2.5 py-1.5 text-xs text-white/80 hover:bg-gradient-to-b hover:from-white/15 hover:to-white/10 hover:text-white rounded-none transition-all duration-200 hover:shadow-[0_1px_2px_rgba(255,255,255,0.1),0_2px_4px_rgba(255,255,255,0.08),inset_0_1px_0_rgba(255,255,255,0.15)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)] active:translate-x-0"
-                        >
-                            <User className="w-3.5 h-3.5" />
-                            <span>{t('navigation.profile')}</span>
-                        </Link>
-                    </div>
-                    
-                    {/* Language Selector */}
-                    <div className="mb-1">
-                        <LanguageSelector variant="admin" />
-                    </div>
-                    
-                    <Link
-                        href={logout()}
-                        method="post"
-                        as="button"
-                        className="flex items-center gap-2 w-full px-2.5 py-1.5 text-xs text-white/80 hover:bg-gradient-to-b hover:from-red-500/20 hover:to-red-600/15 hover:text-white rounded-none transition-all duration-200 hover:shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.2),inset_0_1px_0_rgba(255,255,255,0.1)] hover:translate-x-1 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] active:translate-x-0 mt-1 pt-2 relative before:absolute before:top-0 before:left-0 before:right-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent"
-                    >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>{t('common.logout')}</span>
-                    </Link>
                 </div>
             </aside>
 

@@ -106,7 +106,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
     // Toggle asesor de turno
     const toggleAdvisor = (advisorId: number) => {
-        setSelectedAdvisors(prev => 
+        setSelectedAdvisors(prev =>
             prev.includes(advisorId)
                 ? prev.filter(id => id !== advisorId)
                 : [...prev, advisorId]
@@ -163,12 +163,16 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6">
-                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#2e3f84]">{t('settings.whatsapp.title')}</h1>
-                        <p className="text-sm md:text-base text-[#6b7494] mt-1">{t('settings.whatsapp.subtitle')}</p>
+                        <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
+                            {t('settings.whatsapp.title')}
+                        </h1>
+                        <p className="text-gray-600" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                            {t('settings.whatsapp.subtitle')}
+                        </p>
                     </div>
 
                     {/* Layout para WhatsApp Config */}
-                    <div className="max-w-5xl">
+                    <div className="max-w-5xl mx-auto">
 
                         {/* WhatsApp Config */}
                         <div>
@@ -260,11 +264,10 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 {connectionStatus.type && (
                                     <div className="mt-4 md:col-span-2">
                                         <div
-                                            className={`flex items-center gap-2 p-3 rounded-none ${
-                                                connectionStatus.type === 'success'
-                                                    ? 'bg-gradient-to-b from-green-50 to-green-100/50 text-green-700 shadow-[0_1px_2px_rgba(34,197,94,0.15),0_2px_4px_rgba(34,197,94,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
-                                                    : 'bg-gradient-to-b from-red-50 to-red-100/50 text-red-700 shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
-                                            }`}
+                                            className={`flex items-center gap-2 p-3 rounded-none ${connectionStatus.type === 'success'
+                                                ? 'bg-gradient-to-b from-green-50 to-green-100/50 text-green-700 shadow-[0_1px_2px_rgba(34,197,94,0.15),0_2px_4px_rgba(34,197,94,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
+                                                : 'bg-gradient-to-b from-red-50 to-red-100/50 text-red-700 shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
+                                                }`}
                                         >
                                             {connectionStatus.type === 'success' ? (
                                                 <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" />
@@ -389,18 +392,16 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                     key={advisor.id}
                                                     type="button"
                                                     onClick={() => toggleAdvisor(advisor.id)}
-                                                    className={`w-full flex items-center justify-between p-3 rounded-none transition-all duration-200 ${
-                                                        selectedAdvisors.includes(advisor.id)
-                                                            ? 'bg-gradient-to-b from-[#e8f5e9] to-[#c8e6c9] shadow-[0_1px_2px_rgba(34,197,94,0.1),0_2px_4px_rgba(34,197,94,0.08),inset_0_1px_0_rgba(255,255,255,0.6)]'
-                                                            : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.6)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)]'
-                                                    }`}
+                                                    className={`w-full flex items-center justify-between p-3 rounded-none transition-all duration-200 ${selectedAdvisors.includes(advisor.id)
+                                                        ? 'bg-gradient-to-b from-[#e8f5e9] to-[#c8e6c9] shadow-[0_1px_2px_rgba(34,197,94,0.1),0_2px_4px_rgba(34,197,94,0.08),inset_0_1px_0_rgba(255,255,255,0.6)]'
+                                                        : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.6)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)]'
+                                                        }`}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${
-                                                            selectedAdvisors.includes(advisor.id)
-                                                                ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a]'
-                                                                : 'bg-gradient-to-b from-[#6b7494] to-[#5a637f]'
-                                                        }`}>
+                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${selectedAdvisors.includes(advisor.id)
+                                                            ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a]'
+                                                            : 'bg-gradient-to-b from-[#6b7494] to-[#5a637f]'
+                                                            }`}>
                                                             {advisor.name.charAt(0).toUpperCase()}
                                                         </div>
                                                         <div className="text-left">
@@ -408,11 +409,10 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                             <p className="text-xs text-[#6b7494]">{advisor.email}</p>
                                                         </div>
                                                     </div>
-                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                                        selectedAdvisors.includes(advisor.id)
-                                                            ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
-                                                            : 'bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0]'
-                                                    }`}>
+                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedAdvisors.includes(advisor.id)
+                                                        ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
+                                                        : 'bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0]'
+                                                        }`}>
                                                         {selectedAdvisors.includes(advisor.id) && (
                                                             <Check className="w-4 h-4" />
                                                         )}
