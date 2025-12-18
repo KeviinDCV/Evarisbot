@@ -24,8 +24,10 @@ i18n
     .init({
         resources,
         fallbackLng: 'es', // Idioma por defecto: español
-        lng: 'es', // Forzar español como idioma inicial
+        // NO usar lng aquí para permitir que LanguageDetector funcione
         debug: false, // Debug desactivado para producción
+
+        supportedLngs: ['es', 'en'], // Idiomas soportados
 
         interpolation: {
             escapeValue: false, // React ya escapa por defecto
@@ -38,6 +40,11 @@ i18n
             caches: ['localStorage'],
             lookupLocalStorage: 'i18nextLng',
         },
+
+        react: {
+            useSuspense: false, // Evitar problemas de Suspense con Inertia
+        },
     });
 
 export default i18n;
+

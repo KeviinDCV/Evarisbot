@@ -15,13 +15,13 @@ interface LanguageSelectorProps {
 
 export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps) {
     const { i18n, t } = useTranslation();
-    
+
     // Normalizar el código de idioma (ej: 'es-ES' -> 'es', 'en-US' -> 'en')
     const normalizeLanguage = (lng: string): string => {
         const baseCode = lng?.split('-')[0]?.toLowerCase() || 'es';
         return ['es', 'en'].includes(baseCode) ? baseCode : 'es';
     };
-    
+
     const [currentLanguage, setCurrentLanguage] = useState(normalizeLanguage(i18n.language));
 
     useEffect(() => {
@@ -31,7 +31,7 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
         };
 
         i18n.on('languageChanged', handleLanguageChange);
-        
+
         // Sincronizar al montar si el idioma actual no está normalizado
         const normalized = normalizeLanguage(i18n.language);
         if (i18n.language !== normalized) {
@@ -44,8 +44,13 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
     }, [i18n]);
 
     const changeLanguage = async (lng: string) => {
+        // Guardar en localStorage explícitamente
+        localStorage.setItem('i18nextLng', lng);
+        // Cambiar el idioma
         await i18n.changeLanguage(lng);
         setCurrentLanguage(lng);
+        // Recargar la página para asegurar que todas las traducciones se apliquen
+        window.location.reload();
     };
 
     const languages = [
