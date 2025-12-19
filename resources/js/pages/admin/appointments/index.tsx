@@ -735,7 +735,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             disabled={isLoading || isProcessing}
                                             className="font-semibold text-white transition-all duration-200 border-0"
                                             style={{
-                                                backgroundColor: '#F59E0B',
+                                                backgroundColor: 'var(--primary-base)',
                                                 boxShadow: 'var(--shadow-md)',
                                                 height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                                 padding: '0 var(--space-lg)',
@@ -743,13 +743,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             }}
                                             onMouseEnter={(e) => {
                                                 if (!isLoading && !isProcessing) {
-                                                    e.currentTarget.style.backgroundColor = '#D97706';
+                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
                                                     e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
                                                     e.currentTarget.style.transform = 'translateY(-2px)';
                                                 }
                                             }}
                                             onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = '#F59E0B';
+                                                e.currentTarget.style.backgroundColor = 'var(--primary-base)';
                                                 e.currentTarget.style.boxShadow = 'var(--shadow-md)';
                                                 e.currentTarget.style.transform = 'translateY(0)';
                                             }}
@@ -765,19 +765,19 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 disabled={isLoading}
                                                 className="font-semibold text-white transition-all duration-200 border-0"
                                                 style={{
-                                                    backgroundColor: '#F59E0B',
+                                                    backgroundColor: 'var(--primary-base)',
                                                     boxShadow: 'var(--shadow-md)',
                                                     height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                                     padding: '0 var(--space-lg)',
                                                     fontSize: 'var(--text-sm)',
                                                 }}
                                                 onMouseEnter={(e) => {
-                                                    e.currentTarget.style.backgroundColor = '#D97706';
+                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
                                                     e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
                                                     e.currentTarget.style.transform = 'translateY(-2px)';
                                                 }}
                                                 onMouseLeave={(e) => {
-                                                    e.currentTarget.style.backgroundColor = '#F59E0B';
+                                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
                                                     e.currentTarget.style.boxShadow = 'var(--shadow-md)';
                                                     e.currentTarget.style.transform = 'translateY(0)';
                                                 }}
