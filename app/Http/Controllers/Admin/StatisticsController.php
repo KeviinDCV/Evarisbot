@@ -44,6 +44,7 @@ class StatisticsController extends Controller
                 'conversations' => $this->getConversationStatistics($dateStart, $dateEnd),
                 'templates' => $this->getTemplateStatistics($dateStart, $dateEnd),
                 'users' => $this->getUserStatistics(),
+                'advisors' => $this->getAdvisorStatistics($dateStart, $dateEnd),
                 'date_range' => [
                     'start' => $dateStart?->format('Y-m-d'),
                     'end' => $dateEnd?->format('Y-m-d'),
@@ -294,6 +295,89 @@ class StatisticsController extends Controller
     }
 
     /**
+     * Get advisor performance statistics
+     */
+    private function getAdvisorStatistics(?\Carbon\Carbon $startDate, ?\Carbon\Carbon $endDate): array
+    {
+        // Obtener estadísticas por asesor
+        $advisorStats = DB::table('users as u')
+            ->selectRaw('
+                u.id,
+                u.name,
+                COUNT(DISTINCT c.id) as total_conversations,
+                COUNT(DISTINCT CASE WHEN c.status IN ("resolved", "closed") THEN c.id END) as resolved_conversations,
+                COUNT(DISTINCT CASE WHEN c.status = "active" THEN c.id END) as active_conversations,
+                COUNT(DISTINCT CASE WHEN c.unread_count > 0 THEN c.id END) as conversations_with_unread,
+                COUNT(m.id) as messages_sent,
+                ROUND(
+                    CASE 
+                        WHEN COUNT(DISTINCT c.id) > 0 
+                        THEN (COUNT(DISTINCT CASE WHEN c.status IN ("resolved", "closed") THEN c.id END) * 100.0 / COUNT(DISTINCT c.id))
+                        ELSE 0 
+                    END, 
+                    2
+                ) as resolution_rate
+            ')
+            ->leftJoin('conversations as c', 'u.id', '=', 'c.assigned_to')
+            ->leftJoin('messages as m', function ($join) use ($startDate, $endDate) {
+                $join->on('c.id', '=', 'm.conversation_id')
+                     ->where('m.is_from_user', false)
+                     ->where('m.sent_by', '=', DB::raw('u.id'));
+            })
+            ->where('u.role', 'advisor')
+            ->groupBy('u.id', 'u.name')
+            ->orderBy('resolved_conversations', 'desc');
+
+        // Aplicar filtro de fechas si se especifica
+        if ($startDate && $endDate) {
+            $advisorStats->where(function ($query) use ($startDate, $endDate) {
+                $query->whereNull('c.created_at')
+                      ->orWhereBetween('c.created_at', [$startDate, $endDate]);
+            });
+        }
+
+        $advisors = $advisorStats->get()->map(function ($advisor) {
+            return [
+                'id' => $advisor->id,
+                'name' => $advisor->name,
+                'total_conversations' => (int) $advisor->total_conversations,
+                'resolved_conversations' => (int) $advisor->resolved_conversations,
+                'active_conversations' => (int) $advisor->active_conversations,
+                'conversations_with_unread' => (int) $advisor->conversations_with_unread,
+                'messages_sent' => (int) $advisor->messages_sent,
+                'resolution_rate' => (float) $advisor->resolution_rate,
+            ];
+        })->toArray();
+
+        // Calcular totales y promedios
+        $totalAdvisors = count($advisors);
+        $totalConversations = array_sum(array_column($advisors, 'total_conversations'));
+        $totalResolved = array_sum(array_column($advisors, 'resolved_conversations'));
+        $totalActive = array_sum(array_column($advisors, 'active_conversations'));
+        $totalUnread = array_sum(array_column($advisors, 'conversations_with_unread'));
+        $totalMessages = array_sum(array_column($advisors, 'messages_sent'));
+        
+        $avgResolutionRate = $totalAdvisors > 0 
+            ? round(array_sum(array_column($advisors, 'resolution_rate')) / $totalAdvisors, 2)
+            : 0;
+
+        // Encontrar al mejor asesor (mayor número de conversaciones resueltas)
+        $topAdvisor = !empty($advisors) ? $advisors[0] : null;
+
+        return [
+            'total_advisors' => $totalAdvisors,
+            'total_conversations' => $totalConversations,
+            'total_resolved' => $totalResolved,
+            'total_active' => $totalActive,
+            'total_with_unread' => $totalUnread,
+            'total_messages_sent' => $totalMessages,
+            'avg_resolution_rate' => $avgResolutionRate,
+            'top_performer' => $topAdvisor,
+            'advisors' => $advisors,
+        ];
+    }
+
+    /**
      * Export statistics to Excel
      */
     public function export(Request $request)
@@ -311,6 +395,7 @@ class StatisticsController extends Controller
             'conversations' => $this->getConversationStatistics($dateStart, $dateEnd),
             'templates' => $this->getTemplateStatistics($dateStart, $dateEnd),
             'users' => $this->getUserStatistics(),
+            'advisors' => $this->getAdvisorStatistics($dateStart, $dateEnd),
         ];
 
         $dateRange = [

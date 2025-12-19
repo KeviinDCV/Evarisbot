@@ -14,11 +14,7 @@ interface Statistics {
         confirmed: number;
         cancelled: number;
         by_status: {
-            pending: number;
-            sent: number;
-            delivered: number;
-            read: number;
-            failed: number;
+            [key: string]: number;
         };
     };
     appointments: {
@@ -52,6 +48,35 @@ interface Statistics {
         total: number;
         admins: number;
         advisors: number;
+    };
+    advisors: {
+        total_advisors: number;
+        total_conversations: number;
+        total_resolved: number;
+        total_active: number;
+        total_with_unread: number;
+        total_messages_sent: number;
+        avg_resolution_rate: number;
+        top_performer: {
+            id: number;
+            name: string;
+            total_conversations: number;
+            resolved_conversations: number;
+            active_conversations: number;
+            conversations_with_unread: number;
+            messages_sent: number;
+            resolution_rate: number;
+        } | null;
+        advisors: Array<{
+            id: number;
+            name: string;
+            total_conversations: number;
+            resolved_conversations: number;
+            active_conversations: number;
+            conversations_with_unread: number;
+            messages_sent: number;
+            resolution_rate: number;
+        }>;
     };
     date_range: {
         start?: string;
@@ -420,6 +445,32 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <StatRow icon={Users} label={t('statistics.users.advisors')} value={statistics.users.advisors} index={2} />
                                 </div>
                             </div>
+
+                            {/* Asesores */}
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-200">
+                                    <Users className="w-3.5 h-3.5 text-[#2e3f84]" />
+                                    <h2 className="font-bold" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
+                                        Asesores
+                                    </h2>
+                                </div>
+                                <div className="space-y-1">
+                                    <StatRow icon={Users} label="Total Asesores" value={statistics.advisors.total_advisors} index={0} />
+                                    <StatRow icon={MessageSquare} label="Conversaciones Totales" value={statistics.advisors.total_conversations} index={1} />
+                                    <StatRow icon={CheckCircle2} label="Conversaciones Resueltas" value={statistics.advisors.total_resolved} index={2} />
+                                    <StatRow icon={Clock} label="Conversaciones Activas" value={statistics.advisors.total_active} index={3} />
+                                    <StatRow icon={AlertCircle} label="Con Sin Leer" value={statistics.advisors.total_with_unread} index={4} />
+                                    <StatRow icon={Send} label="Mensajes Enviados" value={statistics.advisors.total_messages_sent} index={5} />
+                                    <div className={`flex items-center justify-between py-1.5 px-2 rounded-none transition-colors bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9]`}>
+                                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)' }}>
+                                            Tasa Resolución Prom
+                                        </span>
+                                        <span className="font-bold" style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
+                                            {statistics.advisors.avg_resolution_rate}%
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     ) : (
                         /* Vista de Gráficos - Bento Grid */
@@ -625,6 +676,64 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         />
                                     </PieChart>
                                 </ResponsiveContainer>
+                            </div>
+
+                            {/* Asesores - Top Performers */}
+                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                                <h2 className="font-bold mb-3 flex items-center gap-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                    <Users className="w-4 h-4" />
+                                    Rendimiento de Asesores
+                                </h2>
+                                {statistics.advisors.advisors.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height={200}>
+                                        <BarChart 
+                                            data={statistics.advisors.advisors.slice(0, 5)} 
+                                            layout="horizontal"
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                                            <XAxis 
+                                                type="number"
+                                                tick={{ fontSize: 9, fill: '#6B7494' }}
+                                            />
+                                            <YAxis 
+                                                type="category"
+                                                dataKey="name" 
+                                                tick={{ fontSize: 9, fill: '#6B7494' }}
+                                                width={80}
+                                            />
+                                            <Tooltip 
+                                                contentStyle={{ 
+                                                    backgroundColor: 'white', 
+                                                    border: '1px solid #E5E7EB',
+                                                    borderRadius: '8px',
+                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                                    fontSize: '12px'
+                                                }}
+                                                formatter={(value: any, name: string) => [
+                                                    value,
+                                                    name === 'resolved_conversations' ? 'Resueltas' : 
+                                                    name === 'active_conversations' ? 'Activas' : 
+                                                    name === 'messages_sent' ? 'Mensajes' : name
+                                                ]}
+                                            />
+                                            <Legend 
+                                                wrapperStyle={{ fontSize: '11px' }}
+                                                formatter={(value) => 
+                                                    value === 'resolved_conversations' ? 'Resueltas' : 
+                                                    value === 'active_conversations' ? 'Activas' : 
+                                                    value === 'messages_sent' ? 'Mensajes' : value
+                                                }
+                                            />
+                                            <Bar dataKey="resolved_conversations" fill={COLORS.success} radius={[0, 4, 4, 0]} />
+                                            <Bar dataKey="active_conversations" fill={COLORS.info} radius={[0, 4, 4, 0]} />
+                                            <Bar dataKey="messages_sent" fill={COLORS.primaryLight} radius={[0, 4, 4, 0]} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="flex items-center justify-center h-48 text-gray-500">
+                                        <p>No hay datos de asesores disponibles</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

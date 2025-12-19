@@ -41,6 +41,7 @@ class StatisticsExport
         $this->createConversationsSheet($spreadsheet);
         $this->createTemplatesSheet($spreadsheet);
         $this->createUsersSheet($spreadsheet);
+        $this->createAdvisorsSheet($spreadsheet);
 
         // Eliminar la hoja por defecto
         $spreadsheet->removeSheetByIndex(0);
@@ -401,6 +402,146 @@ class StatisticsExport
         $sheet->getColumnDimension('B')->setWidth(25);
     }
 
+    private function createAdvisorsSheet(Spreadsheet $spreadsheet): void
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle('Asesores');
+
+        $row = 1;
+        
+        // Título de la hoja
+        $sheet->setCellValue('A' . $row, 'RENDIMIENTO DE ASESORES');
+        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $this->styleSheetTitle($sheet, $row, self::COLOR_PRIMARY);
+        $row += 2;
+
+        // Resumen general
+        $sheet->setCellValue('A' . $row, 'RESUMEN GENERAL');
+        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $this->styleSubtitle($sheet, $row);
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Total de Asesores');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_advisors']);
+        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Total Conversaciones');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_conversations']);
+        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Total Resueltas');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_resolved']);
+        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Total Activas');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_active']);
+        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Con Sin Leer');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_with_unread']);
+        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Total Mensajes Enviados');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_messages_sent']);
+        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Tasa Resolución Promedio');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['avg_resolution_rate'] . '%');
+        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        // Mejor asesor
+        if ($this->statistics['advisors']['top_performer']) {
+            $row++;
+            $sheet->setCellValue('A' . $row, 'MEJOR ASESOR');
+            $sheet->mergeCells('A' . $row . ':G' . $row);
+            $this->styleSubtitle($sheet, $row);
+            $row++;
+
+            $top = $this->statistics['advisors']['top_performer'];
+            $sheet->setCellValue('A' . $row, 'Nombre');
+            $sheet->setCellValue('B' . $row, $top['name']);
+            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $this->styleInfoRow($sheet, $row, 'A');
+            $row++;
+
+            $sheet->setCellValue('A' . $row, 'Conversaciones Resueltas');
+            $sheet->setCellValue('B' . $row, $top['resolved_conversations']);
+            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $this->styleInfoRow($sheet, $row, 'A');
+            $row++;
+
+            $sheet->setCellValue('A' . $row, 'Tasa de Resolución');
+            $sheet->setCellValue('B' . $row, $top['resolution_rate'] . '%');
+            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $this->styleInfoRow($sheet, $row, 'A');
+            $row++;
+        }
+
+        // Detalle por asesor
+        $row++;
+        $sheet->setCellValue('A' . $row, 'DETALLE POR ASESOR');
+        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $this->styleSubtitle($sheet, $row);
+        $row += 2;
+
+        // Encabezados de la tabla
+        $headers = ['Asesor', 'Total Conversaciones', 'Resueltas', 'Activas', 'Con Sin Leer', 'Mensajes Enviados', 'Tasa de Resolución'];
+        $col = 'A';
+        foreach ($headers as $header) {
+            $sheet->setCellValue($col . $row, $header);
+            $col++;
+        }
+        $this->styleAdvisorHeader($sheet, $row, 'A', 'G');
+        $row++;
+
+        // Datos de cada asesor
+        $dataRow = 0;
+        foreach ($this->statistics['advisors']['advisors'] as $advisor) {
+            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0, 'A', 'G');
+            
+            $sheet->setCellValue('A' . $row, $advisor['name']);
+            $sheet->setCellValue('B' . $row, $advisor['total_conversations']);
+            $sheet->setCellValue('C' . $row, $advisor['resolved_conversations']);
+            $sheet->setCellValue('D' . $row, $advisor['active_conversations']);
+            $sheet->setCellValue('E' . $row, $advisor['conversations_with_unread']);
+            $sheet->setCellValue('F' . $row, $advisor['messages_sent']);
+            $sheet->setCellValue('G' . $row, $advisor['resolution_rate'] . '%');
+            
+            // Centrar valores numéricos
+            $sheet->getStyle('B' . $row . ':G' . $row)->applyFromArray([
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                ],
+            ]);
+            
+            $row++;
+            $dataRow++;
+        }
+
+        // Ajustar anchos de columna
+        $sheet->getColumnDimension('A')->setWidth(30);
+        $sheet->getColumnDimension('B')->setWidth(20);
+        $sheet->getColumnDimension('C')->setWidth(15);
+        $sheet->getColumnDimension('D')->setWidth(15);
+        $sheet->getColumnDimension('E')->setWidth(15);
+        $sheet->getColumnDimension('F')->setWidth(20);
+        $sheet->getColumnDimension('G')->setWidth(18);
+    }
+
     private function addSection($sheet, int $startRow, string $title, array $data, string $color): void
     {
         $row = $startRow;
@@ -469,10 +610,36 @@ class StatisticsExport
         $sheet->getRowDimension($row)->setRowHeight(25);
     }
 
-    private function styleDataRow($sheet, int $row, bool $isEven = false): void
+    private function styleAdvisorHeader($sheet, int $row, string $startCol = 'A', string $endCol = 'B'): void
+    {
+        $sheet->getStyle($startCol . $row . ':' . $endCol . $row)->applyFromArray([
+            'font' => [
+                'bold' => true,
+                'size' => 10,
+                'color' => ['rgb' => 'FFFFFF'],
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => self::COLOR_PRIMARY],
+            ],
+            'alignment' => [
+                'horizontal' => Alignment::HORIZONTAL_CENTER,
+                'vertical' => Alignment::VERTICAL_CENTER,
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['rgb' => self::COLOR_PRIMARY],
+                ],
+            ],
+        ]);
+        $sheet->getRowDimension($row)->setRowHeight(25);
+    }
+
+    private function styleDataRow($sheet, int $row, bool $isEven = false, string $startCol = 'A', string $endCol = 'B'): void
     {
         $bgColor = $isEven ? 'FFFFFF' : 'F8F9FA';
-        $sheet->getStyle('A' . $row . ':B' . $row)->applyFromArray([
+        $sheet->getStyle($startCol . $row . ':' . $endCol . $row)->applyFromArray([
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => $bgColor],
@@ -487,10 +654,10 @@ class StatisticsExport
                 'vertical' => Alignment::VERTICAL_CENTER,
             ],
         ]);
-        $sheet->getStyle('A' . $row)->applyFromArray([
+        $sheet->getStyle($startCol . $row)->applyFromArray([
             'font' => ['size' => 10],
         ]);
-        $sheet->getStyle('B' . $row)->applyFromArray([
+        $sheet->getStyle($endCol . $row)->applyFromArray([
             'font' => ['size' => 10, 'bold' => true],
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
@@ -499,9 +666,9 @@ class StatisticsExport
         $sheet->getRowDimension($row)->setRowHeight(20);
     }
 
-    private function styleInfoRow($sheet, int $row): void
+    private function styleInfoRow($sheet, int $row, string $mergeEndCol = 'B'): void
     {
-        $sheet->getStyle('A' . $row . ':B' . $row)->applyFromArray([
+        $sheet->getStyle('A' . $row . ':' . $mergeEndCol . $row)->applyFromArray([
             'font' => ['size' => 10],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
