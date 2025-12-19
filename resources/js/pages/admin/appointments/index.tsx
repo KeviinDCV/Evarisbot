@@ -872,7 +872,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Send className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-[#2e3f84] transition-all duration-300 transform scale-100 hover:scale-105">
+                                        <p className="text-2xl font-bold text-[#2e3f84]">
                                             {localStats.sent.toLocaleString()}
                                         </p>
                                         <p className="text-sm text-[#6b7494]">Recordatorios Enviados</p>
@@ -887,7 +887,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Clock className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-[#2e3f84] transition-all duration-300 transform scale-100 hover:scale-105">
+                                        <p className="text-2xl font-bold text-[#2e3f84]">
                                             {localStats.pending.toLocaleString()}
                                         </p>
                                         <p className="text-sm text-[#6b7494]">Por Enviar</p>
@@ -902,7 +902,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <XCircle className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold text-[#2e3f84] transition-all duration-300 transform scale-100 hover:scale-105">
+                                        <p className="text-2xl font-bold text-[#2e3f84]">
                                             {localStats.failed.toLocaleString()}
                                         </p>
                                         <p className="text-sm text-[#6b7494]">Fallidos</p>

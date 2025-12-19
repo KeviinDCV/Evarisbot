@@ -161,13 +161,19 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     name="role-filter"
                                     value={roleFilter}
                                     onChange={(e) => setRoleFilter(e.target.value)}
-                                    className="w-full border-0 rounded-none transition-all duration-200"
+                                    className="w-full border-0 rounded-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/20"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                         boxShadow: 'var(--shadow-inset-sm)',
                                         height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                         fontSize: 'var(--text-sm)',
-                                        padding: '0 var(--space-base)',
+                                        padding: '0 2.5rem 0 var(--space-base)',
+                                        color: 'var(--primary-base)',
+                                        appearance: 'none',
+                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%232e3f84' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundPosition: 'right 0.75rem center',
+                                        backgroundSize: '1rem',
                                     }}
                                 >
                                     <option value="all">{t('common.all')}</option>
