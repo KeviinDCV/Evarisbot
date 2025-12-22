@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft, Calendar, Download } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft, Calendar, Download, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -51,6 +51,8 @@ interface AppointmentsViewProps {
     search?: string;
     date_from?: string;
     date_to?: string;
+    sort?: string;
+    direction?: string;
     stats: {
         all: number;
         pending: number;
@@ -59,11 +61,31 @@ interface AppointmentsViewProps {
     };
 }
 
-export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, stats }: AppointmentsViewProps) {
+export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, sort: initialSort, direction: initialDirection, stats }: AppointmentsViewProps) {
     const [filter, setFilter] = useState(initialFilter || 'all');
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
     const [dateFrom, setDateFrom] = useState(initialDateFrom || '');
     const [dateTo, setDateTo] = useState(initialDateTo || '');
+    const [sortField, setSortField] = useState<string | null>(initialSort || 'id');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>((initialDirection as 'asc' | 'desc') || 'desc');
+
+    const handleSort = (field: string) => {
+        const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
+        setSortField(field);
+        setSortDirection(newDirection);
+        
+        router.get('/admin/appointments/view', {
+            filter,
+            search: searchTerm || undefined,
+            date_from: dateFrom || undefined,
+            date_to: dateTo || undefined,
+            sort: field,
+            direction: newDirection,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
 
     const handleFilterChange = (newFilter: string) => {
         setFilter(newFilter);
@@ -199,48 +221,30 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
             <div className="min-h-screen bg-[#f0f2f8] p-4 md:p-6 lg:p-8">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
-                    <div className="mb-6">
+                    <div className="mb-6 md:mb-8">
                         <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
                             <Button
                                 onClick={() => router.get('/admin/appointments')}
+                                className="font-semibold text-white transition-all duration-200 border-0"
                                 style={{
-                                    backgroundColor: 'white',
-                                    color: 'var(--primary-base)',
-                                    padding: '0.5rem 1rem',
-                                    fontSize: 'var(--text-sm)',
-                                    fontWeight: '500',
-                                    borderRadius: '0',
-                                    border: '1px solid var(--primary-base)',
+                                    backgroundColor: 'var(--primary-base)',
                                     boxShadow: 'var(--shadow-md)',
-                                    transition: 'all 0.2s',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    cursor: 'pointer',
+                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
+                                    padding: '0 var(--space-lg)',
+                                    fontSize: 'var(--text-sm)',
                                 }}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.color = 'white';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
                                     e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'white';
-                                    e.currentTarget.style.color = 'var(--primary-base)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                }}
-                                onMouseDown={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                }}
-                                onMouseUp={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'white';
+                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
                                     e.currentTarget.style.boxShadow = 'var(--shadow-md)';
                                     e.currentTarget.style.transform = 'translateY(0)';
                                 }}
                             >
-                                <ArrowLeft className="w-4 h-4" />
+                                <ArrowLeft className="w-4 h-4 mr-2" />
                                 Volver a Citas
                             </Button>
 
@@ -285,7 +289,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 Exportar a Excel
                             </a>
                         </div>
-                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#2e3f84]">
+                        <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
                             Gestión de Citas
                         </h1>
                         <p className="text-sm md:text-base text-[#6b7494] mt-1">
@@ -405,15 +409,96 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         <table className="w-full text-sm">
                             <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
                                 <tr>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">#</th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Paciente</th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Cédula</th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Teléfono</th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Fecha Cita</th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Hora</th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Médico</th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Especialidad</th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Recordatorio</th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('id')}>
+                                        <div className="flex items-center gap-2">
+                                            #
+                                            {sortField === 'id' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('nom_paciente')}>
+                                        <div className="flex items-center gap-2">
+                                            Paciente
+                                            {sortField === 'nom_paciente' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('citide')}>
+                                        <div className="flex items-center gap-2">
+                                            Cédula
+                                            {sortField === 'citide' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('pactel')}>
+                                        <div className="flex items-center gap-2">
+                                            Teléfono
+                                            {sortField === 'pactel' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('citfc')}>
+                                        <div className="flex items-center gap-2">
+                                            Fecha Cita
+                                            {sortField === 'citfc' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('cithor')}>
+                                        <div className="flex items-center gap-2">
+                                            Hora
+                                            {sortField === 'cithor' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('mednom')}>
+                                        <div className="flex items-center gap-2">
+                                            Médico
+                                            {sortField === 'mednom' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('espnom')}>
+                                        <div className="flex items-center gap-2">
+                                            Especialidad
+                                            {sortField === 'espnom' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('reminder_status')}>
+                                        <div className="flex items-center gap-2">
+                                            Recordatorio
+                                            {sortField === 'reminder_status' ? (
+                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                            ) : (
+                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                            )}
+                                        </div>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-[#e5e7f0]">

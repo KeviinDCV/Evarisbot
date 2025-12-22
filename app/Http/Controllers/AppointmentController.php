@@ -181,10 +181,38 @@ class AppointmentController extends Controller
             });
         }
         
-        // Paginación - ordenar por ID descendente para mostrar los más recientes primero
+        // Ordenamiento
+        $sortField = $request->get('sort', 'id');
+        $sortDirection = $request->get('direction', 'desc');
+        
+        // Sanitizar direction para prevenir inyección SQL
+        $sortDirection = in_array($sortDirection, ['asc', 'desc']) ? $sortDirection : 'desc';
+        
+        // Validar que el campo de ordenamiento sea válido
+        $validSortFields = [
+            'id', 'nom_paciente', 'citide', 'pactel', 'citfc', 
+            'cithor', 'mednom', 'espnom', 'reminder_status'
+        ];
+        
+        if (in_array($sortField, $validSortFields)) {
+            // Para fechas, necesitamos manejarlas como fechas reales
+            if ($sortField === 'citfc') {
+                $query->orderByRaw('COALESCE(citfc, "2099-12-31") ' . $sortDirection);
+            } elseif ($sortField === 'cithor') {
+                $query->orderByRaw('COALESCE(cithor, "23:59:59") ' . $sortDirection);
+            } else {
+                $query->orderBy($sortField, $sortDirection);
+            }
+        } else {
+            // Por defecto, ordenar por ID descendente
+            $query->orderBy('id', 'desc');
+            $sortField = 'id';
+            $sortDirection = 'desc';
+        }
+        
+        // Paginación
         $perPage = 20;
-        $appointments = $query->orderBy('id', 'desc')
-            ->paginate($perPage)
+        $appointments = $query->paginate($perPage)
             ->through(fn($apt) => [
                 'id' => $apt->id,
                 'citead' => $apt->citead,
@@ -217,6 +245,8 @@ class AppointmentController extends Controller
             'search' => $search,
             'date_from' => $dateFrom,
             'date_to' => $dateTo,
+            'sort' => $sortField,
+            'direction' => $sortDirection,
             'stats' => $stats,
         ]);
     }
