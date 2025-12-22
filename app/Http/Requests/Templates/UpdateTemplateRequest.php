@@ -25,6 +25,9 @@ class UpdateTemplateRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'content' => ['required', 'string', 'max:4096'],
             'is_active' => ['boolean'],
+            'is_global' => ['boolean'],
+            'assigned_users' => ['array'],
+            'assigned_users.*' => ['integer', 'exists:users,id'],
             // El archivo multimedia es opcional (puede mantener el existente o subir uno nuevo)
             'media_file' => [
                 'nullable',

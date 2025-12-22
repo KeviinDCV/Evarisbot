@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Template extends Model
 {
@@ -13,6 +14,7 @@ class Template extends Model
         'subject',
         'content',
         'is_active',
+        'is_global',
         'message_type',
         'media_url',
         'media_filename',
@@ -22,6 +24,7 @@ class Template extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_global' => 'boolean',
     ];
 
     /**
@@ -49,11 +52,41 @@ class Template extends Model
     }
 
     /**
+     * Usuarios asignados a esta plantilla (cuando no es global)
+     */
+    public function assignedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'template_user');
+    }
+
+    /**
      * Verificar si la plantilla puede ser usada
      */
     public function canBeUsed(): bool
     {
         return $this->is_active && !empty($this->content);
+    }
+
+    /**
+     * Verificar si la plantilla está disponible para un usuario específico
+     */
+    public function isAvailableForUser(?int $userId): bool
+    {
+        if (!$this->canBeUsed()) {
+            return false;
+        }
+
+        // Si es global, está disponible para todos
+        if ($this->is_global) {
+            return true;
+        }
+
+        // Si no es global, verificar si está asignada al usuario
+        if (!$userId) {
+            return false;
+        }
+
+        return $this->assignedUsers()->where('user_id', $userId)->exists();
     }
 
     /**
@@ -117,5 +150,15 @@ class Template extends Model
     public function scopeOfType($query, $type)
     {
         return $query->where('message_type', $type);
+    }
+
+    public function scopeAvailableForUser($query, $userId)
+    {
+        return $query->where(function ($q) use ($userId) {
+            $q->where('is_global', true)
+              ->orWhereHas('assignedUsers', function ($subQuery) use ($userId) {
+                  $subQuery->where('user_id', $userId);
+              });
+        });
     }
 }

@@ -107,6 +107,13 @@ interface User {
     role: string;
 }
 
+interface Template {
+    id: number;
+    name: string;
+    content: string;
+    message_type: string;
+}
+
 interface ConversationsIndexProps {
     conversations: Conversation[];
     hasMore?: boolean;
@@ -117,9 +124,10 @@ interface ConversationsIndexProps {
         status?: string;
         assigned?: string;
     };
+    templates?: Template[];
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, filters }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, filters, templates = [] }: ConversationsIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -154,6 +162,105 @@ export default function ConversationsIndex({ conversations: initialConversations
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Estados para plantillas
+    const [showTemplates, setShowTemplates] = useState(false);
+    const [templateFilter, setTemplateFilter] = useState('');
+    const [selectedTemplateIndex, setSelectedTemplateIndex] = useState(0);
+    
+    // Filtrar plantillas basadas en el texto después de /
+    const filteredTemplates = templates.filter(template => 
+        template.name.toLowerCase().includes(templateFilter.toLowerCase())
+    );
+    
+    // Manejar cambios en el input de mensaje
+    const handleMessageChange = (value: string) => {
+        setData('content', value);
+        
+        // Detectar el comando /
+        const cursorPosition = value.length;
+        const lastSlashIndex = value.lastIndexOf('/');
+        
+        if (lastSlashIndex !== -1) {
+            // Verificar si / está al inicio o después de un espacio
+            const beforeSlash = value[lastSlashIndex - 1];
+            const isValidSlash = lastSlashIndex === 0 || beforeSlash === ' ';
+            
+            if (isValidSlash) {
+                const textAfterSlash = value.substring(lastSlashIndex + 1);
+                const hasSpaceAfterSlash = textAfterSlash.includes(' ');
+                
+                if (!hasSpaceAfterSlash) {
+                    setShowTemplates(true);
+                    setTemplateFilter(textAfterSlash);
+                    setSelectedTemplateIndex(0);
+                } else {
+                    setShowTemplates(false);
+                    setTemplateFilter('');
+                }
+            } else {
+                setShowTemplates(false);
+                setTemplateFilter('');
+            }
+        } else {
+            setShowTemplates(false);
+            setTemplateFilter('');
+        }
+    };
+    
+    // Seleccionar una plantilla
+    const selectTemplate = (template: Template) => {
+        const currentValue = data.content;
+        const lastSlashIndex = currentValue.lastIndexOf('/');
+        const beforeSlash = currentValue.substring(0, lastSlashIndex);
+        
+        // Insertar el contenido de la plantilla
+        setData('content', beforeSlash + template.content);
+        setShowTemplates(false);
+        setTemplateFilter('');
+        setSelectedTemplateIndex(0);
+    };
+    
+    // Manejar teclas de navegación para plantillas
+    const handleTemplateKeyDown = (e: React.KeyboardEvent) => {
+        if (!showTemplates || filteredTemplates.length === 0) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                handleSubmit(e);
+            }
+            return;
+        }
+        
+        switch (e.key) {
+            case 'ArrowUp':
+                e.preventDefault();
+                setSelectedTemplateIndex(prev => 
+                    prev === 0 ? filteredTemplates.length - 1 : prev - 1
+                );
+                break;
+            case 'ArrowDown':
+                e.preventDefault();
+                setSelectedTemplateIndex(prev => 
+                    prev === filteredTemplates.length - 1 ? 0 : prev + 1
+                );
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (filteredTemplates[selectedTemplateIndex]) {
+                    selectTemplate(filteredTemplates[selectedTemplateIndex]);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setShowTemplates(false);
+                setTemplateFilter('');
+                setSelectedTemplateIndex(0);
+                break;
+            default:
+                if (e.key === 'Enter' && !e.shiftKey && !showTemplates) {
+                    handleSubmit(e);
+                }
+        }
+    };
     
     // Estados para scroll infinito de conversaciones
     const [localConversations, setLocalConversations] = useState<Conversation[]>(initialConversations);
@@ -1832,18 +1939,37 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </Button>
 
                                 {/* Campo de texto */}
-                                <Textarea
-                                    value={data.content}
-                                    onChange={(e) => setData('content', e.target.value)}
-                                    placeholder={t('conversations.messagePlaceholder')}
-                                    className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 bg-gradient-to-b from-white to-[#fafbfc] focus:ring-2 focus:ring-[#2e3f84] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none transition-shadow duration-200"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            handleSubmit(e);
-                                        }
-                                    }}
-                                />
+                                <div className="relative flex-1">
+                                    <Textarea
+                                        value={data.content}
+                                        onChange={(e) => handleMessageChange(e.target.value)}
+                                        placeholder={t('conversations.messagePlaceholder')}
+                                        className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 bg-gradient-to-b from-white to-[#fafbfc] focus:ring-2 focus:ring-[#2e3f84] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none transition-shadow duration-200"
+                                        onKeyDown={handleTemplateKeyDown}
+                                    />
+                                    
+                                    {/* Dropdown de plantillas */}
+                                    {showTemplates && filteredTemplates.length > 0 && (
+                                        <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50">
+                                            {filteredTemplates.map((template, index) => (
+                                                <div
+                                                    key={template.id}
+                                                    className={`px-4 py-3 cursor-pointer transition-colors ${
+                                                        index === selectedTemplateIndex
+                                                            ? 'bg-blue-50 text-blue-700'
+                                                            : 'hover:bg-gray-100'
+                                                    }`}
+                                                    onClick={() => selectTemplate(template)}
+                                                >
+                                                    <div className="font-medium text-sm">{template.name}</div>
+                                                    <div className="text-xs text-gray-500 truncate mt-1">
+                                                        {template.content}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
 
                                 {/* Botón de enviar */}
                                 <Button

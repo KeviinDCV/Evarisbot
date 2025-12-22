@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Template;
 use App\Models\User;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
@@ -218,12 +219,19 @@ class ConversationController extends Controller
         // Obtener todos los usuarios (asesores) disponibles para asignación
         $users = User::select('id', 'name', 'role')->get();
 
+        // Obtener plantillas activas (globales o asignadas al usuario actual)
+        $templates = Template::active()
+            ->availableForUser(auth()->id())
+            ->select(['id', 'name', 'content', 'message_type'])
+            ->get();
+
         return Inertia::render('conversations/index', [
             'conversations' => $conversations,
             'hasMore' => $hasMore,
             'selectedConversation' => $conversation,
             'users' => $users,
             'filters' => $request->only(['status', 'assigned', 'search']),
+            'templates' => $templates,
         ]);
     }
 

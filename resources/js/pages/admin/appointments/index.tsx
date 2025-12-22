@@ -588,7 +588,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     {/* Header */}
                     <div className="mb-6">
                         <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
-                            Gestión de Citas
+                            Gestión de citas
                         </h1>
                         <p className="text-gray-600" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                             Carga un archivo Excel con las citas programadas para enviar recordatorios automáticos
@@ -632,7 +632,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 <div>
                                     <h2 className="text-lg font-semibold text-[#2e3f84] mb-1 flex items-center gap-2">
                                         <Send className="w-5 h-5" />
-                                        Control de Envío de Recordatorios
+                                        Control de envío de recordatorios
                                     </h2>
                                     <div className="text-sm text-[#6b7494] space-y-1">
                                         {localStats.pending > 0 ? (
@@ -875,7 +875,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <p className="text-2xl font-bold text-[#2e3f84]">
                                             {localStats.sent.toLocaleString()}
                                         </p>
-                                        <p className="text-sm text-[#6b7494]">Recordatorios Enviados</p>
+                                        <p className="text-sm text-[#6b7494]">Recordatorios enviados</p>
                                     </div>
                                 </div>
                             </div>
@@ -890,7 +890,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <p className="text-2xl font-bold text-[#2e3f84]">
                                             {localStats.pending.toLocaleString()}
                                         </p>
-                                        <p className="text-sm text-[#6b7494]">Por Enviar</p>
+                                        <p className="text-sm text-[#6b7494]">Por enviar</p>
                                     </div>
                                 </div>
                             </div>
@@ -919,7 +919,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             <div className="mb-6">
                                 <h2 className="text-lg font-semibold text-[#2e3f84] mb-4 flex items-center gap-2">
                                     <FileSpreadsheet className="w-5 h-5" />
-                                    Cargar Archivo de Citas
+                                    Cargar archivo de citas
                                 </h2>
 
                                 {/* File Upload Area */}
@@ -1005,7 +1005,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         disabled={processing}
                                         className="px-6 py-3 text-white rounded-none font-medium bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_12px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.2),0_6px_16px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                                     >
-                                        {processing ? 'Subiendo...' : 'Subir Archivo'}
+                                        {processing ? 'Subiendo...' : 'Subir archivo'}
                                     </button>
                                 </div>
                             )}
@@ -1022,7 +1022,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 </div>
                                 <div className="flex-1">
                                     <h3 className="font-semibold text-[#2e3f84] mb-2">
-                                        Archivo Cargado Exitosamente
+                                        Archivo cargado exitosamente
                                     </h3>
                                     <div className="space-y-1 text-sm text-[#6b7494]">
                                         <p><span className="font-semibold text-[#2e3f84]">Nombre:</span> {uploadedFile.name}</p>
@@ -1042,7 +1042,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
                                     <h2 className="text-lg font-semibold text-[#2e3f84]">
-                                        Citas en Base de Datos ({totalAppointments})
+                                        Citas en base de datos ({totalAppointments})
                                     </h2>
                                     <p className="text-sm text-[#6b7494]">
                                         Mostrando últimas {initialAppointments.length} citas (filtradas: {filteredAppointments.length})
@@ -1087,7 +1087,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         }}
                                     >
                                         <ExternalLink className="w-4 h-4" />
-                                        Ver Todas las Citas
+                                        Ver todas las citas
                                     </Button>
                                 </div>
                             </div>
@@ -1221,37 +1221,37 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                         <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6"
                         >
                             <h3 className="font-semibold text-[#2e3f84] mb-4">
-                                Formato del Archivo Excel
+                                Formato del archivo excel
                             </h3>
                             <div className="space-y-3 text-sm text-[#6b7494]">
                                 <p className="text-[#2e3f84] font-medium">El archivo debe contener las siguientes columnas:</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">citead</strong> - Código admisión
+                                        <strong className="text-[#2e3f84]">Citead</strong> - Código admisión
                                     </div>
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">nom_paciente</strong> - Nombre paciente
+                                        <strong className="text-[#2e3f84]">Nom_paciente</strong> - Nombre paciente
                                     </div>
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">pactel</strong> - Teléfono
+                                        <strong className="text-[#2e3f84]">Pactel</strong> - Teléfono
                                     </div>
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">citfc</strong> - Fecha cita
+                                        <strong className="text-[#2e3f84]">Citfc</strong> - Fecha cita
                                     </div>
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">cithor</strong> - Hora cita
+                                        <strong className="text-[#2e3f84]">Cithor</strong> - Hora cita
                                     </div>
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">mednom</strong> - Nombre médico
+                                        <strong className="text-[#2e3f84]">Mednom</strong> - Nombre médico
                                     </div>
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">espnom</strong> - Especialidad
+                                        <strong className="text-[#2e3f84]">Espnom</strong> - Especialidad
                                     </div>
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">citdoc</strong> - Documento
+                                        <strong className="text-[#2e3f84]">Citdoc</strong> - Documento
                                     </div>
                                     <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] p-2 rounded-none">
-                                        <strong className="text-[#2e3f84]">citobsobs</strong> - Observaciones
+                                        <strong className="text-[#2e3f84]">Citobsobs</strong> - Observaciones
                                     </div>
                                 </div>
                             </div>

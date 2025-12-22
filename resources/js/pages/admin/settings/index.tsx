@@ -318,10 +318,10 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                 {loadingProfile ? (
                                                     <>
                                                         <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-2 animate-spin" />
-                                                        Loading...
+                                                        'Loading...'
                                                     </>
                                                 ) : (
-                                                    'Get Business Profile'
+                                                    'Get business profile'
                                                 )}
                                             </Button>
                                         </>
@@ -331,32 +331,32 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 {/* Business Profile Info */}
                                 {businessProfile && (
                                     <div className="mt-4 p-4 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.1),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] md:col-span-2">
-                                        <h3 className="text-sm font-semibold text-[#2e3f84] mb-3">WhatsApp Business Profile</h3>
+                                        <h3 className="text-sm font-semibold text-[#2e3f84] mb-3">WhatsApp business profile</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Business Name:</span>
+                                                <span className="text-[#6b7494] font-medium">Business name:</span>
                                                 <p className="text-[#2e3f84] font-semibold">{businessProfile.business_name}</p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Phone Number:</span>
+                                                <span className="text-[#6b7494] font-medium">Phone number:</span>
                                                 <p className="text-[#2e3f84] font-semibold">{businessProfile.phone_number}</p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Phone Number ID:</span>
+                                                <span className="text-[#6b7494] font-medium">Phone number ID:</span>
                                                 <p className="text-[#2e3f84] font-semibold font-mono">{businessProfile.phone_number_id}</p>
                                             </div>
                                             <div>
                                                 <span className="text-[#6b7494] font-medium">Verified:</span>
                                                 <p className={`font-semibold ${businessProfile.verified ? 'text-green-600' : 'text-orange-600'}`}>
-                                                    {businessProfile.verified ? '✓ Verified' : 'Not Verified'}
+                                                    {businessProfile.verified ? '✓ Verified' : 'Not verified'}
                                                 </p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Quality Rating:</span>
+                                                <span className="text-[#6b7494] font-medium">Quality rating:</span>
                                                 <p className="text-[#2e3f84] font-semibold">{businessProfile.quality_rating}</p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Messaging Limit:</span>
+                                                <span className="text-[#6b7494] font-medium">Messaging limit:</span>
                                                 <p className="text-[#2e3f84] font-semibold">{businessProfile.messaging_limit}</p>
                                             </div>
                                         </div>
@@ -371,7 +371,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 <div className="mb-4">
                                     <div className="flex items-center gap-2">
                                         <Users className="w-5 h-5 text-[#2e3f84]" />
-                                        <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">Asesores de Turno</h2>
+                                        <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">Asesores de turno</h2>
                                     </div>
                                     <p className="text-xs md:text-sm text-[#6b7494] mt-1">
                                         Selecciona los asesores que recibirán todas las conversaciones. Útil para rotación semanal de turnos.
@@ -437,7 +437,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                         Guardando...
                                                     </>
                                                 ) : (
-                                                    'Guardar Cambios'
+                                                        'Guardar cambios'
                                                 )}
                                             </Button>
                                         </div>

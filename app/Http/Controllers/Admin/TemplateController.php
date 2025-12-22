@@ -7,6 +7,7 @@ use App\Http\Requests\Templates\SendTemplateRequest;
 use App\Http\Requests\Templates\StoreTemplateRequest;
 use App\Http\Requests\Templates\UpdateTemplateRequest;
 use App\Models\Template;
+use App\Models\User;
 use App\Services\TemplateSendService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -74,7 +75,11 @@ class TemplateController extends Controller
      */
     public function create()
     {
-        return Inertia::render('admin/templates/create');
+        $users = User::select('id', 'name', 'role')->get();
+
+        return Inertia::render('admin/templates/create', [
+            'users' => $users,
+        ]);
     }
 
     /**
@@ -85,11 +90,11 @@ class TemplateController extends Controller
         $data = [
             'name' => $request->input('name'),
             'content' => $request->input('content'),
-            'is_active' => $request->boolean('is_active'),
-            'created_by' => auth()->id(),
+            'is_active' => $request->boolean('is_active', true),
+            'is_global' => $request->boolean('is_global', true),
             'message_type' => 'text',
-            'media_url' => null,
-            'media_filename' => null,
+            'created_by' => auth()->id(),
+            'updated_by' => auth()->id(),
         ];
 
         // Procesar archivo multimedia si existe
@@ -110,7 +115,12 @@ class TemplateController extends Controller
             }
         }
 
-        Template::create($data);
+        $template = Template::create($data);
+
+        // Si no es global, asignar a los usuarios seleccionados
+        if (!$request->boolean('is_global', true) && $request->has('assigned_users')) {
+            $template->assignedUsers()->attach($request->input('assigned_users'));
+        }
 
         return redirect()->route('admin.templates.index')
             ->with('success', 'Plantilla creada exitosamente.');
@@ -157,6 +167,9 @@ class TemplateController extends Controller
      */
     public function edit(Template $template)
     {
+        $users = User::select('id', 'name', 'role')->get();
+        $assignedUsers = $template->assignedUsers()->pluck('user_id')->toArray();
+        
         return Inertia::render('admin/templates/edit', [
             'template' => [
                 'id' => $template->id,
@@ -164,10 +177,13 @@ class TemplateController extends Controller
                 'subject' => $template->subject,
                 'content' => $template->content,
                 'is_active' => $template->is_active,
+                'is_global' => $template->is_global,
                 'message_type' => $template->message_type,
                 'media_url' => $template->media_url,
                 'media_filename' => $template->media_filename,
+                'assigned_users' => $assignedUsers,
             ],
+            'users' => $users,
         ]);
     }
 
@@ -180,6 +196,7 @@ class TemplateController extends Controller
             'name' => $request->input('name'),
             'content' => $request->input('content'),
             'is_active' => $request->boolean('is_active'),
+            'is_global' => $request->boolean('is_global'),
             'updated_by' => auth()->id(),
         ];
 
@@ -220,6 +237,16 @@ class TemplateController extends Controller
         }
 
         $template->update($data);
+
+        // Sincronizar asignaciones de usuarios
+        if ($request->boolean('is_global')) {
+            // Si es global, eliminar todas las asignaciones
+            $template->assignedUsers()->detach();
+        } else {
+            // Si no es global, sincronizar con los usuarios seleccionados
+            $assignedUsers = $request->input('assigned_users', []);
+            $template->assignedUsers()->sync($assignedUsers);
+        }
 
         return redirect()->route('admin.templates.index')
             ->with('success', 'Plantilla actualizada exitosamente.');

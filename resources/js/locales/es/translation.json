@@ -45,7 +45,6 @@
     "username": "Nombre de usuario",
     "email": "Correo electrónico",
     "emailPlaceholder": "Ingresa tu email",
-    "password": "Contraseña",
     "passwordPlaceholder": "Ingresa tu contraseña",
     "newPassword": "Nueva contraseña",
     "currentPassword": "Contraseña actual",
@@ -178,9 +177,9 @@
     "createButton": "Crear Plantilla"
   },
   "users": {
-    "title": "Gestión de Usuarios",
+    "title": "Gestión de usuarios",
     "subtitle": "Administra los usuarios del sistema",
-    "newUser": "Nuevo Usuario",
+    "newUser": "Nuevo usuario",
     "editUser": "Editar usuario",
     "deleteUser": "Eliminar usuario",
     "deleteConfirm": "¿Eliminar usuario?",
@@ -191,9 +190,9 @@
     "noUsersSubtitle": "Crea el primer usuario para empezar",
     "userDetails": "Detalles del usuario",
     "searchPlaceholder": "Buscar por nombre o email...",
-    "createTitle": "Crear Nuevo Usuario",
+    "createTitle": "Crear nuevo usuario",
     "createSubtitle": "Completa los datos para crear un usuario",
-    "createUser": "Crear Usuario",
+    "createUser": "Crear usuario",
     "creating": "Creando...",
     "backToUsers": "Volver a usuarios",
     "fullName": "Nombre completo",
@@ -203,9 +202,9 @@
     "passwordPlaceholder": "Mínimo 8 caracteres",
     "confirmPassword": "Confirmar contraseña",
     "confirmPasswordPlaceholder": "Repite la contraseña",
-    "editTitle": "Editar Usuario",
+    "editTitle": "Editar usuario",
     "editSubtitle": "Modifica los datos del usuario",
-    "saveChanges": "Guardar Cambios",
+    "saveChanges": "Guardar cambios",
     "newPassword": "Nueva contraseña (opcional)",
     "newPasswordPlaceholder": "Dejar vacío para mantener la actual",
     "confirmNewPassword": "Confirmar nueva contraseña",
@@ -263,21 +262,21 @@
       "passwordUpdated": "Contraseña actualizada"
     },
     "whatsapp": {
-      "title": "Configuración del Sistema",
+      "title": "Configuración del sistema",
       "subtitle": "Gestiona las configuraciones globales de Evarisbot",
-      "apiTitle": "WhatsApp Business API",
+      "apiTitle": "WhatsApp business api",
       "configureConnection": "Configura la conexión con WhatsApp",
-      "accessToken": "Token de Acceso",
+      "accessToken": "Token de acceso",
       "updateToken": "Actualizar token",
       "accessTokenPlaceholder": "Token de WhatsApp",
-      "phoneId": "Phone ID",
+      "phoneId": "Phone id",
       "phoneIdPlaceholder": "123456789012345",
-      "businessAccountId": "Business Account ID",
+      "businessAccountId": "Business account id",
       "businessAccountIdPlaceholder": "987654321098765",
-      "verifyToken": "Verify Token",
+      "verifyToken": "Verify token",
       "update": "Actualizar",
       "verifyTokenPlaceholder": "Webhook token",
-      "testConnection": "Probar Conexión",
+      "testConnection": "Probar conexión",
       "testing": "Probando...",
       "connectionError": "Error al probar la conexión"
     },
@@ -285,8 +284,8 @@
       "forgotPassword": "¿Olvidaste tu contraseña?",
       "forgotPasswordText": "¿Olvidaste tu contraseña? No hay problema. Solo dinos tu dirección de correo electrónico y te enviaremos un enlace para restablecerla.",
       "emailPasswordResetLink": "Enviar enlace",
-      "resetPassword": "Restablecer Contraseña",
-      "verifyEmail": "Verificar Correo Electrónico",
+      "resetPassword": "Restablecer contraseña",
+      "verifyEmail": "Verificar correo electrónico",
       "verifyEmailText": "Gracias por registrarte! Antes de comenzar, ¿podrías verificar tu dirección de correo electrónico haciendo clic en el enlace que te acabamos de enviar? Si no recibiste el correo, con gusto te enviaremos otro.",
       "verificationLinkSent": "Se ha enviado un nuevo enlace de verificación a tu correo electrónico.",
       "resendVerification": "Reenviar correo de verificación",
@@ -359,21 +358,21 @@
   "statistics": {
     "title": "Estadísticas",
     "subtitle": "Visualiza todas las métricas del sistema",
-    "export": "Exportar a Excel",
+    "export": "Exportar a excel",
     "exporting": "Exportando...",
     "filters": {
-      "title": "Filtros de Fecha",
+      "title": "Filtros de fecha",
       "period": "Período",
-      "custom": "Rango Personalizado",
-      "startDate": "Fecha Inicio",
-      "endDate": "Fecha Fin",
-      "apply": "Aplicar Filtros",
+      "custom": "Rango personalizado",
+      "startDate": "Fecha inicio",
+      "endDate": "Fecha fin",
+      "apply": "Aplicar filtros",
       "periods": {
         "today": "Hoy",
-        "week": "Esta Semana",
-        "month": "Este Mes",
-        "year": "Este Año",
-        "all": "Todo el Tiempo"
+        "week": "Esta semana",
+        "month": "Este mes",
+        "year": "Este año",
+        "all": "Todo el tiempo"
       }
     },
     "messages": {
@@ -383,7 +382,7 @@
       "confirmed": "Confirmados",
       "cancelled": "Cancelados",
       "rescheduled": "Reprogramados",
-      "byStatus": "Por Estado",
+      "byStatus": "Por estado",
       "statuses": {
         "pending": "Pendientes",
         "sent": "Enviados",
@@ -395,13 +394,13 @@
     "appointments": {
       "title": "Citas",
       "total": "Total",
-      "reminderSent": "Recordatorios Enviados",
+      "reminderSent": "Recordatorios enviados",
       "confirmed": "Confirmadas",
       "cancelled": "Canceladas",
       "rescheduled": "Reprogramadas",
       "pending": "Pendientes",
       "failed": "Fallidas",
-      "byStatus": "Por Estado"
+      "byStatus": "Por estado"
     },
     "conversations": {
       "title": "Conversaciones",
@@ -409,15 +408,15 @@
       "active": "Activas",
       "pending": "Pendientes",
       "closed": "Cerradas",
-      "unread": "Con Mensajes Sin Leer",
-      "byStatus": "Por Estado"
+      "unread": "Con mensajes sin leer",
+      "byStatus": "Por estado"
     },
     "templates": {
       "title": "Plantillas",
       "total": "Total",
-      "successfulSends": "Envíos Exitosos",
-      "failedSends": "Envíos Fallidos",
-      "totalSends": "Total de Envíos"
+      "successfulSends": "Envíos exitosos",
+      "failedSends": "Envíos fallidos",
+      "totalSends": "Total de envíos"
     },
     "users": {
       "title": "Usuarios",

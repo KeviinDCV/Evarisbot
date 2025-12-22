@@ -1,4 +1,4 @@
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm, Link, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import InputError from '@/components/input-error';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Users, Globe, UserCheck } from 'lucide-react';
 
 interface Template {
     id: number;
@@ -20,21 +20,30 @@ interface Template {
     subject: string | null;
     content: string;
     is_active: boolean;
+    is_global: boolean;
     message_type: 'text' | 'image' | 'document';
     media_url: string | null;
     media_filename: string | null;
+    assigned_users?: number[];
 }
 
 interface EditTemplateProps {
     template: Template;
+    users: Array<{
+        id: number;
+        name: string;
+        role: string;
+    }>;
 }
 
-export default function EditTemplate({ template }: EditTemplateProps) {
+export default function EditTemplate({ template, users }: EditTemplateProps) {
     const form = useForm({
         name: template.name,
         subject: template.subject || '',
         content: template.content,
         is_active: template.is_active,
+        is_global: template.is_global,
+        assigned_users: template.assigned_users || [],
         message_type: template.message_type,
         media_url: template.media_url || '',
         media_filename: template.media_filename || '',
@@ -156,6 +165,81 @@ export default function EditTemplate({ template }: EditTemplateProps) {
                                     <InputError message={form.errors.media_filename} />
                                 </div>
                             </>
+                        )}
+
+                        {/* Tipo de Plantilla */}
+                        <div className="space-y-3">
+                            <Label className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                Tipo de Plantilla
+                            </Label>
+                            <div className="space-y-2">
+                                <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input
+                                        type="radio"
+                                        name="template_type"
+                                        checked={form.data.is_global}
+                                        onChange={() => {
+                                            form.setData('is_global', true);
+                                            form.setData('assigned_users', []);
+                                        }}
+                                        className="w-4 h-4 text-[#2e3f84]"
+                                    />
+                                    <Globe className="w-5 h-5 text-[#2e3f84]" />
+                                    <div>
+                                        <p className="font-medium text-[#2e3f84]">Plantilla Global</p>
+                                        <p className="text-sm text-gray-500">Disponible para todos los asesores y administradores</p>
+                                    </div>
+                                </label>
+                                <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                                    <input
+                                        type="radio"
+                                        name="template_type"
+                                        checked={!form.data.is_global}
+                                        onChange={() => form.setData('is_global', false)}
+                                        className="w-4 h-4 text-[#2e3f84]"
+                                    />
+                                    <Users className="w-5 h-5 text-[#2e3f84]" />
+                                    <div>
+                                        <p className="font-medium text-[#2e3f84]">Plantilla Asignada</p>
+                                        <p className="text-sm text-gray-500">Disponible solo para los usuarios seleccionados</p>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* Asignar Usuarios (solo si no es global) */}
+                        {!form.data.is_global && (
+                            <div className="space-y-3">
+                                <Label className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                    <UserCheck className="inline w-4 h-4 mr-2" />
+                                    Asignar a Usuarios
+                                </Label>
+                                <div className="max-h-40 overflow-y-auto border rounded-lg p-3 space-y-2">
+                                    {users?.map((user) => (
+                                        <label key={user.id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                                            <input
+                                                type="checkbox"
+                                                checked={form.data.assigned_users.includes(user.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        form.setData('assigned_users', [...form.data.assigned_users, user.id]);
+                                                    } else {
+                                                        form.setData('assigned_users', form.data.assigned_users.filter(id => id !== user.id));
+                                                    }
+                                                }}
+                                                className="w-4 h-4 rounded border-gray-300 text-[#2e3f84] focus:ring-[#2e3f84]"
+                                            />
+                                            <div>
+                                                <p className="font-medium text-sm">{user.name}</p>
+                                                <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+                                            </div>
+                                        </label>
+                                    ))}
+                                </div>
+                                {form.data.assigned_users.length === 0 && !form.data.is_global && (
+                                    <p className="text-sm text-amber-600">Debes seleccionar al menos un usuario</p>
+                                )}
+                            </div>
                         )}
 
                         {/* Contenido */}
