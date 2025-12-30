@@ -79,10 +79,15 @@ class ConversationController extends Controller
 
         // Filtrar por asignación (solo para admin)
         if (auth()->user()->isAdmin()) {
-            if ($request->has('assigned') && $request->assigned === 'me') {
-                $query->where('assigned_to', auth()->id());
-            } elseif ($request->has('assigned') && $request->assigned === 'unassigned') {
-                $query->whereNull('assigned_to');
+            if ($request->has('assigned')) {
+                if ($request->assigned === 'me') {
+                    $query->where('assigned_to', auth()->id());
+                } elseif ($request->assigned === 'unassigned') {
+                    $query->whereNull('assigned_to');
+                } elseif (is_numeric($request->assigned)) {
+                    // Filtrar por ID de asesor específico
+                    $query->where('assigned_to', (int) $request->assigned);
+                }
             }
         }
 
@@ -182,10 +187,14 @@ class ConversationController extends Controller
                 $query->where('status', $request->status);
             }
 
-            if ($request->has('assigned') && $request->assigned === 'me') {
-                $query->where('assigned_to', auth()->id());
-            } elseif ($request->has('assigned') && $request->assigned === 'unassigned') {
-                $query->whereNull('assigned_to');
+            if ($request->has('assigned')) {
+                if ($request->assigned === 'me') {
+                    $query->where('assigned_to', auth()->id());
+                } elseif ($request->assigned === 'unassigned') {
+                    $query->whereNull('assigned_to');
+                } elseif (is_numeric($request->assigned)) {
+                    $query->where('assigned_to', (int) $request->assigned);
+                }
             }
         }
 

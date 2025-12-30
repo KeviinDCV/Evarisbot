@@ -144,11 +144,13 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [newChatError, setNewChatError] = useState('');
     const [isCreatingChat, setIsCreatingChat] = useState(false);
     const [advisorSearchQuery, setAdvisorSearchQuery] = useState('');
-    const [filterByAdvisor, setFilterByAdvisor] = useState<number | null>(null);
+    const [filterByAdvisor, setFilterByAdvisor] = useState<number | null>(
+        filters.assigned && !isNaN(Number(filters.assigned)) ? Number(filters.assigned) : null
+    );
     const [showAdvisorFilter, setShowAdvisorFilter] = useState(false);
     const [selectedConversations, setSelectedConversations] = useState<number[]>([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
-    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<string>(filters.status || 'all');
     const [showStatusFilter, setShowStatusFilter] = useState(false);
     const [showBulkAssignMenu, setShowBulkAssignMenu] = useState(false);
     const [bulkAssignSearchQuery, setBulkAssignSearchQuery] = useState('');
@@ -162,6 +164,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const advisorFilterButtonRef = useRef<HTMLButtonElement>(null);
+    const [advisorDropdownPosition, setAdvisorDropdownPosition] = useState({ top: 0, right: 0 });
     
     // Estados para plantillas
     const [showTemplates, setShowTemplates] = useState(false);
@@ -267,6 +271,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [hasMore, setHasMore] = useState(initialHasMore);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+    // Ref para trackear si se cargaron páginas adicionales (para no resetear hasMore)
+    const hasLoadedExtraPagesRef = useRef(false);
     
     // Estados para control de scroll inteligente
     const [isAtBottom, setIsAtBottom] = useState(true);
@@ -371,55 +377,74 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Ref para trackear el último filtro de búsqueda aplicado
     const lastSearchFilterRef = useRef<string>(filters.search || '');
+    // Ref para trackear los últimos filtros de status y assigned
+    const lastStatusFilterRef = useRef<string>(filters.status || 'all');
+    const lastAssignedFilterRef = useRef<string>(filters.assigned || '');
     // Ref para trackear si había conversación seleccionada
     const lastSelectedConversationRef = useRef<number | null>(selectedConversation?.id || null);
     
     // Sincronizar conversaciones cuando cambian desde el servidor
     useEffect(() => {
         const currentSearchFilter = filters.search || '';
+        const currentStatusFilter = filters.status || 'all';
+        const currentAssignedFilter = filters.assigned || '';
+        
         const searchChanged = currentSearchFilter !== lastSearchFilterRef.current;
+        const statusChanged = currentStatusFilter !== lastStatusFilterRef.current;
+        const assignedChanged = currentAssignedFilter !== lastAssignedFilterRef.current;
         const selectedChanged = (selectedConversation?.id || null) !== lastSelectedConversationRef.current;
         
         // Actualizar refs
         lastSearchFilterRef.current = currentSearchFilter;
+        lastStatusFilterRef.current = currentStatusFilter;
+        lastAssignedFilterRef.current = currentAssignedFilter;
         lastSelectedConversationRef.current = selectedConversation?.id || null;
         
-        // Si cambió el filtro de búsqueda o la selección cambió (navegación), resetear completamente
-        if (searchChanged || selectedChanged) {
+        // Si cambió algún filtro, resetear completamente
+        if (searchChanged || statusChanged || assignedChanged) {
             setLocalConversations(initialConversations);
             setHasMore(initialHasMore);
             setCurrentPage(1);
+            hasLoadedExtraPagesRef.current = false;
             return;
         }
         
-        // Si no cambió nada importante, actualizar sin perder conversaciones cargadas por scroll
-        // pero SÍ eliminar las que ya no están en initialConversations (ej: marcadas como resueltas)
+        // Si solo cambió la selección (navegación), NO resetear las conversaciones cargadas
+        // Solo actualizar los datos frescos de las conversaciones de la primera página
         setLocalConversations(prev => {
             // Si es la primera carga (prev vacío), usar initialConversations
             if (prev.length === 0) {
-                setHasMore(initialHasMore);
                 return initialConversations;
             }
             
-            // IDs que vienen del servidor
+            // IDs que vienen del servidor (primera página)
             const serverIds = new Set(initialConversations.map(c => c.id));
             
-            // Filtrar conversaciones locales que aún existen en el servidor
-            // y actualizarlas con datos frescos
-            const updated = prev
-                .filter(conv => serverIds.has(conv.id)) // Eliminar las que ya no están
-                .map(conv => {
-                    const freshConv = initialConversations.find(c => c.id === conv.id);
-                    return freshConv || conv;
-                });
+            // Separar: conversaciones de la primera página vs las cargadas por scroll
+            const firstPageConvs: Conversation[] = [];
+            const scrollLoadedConvs: Conversation[] = [];
             
-            // Agregar nuevas conversaciones que no existían (al principio)
-            const existingIds = new Set(updated.map(c => c.id));
+            prev.forEach(conv => {
+                if (serverIds.has(conv.id)) {
+                    // Esta conversación está en la primera página, actualizar con datos frescos
+                    const freshConv = initialConversations.find(c => c.id === conv.id);
+                    if (freshConv) {
+                        firstPageConvs.push(freshConv);
+                    }
+                } else {
+                    // Esta conversación fue cargada por scroll, mantenerla
+                    scrollLoadedConvs.push(conv);
+                }
+            });
+            
+            // Agregar nuevas conversaciones que no existían (al principio de la primera página)
+            const existingIds = new Set(firstPageConvs.map(c => c.id));
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id));
             
-            return [...newConvs, ...updated];
+            // Combinar: nuevas + primera página actualizada + cargadas por scroll
+            return [...newConvs, ...firstPageConvs, ...scrollLoadedConvs];
         });
-    }, [initialConversations, filters.search, initialHasMore, selectedConversation?.id]);
+    }, [initialConversations, filters.search, filters.status, filters.assigned, initialHasMore, selectedConversation?.id]);
 
     // Función para cargar más conversaciones (scroll infinito)
     const loadMoreConversations = useCallback(async () => {
@@ -429,7 +454,14 @@ export default function ConversationsIndex({ conversations: initialConversations
         const nextPage = currentPage + 1;
         
         try {
-            const response = await fetch(`/admin/chat?page=${nextPage}`, {
+            // Construir URL con filtros activos
+            const params = new URLSearchParams();
+            params.set('page', String(nextPage));
+            if (search) params.set('search', search);
+            if (statusFilter !== 'all') params.set('status', statusFilter);
+            if (filterByAdvisor !== null) params.set('assigned', String(filterByAdvisor));
+            
+            const response = await fetch(`/admin/chat?${params.toString()}`, {
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -441,13 +473,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setLocalConversations(prev => [...prev, ...data.conversations]);
                 setHasMore(data.hasMore);
                 setCurrentPage(nextPage);
+                // Marcar que se cargaron páginas adicionales
+                hasLoadedExtraPagesRef.current = true;
             }
         } catch (error) {
             console.error('Error cargando más conversaciones:', error);
         } finally {
             setIsLoadingMore(false);
         }
-    }, [isLoadingMore, hasMore, currentPage]);
+    }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor]);
 
     // Detectar scroll al final de la lista de conversaciones
     useEffect(() => {
@@ -609,13 +643,20 @@ export default function ConversationsIndex({ conversations: initialConversations
         searchTimeoutRef.current = setTimeout(() => {
             // Resetear página y conversaciones locales para nueva búsqueda
             setCurrentPage(1);
+            hasLoadedExtraPagesRef.current = false;
+            
+            // Construir parámetros incluyendo filtros activos
+            const params: Record<string, string> = {};
+            if (value) params.search = value;
+            if (statusFilter !== 'all') params.status = statusFilter;
+            if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
             
             // Si hay una conversación seleccionada, mantenerla abierta
             const url = selectedConversation 
                 ? `/admin/chat/${selectedConversation.id}`
                 : '/admin/chat';
             
-            router.get(url, { search: value }, {
+            router.get(url, params, {
                 preserveState: true,
                 preserveScroll: true,
                 replace: true,
@@ -672,12 +713,8 @@ export default function ConversationsIndex({ conversations: initialConversations
         return labels[status] || status;
     };
 
-    // Obtener asesores que tienen chats activos asignados
-    const advisorsWithActiveChats = users.filter(user => 
-        localConversations.some(conv => 
-            conv.assigned_to === user.id && conv.status !== 'resolved'
-        )
-    );
+    // Obtener todos los asesores disponibles para filtrar
+    const availableAdvisors = users;
 
     // Filtrar asesores por búsqueda
     const filteredAdvisors = users.filter(user => 
@@ -689,14 +726,33 @@ export default function ConversationsIndex({ conversations: initialConversations
         user.name.toLowerCase().includes(bulkAssignSearchQuery.toLowerCase())
     );
 
-    // Conversaciones filtradas por asesor y estado
-    const displayedConversations = localConversations.filter(conv => {
-        // Filtro por asesor
-        if (filterByAdvisor && conv.assigned_to !== filterByAdvisor) return false;
-        // Filtro por estado
-        if (statusFilter !== 'all' && conv.status !== statusFilter) return false;
-        return true;
-    });
+    // Función para aplicar filtros al backend
+    const applyFilters = useCallback((newStatus: string, newAdvisor: number | null) => {
+        // Resetear página y conversaciones para nueva búsqueda con filtros
+        setCurrentPage(1);
+        hasLoadedExtraPagesRef.current = false;
+        
+        // Construir parámetros de filtro
+        const params: Record<string, string> = {};
+        if (search) params.search = search;
+        if (newStatus !== 'all') params.status = newStatus;
+        if (newAdvisor !== null) params.assigned = String(newAdvisor);
+        
+        // Si hay una conversación seleccionada, mantenerla abierta
+        const url = selectedConversation 
+            ? `/admin/chat/${selectedConversation.id}`
+            : '/admin/chat';
+        
+        router.get(url, params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            only: ['conversations', 'hasMore', 'filters'],
+        });
+    }, [search, selectedConversation]);
+
+    // Las conversaciones ya vienen filtradas del backend
+    const displayedConversations = localConversations;
 
     // Función para manejar selección de conversación
     const handleConversationSelect = (conversationId: number, event: React.MouseEvent) => {
@@ -985,7 +1041,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Botón de filtro por estado */}
                                 <div className="relative" onClick={(e) => e.stopPropagation()}>
                                     <button
-                                        onClick={() => setShowStatusFilter(!showStatusFilter)}
+                                        onClick={() => {
+                                            setShowAdvisorFilter(false);
+                                            setShowStatusFilter(!showStatusFilter);
+                                        }}
                                         className={`p-2 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
                                             statusFilter !== 'all'
                                                 ? 'bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white' 
@@ -1014,6 +1073,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     onClick={() => {
                                                         setStatusFilter(option.value);
                                                         setShowStatusFilter(false);
+                                                        applyFilters(option.value, filterByAdvisor);
                                                     }}
                                                     className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
                                                         statusFilter === option.value ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
@@ -1052,10 +1112,21 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 )}
 
                                 {/* Botón de filtro por asesor - Solo Admin */}
-                                {isAdmin && advisorsWithActiveChats.length > 0 && (
+                                {isAdmin && availableAdvisors.length > 0 && (
                                     <div className="relative" onClick={(e) => e.stopPropagation()}>
                                         <button
-                                            onClick={() => setShowAdvisorFilter(!showAdvisorFilter)}
+                                            ref={advisorFilterButtonRef}
+                                            onClick={() => {
+                                                setShowStatusFilter(false);
+                                                if (!showAdvisorFilter && advisorFilterButtonRef.current) {
+                                                    const rect = advisorFilterButtonRef.current.getBoundingClientRect();
+                                                    setAdvisorDropdownPosition({
+                                                        top: rect.bottom + 4,
+                                                        right: window.innerWidth - rect.right
+                                                    });
+                                                }
+                                                setShowAdvisorFilter(!showAdvisorFilter);
+                                            }}
                                             className={`p-2 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
                                                 filterByAdvisor 
                                                     ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white' 
@@ -1068,7 +1139,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     
                                     {/* Dropdown de filtro por asesor */}
                                     {showAdvisorFilter && (
-                                        <div className="absolute right-0 top-full mt-1 bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar">
+                                        <div 
+                                            className="fixed bg-white rounded-none shadow-xl border border-gray-200 py-2 z-[9999] min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar"
+                                            style={{ top: advisorDropdownPosition.top, right: advisorDropdownPosition.right }}
+                                        >
                                             <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
                                                 {t('conversations.filterByAdvisor')}
                                             </div>
@@ -1078,6 +1152,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 onClick={() => {
                                                     setFilterByAdvisor(null);
                                                     setShowAdvisorFilter(false);
+                                                    applyFilters(statusFilter, null);
                                                 }}
                                                 className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
                                                     !filterByAdvisor ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
@@ -1089,25 +1164,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             
                                             <div className="border-t border-gray-200 my-1"></div>
                                             
-                                            {/* Lista de asesores con chats activos */}
-                                            {advisorsWithActiveChats.map((user) => {
-                                                const chatCount = localConversations.filter(c => c.assigned_to === user.id && c.status !== 'resolved').length;
+                                            {/* Lista de todos los asesores */}
+                                            {availableAdvisors.map((user) => {
                                                 return (
                                                     <button
                                                         key={user.id}
                                                         onClick={() => {
                                                             setFilterByAdvisor(user.id);
                                                             setShowAdvisorFilter(false);
+                                                            applyFilters(statusFilter, user.id);
                                                         }}
                                                         className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
                                                             filterByAdvisor === user.id ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
                                                         }`}
                                                     >
                                                         <span className="truncate">{user.name}</span>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs text-gray-400">{chatCount}</span>
-                                                            {filterByAdvisor === user.id && <Check className="w-4 h-4 text-[#2e3f84]" />}
-                                                        </div>
+                                                        {filterByAdvisor === user.id && <Check className="w-4 h-4 text-[#2e3f84]" />}
                                                     </button>
                                                 );
                                             })}
