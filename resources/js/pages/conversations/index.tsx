@@ -917,27 +917,37 @@ export default function ConversationsIndex({ conversations: initialConversations
         // Scroll al final para ver el nuevo mensaje
         setTimeout(() => scrollToBottom(), 50);
 
-        // Enviar al servidor en background usando fetch para no recargar la página
+        // Enviar al servidor en background usando fetch
         const formData = new FormData();
         formData.append('content', messageContent);
         if (messageFile) {
             formData.append('media_file', messageFile);
         }
 
+        // Obtener token CSRF del meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
         fetch(`/admin/chat/${selectedConversation.id}/send`, {
             method: 'POST',
             headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
+            credentials: 'same-origin',
             body: formData,
         })
         .then(response => {
-            if (!response.ok) throw new Error('Error al enviar mensaje');
+            if (!response.ok) {
+                // Si es error 419, la sesión expiró
+                if (response.status === 419) {
+                    throw new Error('Sesión expirada. Por favor recarga la página.');
+                }
+                throw new Error('Error al enviar mensaje');
+            }
             return response.json();
         })
-        .then((data) => {
+        .then(() => {
             // Marcar como enviado - se eliminará cuando llegue el mensaje real del servidor
             setOptimisticMessages(prev => 
                 prev.map(m => m.tempId === tempId ? { ...m, status: 'sending' as const } : m)
