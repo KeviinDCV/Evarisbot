@@ -140,7 +140,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showNewChatModal, setShowNewChatModal] = useState(false);
-    const [newChatData, setNewChatData] = useState({ phone_number: '', contact_name: '', message: '' });
+    const [newChatData, setNewChatData] = useState({ phone_number: '', contact_name: '', assigned_to: null as number | null });
     const [newChatError, setNewChatError] = useState('');
     const [isCreatingChat, setIsCreatingChat] = useState(false);
     const [advisorSearchQuery, setAdvisorSearchQuery] = useState('');
@@ -1032,22 +1032,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                     {/* Header */}
                     <div className="p-3 md:p-4 bg-[#dde1f0]">
                         <div className="flex items-center justify-between mb-2 md:mb-3">
-                            <h2 className="text-lg md:text-xl font-bold text-[#2e3f84]">{t('conversations.title')}</h2>
-                            {/* Botón para nueva conversación - DESHABILITADO TEMPORALMENTE
-                               Requiere plantillas aprobadas de Meta para funcionar correctamente.
-                               TODO: Implementar selección de plantillas antes de rehabilitar.
-                            {isAdmin && (
-                                <button
-                                    onClick={() => setShowNewChatModal(true)}
-                                    className="p-2 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
-                                    title={t('conversations.newConversation')}
-                                >
-                                    <Plus className="w-5 h-5" />
-                                </button>
-                            )}
-                            */}
+                            <h2 className="text-lg md:text-xl font-bold text-[#2e3f84] truncate">{t('conversations.title')}</h2>
                             
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {/* Botón para nueva conversación - Solo visible para admin */}
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => setShowNewChatModal(true)}
+                                        className="p-1.5 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                        title={t('conversations.newConversation')}
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                )}
                                 {/* Botón de filtro por estado */}
                                 <div className="relative" onClick={(e) => e.stopPropagation()}>
                                     <button
@@ -1055,14 +1052,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             setShowAdvisorFilter(false);
                                             setShowStatusFilter(!showStatusFilter);
                                         }}
-                                        className={`p-2 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
+                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
                                             statusFilter !== 'all'
                                                 ? 'bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white' 
                                                 : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
                                         }`}
                                         title="Filtrar por estado"
                                     >
-                                        <ListFilter className="w-5 h-5" />
+                                        <ListFilter className="w-4 h-4" />
                                     </button>
                                     
                                     {/* Dropdown de filtro por estado */}
@@ -1110,14 +1107,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 setIsSelectionMode(true);
                                             }
                                         }}
-                                        className={`p-2 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
+                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
                                             isSelectionMode
                                                 ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white' 
                                                 : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
                                         }`}
                                         title={isSelectionMode ? "Cancelar selección" : "Seleccionar múltiples"}
                                     >
-                                        <CheckSquare className="w-5 h-5" />
+                                        <CheckSquare className="w-4 h-4" />
                                     </button>
                                 )}
 
@@ -1137,14 +1134,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 }
                                                 setShowAdvisorFilter(!showAdvisorFilter);
                                             }}
-                                            className={`p-2 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
+                                            className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
                                                 filterByAdvisor 
                                                     ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white' 
                                                     : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
                                             }`}
                                             title={t('conversations.filterByAdvisor')}
                                         >
-                                            <Filter className="w-5 h-5" />
+                                            <Filter className="w-4 h-4" />
                                         </button>
                                     
                                     {/* Dropdown de filtro por asesor */}
@@ -2198,7 +2195,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             <Dialog open={showNewChatModal} onOpenChange={(open) => {
                 setShowNewChatModal(open);
                 if (!open) {
-                    setNewChatData({ phone_number: '', contact_name: '', message: '' });
+                    setNewChatData({ phone_number: '', contact_name: '', assigned_to: null });
                     setNewChatError('');
                 }
             }}>
@@ -2213,15 +2210,6 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </DialogDescription>
                     </DialogHeader>
                     
-                    {/* Advertencia sobre políticas de Meta */}
-                    <div className="bg-amber-50 border-l-4 border-amber-400 p-3 rounded-none">
-                        <div className="flex items-start gap-2">
-                            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                            <div className="text-sm text-amber-800">
-                                <strong>Importante:</strong> Según las políticas de WhatsApp Business API, solo puedes iniciar conversaciones si el usuario te ha escrito en las últimas 24 horas, o usando plantillas aprobadas por Meta.
-                            </div>
-                        </div>
-                    </div>
 
                     <form onSubmit={(e) => {
                         e.preventDefault();
@@ -2231,16 +2219,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                             setNewChatError('El número de teléfono es requerido');
                             return;
                         }
-                        if (!newChatData.message.trim()) {
-                            setNewChatError('El mensaje es requerido');
-                            return;
-                        }
                         
                         setIsCreatingChat(true);
-                        router.post('/admin/chat/create', newChatData, {
+                        router.post('/admin/chat/create', { 
+                            phone_number: newChatData.phone_number,
+                            contact_name: newChatData.contact_name,
+                            assigned_to: newChatData.assigned_to,
+                            message: 'saludo' // Se usa plantilla de saludo automáticamente
+                        }, {
                             onSuccess: () => {
                                 setShowNewChatModal(false);
-                                setNewChatData({ phone_number: '', contact_name: '', message: '' });
+                                setNewChatData({ phone_number: '', contact_name: '', assigned_to: null });
                                 setIsCreatingChat(false);
                             },
                             onError: (errors) => {
@@ -2286,15 +2275,26 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-[#2e3f84]">
-                                {t('conversations.message')} *
+                                Asignar a asesor (opcional)
                             </label>
-                            <Textarea
-                                placeholder="Escribe tu mensaje..."
-                                value={newChatData.message}
-                                onChange={(e) => setNewChatData({ ...newChatData, message: e.target.value })}
-                                rows={4}
-                                className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] rounded-none resize-none"
-                            />
+                            <select
+                                value={newChatData.assigned_to || ''}
+                                onChange={(e) => setNewChatData({ ...newChatData, assigned_to: e.target.value ? Number(e.target.value) : null })}
+                                className="w-full h-10 px-3 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.5)] rounded-none text-[#2e3f84]"
+                            >
+                                <option value="">Yo mismo (Admin)</option>
+                                {users.filter(user => user.id !== auth.user.id).map((user) => (
+                                    <option key={user.id} value={user.id}>
+                                        {user.name} {user.role === 'admin' ? '(Admin)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="bg-blue-50 border-l-4 border-blue-400 p-3">
+                            <div className="text-sm text-blue-800">
+                                <strong>Mensaje automático:</strong> Se enviará el saludo de presentación usando la plantilla aprobada por Meta con el nombre del asesor asignado.
+                            </div>
                         </div>
 
                         {newChatError && (

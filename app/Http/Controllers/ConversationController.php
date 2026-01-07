@@ -260,6 +260,12 @@ class ConversationController extends Controller
             'media_file' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,mp4,mov,avi,mkv,3gp,mp3,ogg,aac,amr,opus|max:20480', // max 20MB
         ]);
 
+        // Detectar comando /saludo para enviar plantilla de saludo
+        $content = trim($validated['content'] ?? '');
+        if (strtolower($content) === '/saludo') {
+            return $this->sendGreetingCommand($conversation, $whatsappService);
+        }
+
         // Si hay archivo, subirlo
         $mediaUrl = null;
         $mediaFilename = null;
@@ -458,6 +464,68 @@ class ConversationController extends Controller
     }
 
     /**
+     * Enviar plantilla de saludo usando el comando /saludo
+     */
+    protected function sendGreetingCommand(Conversation $conversation, WhatsAppService $whatsappService)
+    {
+        $user = auth()->user();
+        $advisorName = $user->name;
+        
+        // Generar el texto del mensaje para guardar en BD
+        $greetingText = "Buen día.\n" .
+            "Le saludamos de Hospital Universitario del Valle.\n" .
+            "A partir de este momento será atendido(a) por {$advisorName}, quien estará a cargo de la asignación y seguimiento de su cita.\n" .
+            "Quedamos atentos a cualquier consulta adicional.";
+        
+        // Crear el mensaje en la base de datos
+        $message = $conversation->messages()->create([
+            'content' => $greetingText,
+            'message_type' => 'text',
+            'is_from_user' => false,
+            'sent_by' => $user->id,
+            'status' => 'pending',
+        ]);
+
+        // Auto-asignar al asesor si no está asignado
+        $updateData = ['last_message_at' => now()];
+        if (is_null($conversation->assigned_to)) {
+            $updateData['assigned_to'] = $user->id;
+            $updateData['status'] = 'active';
+        }
+        $conversation->update($updateData);
+
+        // Enviar usando la plantilla de WhatsApp
+        if ($whatsappService->isConfigured()) {
+            $result = $whatsappService->sendGreetingTemplate(
+                $conversation->phone_number,
+                $advisorName
+            );
+
+            if ($result && $result['success']) {
+                $message->update([
+                    'status' => 'sent',
+                    'whatsapp_message_id' => $result['message_id'] ?? null,
+                ]);
+            } else {
+                $message->update([
+                    'status' => 'failed',
+                    'error_message' => $result['error'] ?? 'Error desconocido',
+                ]);
+            }
+        } else {
+            $message->update([
+                'status' => 'failed',
+                'error_message' => 'WhatsApp API no configurada',
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message->fresh()->load('sender'),
+        ]);
+    }
+
+    /**
      * Crear una nueva conversación (iniciar chat con un número)
      * 
      * IMPORTANTE: Según las políticas de Meta/WhatsApp Business API:
@@ -470,8 +538,14 @@ class ConversationController extends Controller
         $validated = $request->validate([
             'phone_number' => 'required|string|min:10|max:20',
             'contact_name' => 'nullable|string|max:255',
+            'assigned_to' => 'nullable|exists:users,id',
             'message' => 'required|string|max:4096',
         ]);
+
+        // Obtener el asesor seleccionado o usar el usuario actual (admin)
+        $assignedUser = $validated['assigned_to'] 
+            ? \App\Models\User::find($validated['assigned_to']) 
+            : auth()->user();
 
         // Formatear número de teléfono (eliminar caracteres no numéricos excepto +)
         $phoneNumber = preg_replace('/[^0-9+]/', '', $validated['phone_number']);
@@ -490,39 +564,47 @@ class ConversationController extends Controller
         $conversation = Conversation::where('phone_number', $phoneNumber)->first();
 
         if ($conversation) {
-            // Si existe pero está resuelta, reactivarla
-            if ($conversation->status === 'resolved') {
-                $conversation->update([
-                    'status' => 'active',
-                    'last_message_at' => now(),
-                ]);
-            }
+            // Si existe, actualizar asignación y reactivar si está resuelta
+            $conversation->update([
+                'status' => 'active',
+                'assigned_to' => $assignedUser->id,
+                'last_message_at' => now(),
+            ]);
         } else {
-            // Crear nueva conversación
+            // Crear nueva conversación asignada al asesor seleccionado
             $conversation = Conversation::create([
                 'phone_number' => $phoneNumber,
                 'contact_name' => $validated['contact_name'] ?? null,
                 'status' => 'active',
-                'assigned_to' => auth()->id(),
+                'assigned_to' => $assignedUser->id,
                 'last_message_at' => now(),
                 'unread_count' => 0,
             ]);
         }
 
-        // Crear el mensaje en la base de datos
+        // Usar plantilla de saludo con el nombre del asesor seleccionado
+        $advisorName = $assignedUser->name;
+        
+        // Generar el texto del mensaje de saludo para guardar en BD
+        $greetingText = "Buen día.\n" .
+            "Le saludamos de Hospital Universitario del Valle.\n" .
+            "A partir de este momento será atendido(a) por {$advisorName}, quien estará a cargo de la asignación y seguimiento de su cita.\n" .
+            "Quedamos atentos a cualquier consulta adicional.";
+        
+        // Crear el mensaje en la base de datos (enviado por el asesor seleccionado)
         $message = $conversation->messages()->create([
-            'content' => $validated['message'],
+            'content' => $greetingText,
             'message_type' => 'text',
             'is_from_user' => false,
-            'sent_by' => auth()->id(),
+            'sent_by' => $assignedUser->id,
             'status' => 'pending',
         ]);
 
-        // Enviar mensaje usando WhatsApp Business API
+        // Enviar usando la plantilla de saludo de WhatsApp
         if ($whatsappService->isConfigured()) {
-            $result = $whatsappService->sendTextMessage(
+            $result = $whatsappService->sendGreetingTemplate(
                 $phoneNumber,
-                $validated['message']
+                $advisorName
             );
 
             if ($result && $result['success']) {

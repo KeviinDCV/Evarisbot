@@ -395,6 +395,77 @@ class WhatsAppService
     }
 
     /**
+     * Enviar plantilla de saludo de asesor
+     * Esta plantilla debe estar aprobada en Meta con el nombre 'saludo_asesor'
+     */
+    public function sendGreetingTemplate(string $to, string $advisorName): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'recipient_type' => 'individual',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'template',
+                'template' => [
+                    'name' => 'saludo_asesor',
+                    'language' => ['code' => 'es_CO'],
+                    'components' => [
+                        [
+                            'type' => 'body',
+                            'parameters' => [
+                                ['type' => 'text', 'text' => $advisorName],
+                            ]
+                        ]
+                    ]
+                ]
+            ];
+
+            Log::info('Enviando plantilla de saludo', [
+                'to' => $to,
+                'advisor' => $advisorName,
+            ]);
+
+            $response = Http::withToken($this->token)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                Log::info('Plantilla de saludo enviada', [
+                    'to' => $to,
+                    'message_id' => $data['messages'][0]['id'] ?? null,
+                ]);
+
+                return [
+                    'success' => true,
+                    'message_id' => $data['messages'][0]['id'] ?? null,
+                    'data' => $data,
+                ];
+            }
+
+            Log::error('Error enviando plantilla de saludo', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $response->json()['error']['message'] ?? 'Error desconocido',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Excepción enviando plantilla de saludo', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Verificar si WhatsApp está configurado
      */
     public function isConfigured(): bool

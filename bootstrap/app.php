@@ -19,9 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
-        // Excluir webhook de WhatsApp de la protección CSRF
+        // Excluir webhook de WhatsApp y envío de mensajes de chat de la protección CSRF
+        // El envío de mensajes ya está protegido por middleware 'auth'
         $middleware->validateCsrfTokens(except: [
             'webhook/*',
+            'admin/chat/*/send',
         ]);
 
         $middleware->web(append: [
