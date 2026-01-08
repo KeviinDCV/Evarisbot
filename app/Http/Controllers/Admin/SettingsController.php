@@ -26,6 +26,10 @@ class SettingsController extends Controller
                 'webhook_url' => Setting::get('whatsapp_webhook_url'),
                 'is_configured' => Setting::has('whatsapp_token') && Setting::has('whatsapp_phone_id'),
             ],
+            'groq' => [
+                'api_key' => Setting::getPreview('groq_api_key'),
+                'is_configured' => Setting::has('groq_api_key'),
+            ],
         ];
 
         // Obtener asesores para la sección de turnos
@@ -188,6 +192,49 @@ class SettingsController extends Controller
                 'success' => false,
                 'message' => 'Error al conectar: ' . $e->getMessage(),
             ], 500);
+        }
+    }
+
+    /**
+     * Actualizar configuración de Groq (transcripción de audio)
+     */
+    public function updateGroq(Request $request)
+    {
+        $validated = $request->validate([
+            'groq_api_key' => 'nullable|string|min:20',
+        ]);
+
+        if (!empty($validated['groq_api_key'])) {
+            // Verificar que la API key sea válida
+            $isValid = $this->verifyGroqApiKey($validated['groq_api_key']);
+            
+            if (!$isValid) {
+                throw ValidationException::withMessages([
+                    'groq_api_key' => 'La API key de Groq no es válida.',
+                ]);
+            }
+
+            Setting::set('groq_api_key', $validated['groq_api_key'], 'API Key de Groq para transcripción de audio');
+        }
+
+        return redirect()->back()->with('success', 'Configuración de Groq actualizada exitosamente.');
+    }
+
+    /**
+     * Verificar si la API key de Groq es válida
+     */
+    private function verifyGroqApiKey(string $apiKey): bool
+    {
+        try {
+            $response = Http::withHeaders([
+                    'Authorization' => 'Bearer ' . $apiKey,
+                ])
+                ->timeout(10)
+                ->get('https://api.groq.com/openai/v1/models');
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            return false;
         }
     }
 

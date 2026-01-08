@@ -14,6 +14,7 @@ class Message extends Model
         'media_url',
         'media_mime_type',
         'media_filename',
+        'transcription',
         'is_from_user',
         'whatsapp_message_id',
         'status',

@@ -78,6 +78,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/settings/test-whatsapp', 'testWhatsAppConnection')->name('settings.test-whatsapp');
         Route::get('/settings/business-profile', 'getBusinessProfile')->name('settings.business-profile');
         Route::post('/settings/on-duty-advisors', 'updateOnDutyAdvisors')->name('settings.on-duty-advisors');
+        Route::post('/settings/groq', 'updateGroq')->name('settings.groq');
     });
     
     // Estadísticas

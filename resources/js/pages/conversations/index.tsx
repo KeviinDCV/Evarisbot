@@ -61,6 +61,7 @@ interface Message {
     content: string;
     message_type: string;
     media_url?: string | null;
+    transcription?: string | null;
     is_from_user: boolean;
     status: string;
     created_at: string;
@@ -1878,6 +1879,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                 Your browser does not support audio playback.
                                                             </audio>
                                                         </div>
+                                                        {message.transcription && (
+                                                            <div className="mt-2 p-2 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded text-sm">
+                                                                <p className="text-xs text-blue-600 font-medium mb-1">📝 Transcripción:</p>
+                                                                <p className="text-gray-700 italic">{message.transcription}</p>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ) : message.message_type === 'sticker' && message.media_url ? (
                                                     <div className="space-y-2">

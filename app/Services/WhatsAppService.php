@@ -694,6 +694,11 @@ class WhatsAppService
                 'status' => 'delivered',
             ]);
 
+            // Si es audio, intentar transcribir en background
+            if ($messageType === 'audio' && $mediaUrl) {
+                $this->transcribeAudioMessage($message);
+            }
+
             // Actualizar conversación
             $conversation->update([
                 'last_message_at' => now(),
@@ -920,5 +925,45 @@ class WhatsAppService
         }
         
         return 'No especificada';
+    }
+
+    /**
+     * Transcribir mensaje de audio usando Groq Whisper
+     */
+    private function transcribeAudioMessage(Message $message): void
+    {
+        try {
+            $transcriptionService = new TranscriptionService();
+            
+            if (!$transcriptionService->isConfigured()) {
+                Log::info('TranscriptionService not configured, skipping audio transcription');
+                return;
+            }
+
+            $audioPath = $message->media_url;
+            if (!$audioPath) {
+                return;
+            }
+
+            $transcription = $transcriptionService->transcribe($audioPath);
+            
+            if ($transcription) {
+                $message->update(['transcription' => $transcription]);
+                
+                Log::info('Audio transcribed successfully', [
+                    'message_id' => $message->id,
+                    'transcription_length' => strlen($transcription),
+                ]);
+
+                // Re-emitir evento para actualizar la UI con la transcripción
+                $conversation = $message->conversation->fresh(['lastMessage', 'assignedUser']);
+                broadcast(new \App\Events\MessageSent($message->fresh(), $conversation));
+            }
+        } catch (\Exception $e) {
+            Log::error('Audio transcription failed', [
+                'message_id' => $message->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

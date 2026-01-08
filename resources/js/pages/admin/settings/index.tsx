@@ -18,6 +18,10 @@ interface Settings {
         webhook_url: string | null;
         is_configured: boolean;
     };
+    groq: {
+        api_key: string | null;
+        is_configured: boolean;
+    };
 }
 
 interface Advisor {
@@ -65,12 +69,27 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
         whatsapp_verify_token: '',
     });
 
+    // Formulario de Groq
+    const groqForm = useForm({
+        groq_api_key: '',
+    });
+
     const handleWhatsAppSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         whatsappForm.post('/admin/settings/whatsapp', {
             preserveScroll: true,
             onSuccess: () => {
                 whatsappForm.reset('whatsapp_token', 'whatsapp_verify_token');
+            },
+        });
+    };
+
+    const handleGroqSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        groqForm.post('/admin/settings/groq', {
+            preserveScroll: true,
+            onSuccess: () => {
+                groqForm.reset('groq_api_key');
             },
         });
     };
@@ -362,6 +381,74 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                         </div>
                                     </div>
                                 )}
+                            </form>
+                        </div>
+
+                        {/* Groq Transcription Config */}
+                        <div className="mt-6">
+                            <form onSubmit={handleGroqSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
+                                <div className="mb-4">
+                                    <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">🎙️ Transcripción de Audio (Groq)</h2>
+                                    <p className="text-xs md:text-sm text-[#6b7494] mt-1">
+                                        Configura Groq para transcribir automáticamente los audios que envían los clientes.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {/* Status indicator */}
+                                    <div className="flex items-center gap-2">
+                                        {settings.groq.is_configured ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                                                <CheckCircle2 className="w-3 h-3" />
+                                                Configurado
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
+                                                <AlertCircle className="w-3 h-3" />
+                                                No configurado
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* API Key */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="groq_api_key" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                            API Key de Groq
+                                        </Label>
+                                        {settings.groq.api_key && (
+                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-none">
+                                                <p className="text-xs text-[#6b7494] truncate font-mono">●●●●{settings.groq.api_key.slice(-4)}</p>
+                                            </div>
+                                        )}
+                                        <Input
+                                            id="groq_api_key"
+                                            type="password"
+                                            value={groqForm.data.groq_api_key}
+                                            onChange={(e) => groqForm.setData('groq_api_key', e.target.value)}
+                                            placeholder={settings.groq.api_key ? 'Actualizar API Key...' : 'gsk_xxxxx...'}
+                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 font-mono text-xs md:text-sm"
+                                        />
+                                        <InputError message={groqForm.errors.groq_api_key} />
+                                        <p className="text-xs text-[#6b7494]">
+                                            Obtén tu API Key gratis en <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-[#2e3f84] underline hover:no-underline">console.groq.com/keys</a>
+                                        </p>
+                                    </div>
+
+                                    <Button
+                                        type="submit"
+                                        disabled={groqForm.processing || !groqForm.data.groq_api_key}
+                                        className="bg-gradient-to-b from-[#2e3f84] to-[#253470] text-white shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                    >
+                                        {groqForm.processing ? (
+                                            <>
+                                                <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-2 animate-spin" />
+                                                Guardando...
+                                            </>
+                                        ) : (
+                                            'Guardar configuración'
+                                        )}
+                                    </Button>
+                                </div>
                             </form>
                         </div>
 
