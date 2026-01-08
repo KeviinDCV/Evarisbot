@@ -108,6 +108,12 @@ interface User {
     role: string;
 }
 
+interface MediaFile {
+    url: string;
+    filename: string;
+    type: 'image' | 'video' | 'document';
+}
+
 interface Template {
     id: number;
     name: string;
@@ -115,6 +121,7 @@ interface Template {
     message_type: string;
     media_url?: string | null;
     media_filename?: string | null;
+    media_files?: MediaFile[];
 }
 
 interface ConversationsIndexProps {
@@ -139,7 +146,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
+    const [templateMediaFiles, setTemplateMediaFiles] = useState<MediaFile[]>([]);
     const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
     const [contextMenu, setContextMenu] = useState<{ conversationId: number; x: number; y: number } | null>(null);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -229,16 +236,26 @@ export default function ConversationsIndex({ conversations: initialConversations
         // Guardar el ID de la plantilla para incrementar el contador al enviar
         setSelectedTemplateId(template.id);
         
-        // Si la plantilla tiene imagen/media, guardarla para enviar
-        if (template.media_url) {
-            setTemplateMediaUrl(template.media_url);
+        // Si la plantilla tiene archivos multimedia, guardarlos para enviar
+        const mediaFiles = template.media_files || [];
+        // Fallback al formato antiguo si no hay media_files
+        if (mediaFiles.length === 0 && template.media_url) {
+            mediaFiles.push({
+                url: template.media_url,
+                filename: template.media_filename || 'archivo',
+                type: (template.message_type as 'image' | 'video' | 'document') || 'document',
+            });
+        }
+        
+        if (mediaFiles.length > 0) {
+            setTemplateMediaFiles(mediaFiles);
             // Limpiar archivo seleccionado manualmente (la plantilla tiene prioridad)
             setSelectedFile(null);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
         } else {
-            setTemplateMediaUrl(null);
+            setTemplateMediaFiles([]);
         }
         
         setShowTemplates(false);
@@ -934,13 +951,13 @@ export default function ConversationsIndex({ conversations: initialConversations
         // Guardar contenido para posible reintento
         const messageContent = data.content;
         const messageFile = selectedFile;
-        const messageTemplateMediaUrl = templateMediaUrl;
+        const messageTemplateMediaFiles = templateMediaFiles;
         const messageTemplateId = selectedTemplateId;
         
         // Limpiar formulario inmediatamente (mejor UX)
         reset();
         setSelectedFile(null);
-        setTemplateMediaUrl(null);
+        setTemplateMediaFiles([]);
         setSelectedTemplateId(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
@@ -955,9 +972,9 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (messageFile) {
             formData.append('media_file', messageFile);
         }
-        // Si hay imagen de plantilla, enviarla al backend
-        if (messageTemplateMediaUrl) {
-            formData.append('template_media_url', messageTemplateMediaUrl);
+        // Si hay archivos de plantilla, enviarlos al backend
+        if (messageTemplateMediaFiles.length > 0) {
+            formData.append('template_media_files', JSON.stringify(messageTemplateMediaFiles));
         }
         // Si se usó una plantilla, enviar su ID para incrementar el contador
         if (messageTemplateId) {
@@ -2042,26 +2059,40 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </div>
                             )}
                             
-                            {/* Preview de imagen de plantilla */}
-                            {templateMediaUrl && !selectedFile && (
-                                <div className="mb-2 flex items-center gap-2 p-2 bg-gradient-to-b from-green-50 to-green-100/50 rounded-none">
-                                    <img 
-                                        src={templateMediaUrl} 
-                                        alt="Imagen de plantilla" 
-                                        className="w-10 h-10 object-cover rounded"
-                                    />
-                                    <span className="text-sm text-green-800 flex-1 truncate">
-                                        📎 Imagen de plantilla adjunta
-                                    </span>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setTemplateMediaUrl(null)}
-                                        className="h-6 w-6 p-0 hover:bg-red-100"
-                                    >
-                                        <X className="w-4 h-4 text-red-600" />
-                                    </Button>
+                            {/* Preview de archivos de plantilla (múltiples) */}
+                            {templateMediaFiles.length > 0 && !selectedFile && (
+                                <div className="mb-2 p-2 bg-gradient-to-b from-green-50 to-green-100/50 rounded-none">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-sm text-green-800 font-medium">
+                                            📎 {templateMediaFiles.length} archivo{templateMediaFiles.length !== 1 ? 's' : ''} de plantilla
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setTemplateMediaFiles([])}
+                                            className="h-6 w-6 p-0 hover:bg-red-100"
+                                        >
+                                            <X className="w-4 h-4 text-red-600" />
+                                        </Button>
+                                    </div>
+                                    <div className="flex gap-2 overflow-x-auto">
+                                        {templateMediaFiles.map((file, index) => (
+                                            <div key={index} className="flex-shrink-0">
+                                                {file.type === 'image' ? (
+                                                    <img 
+                                                        src={file.url} 
+                                                        alt={file.filename} 
+                                                        className="w-10 h-10 object-cover rounded"
+                                                    />
+                                                ) : (
+                                                    <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-600">
+                                                        {file.type === 'video' ? '🎬' : '📄'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                             

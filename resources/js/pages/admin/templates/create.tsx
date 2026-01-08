@@ -5,15 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import InputError from '@/components/input-error';
-import { ArrowLeft, Paperclip, X, Image, Video, FileText, Users, Globe, UserCheck } from 'lucide-react';
+import { ArrowLeft, Paperclip, X, Image, Video, FileText, Users, Globe, UserCheck, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useRef, useState } from 'react';
+
+interface MediaFile {
+    file: File;
+    preview: string | null;
+    type: 'image' | 'video' | 'document';
+}
 
 export default function CreateTemplate() {
     const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [preview, setPreview] = useState<string | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<MediaFile[]>([]);
     
     // Obtener usuarios del servidor (pasados como props)
     const { users } = usePage().props as any;
@@ -24,59 +29,86 @@ export default function CreateTemplate() {
         is_active: false,
         is_global: true,
         assigned_users: [] as number[],
-        media_file: null as File | null,
     });
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setSelectedFile(file);
-            setData('media_file', file);
-            
-            // Crear preview para imágenes
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => setPreview(e.target?.result as string);
-                reader.readAsDataURL(file);
-            } else {
-                setPreview(null);
-            }
-        }
+    const getFileType = (file: File): 'image' | 'video' | 'document' => {
+        if (file.type.startsWith('image/')) return 'image';
+        if (file.type.startsWith('video/')) return 'video';
+        return 'document';
     };
 
-    const handleRemoveFile = () => {
-        setSelectedFile(null);
-        setPreview(null);
-        setData('media_file', null);
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+
+        const newFiles: MediaFile[] = [];
+        
+        Array.from(files).forEach(file => {
+            const type = getFileType(file);
+            let preview: string | null = null;
+            
+            if (type === 'image') {
+                preview = URL.createObjectURL(file);
+            }
+            
+            newFiles.push({ file, preview, type });
+        });
+
+        setSelectedFiles(prev => [...prev, ...newFiles]);
+        
+        // Limpiar input para permitir seleccionar el mismo archivo de nuevo
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
     };
 
-    const getFileIcon = () => {
-        if (!selectedFile) return null;
-        if (selectedFile.type.startsWith('image/')) return <Image className="w-5 h-5" />;
-        if (selectedFile.type.startsWith('video/')) return <Video className="w-5 h-5" />;
-        return <FileText className="w-5 h-5" />;
+    const handleRemoveFile = (index: number) => {
+        setSelectedFiles(prev => {
+            const newFiles = [...prev];
+            // Revocar URL del preview si existe
+            if (newFiles[index].preview) {
+                URL.revokeObjectURL(newFiles[index].preview!);
+            }
+            newFiles.splice(index, 1);
+            return newFiles;
+        });
     };
 
-    const getFileType = () => {
-        if (!selectedFile) return '';
-        if (selectedFile.type.startsWith('image/')) return 'Imagen';
-        if (selectedFile.type.startsWith('video/')) return 'Video';
-        return 'Documento';
+    const getFileIcon = (type: 'image' | 'video' | 'document') => {
+        switch (type) {
+            case 'image': return <Image className="w-5 h-5" />;
+            case 'video': return <Video className="w-5 h-5" />;
+            default: return <FileText className="w-5 h-5" />;
+        }
+    };
+
+    const getFileTypeLabel = (type: 'image' | 'video' | 'document') => {
+        switch (type) {
+            case 'image': return 'Imagen';
+            case 'video': return 'Video';
+            default: return 'Documento';
+        }
     };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        router.post('/admin/templates', {
-            name: data.name,
-            content: data.content,
-            is_active: data.is_active,
-            is_global: data.is_global,
-            assigned_users: data.assigned_users,
-            media_file: data.media_file,
-        }, {
+        
+        const formData = new FormData();
+        formData.append('name', data.name);
+        formData.append('content', data.content);
+        formData.append('is_active', data.is_active ? '1' : '0');
+        formData.append('is_global', data.is_global ? '1' : '0');
+        
+        data.assigned_users.forEach(userId => {
+            formData.append('assigned_users[]', userId.toString());
+        });
+        
+        // Agregar múltiples archivos
+        selectedFiles.forEach((mediaFile, index) => {
+            formData.append(`media_files[${index}]`, mediaFile.file);
+        });
+
+        router.post('/admin/templates', formData, {
             forceFormData: true,
         });
     };
@@ -141,59 +173,81 @@ export default function CreateTemplate() {
                                 <InputError message={errors.content} />
                             </div>
 
-                            {/* Archivo Adjunto (Opcional) */}
+                            {/* Archivos Adjuntos (Opcional - Múltiples) */}
                             <div className="space-y-2">
                                 <Label className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                    Archivo adjunto (opcional)
+                                    Archivos adjuntos (opcional)
                                 </Label>
                                 <p className="text-xs text-[#6b7494] mb-2">
-                                    Puedes adjuntar una imagen, video o documento. Formatos soportados: JPG, PNG, GIF, MP4, MOV, PDF, DOC. Máximo 20MB.
+                                    Puedes adjuntar múltiples imágenes, videos o documentos. Formatos soportados: JPG, PNG, GIF, WebP (se convierte a PNG), MP4, MOV, PDF, DOC. Máximo 20MB por archivo.
                                 </p>
                                 
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept="image/*,video/*,.pdf,.doc,.docx"
+                                    accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.3gp,.pdf,.doc,.docx"
                                     onChange={handleFileSelect}
+                                    multiple
                                     className="hidden"
                                 />
                                 
-                                {!selectedFile ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => fileInputRef.current?.click()}
-                                        className="w-full p-4 border-2 border-dashed border-[#dde1f0] rounded-none hover:border-[#2e3f84] hover:bg-[#f8f9fc] transition-all duration-200 flex flex-col items-center gap-2 text-[#6b7494]"
-                                    >
-                                        <Paperclip className="w-8 h-8" />
-                                        <span className="text-sm">Haz clic para seleccionar un archivo</span>
-                                    </button>
-                                ) : (
-                                    <div className="p-4 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] rounded-none">
-                                        <div className="flex items-center gap-3">
-                                            {preview ? (
-                                                <img src={preview} alt="Preview" className="w-16 h-16 object-cover rounded-none" />
-                                            ) : (
-                                                <div className="w-16 h-16 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] rounded-none flex items-center justify-center text-white">
-                                                    {getFileIcon()}
+                                {/* Lista de archivos seleccionados */}
+                                {selectedFiles.length > 0 && (
+                                    <div className="space-y-2 mb-3">
+                                        {selectedFiles.map((mediaFile, index) => (
+                                            <div key={index} className="p-3 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] rounded-none">
+                                                <div className="flex items-center gap-3">
+                                                    {mediaFile.preview ? (
+                                                        <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-none" />
+                                                    ) : (
+                                                        <div className="w-12 h-12 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] rounded-none flex items-center justify-center text-white">
+                                                            {getFileIcon(mediaFile.type)}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-[#2e3f84] truncate">{mediaFile.file.name}</p>
+                                                        <p className="text-xs text-[#6b7494]">
+                                                            {getFileTypeLabel(mediaFile.type)} • {(mediaFile.file.size / 1024 / 1024).toFixed(2)} MB
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveFile(index)}
+                                                        className="p-2 text-[#6b7494] hover:text-red-500 hover:bg-red-50 rounded-none transition-all"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
                                                 </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-[#2e3f84] truncate">{selectedFile.name}</p>
-                                                <p className="text-xs text-[#6b7494]">
-                                                    {getFileType()} • {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                                                </p>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={handleRemoveFile}
-                                                className="p-2 text-[#6b7494] hover:text-red-500 hover:bg-red-50 rounded-none transition-all"
-                                            >
-                                                <X className="w-5 h-5" />
-                                            </button>
-                                        </div>
+                                        ))}
                                     </div>
                                 )}
-                                <InputError message={errors.media_file} />
+                                
+                                {/* Botón para agregar más archivos */}
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full p-4 border-2 border-dashed border-[#dde1f0] rounded-none hover:border-[#2e3f84] hover:bg-[#f8f9fc] transition-all duration-200 flex flex-col items-center gap-2 text-[#6b7494]"
+                                >
+                                    {selectedFiles.length === 0 ? (
+                                        <>
+                                            <Paperclip className="w-8 h-8" />
+                                            <span className="text-sm">Haz clic para seleccionar archivos</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="w-6 h-6" />
+                                            <span className="text-sm">Agregar más archivos</span>
+                                        </>
+                                    )}
+                                </button>
+                                
+                                {selectedFiles.length > 0 && (
+                                    <p className="text-xs text-[#6b7494] mt-2">
+                                        {selectedFiles.length} archivo{selectedFiles.length !== 1 ? 's' : ''} seleccionado{selectedFiles.length !== 1 ? 's' : ''}
+                                    </p>
+                                )}
+                                <InputError message={errors.media_files} />
                             </div>
 
                             {/* Tipo de Plantilla */}

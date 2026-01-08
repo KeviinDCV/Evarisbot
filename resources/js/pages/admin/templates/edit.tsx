@@ -1,18 +1,24 @@
-import { Head, useForm, Link, usePage } from '@inertiajs/react';
+import { Head, useForm, Link, router } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import InputError from '@/components/input-error';
-import { ArrowLeft, Users, Globe, UserCheck } from 'lucide-react';
+import { ArrowLeft, Users, Globe, UserCheck, X, Image, Video, FileText, Paperclip, Plus } from 'lucide-react';
+import { useRef, useState } from 'react';
+
+interface ExistingMediaFile {
+    url: string;
+    filename: string;
+    type: 'image' | 'video' | 'document';
+}
+
+interface NewMediaFile {
+    file: File;
+    preview: string | null;
+    type: 'image' | 'video' | 'document';
+}
 
 interface Template {
     id: number;
@@ -24,6 +30,7 @@ interface Template {
     message_type: 'text' | 'image' | 'document';
     media_url: string | null;
     media_filename: string | null;
+    media_files?: ExistingMediaFile[];
     assigned_users?: number[];
 }
 
@@ -37,6 +44,16 @@ interface EditTemplateProps {
 }
 
 export default function EditTemplate({ template, users }: EditTemplateProps) {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Archivos existentes (ya guardados en el servidor)
+    const [existingFiles, setExistingFiles] = useState<ExistingMediaFile[]>(
+        template.media_files || []
+    );
+    
+    // Nuevos archivos seleccionados
+    const [newFiles, setNewFiles] = useState<NewMediaFile[]>([]);
+    
     const form = useForm({
         name: template.name,
         subject: template.subject || '',
@@ -45,14 +62,102 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
         is_global: template.is_global,
         assigned_users: template.assigned_users || [],
         message_type: template.message_type,
-        media_url: template.media_url || '',
-        media_filename: template.media_filename || '',
     });
+
+    const getFileType = (file: File): 'image' | 'video' | 'document' => {
+        if (file.type.startsWith('image/')) return 'image';
+        if (file.type.startsWith('video/')) return 'video';
+        return 'document';
+    };
+
+    const getFileIcon = (type: 'image' | 'video' | 'document') => {
+        switch (type) {
+            case 'image': return <Image className="w-5 h-5" />;
+            case 'video': return <Video className="w-5 h-5" />;
+            default: return <FileText className="w-5 h-5" />;
+        }
+    };
+
+    const getFileTypeLabel = (type: 'image' | 'video' | 'document') => {
+        switch (type) {
+            case 'image': return 'Imagen';
+            case 'video': return 'Video';
+            default: return 'Documento';
+        }
+    };
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+
+        const newMediaFiles: NewMediaFile[] = [];
+        
+        Array.from(files).forEach(file => {
+            const type = getFileType(file);
+            let preview: string | null = null;
+            
+            if (type === 'image') {
+                preview = URL.createObjectURL(file);
+            }
+            
+            newMediaFiles.push({ file, preview, type });
+        });
+
+        setNewFiles(prev => [...prev, ...newMediaFiles]);
+        
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
+    const handleRemoveExistingFile = (index: number) => {
+        setExistingFiles(prev => {
+            const newFiles = [...prev];
+            newFiles.splice(index, 1);
+            return newFiles;
+        });
+    };
+
+    const handleRemoveNewFile = (index: number) => {
+        setNewFiles(prev => {
+            const files = [...prev];
+            if (files[index].preview) {
+                URL.revokeObjectURL(files[index].preview!);
+            }
+            files.splice(index, 1);
+            return files;
+        });
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        form.put(`/admin/templates/${template.id}`);
+        
+        const formData = new FormData();
+        formData.append('_method', 'PUT');
+        formData.append('name', form.data.name);
+        formData.append('subject', form.data.subject);
+        formData.append('content', form.data.content);
+        formData.append('is_active', form.data.is_active ? '1' : '0');
+        formData.append('is_global', form.data.is_global ? '1' : '0');
+        
+        form.data.assigned_users.forEach(userId => {
+            formData.append('assigned_users[]', userId.toString());
+        });
+        
+        // Enviar archivos existentes que se mantienen
+        formData.append('existing_media_files', JSON.stringify(existingFiles));
+        
+        // Agregar nuevos archivos
+        newFiles.forEach((mediaFile, index) => {
+            formData.append(`media_files[${index}]`, mediaFile.file);
+        });
+
+        router.post(`/admin/templates/${template.id}`, formData, {
+            forceFormData: true,
+        });
     };
+
+    const totalFiles = existingFiles.length + newFiles.length;
 
     return (
         <AdminLayout>
@@ -111,72 +216,115 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                             <InputError message={form.errors.subject} />
                         </div>
 
-                        {/* Tipo de Mensaje */}
+                        {/* Archivos Adjuntos (Múltiples) */}
                         <div className="space-y-2">
-                            <Label htmlFor="message_type" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                Tipo de Mensaje
+                            <Label className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                Archivos adjuntos
                             </Label>
-                            <Select
-                                value={form.data.message_type}
-                                onValueChange={(value) => form.setData('message_type', value as 'text' | 'image' | 'document')}
-                            >
-                                <SelectTrigger className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200">
-                                    <SelectValue placeholder="Selecciona un tipo" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_2px_4px_rgba(46,63,132,0.08),0_4px_8px_rgba(46,63,132,0.12),0_8px_20px_rgba(46,63,132,0.16),inset_0_1px_0_rgba(255,255,255,0.9)] border-0 rounded-none">
-                                    <SelectItem value="text" className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] focus:bg-[#f0f2f8] cursor-pointer rounded-none transition-all duration-150">Texto</SelectItem>
-                                    <SelectItem value="image" className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] focus:bg-[#f0f2f8] cursor-pointer rounded-none transition-all duration-150">Imagen</SelectItem>
-                                    <SelectItem value="document" className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] focus:bg-[#f0f2f8] cursor-pointer rounded-none transition-all duration-150">Documento</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <InputError message={form.errors.message_type} />
-                        </div>
-
-                        {/* Campos de Media si no es texto */}
-                        {form.data.message_type !== 'text' && (
-                            <>
-                                <div className="space-y-2">
-                                    <Label htmlFor="media_url" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                        Imagen
-                                    </Label>
-                                    {form.data.media_url && (
-                                        <div className="mb-2 p-2 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] rounded">
-                                            <img 
-                                                src={form.data.media_url} 
-                                                alt="Preview" 
-                                                className="max-h-32 rounded"
-                                            />
-                                            <p className="text-xs text-[#6b7494] mt-1 truncate">{form.data.media_url}</p>
-                                            <p className="text-xs text-[#6b7494]">{form.data.media_filename}</p>
+                            <p className="text-xs text-[#6b7494] mb-2">
+                                Puedes adjuntar múltiples imágenes, videos o documentos. Formatos soportados: JPG, PNG, GIF, WebP (se convierte a PNG), MP4, MOV, PDF, DOC. Máximo 20MB por archivo.
+                            </p>
+                            
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.3gp,.pdf,.doc,.docx"
+                                onChange={handleFileSelect}
+                                multiple
+                                className="hidden"
+                            />
+                            
+                            {/* Archivos existentes */}
+                            {existingFiles.length > 0 && (
+                                <div className="space-y-2 mb-3">
+                                    <p className="text-xs font-medium text-[#6b7494]">Archivos actuales:</p>
+                                    {existingFiles.map((mediaFile, index) => (
+                                        <div key={`existing-${index}`} className="p-3 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] rounded-none">
+                                            <div className="flex items-center gap-3">
+                                                {mediaFile.type === 'image' ? (
+                                                    <img src={mediaFile.url} alt="Preview" className="w-12 h-12 object-cover rounded-none" />
+                                                ) : (
+                                                    <div className="w-12 h-12 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] rounded-none flex items-center justify-center text-white">
+                                                        {getFileIcon(mediaFile.type)}
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-[#2e3f84] truncate">{mediaFile.filename}</p>
+                                                    <p className="text-xs text-[#6b7494]">
+                                                        {getFileTypeLabel(mediaFile.type)}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveExistingFile(index)}
+                                                    className="p-2 text-[#6b7494] hover:text-red-500 hover:bg-red-50 rounded-none transition-all"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </div>
-                                    )}
-                                    <Input
-                                        id="media_url"
-                                        type="text"
-                                        value={form.data.media_url}
-                                        onChange={(e) => form.setData('media_url', e.target.value)}
-                                        placeholder="/storage/templates/archivo.jpg"
-                                        className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200"
-                                    />
-                                    <InputError message={form.errors.media_url} />
+                                    ))}
                                 </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="media_filename" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                        Nombre del Archivo
-                                    </Label>
-                                    <Input
-                                        id="media_filename"
-                                        type="text"
-                                        value={form.data.media_filename}
-                                        onChange={(e) => form.setData('media_filename', e.target.value)}
-                                        placeholder="archivo.jpg"
-                                        className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200"
-                                    />
-                                    <InputError message={form.errors.media_filename} />
+                            )}
+                            
+                            {/* Nuevos archivos seleccionados */}
+                            {newFiles.length > 0 && (
+                                <div className="space-y-2 mb-3">
+                                    <p className="text-xs font-medium text-[#6b7494]">Nuevos archivos:</p>
+                                    {newFiles.map((mediaFile, index) => (
+                                        <div key={`new-${index}`} className="p-3 bg-gradient-to-b from-[#e8f5e9] to-[#e0f2e1] rounded-none border-l-4 border-green-500">
+                                            <div className="flex items-center gap-3">
+                                                {mediaFile.preview ? (
+                                                    <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-none" />
+                                                ) : (
+                                                    <div className="w-12 h-12 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] rounded-none flex items-center justify-center text-white">
+                                                        {getFileIcon(mediaFile.type)}
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-[#2e3f84] truncate">{mediaFile.file.name}</p>
+                                                    <p className="text-xs text-[#6b7494]">
+                                                        {getFileTypeLabel(mediaFile.type)} • {(mediaFile.file.size / 1024 / 1024).toFixed(2)} MB • <span className="text-green-600">Nuevo</span>
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveNewFile(index)}
+                                                    className="p-2 text-[#6b7494] hover:text-red-500 hover:bg-red-50 rounded-none transition-all"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            </>
-                        )}
+                            )}
+                            
+                            {/* Botón para agregar archivos */}
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-full p-4 border-2 border-dashed border-[#dde1f0] rounded-none hover:border-[#2e3f84] hover:bg-[#f8f9fc] transition-all duration-200 flex flex-col items-center gap-2 text-[#6b7494]"
+                            >
+                                {totalFiles === 0 ? (
+                                    <>
+                                        <Paperclip className="w-8 h-8" />
+                                        <span className="text-sm">Haz clic para seleccionar archivos</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Plus className="w-6 h-6" />
+                                        <span className="text-sm">Agregar más archivos</span>
+                                    </>
+                                )}
+                            </button>
+                            
+                            {totalFiles > 0 && (
+                                <p className="text-xs text-[#6b7494] mt-2">
+                                    {totalFiles} archivo{totalFiles !== 1 ? 's' : ''} en total
+                                </p>
+                            )}
+                        </div>
 
                         {/* Tipo de Plantilla */}
                         <div className="space-y-3">

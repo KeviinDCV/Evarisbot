@@ -80,35 +80,86 @@ class TemplateSendService
 
     /**
      * Enviar mensaje a un destinatario específico
+     * Soporta múltiples archivos multimedia (se envían como mensajes separados)
      */
     public function sendToRecipient(Template $template, Conversation $conversation): array
     {
         try {
-            $result = match ($template->message_type) {
-                'text' => $this->whatsAppService->sendTextMessage(
-                    $conversation->phone_number,
-                    $template->content
-                ),
-                'image' => $this->whatsAppService->sendImageMessage(
-                    $conversation->phone_number,
-                    $template->media_url,
-                    $template->content
-                ),
-                'document' => $this->whatsAppService->sendDocumentMessage(
-                    $conversation->phone_number,
-                    $template->media_url,
-                    $template->media_filename ?? 'document'
-                ),
-                default => throw new \Exception('Tipo de mensaje no soportado'),
-            };
+            $results = [];
+            $mediaFiles = $template->getMediaFilesArray();
+            $hasMedia = !empty($mediaFiles);
+
+            // Si hay archivos multimedia, enviarlos primero
+            if ($hasMedia) {
+                foreach ($mediaFiles as $index => $mediaFile) {
+                    // El caption solo va en el primer archivo si hay texto
+                    $caption = ($index === 0 && !empty($template->content)) ? $template->content : null;
+                    
+                    $result = match ($mediaFile['type']) {
+                        'image' => $this->whatsAppService->sendImageMessage(
+                            $conversation->phone_number,
+                            $this->getAbsoluteUrl($mediaFile['url']),
+                            $caption
+                        ),
+                        'video' => $this->whatsAppService->sendVideoMessage(
+                            $conversation->phone_number,
+                            $this->getAbsoluteUrl($mediaFile['url']),
+                            $caption
+                        ),
+                        'document' => $this->whatsAppService->sendDocumentMessage(
+                            $conversation->phone_number,
+                            $this->getAbsoluteUrl($mediaFile['url']),
+                            $mediaFile['filename'] ?? 'document',
+                            $caption
+                        ),
+                        default => throw new \Exception('Tipo de archivo no soportado: ' . $mediaFile['type']),
+                    };
+
+                    if ($result['success']) {
+                        // Guardar mensaje en BD
+                        $conversation->messages()->create([
+                            'content' => $caption ?? '',
+                            'message_type' => $mediaFile['type'],
+                            'media_url' => $mediaFile['url'],
+                            'media_filename' => $mediaFile['filename'] ?? null,
+                            'is_from_user' => false,
+                            'whatsapp_message_id' => $result['message_id'] ?? null,
+                            'status' => 'sent',
+                            'sent_by' => auth()->id(),
+                        ]);
+                    }
+
+                    $results[] = $result;
+
+                    // Pequeño delay entre archivos para evitar rate limiting
+                    if (count($mediaFiles) > 1 && $index < count($mediaFiles) - 1) {
+                        usleep(500000); // 0.5 segundos
+                    }
+                }
+
+                // Si el primer archivo ya tenía el caption, no enviar texto adicional
+                $allSuccess = collect($results)->every(fn($r) => $r['success']);
+                
+                return [
+                    'success' => $allSuccess,
+                    'message_id' => $results[0]['message_id'] ?? null,
+                    'results' => $results,
+                ];
+            }
+
+            // Si no hay archivos, enviar solo texto
+            $result = $this->whatsAppService->sendTextMessage(
+                $conversation->phone_number,
+                $template->content
+            );
 
             if ($result['success']) {
                 // Guardar mensaje en BD
                 $conversation->messages()->create([
                     'content' => $template->content,
-                    'message_type' => $template->message_type,
-                    'media_url' => $template->media_url,
-                    'media_filename' => $template->media_filename,
+                    'message_type' => 'text',
+                    'media_url' => null,
+                    'media_filename' => null,
                     'is_from_user' => false,
                     'whatsapp_message_id' => $result['message_id'] ?? null,
                     'status' => 'sent',
@@ -136,6 +187,18 @@ class TemplateSendService
                 'error' => $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Convertir URL relativa a absoluta
+     */
+    private function getAbsoluteUrl(string $url): string
+    {
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+        
+        return config('app.url') . $url;
     }
 
     /**

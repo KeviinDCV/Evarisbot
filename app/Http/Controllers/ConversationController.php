@@ -231,8 +231,19 @@ class ConversationController extends Controller
         // Obtener plantillas activas (globales o asignadas al usuario actual)
         $templates = Template::active()
             ->availableForUser(auth()->id())
-            ->select(['id', 'name', 'content', 'message_type', 'media_url', 'media_filename'])
-            ->get();
+            ->select(['id', 'name', 'content', 'message_type', 'media_url', 'media_filename', 'media_files'])
+            ->get()
+            ->map(function ($template) {
+                return [
+                    'id' => $template->id,
+                    'name' => $template->name,
+                    'content' => $template->content,
+                    'message_type' => $template->message_type,
+                    'media_url' => $template->media_url,
+                    'media_filename' => $template->media_filename,
+                    'media_files' => $template->getMediaFilesArray(),
+                ];
+            });
 
         return Inertia::render('conversations/index', [
             'conversations' => $conversations,
@@ -258,7 +269,8 @@ class ConversationController extends Controller
             'content' => 'nullable|string',
             'message_type' => 'string|in:text,image,document,video,audio',
             'media_file' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,mp4,mov,avi,mkv,3gp,mp3,ogg,aac,amr,opus|max:20480', // max 20MB
-            'template_media_url' => 'nullable|string', // URL de imagen de plantilla
+            'template_media_url' => 'nullable|string', // URL de imagen de plantilla (legacy)
+            'template_media_files' => 'nullable|string', // JSON array de archivos de plantilla
             'template_id' => 'nullable|integer|exists:templates,id', // ID de plantilla usada
         ]);
 
@@ -274,6 +286,22 @@ class ConversationController extends Controller
         $content = trim($validated['content'] ?? '');
         if (strtolower($content) === '/saludo') {
             return $this->sendGreetingCommand($conversation, $whatsappService);
+        }
+
+        // Verificar si hay múltiples archivos de plantilla
+        $templateMediaFiles = [];
+        if (!empty($validated['template_media_files'])) {
+            $templateMediaFiles = json_decode($validated['template_media_files'], true) ?? [];
+        }
+
+        // Si hay múltiples archivos de plantilla, enviarlos todos
+        if (count($templateMediaFiles) > 0) {
+            return $this->sendMultipleTemplateMedia(
+                $conversation, 
+                $whatsappService, 
+                $templateMediaFiles, 
+                $validated['content'] ?? ''
+            );
         }
 
         // Si hay archivo, subirlo
@@ -308,7 +336,7 @@ class ConversationController extends Controller
                 'mime' => $file->getMimeType(),
             ]);
         } elseif (!empty($validated['template_media_url'])) {
-            // Si viene una URL de imagen de plantilla, usarla
+            // Si viene una URL de imagen de plantilla (legacy), usarla
             $templateMediaUrl = $validated['template_media_url'];
             $mediaUrl = $templateMediaUrl;
             $mediaFilename = basename($templateMediaUrl);
@@ -428,6 +456,177 @@ class ConversationController extends Controller
         }
 
         return back();
+    }
+
+    /**
+     * Enviar múltiples archivos de plantilla a una conversación
+     */
+    private function sendMultipleTemplateMedia(
+        Conversation $conversation, 
+        WhatsAppService $whatsappService, 
+        array $mediaFiles, 
+        string $content
+    ) {
+        \Log::info('sendMultipleTemplateMedia called', [
+            'conversation_id' => $conversation->id,
+            'phone' => $conversation->phone_number,
+            'media_files_count' => count($mediaFiles),
+            'content' => $content,
+            'media_files' => $mediaFiles,
+        ]);
+
+        $messages = [];
+        $allSuccess = true;
+
+        foreach ($mediaFiles as $index => $mediaFile) {
+            $mediaUrl = $mediaFile['url'] ?? null;
+            $mediaFilename = $mediaFile['filename'] ?? 'archivo';
+            $mediaType = $mediaFile['type'] ?? 'document';
+            
+            // El caption solo va en el primer archivo si hay texto
+            $caption = ($index === 0 && !empty($content)) ? $content : null;
+            
+            // IMPORTANTE: Convertir WebP a PNG al vuelo si es necesario
+            // WhatsApp Cloud API NO soporta WebP, solo PNG y JPEG
+            if ($mediaType === 'image' && $mediaUrl) {
+                $extension = strtolower(pathinfo($mediaUrl, PATHINFO_EXTENSION));
+                if ($extension === 'webp') {
+                    \Log::info('Detected WebP image, converting to PNG', [
+                        'index' => $index,
+                        'original_url' => $mediaUrl,
+                    ]);
+                    
+                    $convertedUrl = $this->convertWebpToPng($mediaUrl);
+                    if ($convertedUrl) {
+                        $mediaUrl = $convertedUrl;
+                        $mediaFilename = pathinfo($convertedUrl, PATHINFO_BASENAME);
+                        \Log::info('WebP converted to PNG successfully', [
+                            'index' => $index,
+                            'new_url' => $mediaUrl,
+                        ]);
+                    } else {
+                        \Log::error('Failed to convert WebP to PNG', [
+                            'index' => $index,
+                            'original_url' => $mediaFile['url'],
+                        ]);
+                    }
+                }
+            }
+            
+            \Log::info('Processing media file', [
+                'index' => $index,
+                'url' => $mediaUrl,
+                'filename' => $mediaFilename,
+                'type' => $mediaType,
+                'caption' => $caption,
+            ]);
+            
+            // Crear el mensaje en la base de datos
+            $message = $conversation->messages()->create([
+                'content' => $caption ?? '',
+                'message_type' => $mediaType,
+                'media_url' => $mediaUrl,
+                'media_filename' => $mediaFilename,
+                'is_from_user' => false,
+                'sent_by' => auth()->id(),
+                'status' => 'pending',
+            ]);
+
+            // Enviar mensaje usando WhatsApp Business API
+            if ($whatsappService->isConfigured()) {
+                $absoluteMediaUrl = config('app.url') . $mediaUrl;
+                $result = null;
+
+                \Log::info('Sending template media to WhatsApp', [
+                    'index' => $index,
+                    'type' => $mediaType,
+                    'absolute_url' => $absoluteMediaUrl,
+                ]);
+
+                $result = match ($mediaType) {
+                    'image' => $whatsappService->sendImageMessage(
+                        $conversation->phone_number,
+                        $absoluteMediaUrl,
+                        $caption
+                    ),
+                    'video' => $whatsappService->sendVideoMessage(
+                        $conversation->phone_number,
+                        $absoluteMediaUrl,
+                        $caption
+                    ),
+                    'document' => $whatsappService->sendDocumentMessage(
+                        $conversation->phone_number,
+                        $absoluteMediaUrl,
+                        $mediaFilename,
+                        $caption
+                    ),
+                    default => $whatsappService->sendDocumentMessage(
+                        $conversation->phone_number,
+                        $absoluteMediaUrl,
+                        $mediaFilename,
+                        $caption
+                    ),
+                };
+
+                \Log::info('WhatsApp API response for template media', [
+                    'index' => $index,
+                    'result' => $result,
+                ]);
+
+                if ($result && $result['success']) {
+                    $message->update([
+                        'status' => 'sent',
+                        'whatsapp_message_id' => $result['message_id'] ?? null,
+                    ]);
+                } else {
+                    $allSuccess = false;
+                    $errorMsg = $result['error'] ?? 'Unknown error';
+                    \Log::error('Failed to send template media', [
+                        'index' => $index,
+                        'error' => $errorMsg,
+                        'result' => $result,
+                    ]);
+                    $message->update([
+                        'status' => 'failed',
+                        'error_message' => $errorMsg,
+                    ]);
+                }
+            } else {
+                $allSuccess = false;
+                $message->update([
+                    'status' => 'failed',
+                    'error_message' => 'WhatsApp API not configured.',
+                ]);
+            }
+
+            $messages[] = $message;
+
+            // Pequeño delay entre archivos para evitar rate limiting
+            if ($index < count($mediaFiles) - 1) {
+                usleep(300000); // 0.3 segundos
+            }
+        }
+
+        // Actualizar conversación
+        $conversation->update(['last_message_at' => now()]);
+        if (is_null($conversation->assigned_to)) {
+            $conversation->update([
+                'assigned_to' => auth()->id(),
+                'status' => 'active',
+            ]);
+        }
+
+        // Emitir evento de broadcasting para el último mensaje
+        if (!empty($messages)) {
+            $lastMessage = end($messages);
+            broadcast(new MessageSent($lastMessage->fresh(['sender']), $conversation->fresh(['lastMessage', 'assignedUser'])))->toOthers();
+        }
+
+        return response()->json([
+            'success' => $allSuccess,
+            'messages' => collect($messages)->map(fn($m) => $m->fresh(['sender'])),
+            'total_sent' => count($messages),
+        ]);
     }
 
     /**
@@ -668,5 +867,66 @@ class ConversationController extends Controller
         // Redirigir a la conversación creada
         return redirect()->route('admin.chat.show', $conversation->id)
             ->with('success', 'Conversación iniciada exitosamente.');
+    }
+
+    /**
+     * Convierte una imagen WebP a PNG para compatibilidad con WhatsApp Cloud API.
+     * WhatsApp NO soporta WebP, solo PNG y JPEG.
+     * 
+     * @param string $mediaUrl URL relativa del archivo (ej: /storage/templates/archivo.webp)
+     * @return string|null URL del archivo PNG convertido, o null si falla
+     */
+    private function convertWebpToPng(string $mediaUrl): ?string
+    {
+        try {
+            // Obtener la ruta del archivo en el storage
+            $relativePath = str_replace('/storage/', '', $mediaUrl);
+            $fullPath = storage_path('app/public/' . $relativePath);
+            
+            if (!file_exists($fullPath)) {
+                \Log::error('WebP file not found for conversion', ['path' => $fullPath]);
+                return null;
+            }
+            
+            // Crear imagen desde WebP
+            $image = @imagecreatefromwebp($fullPath);
+            
+            if ($image === false) {
+                \Log::error('Failed to read WebP image', ['path' => $fullPath]);
+                return null;
+            }
+            
+            // Preservar transparencia
+            imagesavealpha($image, true);
+            
+            // Generar nuevo nombre de archivo PNG
+            $pathInfo = pathinfo($relativePath);
+            $newFilename = $pathInfo['filename'] . '_converted_' . time() . '.png';
+            $newRelativePath = $pathInfo['dirname'] . '/' . $newFilename;
+            $newFullPath = storage_path('app/public/' . $newRelativePath);
+            
+            // Guardar como PNG
+            $success = imagepng($image, $newFullPath, 9); // 9 = máxima compresión
+            imagedestroy($image);
+            
+            if (!$success) {
+                \Log::error('Failed to save PNG image', ['path' => $newFullPath]);
+                return null;
+            }
+            
+            \Log::info('WebP to PNG conversion successful', [
+                'original' => $mediaUrl,
+                'converted' => '/storage/' . $newRelativePath,
+            ]);
+            
+            return '/storage/' . $newRelativePath;
+            
+        } catch (\Exception $e) {
+            \Log::error('Exception during WebP to PNG conversion', [
+                'error' => $e->getMessage(),
+                'mediaUrl' => $mediaUrl,
+            ]);
+            return null;
+        }
     }
 }

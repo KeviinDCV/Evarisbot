@@ -18,6 +18,7 @@ class Template extends Model
         'message_type',
         'media_url',
         'media_filename',
+        'media_files',
         'usage_count',
         'created_by',
         'updated_by',
@@ -26,7 +27,39 @@ class Template extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'is_global' => 'boolean',
+        'media_files' => 'array',
     ];
+
+    /**
+     * Obtener todos los archivos multimedia de la plantilla
+     * Soporta tanto el formato antiguo (media_url) como el nuevo (media_files)
+     */
+    public function getMediaFilesArray(): array
+    {
+        // Si tiene media_files, usarlo
+        if (!empty($this->media_files)) {
+            return $this->media_files;
+        }
+
+        // Fallback al formato antiguo
+        if (!empty($this->media_url)) {
+            return [[
+                'url' => $this->media_url,
+                'filename' => $this->media_filename,
+                'type' => $this->message_type,
+            ]];
+        }
+
+        return [];
+    }
+
+    /**
+     * Verificar si la plantilla tiene archivos multimedia
+     */
+    public function hasMedia(): bool
+    {
+        return !empty($this->media_files) || !empty($this->media_url);
+    }
 
     /**
      * Usuario que creó la plantilla

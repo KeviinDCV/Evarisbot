@@ -105,8 +105,20 @@ class WhatsAppService
                 $payload['image']['caption'] = $caption;
             }
 
+            Log::info('Sending image to WhatsApp', [
+                'to' => $to,
+                'url' => $imageUrl,
+                'caption' => $caption,
+                'payload' => $payload,
+            ]);
+
             $response = Http::withToken($this->token)
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            Log::info('WhatsApp image response', [
+                'status' => $response->status(),
+                'body' => $response->json(),
+            ]);
 
             if ($response->successful()) {
                 return [

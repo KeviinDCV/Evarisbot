@@ -2,9 +2,15 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, MessageSquare, Image, FileText, Power, PowerOff, Edit, Trash2, Send } from 'lucide-react';
+import { Plus, Search, MessageSquare, Image, FileText, Power, PowerOff, Edit, Trash2, Send, Paperclip } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
+interface MediaFile {
+    url: string;
+    filename: string;
+    type: 'image' | 'video' | 'document';
+}
 
 interface Template {
     id: number;
@@ -15,6 +21,7 @@ interface Template {
     message_type: 'text' | 'image' | 'document';
     media_url: string | null;
     media_filename: string | null;
+    media_files?: MediaFile[];
     created_by: string;
     updated_by: string | null;
     created_at: string;
@@ -264,10 +271,21 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                         )}
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                                        {getTypeIcon(template.message_type)}
-                                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
-                                            {getTypeLabel(template.message_type)}
-                                        </span>
+                                        {(template.media_files?.length ?? 0) > 0 ? (
+                                            <>
+                                                <Paperclip className="w-4 h-4" />
+                                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
+                                                    {template.media_files?.length} archivo{(template.media_files?.length ?? 0) !== 1 ? 's' : ''}
+                                                </span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {getTypeIcon(template.message_type)}
+                                                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-base)' }}>
+                                                    {getTypeLabel(template.message_type)}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 

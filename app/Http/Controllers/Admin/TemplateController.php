@@ -10,6 +10,7 @@ use App\Models\Template;
 use App\Models\User;
 use App\Services\TemplateSendService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Inertia\Inertia;
 
 class TemplateController extends Controller
@@ -17,6 +18,79 @@ class TemplateController extends Controller
     public function __construct(
         private TemplateSendService $templateSendService
     ) {}
+
+    /**
+     * Procesa un archivo de imagen, convirtiendo WebP a PNG si es necesario.
+     * WhatsApp Cloud API no soporta WebP, solo PNG y JPEG.
+     */
+    private function processImageFile(UploadedFile $file): array
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        $mimeType = $file->getMimeType();
+        $originalName = $file->getClientOriginalName();
+        
+        // Si es WebP, convertir a PNG
+        if ($extension === 'webp' || $mimeType === 'image/webp') {
+            \Log::info('Convirtiendo imagen WebP a PNG', ['original' => $originalName]);
+            
+            // Crear imagen desde WebP
+            $image = @imagecreatefromwebp($file->getRealPath());
+            
+            if ($image === false) {
+                \Log::error('Error al leer imagen WebP', ['file' => $originalName]);
+                throw new \Exception('No se pudo procesar la imagen WebP: ' . $originalName);
+            }
+            
+            // Preservar transparencia
+            imagesavealpha($image, true);
+            
+            // Generar nombre único para el archivo PNG
+            $newFilename = pathinfo($originalName, PATHINFO_FILENAME) . '_' . time() . '.png';
+            $tempPath = sys_get_temp_dir() . '/' . $newFilename;
+            
+            // Guardar como PNG
+            $success = imagepng($image, $tempPath, 9); // 9 = máxima compresión
+            imagedestroy($image);
+            
+            if (!$success) {
+                \Log::error('Error al guardar imagen PNG', ['file' => $newFilename]);
+                throw new \Exception('No se pudo convertir la imagen a PNG: ' . $originalName);
+            }
+            
+            // Mover al storage
+            $storagePath = 'templates/' . $newFilename;
+            \Storage::disk('public')->put($storagePath, file_get_contents($tempPath));
+            unlink($tempPath);
+            
+            \Log::info('Imagen WebP convertida exitosamente a PNG', [
+                'original' => $originalName,
+                'converted' => $newFilename
+            ]);
+            
+            return [
+                'url' => '/storage/' . $storagePath,
+                'filename' => $newFilename,
+                'type' => 'image',
+            ];
+        }
+        
+        // Para otros formatos, guardar normalmente
+        $path = $file->store('templates', 'public');
+        
+        // Detectar tipo de archivo
+        $type = 'document';
+        if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif'])) {
+            $type = 'image';
+        } elseif (in_array($extension, ['mp4', 'mov', 'avi', '3gp'])) {
+            $type = 'video';
+        }
+        
+        return [
+            'url' => '/storage/' . $path,
+            'filename' => $originalName,
+            'type' => $type,
+        ];
+    }
 
     /**
      * Display a listing of the resource.
@@ -52,6 +126,7 @@ class TemplateController extends Controller
                 'message_type' => $template->message_type,
                 'media_url' => $template->media_url,
                 'media_filename' => $template->media_filename,
+                'media_files' => $template->getMediaFilesArray(),
                 'created_by' => $template->creator->name ?? 'N/A',
                 'updated_by' => $template->updater->name ?? null,
                 'created_at' => $template->created_at->format('Y-m-d H:i'),
@@ -97,22 +172,49 @@ class TemplateController extends Controller
             'updated_by' => auth()->id(),
         ];
 
-        // Procesar archivo multimedia si existe
+        $mediaFiles = [];
+
+        // Procesar múltiples archivos multimedia
+        if ($request->hasFile('media_files')) {
+            $files = $request->file('media_files');
+            // Asegurar que sea un array
+            if (!is_array($files)) {
+                $files = [$files];
+            }
+
+            foreach ($files as $file) {
+                try {
+                    $mediaFiles[] = $this->processImageFile($file);
+                } catch (\Exception $e) {
+                    \Log::error('Error procesando archivo', [
+                        'file' => $file->getClientOriginalName(),
+                        'error' => $e->getMessage()
+                    ]);
+                    return back()->withErrors(['media_files' => $e->getMessage()]);
+                }
+            }
+        }
+
+        // Compatibilidad con el campo antiguo media_file (singular)
         if ($request->hasFile('media_file')) {
             $file = $request->file('media_file');
-            $path = $file->store('templates', 'public');
-            $data['media_url'] = '/storage/' . $path;
-            $data['media_filename'] = $file->getClientOriginalName();
-            
-            // Detectar tipo de mensaje según extensión
-            $extension = strtolower($file->getClientOriginalExtension());
-            if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                $data['message_type'] = 'image';
-            } elseif (in_array($extension, ['mp4', 'mov', 'avi', '3gp'])) {
-                $data['message_type'] = 'video';
-            } else {
-                $data['message_type'] = 'document';
+            try {
+                $mediaFiles[] = $this->processImageFile($file);
+            } catch (\Exception $e) {
+                \Log::error('Error procesando archivo', [
+                    'file' => $file->getClientOriginalName(),
+                    'error' => $e->getMessage()
+                ]);
+                return back()->withErrors(['media_file' => $e->getMessage()]);
             }
+        }
+
+        if (!empty($mediaFiles)) {
+            $data['media_files'] = $mediaFiles;
+            // Para compatibilidad, guardar el primer archivo en los campos antiguos
+            $data['media_url'] = $mediaFiles[0]['url'];
+            $data['media_filename'] = $mediaFiles[0]['filename'];
+            $data['message_type'] = $mediaFiles[0]['type'];
         }
 
         $template = Template::create($data);
@@ -181,6 +283,7 @@ class TemplateController extends Controller
                 'message_type' => $template->message_type,
                 'media_url' => $template->media_url,
                 'media_filename' => $template->media_filename,
+                'media_files' => $template->getMediaFilesArray(),
                 'assigned_users' => $assignedUsers,
             ],
             'users' => $users,
@@ -200,40 +303,72 @@ class TemplateController extends Controller
             'updated_by' => auth()->id(),
         ];
 
-        // Si se solicita eliminar el archivo multimedia
+        // Obtener archivos existentes que se mantienen
+        $existingFiles = $request->input('existing_media_files', []);
+        $mediaFiles = is_array($existingFiles) ? $existingFiles : [];
+
+        // Si se solicita eliminar todos los archivos multimedia
         if ($request->boolean('remove_media')) {
-            // Eliminar archivo anterior si existe
-            if ($template->media_url) {
-                $oldPath = str_replace('/storage/', '', $template->media_url);
-                \Storage::disk('public')->delete($oldPath);
+            // Eliminar archivos anteriores del storage
+            $oldMediaFiles = $template->getMediaFilesArray();
+            foreach ($oldMediaFiles as $oldFile) {
+                if (!empty($oldFile['url'])) {
+                    $oldPath = str_replace('/storage/', '', $oldFile['url']);
+                    \Storage::disk('public')->delete($oldPath);
+                }
             }
+            $mediaFiles = [];
             $data['media_url'] = null;
             $data['media_filename'] = null;
             $data['message_type'] = 'text';
         }
 
-        // Procesar nuevo archivo multimedia si existe
+        // Procesar nuevos archivos multimedia (múltiples)
+        if ($request->hasFile('media_files')) {
+            $files = $request->file('media_files');
+            if (!is_array($files)) {
+                $files = [$files];
+            }
+
+            foreach ($files as $file) {
+                try {
+                    $mediaFiles[] = $this->processImageFile($file);
+                } catch (\Exception $e) {
+                    \Log::error('Error procesando archivo en update', [
+                        'file' => $file->getClientOriginalName(),
+                        'error' => $e->getMessage()
+                    ]);
+                    return back()->withErrors(['media_files' => $e->getMessage()]);
+                }
+            }
+        }
+
+        // Compatibilidad con campo antiguo media_file (singular)
         if ($request->hasFile('media_file')) {
-            // Eliminar archivo anterior si existe
-            if ($template->media_url) {
-                $oldPath = str_replace('/storage/', '', $template->media_url);
-                \Storage::disk('public')->delete($oldPath);
-            }
-            
             $file = $request->file('media_file');
-            $path = $file->store('templates', 'public');
-            $data['media_url'] = '/storage/' . $path;
-            $data['media_filename'] = $file->getClientOriginalName();
-            
-            // Detectar tipo de mensaje según extensión
-            $extension = strtolower($file->getClientOriginalExtension());
-            if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                $data['message_type'] = 'image';
-            } elseif (in_array($extension, ['mp4', 'mov', 'avi', '3gp'])) {
-                $data['message_type'] = 'video';
-            } else {
-                $data['message_type'] = 'document';
+            try {
+                $mediaFiles[] = $this->processImageFile($file);
+            } catch (\Exception $e) {
+                \Log::error('Error procesando archivo en update', [
+                    'file' => $file->getClientOriginalName(),
+                    'error' => $e->getMessage()
+                ]);
+                return back()->withErrors(['media_file' => $e->getMessage()]);
             }
+        }
+
+        // Actualizar campos de media
+        if (!empty($mediaFiles)) {
+            $data['media_files'] = $mediaFiles;
+            // Para compatibilidad, guardar el primer archivo en los campos antiguos
+            $data['media_url'] = $mediaFiles[0]['url'];
+            $data['media_filename'] = $mediaFiles[0]['filename'];
+            $data['message_type'] = $mediaFiles[0]['type'];
+        } else {
+            $data['media_files'] = null;
+            $data['media_url'] = null;
+            $data['media_filename'] = null;
+            $data['message_type'] = 'text';
         }
 
         $template->update($data);
