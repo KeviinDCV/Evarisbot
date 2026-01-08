@@ -463,7 +463,14 @@ export default function ConversationsIndex({ conversations: initialConversations
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id));
             
             // Combinar: nuevas + primera página actualizada + cargadas por scroll
-            return [...newConvs, ...firstPageConvs, ...scrollLoadedConvs];
+            const combined = [...newConvs, ...firstPageConvs, ...scrollLoadedConvs];
+            
+            // Ordenar por last_message_at descendente para que los más recientes estén arriba
+            return combined.sort((a, b) => {
+                const dateA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+                const dateB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+                return dateB - dateA;
+            });
         });
     }, [initialConversations, filters.search, filters.status, filters.assigned, initialHasMore, selectedConversation?.id]);
 
