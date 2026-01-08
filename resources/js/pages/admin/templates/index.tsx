@@ -21,10 +21,6 @@ interface Template {
     updated_at: string;
     usage_stats: {
         total_sends: number;
-        total_recipients: number;
-        successful_sends: number;
-        failed_sends: number;
-        last_sent_at: string | null;
     };
 }
 
@@ -285,21 +281,12 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                     className="rounded-none p-3"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
-                                        display: 'grid',
-                                        gridTemplateColumns: 'repeat(2, 1fr)',
-                                        gap: 'var(--space-sm)',
                                     }}
                                 >
                                     <div>
                                         <p className="text-gray-500" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.stats.sends')}</p>
                                         <p className="font-bold" style={{ fontSize: 'var(--text-base)', color: 'var(--primary-base)' }}>
                                             {template.usage_stats.total_sends}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-gray-500" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.stats.recipients')}</p>
-                                        <p className="font-bold" style={{ fontSize: 'var(--text-base)', color: 'var(--primary-base)' }}>
-                                            {template.usage_stats.total_recipients}
                                         </p>
                                     </div>
                                 </div>

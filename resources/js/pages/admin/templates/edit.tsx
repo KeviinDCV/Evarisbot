@@ -137,14 +137,25 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                             <>
                                 <div className="space-y-2">
                                     <Label htmlFor="media_url" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
-                                        URL del Archivo
+                                        Imagen
                                     </Label>
+                                    {form.data.media_url && (
+                                        <div className="mb-2 p-2 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] rounded">
+                                            <img 
+                                                src={form.data.media_url} 
+                                                alt="Preview" 
+                                                className="max-h-32 rounded"
+                                            />
+                                            <p className="text-xs text-[#6b7494] mt-1 truncate">{form.data.media_url}</p>
+                                            <p className="text-xs text-[#6b7494]">{form.data.media_filename}</p>
+                                        </div>
+                                    )}
                                     <Input
                                         id="media_url"
-                                        type="url"
+                                        type="text"
                                         value={form.data.media_url}
                                         onChange={(e) => form.setData('media_url', e.target.value)}
-                                        placeholder="https://ejemplo.com/archivo.jpg"
+                                        placeholder="/storage/templates/archivo.jpg"
                                         className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200"
                                     />
                                     <InputError message={form.errors.media_url} />

@@ -112,6 +112,8 @@ interface Template {
     name: string;
     content: string;
     message_type: string;
+    media_url?: string | null;
+    media_filename?: string | null;
 }
 
 interface ConversationsIndexProps {
@@ -136,6 +138,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [templateMediaUrl, setTemplateMediaUrl] = useState<string | null>(null);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
     const [contextMenu, setContextMenu] = useState<{ conversationId: number; x: number; y: number } | null>(null);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -220,6 +224,22 @@ export default function ConversationsIndex({ conversations: initialConversations
         
         // Insertar el contenido de la plantilla
         setData('content', beforeSlash + template.content);
+        
+        // Guardar el ID de la plantilla para incrementar el contador al enviar
+        setSelectedTemplateId(template.id);
+        
+        // Si la plantilla tiene imagen/media, guardarla para enviar
+        if (template.media_url) {
+            setTemplateMediaUrl(template.media_url);
+            // Limpiar archivo seleccionado manualmente (la plantilla tiene prioridad)
+            setSelectedFile(null);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        } else {
+            setTemplateMediaUrl(null);
+        }
+        
         setShowTemplates(false);
         setTemplateFilter('');
         setSelectedTemplateIndex(0);
@@ -906,10 +926,14 @@ export default function ConversationsIndex({ conversations: initialConversations
         // Guardar contenido para posible reintento
         const messageContent = data.content;
         const messageFile = selectedFile;
+        const messageTemplateMediaUrl = templateMediaUrl;
+        const messageTemplateId = selectedTemplateId;
         
         // Limpiar formulario inmediatamente (mejor UX)
         reset();
         setSelectedFile(null);
+        setTemplateMediaUrl(null);
+        setSelectedTemplateId(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -922,6 +946,14 @@ export default function ConversationsIndex({ conversations: initialConversations
         formData.append('content', messageContent);
         if (messageFile) {
             formData.append('media_file', messageFile);
+        }
+        // Si hay imagen de plantilla, enviarla al backend
+        if (messageTemplateMediaUrl) {
+            formData.append('template_media_url', messageTemplateMediaUrl);
+        }
+        // Si se usó una plantilla, enviar su ID para incrementar el contador
+        if (messageTemplateId) {
+            formData.append('template_id', messageTemplateId.toString());
         }
 
         // Obtener token CSRF del meta tag
@@ -1989,6 +2021,29 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         variant="ghost"
                                         size="sm"
                                         onClick={handleRemoveFile}
+                                        className="h-6 w-6 p-0 hover:bg-red-100"
+                                    >
+                                        <X className="w-4 h-4 text-red-600" />
+                                    </Button>
+                                </div>
+                            )}
+                            
+                            {/* Preview de imagen de plantilla */}
+                            {templateMediaUrl && !selectedFile && (
+                                <div className="mb-2 flex items-center gap-2 p-2 bg-gradient-to-b from-green-50 to-green-100/50 rounded-none">
+                                    <img 
+                                        src={templateMediaUrl} 
+                                        alt="Imagen de plantilla" 
+                                        className="w-10 h-10 object-cover rounded"
+                                    />
+                                    <span className="text-sm text-green-800 flex-1 truncate">
+                                        📎 Imagen de plantilla adjunta
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setTemplateMediaUrl(null)}
                                         className="h-6 w-6 p-0 hover:bg-red-100"
                                     >
                                         <X className="w-4 h-4 text-red-600" />

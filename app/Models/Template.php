@@ -18,6 +18,7 @@ class Template extends Model
         'message_type',
         'media_url',
         'media_filename',
+        'usage_count',
         'created_by',
         'updated_by',
     ];
@@ -118,15 +119,17 @@ class Template extends Model
      */
     public function getUsageStats(): array
     {
-        $sends = $this->sends()->get();
-        
         return [
-            'total_sends' => $sends->count(),
-            'total_recipients' => $sends->sum('total_recipients'),
-            'successful_sends' => $sends->sum('successful_sends'),
-            'failed_sends' => $sends->sum('failed_sends'),
-            'last_sent_at' => $sends->max('completed_at'),
+            'total_sends' => $this->usage_count ?? 0,
         ];
+    }
+
+    /**
+     * Incrementar el contador de uso de la plantilla
+     */
+    public function incrementUsage(): void
+    {
+        $this->increment('usage_count');
     }
 
     /**

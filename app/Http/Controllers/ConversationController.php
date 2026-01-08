@@ -231,7 +231,7 @@ class ConversationController extends Controller
         // Obtener plantillas activas (globales o asignadas al usuario actual)
         $templates = Template::active()
             ->availableForUser(auth()->id())
-            ->select(['id', 'name', 'content', 'message_type'])
+            ->select(['id', 'name', 'content', 'message_type', 'media_url', 'media_filename'])
             ->get();
 
         return Inertia::render('conversations/index', [
@@ -258,7 +258,17 @@ class ConversationController extends Controller
             'content' => 'nullable|string',
             'message_type' => 'string|in:text,image,document,video,audio',
             'media_file' => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,mp4,mov,avi,mkv,3gp,mp3,ogg,aac,amr,opus|max:20480', // max 20MB
+            'template_media_url' => 'nullable|string', // URL de imagen de plantilla
+            'template_id' => 'nullable|integer|exists:templates,id', // ID de plantilla usada
         ]);
+
+        // Si se usó una plantilla, incrementar su contador de uso
+        if (!empty($validated['template_id'])) {
+            $template = Template::find($validated['template_id']);
+            if ($template) {
+                $template->incrementUsage();
+            }
+        }
 
         // Detectar comando /saludo para enviar plantilla de saludo
         $content = trim($validated['content'] ?? '');
@@ -296,6 +306,28 @@ class ConversationController extends Controller
                 'url' => $mediaUrl,
                 'size' => $file->getSize(),
                 'mime' => $file->getMimeType(),
+            ]);
+        } elseif (!empty($validated['template_media_url'])) {
+            // Si viene una URL de imagen de plantilla, usarla
+            $templateMediaUrl = $validated['template_media_url'];
+            $mediaUrl = $templateMediaUrl;
+            $mediaFilename = basename($templateMediaUrl);
+            
+            // Determinar tipo basado en extensión de la URL
+            $extension = strtolower(pathinfo($templateMediaUrl, PATHINFO_EXTENSION));
+            if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                $messageType = 'image';
+            } elseif (in_array($extension, ['mp4', 'mov', 'avi', 'mkv', '3gp'])) {
+                $messageType = 'video';
+            } elseif (in_array($extension, ['pdf', 'doc', 'docx'])) {
+                $messageType = 'document';
+            } else {
+                $messageType = 'image'; // Por defecto para plantillas
+            }
+            
+            \Log::info('Template media URL received', [
+                'url' => $templateMediaUrl,
+                'type' => $messageType,
             ]);
         }
 
