@@ -1,4 +1,3 @@
-import AppLogoIcon from '@/components/app-logo-icon';
 import { LanguageSelector } from '@/components/language-selector';
 import { type PropsWithChildren } from 'react';
 
@@ -44,18 +43,21 @@ export default function AuthSimpleLayout({
                         gap: 'var(--space-xl)' // 32px entre logo y card
                     }}
                 >
-                    {/* Logo con título Evarisbot */}
+                    {/* Logo panorámico para Login */}
                     <div
                         className="flex flex-col items-center"
                         style={{
                             marginBottom: 'var(--space-base)'
                         }}
                     >
-                        <AppLogoIcon
+                        <img
+                            src="/images/logopano.png"
+                            alt="Logo"
                             className="object-contain drop-shadow-lg transition-all duration-300 mb-4"
                             style={{
-                                height: 'clamp(4rem, 4rem + 1vw, 5rem)',
-                                width: 'auto'
+                                height: 'clamp(6rem, 6rem + 2vw, 8rem)',
+                                width: 'auto',
+                                maxWidth: '100%'
                             }}
                         />
                         <h1
