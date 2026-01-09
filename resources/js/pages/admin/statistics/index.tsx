@@ -32,7 +32,7 @@ interface Statistics {
         total: number;
         active: number;
         pending: number;
-        closed: number;
+        resolved: number;
         unread: number;
         by_status: {
             [key: string]: number;
@@ -164,7 +164,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     const conversationsStatusData = [
         { name: t('statistics.conversations.active'), value: statistics.conversations.active },
         { name: t('statistics.conversations.pending'), value: statistics.conversations.pending },
-        { name: t('statistics.conversations.closed'), value: statistics.conversations.closed },
+        { name: t('statistics.conversations.resolved'), value: statistics.conversations.resolved },
     ];
 
     const mainStatsData = [
@@ -410,7 +410,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <StatRow icon={MessageSquare} label={t('statistics.conversations.total')} value={statistics.conversations.total} index={0} />
                                     <StatRow icon={CheckCircle2} label={t('statistics.conversations.active')} value={statistics.conversations.active} index={1} />
                                     <StatRow icon={Clock} label={t('statistics.conversations.pending')} value={statistics.conversations.pending} index={2} />
-                                    <StatRow icon={XCircle} label={t('statistics.conversations.closed')} value={statistics.conversations.closed} index={3} />
+                                    <StatRow icon={CheckCircle2} label={t('statistics.conversations.resolved')} value={statistics.conversations.resolved} index={3} />
                                     <StatRow icon={AlertCircle} label={t('statistics.conversations.unread')} value={statistics.conversations.unread} index={4} />
                                 </div>
                             </div>

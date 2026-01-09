@@ -407,7 +407,7 @@
       "total": "Total",
       "active": "Activas",
       "pending": "Pendientes",
-      "closed": "Cerradas",
+      "resolved": "Resueltas",
       "unread": "Con mensajes sin leer",
       "byStatus": "Por estado"
     },

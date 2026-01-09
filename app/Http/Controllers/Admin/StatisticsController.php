@@ -214,9 +214,7 @@ class StatisticsController extends Controller
                 COUNT(*) as total,
                 SUM(CASE WHEN status = "active" THEN 1 ELSE 0 END) as active,
                 SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending,
-                SUM(CASE WHEN status = "in_progress" THEN 1 ELSE 0 END) as in_progress,
                 SUM(CASE WHEN status = "resolved" THEN 1 ELSE 0 END) as resolved,
-                SUM(CASE WHEN status = "closed" THEN 1 ELSE 0 END) as closed,
                 SUM(CASE WHEN unread_count > 0 THEN 1 ELSE 0 END) as unread
             ');
 
@@ -229,16 +227,14 @@ class StatisticsController extends Controller
         $byStatus = [
             'active' => (int) ($result->active ?? 0),
             'pending' => (int) ($result->pending ?? 0),
-            'in_progress' => (int) ($result->in_progress ?? 0),
             'resolved' => (int) ($result->resolved ?? 0),
-            'closed' => (int) ($result->closed ?? 0),
         ];
 
         return [
             'total' => (int) ($result->total ?? 0),
             'active' => $byStatus['active'],
             'pending' => $byStatus['pending'],
-            'closed' => $byStatus['closed'],
+            'resolved' => $byStatus['resolved'],
             'unread' => (int) ($result->unread ?? 0),
             'by_status' => $byStatus,
         ];

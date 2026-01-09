@@ -408,7 +408,7 @@
       "total": "Total",
       "active": "Active",
       "pending": "Pending",
-      "closed": "Closed",
+      "resolved": "Resolved",
       "unread": "Unread Messages",
       "byStatus": "By Status"
     },
