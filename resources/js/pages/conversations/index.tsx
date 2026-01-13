@@ -3,11 +3,11 @@ import AdminLayout from '@/layouts/admin-layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-    Search, 
-    MessageSquare, 
-    Send, 
-    MoreVertical, 
+import {
+    Search,
+    MessageSquare,
+    Send,
+    MoreVertical,
     Phone,
     Paperclip,
     Check,
@@ -141,7 +141,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
-    
+
     const [search, setSearch] = useState(filters.search || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -178,34 +178,34 @@ export default function ConversationsIndex({ conversations: initialConversations
     const fileInputRef = useRef<HTMLInputElement>(null);
     const advisorFilterButtonRef = useRef<HTMLButtonElement>(null);
     const [advisorDropdownPosition, setAdvisorDropdownPosition] = useState({ top: 0, right: 0 });
-    
+
     // Estados para plantillas
     const [showTemplates, setShowTemplates] = useState(false);
     const [templateFilter, setTemplateFilter] = useState('');
     const [selectedTemplateIndex, setSelectedTemplateIndex] = useState(0);
-    
+
     // Filtrar plantillas basadas en el texto después de /
-    const filteredTemplates = templates.filter(template => 
+    const filteredTemplates = templates.filter(template =>
         template.name.toLowerCase().includes(templateFilter.toLowerCase())
     );
-    
+
     // Manejar cambios en el input de mensaje
     const handleMessageChange = (value: string) => {
         setData('content', value);
-        
+
         // Detectar el comando /
         const cursorPosition = value.length;
         const lastSlashIndex = value.lastIndexOf('/');
-        
+
         if (lastSlashIndex !== -1) {
             // Verificar si / está al inicio o después de un espacio
             const beforeSlash = value[lastSlashIndex - 1];
             const isValidSlash = lastSlashIndex === 0 || beforeSlash === ' ';
-            
+
             if (isValidSlash) {
                 const textAfterSlash = value.substring(lastSlashIndex + 1);
                 const hasSpaceAfterSlash = textAfterSlash.includes(' ');
-                
+
                 if (!hasSpaceAfterSlash) {
                     setShowTemplates(true);
                     setTemplateFilter(textAfterSlash);
@@ -223,19 +223,19 @@ export default function ConversationsIndex({ conversations: initialConversations
             setTemplateFilter('');
         }
     };
-    
+
     // Seleccionar una plantilla
     const selectTemplate = (template: Template) => {
         const currentValue = data.content;
         const lastSlashIndex = currentValue.lastIndexOf('/');
         const beforeSlash = currentValue.substring(0, lastSlashIndex);
-        
+
         // Insertar el contenido de la plantilla
         setData('content', beforeSlash + template.content);
-        
+
         // Guardar el ID de la plantilla para incrementar el contador al enviar
         setSelectedTemplateId(template.id);
-        
+
         // Si la plantilla tiene archivos multimedia, guardarlos para enviar
         const mediaFiles = template.media_files || [];
         // Fallback al formato antiguo si no hay media_files
@@ -246,7 +246,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 type: (template.message_type as 'image' | 'video' | 'document') || 'document',
             });
         }
-        
+
         if (mediaFiles.length > 0) {
             setTemplateMediaFiles(mediaFiles);
             // Limpiar archivo seleccionado manualmente (la plantilla tiene prioridad)
@@ -257,12 +257,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         } else {
             setTemplateMediaFiles([]);
         }
-        
+
         setShowTemplates(false);
         setTemplateFilter('');
         setSelectedTemplateIndex(0);
     };
-    
+
     // Manejar teclas de navegación para plantillas
     const handleTemplateKeyDown = (e: React.KeyboardEvent) => {
         if (!showTemplates || filteredTemplates.length === 0) {
@@ -271,17 +271,17 @@ export default function ConversationsIndex({ conversations: initialConversations
             }
             return;
         }
-        
+
         switch (e.key) {
             case 'ArrowUp':
                 e.preventDefault();
-                setSelectedTemplateIndex(prev => 
+                setSelectedTemplateIndex(prev =>
                     prev === 0 ? filteredTemplates.length - 1 : prev - 1
                 );
                 break;
             case 'ArrowDown':
                 e.preventDefault();
-                setSelectedTemplateIndex(prev => 
+                setSelectedTemplateIndex(prev =>
                     prev === filteredTemplates.length - 1 ? 0 : prev + 1
                 );
                 break;
@@ -303,7 +303,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 }
         }
     };
-    
+
     // Estados para scroll infinito de conversaciones
     const [localConversations, setLocalConversations] = useState<Conversation[]>(initialConversations);
     const [hasMore, setHasMore] = useState(initialHasMore);
@@ -311,16 +311,16 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     // Ref para trackear si se cargaron páginas adicionales (para no resetear hasMore)
     const hasLoadedExtraPagesRef = useRef(false);
-    
+
     // Estados para control de scroll inteligente
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [newMessagesCount, setNewMessagesCount] = useState(0);
     const lastMessageCountRef = useRef(0);
-    
+
     // Estados para mensajes optimistas (actualización instantánea)
     const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
     const messageCountBeforeSendRef = useRef<number>(0);
-    
+
     const { data, setData, post, reset, processing } = useForm({
         content: '',
         media_file: null as File | null,
@@ -330,7 +330,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const checkIfAtBottom = useCallback(() => {
         const container = messagesContainerRef.current;
         if (!container) return true;
-        
+
         const threshold = 100; // Píxeles de tolerancia
         const isBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
         return isBottom;
@@ -351,7 +351,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         const handleScroll = () => {
             const atBottom = checkIfAtBottom();
             setIsAtBottom(atBottom);
-            
+
             // Si el usuario llegó al final, limpiar contador de nuevos mensajes
             if (atBottom) {
                 setNewMessagesCount(0);
@@ -366,21 +366,21 @@ export default function ConversationsIndex({ conversations: initialConversations
     useEffect(() => {
         const messages = selectedConversation?.messages;
         if (!messages) return;
-        
+
         const currentCount = messages.length;
         const previousCount = lastMessageCountRef.current;
-        
+
         // Si es una nueva conversación, ir al final inmediatamente
         if (previousCount === 0 && currentCount > 0) {
             scrollToBottom(false);
             lastMessageCountRef.current = currentCount;
             return;
         }
-        
+
         // Si hay nuevos mensajes
         if (currentCount > previousCount) {
             const newCount = currentCount - previousCount;
-            
+
             if (isAtBottom) {
                 // Si el usuario está al final, hacer scroll automático
                 scrollToBottom();
@@ -389,7 +389,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setNewMessagesCount(prev => prev + newCount);
             }
         }
-        
+
         lastMessageCountRef.current = currentCount;
     }, [selectedConversation?.messages, isAtBottom, scrollToBottom]);
 
@@ -400,7 +400,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         setIsAtBottom(true);
         setOptimisticMessages([]); // Limpiar mensajes optimistas al cambiar de conversación
     }, [selectedConversation?.id]);
-    
+
 
     // Limpiar mensajes optimistas cuando llegan los mensajes reales del servidor
     useEffect(() => {
@@ -420,33 +420,37 @@ export default function ConversationsIndex({ conversations: initialConversations
     const lastAssignedFilterRef = useRef<string>(filters.assigned || '');
     // Ref para trackear si había conversación seleccionada
     const lastSelectedConversationRef = useRef<number | null>(selectedConversation?.id || null);
-    
+
     // Sincronizar conversaciones cuando cambian desde el servidor
     useEffect(() => {
         const currentSearchFilter = filters.search || '';
         const currentStatusFilter = filters.status || 'all';
         const currentAssignedFilter = filters.assigned || '';
-        
+
         const searchChanged = currentSearchFilter !== lastSearchFilterRef.current;
         const statusChanged = currentStatusFilter !== lastStatusFilterRef.current;
         const assignedChanged = currentAssignedFilter !== lastAssignedFilterRef.current;
         const selectedChanged = (selectedConversation?.id || null) !== lastSelectedConversationRef.current;
-        
+
         // Actualizar refs
         lastSearchFilterRef.current = currentSearchFilter;
         lastStatusFilterRef.current = currentStatusFilter;
         lastAssignedFilterRef.current = currentAssignedFilter;
         lastSelectedConversationRef.current = selectedConversation?.id || null;
-        
+
         // Si cambió algún filtro, resetear completamente
         if (searchChanged || statusChanged || assignedChanged) {
             setLocalConversations(initialConversations);
             setHasMore(initialHasMore);
             setCurrentPage(1);
             hasLoadedExtraPagesRef.current = false;
+            // Resetear scroll al inicio cuando cambian los filtros
+            if (conversationsListRef.current) {
+                conversationsListRef.current.scrollTop = 0;
+            }
             return;
         }
-        
+
         // Si solo cambió la selección (navegación), NO resetear las conversaciones cargadas
         // Solo actualizar los datos frescos de las conversaciones de la primera página
         setLocalConversations(prev => {
@@ -454,14 +458,14 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (prev.length === 0) {
                 return initialConversations;
             }
-            
+
             // IDs que vienen del servidor (primera página)
             const serverIds = new Set(initialConversations.map(c => c.id));
-            
+
             // Separar: conversaciones de la primera página vs las cargadas por scroll
             const firstPageConvs: Conversation[] = [];
             const scrollLoadedConvs: Conversation[] = [];
-            
+
             prev.forEach(conv => {
                 if (serverIds.has(conv.id)) {
                     // Esta conversación está en la primera página, actualizar con datos frescos
@@ -474,14 +478,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                     scrollLoadedConvs.push(conv);
                 }
             });
-            
+
             // Agregar nuevas conversaciones que no existían (al principio de la primera página)
             const existingIds = new Set(firstPageConvs.map(c => c.id));
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id));
-            
+
             // Combinar: nuevas + primera página actualizada + cargadas por scroll
             const combined = [...newConvs, ...firstPageConvs, ...scrollLoadedConvs];
-            
+
             // Ordenar por last_message_at descendente para que los más recientes estén arriba
             return combined.sort((a, b) => {
                 const dateA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
@@ -494,10 +498,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Función para cargar más conversaciones (scroll infinito)
     const loadMoreConversations = useCallback(async () => {
         if (isLoadingMore || !hasMore) return;
-        
+
         setIsLoadingMore(true);
         const nextPage = currentPage + 1;
-        
+
         try {
             // Construir URL con filtros activos
             const params = new URLSearchParams();
@@ -505,14 +509,14 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (search) params.set('search', search);
             if (statusFilter !== 'all') params.set('status', statusFilter);
             if (filterByAdvisor !== null) params.set('assigned', String(filterByAdvisor));
-            
+
             const response = await fetch(`/admin/chat?${params.toString()}`, {
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 setLocalConversations(prev => [...prev, ...data.conversations]);
@@ -560,7 +564,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Cerrar menú contextual al hacer click fuera
     useEffect(() => {
         const handleClickOutside = () => setContextMenu(null);
-        
+
         if (contextMenu) {
             window.addEventListener('click', handleClickOutside);
             return () => window.removeEventListener('click', handleClickOutside);
@@ -570,12 +574,12 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Polling para actualizar la lista de conversaciones (siempre activo)
     useEffect(() => {
         let isActive = true;
-        
+
         // Actualizar lista de conversaciones cada 5 segundos
         const conversationsInterval = setInterval(() => {
             if (!isActive) return;
-            
-            router.reload({ 
+
+            router.reload({
                 only: ['conversations'],
                 onError: () => {
                     // Silenciar errores de conflicto para evitar spam en consola
@@ -604,7 +608,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setBulkAssignSearchQuery('');
             }
         };
-        
+
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
     }, [showAdvisorFilter, showStatusFilter, showBulkAssignMenu]);
@@ -616,7 +620,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setMediaViewer(null);
             }
         };
-        
+
         const handleWheel = (e: WheelEvent) => {
             if (mediaViewer && mediaViewer.type === 'image' && imageRef.current) {
                 e.preventDefault();
@@ -627,12 +631,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                 }
             }
         };
-        
+
         document.addEventListener('keydown', handleEscape);
         if (mediaViewer && mediaViewer.type === 'image') {
             document.addEventListener('wheel', handleWheel, { passive: false });
         }
-        
+
         return () => {
             document.removeEventListener('keydown', handleEscape);
             document.removeEventListener('wheel', handleWheel);
@@ -651,14 +655,14 @@ export default function ConversationsIndex({ conversations: initialConversations
     useEffect(() => {
         // Solo hacer polling si hay una conversación seleccionada
         if (!selectedConversation) return;
-        
+
         let isActive = true;
 
         // Consultar cada 5 segundos si hay mensajes nuevos en la conversación actual
         const messagesInterval = setInterval(() => {
             if (!isActive) return;
-            
-            router.reload({ 
+
+            router.reload({
                 only: ['selectedConversation'],
                 onError: () => {
                     // Silenciar errores de conflicto para evitar spam en consola
@@ -675,32 +679,37 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Debounce para la búsqueda
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    
+
     const handleSearch = (value: string) => {
         setSearch(value);
-        
+
+        // Resetear scroll de la lista al inicio para evitar conflictos con scroll infinito
+        if (conversationsListRef.current) {
+            conversationsListRef.current.scrollTop = 0;
+        }
+
         // Cancelar búsqueda anterior si existe
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
         }
-        
+
         // Esperar 400ms antes de buscar (debounce)
         searchTimeoutRef.current = setTimeout(() => {
             // Resetear página y conversaciones locales para nueva búsqueda
             setCurrentPage(1);
             hasLoadedExtraPagesRef.current = false;
-            
+
             // Construir parámetros incluyendo filtros activos
             const params: Record<string, string> = {};
             if (value) params.search = value;
             if (statusFilter !== 'all') params.status = statusFilter;
             if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
-            
+
             // Si hay una conversación seleccionada, mantenerla abierta
-            const url = selectedConversation 
+            const url = selectedConversation
                 ? `/admin/chat/${selectedConversation.id}`
                 : '/admin/chat';
-            
+
             router.get(url, params, {
                 preserveState: true,
                 preserveScroll: true,
@@ -709,7 +718,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             });
         }, 400);
     };
-    
+
     // Limpiar timeout al desmontar
     useEffect(() => {
         return () => {
@@ -762,12 +771,12 @@ export default function ConversationsIndex({ conversations: initialConversations
     const availableAdvisors = users;
 
     // Filtrar asesores por búsqueda
-    const filteredAdvisors = users.filter(user => 
+    const filteredAdvisors = users.filter(user =>
         user.name.toLowerCase().includes(advisorSearchQuery.toLowerCase())
     );
 
     // Filtrar asesores por búsqueda en menú de asignación masiva
-    const filteredBulkAdvisors = users.filter(user => 
+    const filteredBulkAdvisors = users.filter(user =>
         user.name.toLowerCase().includes(bulkAssignSearchQuery.toLowerCase())
     );
 
@@ -776,18 +785,18 @@ export default function ConversationsIndex({ conversations: initialConversations
         // Resetear página y conversaciones para nueva búsqueda con filtros
         setCurrentPage(1);
         hasLoadedExtraPagesRef.current = false;
-        
+
         // Construir parámetros de filtro
         const params: Record<string, string> = {};
         if (search) params.search = search;
         if (newStatus !== 'all') params.status = newStatus;
         if (newAdvisor !== null) params.assigned = String(newAdvisor);
-        
+
         // Si hay una conversación seleccionada, mantenerla abierta
-        const url = selectedConversation 
+        const url = selectedConversation
             ? `/admin/chat/${selectedConversation.id}`
             : '/admin/chat';
-        
+
         router.get(url, params, {
             preserveState: true,
             preserveScroll: true,
@@ -812,8 +821,8 @@ export default function ConversationsIndex({ conversations: initialConversations
             });
             if (!isSelectionMode) setIsSelectionMode(true);
         } else {
-            router.get(`/admin/chat/${conversationId}`, {}, { 
-                preserveScroll: true, 
+            router.get(`/admin/chat/${conversationId}`, {}, {
+                preserveScroll: true,
                 preserveState: true
             });
         }
@@ -822,10 +831,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Función para asignar múltiples conversaciones
     const handleBulkAssign = async (userId: number | null) => {
         if (selectedConversations.length === 0) return;
-        
+
         try {
             await Promise.all(
-                selectedConversations.map(convId => 
+                selectedConversations.map(convId =>
                     router.post(`/admin/chat/${convId}/assign`, { user_id: userId }, { preserveScroll: true, preserveState: true })
                 )
             );
@@ -839,10 +848,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Función para cambiar estado de múltiples conversaciones
     const handleBulkStatusChange = async (status: string) => {
         if (selectedConversations.length === 0) return;
-        
+
         try {
             await Promise.all(
-                selectedConversations.map(convId => 
+                selectedConversations.map(convId =>
                     router.post(`/admin/chat/${convId}/status`, { status }, { preserveScroll: true, preserveState: true })
                 )
             );
@@ -914,21 +923,21 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
-        
+
         // Protección contra doble envío
         if (isSubmitting) {
             return;
         }
-        
+
         const hasContent = data.content && data.content.trim().length > 0;
         const hasFile = selectedFile !== null;
-        
+
         if ((!hasContent && !hasFile) || !selectedConversation) {
             return;
         }
-        
+
         setIsSubmitting(true);
-        
+
         // Guardar conteo de mensajes actual para detectar cuando llegue el real
         messageCountBeforeSendRef.current = selectedConversation.messages?.length || 0;
 
@@ -947,13 +956,13 @@ export default function ConversationsIndex({ conversations: initialConversations
 
         // Agregar mensaje optimista al estado
         setOptimisticMessages(prev => [...prev, optimisticMessage]);
-        
+
         // Guardar contenido para posible reintento
         const messageContent = data.content;
         const messageFile = selectedFile;
         const messageTemplateMediaFiles = templateMediaFiles;
         const messageTemplateId = selectedTemplateId;
-        
+
         // Limpiar formulario inmediatamente (mejor UX)
         reset();
         setSelectedFile(null);
@@ -962,7 +971,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
-        
+
         // Scroll al final para ver el nuevo mensaje
         setTimeout(() => scrollToBottom(), 50);
 
@@ -994,31 +1003,31 @@ export default function ConversationsIndex({ conversations: initialConversations
             credentials: 'same-origin',
             body: formData,
         })
-        .then(response => {
-            if (!response.ok) {
-                // Si es error 419, la sesión expiró
-                if (response.status === 419) {
-                    throw new Error('Sesión expirada. Por favor recarga la página.');
+            .then(response => {
+                if (!response.ok) {
+                    // Si es error 419, la sesión expiró
+                    if (response.status === 419) {
+                        throw new Error('Sesión expirada. Por favor recarga la página.');
+                    }
+                    throw new Error('Error al enviar mensaje');
                 }
-                throw new Error('Error al enviar mensaje');
-            }
-            return response.json();
-        })
-        .then(() => {
-            // Marcar como enviado - se eliminará cuando llegue el mensaje real del servidor
-            setOptimisticMessages(prev => 
-                prev.map(m => m.tempId === tempId ? { ...m, status: 'sending' as const } : m)
-            );
-            setIsSubmitting(false);
-        })
-        .catch((error) => {
-            console.error('Error sending message:', error);
-            // Marcar mensaje como error
-            setOptimisticMessages(prev => 
-                prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const } : m)
-            );
-            setIsSubmitting(false);
-        });
+                return response.json();
+            })
+            .then(() => {
+                // Marcar como enviado - se eliminará cuando llegue el mensaje real del servidor
+                setOptimisticMessages(prev =>
+                    prev.map(m => m.tempId === tempId ? { ...m, status: 'sending' as const } : m)
+                );
+                setIsSubmitting(false);
+            })
+            .catch((error) => {
+                console.error('Error sending message:', error);
+                // Marcar mensaje como error
+                setOptimisticMessages(prev =>
+                    prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const } : m)
+                );
+                setIsSubmitting(false);
+            });
     };
 
     const handleContextMenu = (e: React.MouseEvent, conversationId: number) => {
@@ -1081,16 +1090,14 @@ export default function ConversationsIndex({ conversations: initialConversations
             <div className="h-[calc(100vh-0px)] flex bg-[#f0f2f8] overflow-hidden">
                 {/* Lista de Conversaciones - Izquierda */}
                 {/* Mobile: oculta cuando hay chat | Desktop: siempre visible con toggle */}
-                <div className={`bg-[#e8ebf5] flex-col transition-all duration-300 flex-shrink-0 ${
-                    selectedConversation ? 'hidden md:flex' : 'flex'
-                } ${
-                    isSidebarVisible ? 'w-full md:w-64 lg:w-72 xl:w-80' : 'hidden md:w-0 md:overflow-hidden'
-                }`}>
+                <div className={`bg-[#e8ebf5] flex-col transition-all duration-300 flex-shrink-0 ${selectedConversation ? 'hidden md:flex' : 'flex'
+                    } ${isSidebarVisible ? 'w-full md:w-64 lg:w-72 xl:w-80' : 'hidden md:w-0 md:overflow-hidden'
+                    }`}>
                     {/* Header */}
                     <div className="p-3 md:p-4 bg-[#dde1f0]">
                         <div className="flex items-center justify-between mb-2 md:mb-3">
                             <h2 className="text-lg md:text-xl font-bold text-[#2e3f84] truncate">{t('conversations.title')}</h2>
-                            
+
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                                 {/* Botón para nueva conversación - Solo visible para admin */}
                                 {isAdmin && (
@@ -1109,23 +1116,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             setShowAdvisorFilter(false);
                                             setShowStatusFilter(!showStatusFilter);
                                         }}
-                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
-                                            statusFilter !== 'all'
-                                                ? 'bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white' 
-                                                : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
-                                        }`}
+                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${statusFilter !== 'all'
+                                            ? 'bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white'
+                                            : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
+                                            }`}
                                         title="Filtrar por estado"
                                     >
                                         <ListFilter className="w-4 h-4" />
                                     </button>
-                                    
+
                                     {/* Dropdown de filtro por estado */}
                                     {showStatusFilter && (
                                         <div className="absolute right-0 top-full mt-1 bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[150px]">
                                             <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
                                                 Filtrar por estado
                                             </div>
-                                            
+
                                             {[
                                                 { value: 'all', label: 'Todos', color: '' },
                                                 { value: 'active', label: 'Activo', color: 'bg-green-500' },
@@ -1139,9 +1145,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         setShowStatusFilter(false);
                                                         applyFilters(option.value, filterByAdvisor);
                                                     }}
-                                                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
-                                                        statusFilter === option.value ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
-                                                    }`}
+                                                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${statusFilter === option.value ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
+                                                        }`}
                                                 >
                                                     <div className="flex items-center gap-2">
                                                         {option.color && <span className={`w-2 h-2 rounded-full ${option.color}`}></span>}
@@ -1164,11 +1169,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 setIsSelectionMode(true);
                                             }
                                         }}
-                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
-                                            isSelectionMode
-                                                ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white' 
-                                                : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
-                                        }`}
+                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${isSelectionMode
+                                            ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
+                                            : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
+                                            }`}
                                         title={isSelectionMode ? "Cancelar selección" : "Seleccionar múltiples"}
                                     >
                                         <CheckSquare className="w-4 h-4" />
@@ -1191,69 +1195,66 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 }
                                                 setShowAdvisorFilter(!showAdvisorFilter);
                                             }}
-                                            className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${
-                                                filterByAdvisor 
-                                                    ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white' 
-                                                    : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
-                                            }`}
+                                            className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${filterByAdvisor
+                                                ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
+                                                : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white'
+                                                }`}
                                             title={t('conversations.filterByAdvisor')}
                                         >
                                             <Filter className="w-4 h-4" />
                                         </button>
-                                    
-                                    {/* Dropdown de filtro por asesor */}
-                                    {showAdvisorFilter && (
-                                        <div 
-                                            className="fixed bg-white rounded-none shadow-xl border border-gray-200 py-2 z-[9999] min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar"
-                                            style={{ top: advisorDropdownPosition.top, right: advisorDropdownPosition.right }}
-                                        >
-                                            <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
-                                                {t('conversations.filterByAdvisor')}
-                                            </div>
-                                            
-                                            {/* Opción para mostrar todos */}
-                                            <button
-                                                onClick={() => {
-                                                    setFilterByAdvisor(null);
-                                                    setShowAdvisorFilter(false);
-                                                    applyFilters(statusFilter, null);
-                                                }}
-                                                className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
-                                                    !filterByAdvisor ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
-                                                }`}
+
+                                        {/* Dropdown de filtro por asesor */}
+                                        {showAdvisorFilter && (
+                                            <div
+                                                className="fixed bg-white rounded-none shadow-xl border border-gray-200 py-2 z-[9999] min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar"
+                                                style={{ top: advisorDropdownPosition.top, right: advisorDropdownPosition.right }}
                                             >
-                                                <span>{t('common.all')}</span>
-                                                {!filterByAdvisor && <Check className="w-4 h-4 text-[#2e3f84]" />}
-                                            </button>
-                                            
-                                            <div className="border-t border-gray-200 my-1"></div>
-                                            
-                                            {/* Lista de todos los asesores */}
-                                            {availableAdvisors.map((user) => {
-                                                return (
-                                                    <button
-                                                        key={user.id}
-                                                        onClick={() => {
-                                                            setFilterByAdvisor(user.id);
-                                                            setShowAdvisorFilter(false);
-                                                            applyFilters(statusFilter, user.id);
-                                                        }}
-                                                        className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
-                                                            filterByAdvisor === user.id ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
+                                                <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
+                                                    {t('conversations.filterByAdvisor')}
+                                                </div>
+
+                                                {/* Opción para mostrar todos */}
+                                                <button
+                                                    onClick={() => {
+                                                        setFilterByAdvisor(null);
+                                                        setShowAdvisorFilter(false);
+                                                        applyFilters(statusFilter, null);
+                                                    }}
+                                                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${!filterByAdvisor ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
                                                         }`}
-                                                    >
-                                                        <span className="truncate">{user.name}</span>
-                                                        {filterByAdvisor === user.id && <Check className="w-4 h-4 text-[#2e3f84]" />}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
+                                                >
+                                                    <span>{t('common.all')}</span>
+                                                    {!filterByAdvisor && <Check className="w-4 h-4 text-[#2e3f84]" />}
+                                                </button>
+
+                                                <div className="border-t border-gray-200 my-1"></div>
+
+                                                {/* Lista de todos los asesores */}
+                                                {availableAdvisors.map((user) => {
+                                                    return (
+                                                        <button
+                                                            key={user.id}
+                                                            onClick={() => {
+                                                                setFilterByAdvisor(user.id);
+                                                                setShowAdvisorFilter(false);
+                                                                applyFilters(statusFilter, user.id);
+                                                            }}
+                                                            className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${filterByAdvisor === user.id ? 'font-bold text-[#2e3f84] bg-gray-50' : ''
+                                                                }`}
+                                                        >
+                                                            <span className="truncate">{user.name}</span>
+                                                            {filterByAdvisor === user.id && <Check className="w-4 h-4 text-[#2e3f84]" />}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         </div>
-                        
+
                         {/* Búsqueda */}
                         <div className="relative">
                             <label htmlFor="conversation-search" className="sr-only">{t('conversations.searchPlaceholder')}</label>
@@ -1276,7 +1277,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     </div>
 
                     {/* Lista de Conversaciones */}
-                    <div 
+                    <div
                         ref={conversationsListRef}
                         className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-2 pt-4 custom-scrollbar-light"
                     >
@@ -1302,105 +1303,103 @@ export default function ConversationsIndex({ conversations: initialConversations
                             </div>
                         ) : (
                             <>
-                            {displayedConversations.map((conversation: Conversation) => (
-                                <button
-                                    key={conversation.id}
-                                    onClick={(e) => handleConversationSelect(conversation.id, e)}
-                                    onContextMenu={(e) => handleContextMenu(e, conversation.id)}
-                                    className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-none ${
-                                        selectedConversations.includes(conversation.id)
+                                {displayedConversations.map((conversation: Conversation) => (
+                                    <button
+                                        key={conversation.id}
+                                        onClick={(e) => handleConversationSelect(conversation.id, e)}
+                                        onContextMenu={(e) => handleContextMenu(e, conversation.id)}
+                                        className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-none ${selectedConversations.includes(conversation.id)
                                             ? 'bg-gradient-to-b from-[#bbf7d0] to-[#86efac] shadow-[0_1px_3px_rgba(34,197,94,0.15),0_4px_12px_rgba(34,197,94,0.2)] ring-2 ring-green-400'
-                                            : selectedConversation?.id === conversation.id 
-                                                ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]' 
+                                            : selectedConversation?.id === conversation.id
+                                                ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]'
                                                 : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] shadow-[0_1px_2px_rgba(46,63,132,0.04)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_4px_8px_rgba(46,63,132,0.08)]'
-                                    }`}
-                                >
-                                    {/* Avatar / Checkbox en modo selección */}
-                                    <div className="relative flex-shrink-0">
-                                        {isSelectionMode ? (
-                                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center ${
-                                                selectedConversations.includes(conversation.id)
+                                            }`}
+                                    >
+                                        {/* Avatar / Checkbox en modo selección */}
+                                        <div className="relative flex-shrink-0">
+                                            {isSelectionMode ? (
+                                                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center ${selectedConversations.includes(conversation.id)
                                                     ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a]'
                                                     : 'bg-gradient-to-b from-[#e5e7eb] to-[#d1d5db]'
-                                            } shadow-[0_2px_4px_rgba(46,63,132,0.15)]`}>
-                                                {selectedConversations.includes(conversation.id) ? (
-                                                    <CheckSquare className="w-5 h-5 text-white" />
-                                                ) : (
-                                                    <Square className="w-5 h-5 text-gray-500" />
+                                                    } shadow-[0_2px_4px_rgba(46,63,132,0.15)]`}>
+                                                    {selectedConversations.includes(conversation.id) ? (
+                                                        <CheckSquare className="w-5 h-5 text-white" />
+                                                    ) : (
+                                                        <Square className="w-5 h-5 text-gray-500" />
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] flex items-center justify-center text-white text-sm md:text-base font-medium shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.1)]">
+                                                    {conversation.contact_name?.[0]?.toUpperCase() || '?'}
+                                                </div>
+                                            )}
+                                            {!isSelectionMode && conversation.unread_count > 0 && (
+                                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-b from-[#22c55e] to-[#16a34a] rounded-full flex items-center justify-center text-white text-xs font-bold shadow-[0_2px_4px_rgba(22,163,74,0.3),0_1px_2px_rgba(22,163,74,0.2)]">
+                                                    {conversation.unread_count}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Información */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-semibold text-black truncate text-sm">
+                                                        {conversation.contact_name || 'Sin nombre'}
+                                                    </h3>
+                                                    <p className="text-xs text-gray-500 truncate">
+                                                        {conversation.phone_number}
+                                                    </p>
+                                                </div>
+                                                <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                                                    {formatTime(conversation.last_message_at)}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs md:text-sm text-[#6b7494] truncate flex items-center gap-1">
+                                                {conversation.last_message && (
+                                                    conversation.last_message.is_from_user ? (
+                                                        <span title="Mensaje del cliente">
+                                                            <CornerDownLeft className="w-3 h-3 text-[#6b7494] flex-shrink-0" />
+                                                        </span>
+                                                    ) : (
+                                                        <span title="Mensaje enviado">
+                                                            <CornerDownRight className="w-3 h-3 text-[#2e3f84] flex-shrink-0" />
+                                                        </span>
+                                                    )
+                                                )}
+                                                <span className="truncate">
+                                                    {conversation.last_message?.content || t('conversations.noMessages')}
+                                                </span>
+                                            </p>
+                                            <div className="flex items-center justify-between mt-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
+                                                    <span className="text-xs text-[#6b7494]">{getStatusLabel(conversation.status)}</span>
+                                                </div>
+                                                {/* Mostrar asesor asignado (solo si no está resuelta) */}
+                                                {conversation.assigned_user && conversation.status !== 'resolved' && (
+                                                    <span className="text-[10px] text-[#6b7494] bg-[#e8ebf5] px-1.5 py-0.5 rounded truncate max-w-[80px]" title={conversation.assigned_user.name}>
+                                                        {conversation.assigned_user.name.split(' ')[0]}
+                                                    </span>
                                                 )}
                                             </div>
-                                        ) : (
-                                            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] flex items-center justify-center text-white text-sm md:text-base font-medium shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.1)]">
-                                                {conversation.contact_name?.[0]?.toUpperCase() || '?'}
-                                            </div>
-                                        )}
-                                        {!isSelectionMode && conversation.unread_count > 0 && (
-                                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-b from-[#22c55e] to-[#16a34a] rounded-full flex items-center justify-center text-white text-xs font-bold shadow-[0_2px_4px_rgba(22,163,74,0.3),0_1px_2px_rgba(22,163,74,0.2)]">
-                                                {conversation.unread_count}
-                                            </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    </button>
+                                ))}
 
-                                    {/* Información */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-semibold text-black truncate text-sm">
-                                                    {conversation.contact_name || 'Sin nombre'}
-                                                </h3>
-                                                <p className="text-xs text-gray-500 truncate">
-                                                    {conversation.phone_number}
-                                                </p>
-                                            </div>
-                                            <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
-                                                {formatTime(conversation.last_message_at)}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs md:text-sm text-[#6b7494] truncate flex items-center gap-1">
-                                            {conversation.last_message && (
-                                                conversation.last_message.is_from_user ? (
-                                                    <span title="Mensaje del cliente">
-                                                        <CornerDownLeft className="w-3 h-3 text-[#6b7494] flex-shrink-0" />
-                                                    </span>
-                                                ) : (
-                                                    <span title="Mensaje enviado">
-                                                        <CornerDownRight className="w-3 h-3 text-[#2e3f84] flex-shrink-0" />
-                                                    </span>
-                                                )
-                                            )}
-                                            <span className="truncate">
-                                                {conversation.last_message?.content || t('conversations.noMessages')}
-                                            </span>
-                                        </p>
-                                        <div className="flex items-center justify-between mt-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
-                                                <span className="text-xs text-[#6b7494]">{getStatusLabel(conversation.status)}</span>
-                                            </div>
-                                            {/* Mostrar asesor asignado (solo si no está resuelta) */}
-                                            {conversation.assigned_user && conversation.status !== 'resolved' && (
-                                                <span className="text-[10px] text-[#6b7494] bg-[#e8ebf5] px-1.5 py-0.5 rounded truncate max-w-[80px]" title={conversation.assigned_user.name}>
-                                                    {conversation.assigned_user.name.split(' ')[0]}
-                                                </span>
-                                            )}
-                                        </div>
+                                {/* Indicador de carga de más conversaciones */}
+                                {isLoadingMore && (
+                                    <div className="py-4 text-center">
+                                        <div className="inline-block w-5 h-5 border-2 border-[#2e3f84] border-t-transparent rounded-full animate-spin"></div>
                                     </div>
-                                </button>
-                            ))}
-                            
-                            {/* Indicador de carga de más conversaciones */}
-                            {isLoadingMore && (
-                                <div className="py-4 text-center">
-                                    <div className="inline-block w-5 h-5 border-2 border-[#2e3f84] border-t-transparent rounded-full animate-spin"></div>
-                                </div>
-                            )}
-                            
-                            {/* Indicador de más conversaciones */}
-                            {hasMore && !isLoadingMore && (
-                                <div className="py-2 text-center text-xs text-[#6b7494]">
-                                    Desplaza para cargar más...
-                                </div>
-                            )}
+                                )}
+
+                                {/* Indicador de más conversaciones */}
+                                {hasMore && !isLoadingMore && (
+                                    <div className="py-2 text-center text-xs text-[#6b7494]">
+                                        Desplaza para cargar más...
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
@@ -1419,23 +1418,23 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     Cancelar
                                 </button>
                             </div>
-                            
+
                             {/* Botón y menú para asignar */}
                             <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                <button 
+                                <button
                                     onClick={() => setShowBulkAssignMenu(!showBulkAssignMenu)}
                                     className="w-full py-2 px-3 bg-white/10 hover:bg-white/20 text-white text-sm rounded-none flex items-center justify-center gap-2 transition-colors"
                                 >
                                     <UserPlus className="w-4 h-4" />
                                     Asignar a asesor
                                 </button>
-                                
+
                                 {showBulkAssignMenu && (
                                     <div className="absolute bottom-full left-0 right-0 mb-1 bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50">
                                         <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
                                             Asignar a
                                         </div>
-                                        
+
                                         {/* Buscador */}
                                         <div className="px-2 py-1.5">
                                             <div className="relative">
@@ -1450,7 +1449,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 />
                                             </div>
                                         </div>
-                                        
+
                                         {/* Opción para quitar asignación */}
                                         <button
                                             onClick={() => {
@@ -1463,7 +1462,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             <X className="w-4 h-4" />
                                             Sin asignar
                                         </button>
-                                        
+
                                         {/* Lista de asesores con scroll */}
                                         <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
                                             {filteredBulkAdvisors.length === 0 ? (
@@ -1494,7 +1493,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </div>
                                 )}
                             </div>
-                            
+
                             {/* Botones de cambiar estado */}
                             <div className="flex gap-2 mt-2">
                                 <button
@@ -1526,12 +1525,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                     {contextMenu && (() => {
                         const conversation = localConversations.find((c: Conversation) => c.id === contextMenu.conversationId);
                         if (!conversation) return null;
-                        
+
                         return (
-                            <div 
+                            <div
                                 className="fixed bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[220px]"
-                                style={{ 
-                                    top: `${contextMenu.y}px`, 
+                                style={{
+                                    top: `${contextMenu.y}px`,
                                     left: `${contextMenu.x}px`,
                                     maxHeight: '400px'
                                 }}
@@ -1543,7 +1542,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
                                             {t('conversations.assignConversation')}
                                         </div>
-                                        
+
                                         {/* Buscador de asesores */}
                                         <div className="px-2 py-1.5">
                                             <div className="relative">
@@ -1558,7 +1557,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 />
                                             </div>
                                         </div>
-                                        
+
                                         {/* Opción para quitar asignación */}
                                         {conversation.assigned_to && (
                                             <button
@@ -1572,7 +1571,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 Quitar asignación
                                             </button>
                                         )}
-                                        
+
                                         {/* Lista de asesores con scroll */}
                                         <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
                                             {filteredAdvisors.length === 0 ? (
@@ -1605,13 +1604,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         <div className="border-t border-gray-200 my-1"></div>
                                     </>
                                 )}
-                                
+
                                 {/* Cambiar estado */}
                                 <div className="border-t border-gray-200 my-1"></div>
                                 <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
                                     Cambiar estado
                                 </div>
-                                
+
                                 {conversation.status !== 'active' && (
                                     <button
                                         onClick={() => handleStatusChangeFromContext(conversation.id, 'active')}
@@ -1621,7 +1620,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         Marcar como Activo
                                     </button>
                                 )}
-                                
+
                                 {conversation.status !== 'pending' && (
                                     <button
                                         onClick={() => handleStatusChangeFromContext(conversation.id, 'pending')}
@@ -1631,7 +1630,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         Marcar como Pendiente
                                     </button>
                                 )}
-                                
+
                                 {conversation.status !== 'resolved' && (
                                     <button
                                         onClick={() => handleStatusChangeFromContext(conversation.id, 'resolved')}
@@ -1720,8 +1719,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                             <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                                 {/* Botón Asignar - Solo Admin */}
                                 {isAdmin && (
-                                    <Button 
-                                        variant="ghost" 
+                                    <Button
+                                        variant="ghost"
                                         size="sm"
                                         onClick={() => setShowAssignModal(true)}
                                         className="hover:bg-[#f0f2f8] text-[#2e3f84]"
@@ -1741,7 +1740,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     <DropdownMenuContent align="end" className="w-56 bg-white">
                                         {/* Marcar como Activo */}
                                         {selectedConversation.status !== 'active' && (
-                                            <DropdownMenuItem 
+                                            <DropdownMenuItem
                                                 onClick={() => handleStatusChange('active')}
                                                 className="cursor-pointer hover:bg-gray-100 text-blue-600"
                                             >
@@ -1749,10 +1748,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 Marcar como Activo
                                             </DropdownMenuItem>
                                         )}
-                                        
+
                                         {/* Marcar como Pendiente */}
                                         {selectedConversation.status !== 'pending' && (
-                                            <DropdownMenuItem 
+                                            <DropdownMenuItem
                                                 onClick={() => handleStatusChange('pending')}
                                                 className="cursor-pointer hover:bg-gray-100 text-yellow-600"
                                             >
@@ -1760,10 +1759,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 Marcar como Pendiente
                                             </DropdownMenuItem>
                                         )}
-                                        
+
                                         {/* Marcar como Resuelta */}
                                         {selectedConversation.status !== 'resolved' && (
-                                            <DropdownMenuItem 
+                                            <DropdownMenuItem
                                                 onClick={() => handleStatusChange('resolved')}
                                                 className="cursor-pointer hover:bg-gray-100 text-green-600"
                                             >
@@ -1771,7 +1770,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 {t('conversations.markAsResolved')}
                                             </DropdownMenuItem>
                                         )}
-                                        
+
                                         {/* Eliminar chat - Solo administradores */}
                                         {isAdmin && (
                                             <>
@@ -1802,7 +1801,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {/* Área de Mensajes */}
-                        <div 
+                        <div
                             ref={messagesContainerRef}
                             className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 bg-[#f8f9fc] relative custom-scrollbar"
                         >
@@ -1818,11 +1817,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'}`}
                                         >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] rounded-none px-3 md:px-4 py-2 ${
-                                                    message.is_from_user
-                                                        ? 'bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
-                                                        : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
-                                                }`}
+                                                className={`max-w-[85%] md:max-w-[70%] rounded-none px-3 md:px-4 py-2 ${message.is_from_user
+                                                    ? 'bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                                                    : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
+                                                    }`}
                                             >
                                                 {/* Remitente (si es asesor) */}
                                                 {!message.is_from_user && message.sender && (
@@ -1830,23 +1828,23 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         {message.sender.name}
                                                     </p>
                                                 )}
-                                                
+
                                                 {/* Contenido del mensaje */}
                                                 {message.message_type === 'image' && message.media_url ? (
                                                     <div className="space-y-2">
-                                                        <div 
+                                                        <div
                                                             className="relative cursor-pointer group"
                                                             onClick={() => {
-                                                                setMediaViewer({ 
-                                                                    url: message.media_url!, 
-                                                                    type: 'image', 
-                                                                    caption: message.content !== 'Imagen' ? message.content : undefined 
+                                                                setMediaViewer({
+                                                                    url: message.media_url!,
+                                                                    type: 'image',
+                                                                    caption: message.content !== 'Imagen' ? message.content : undefined
                                                                 });
                                                                 setZoomLevel(1);
                                                             }}
                                                         >
-                                                            <img 
-                                                                src={message.media_url} 
+                                                            <img
+                                                                src={message.media_url}
                                                                 alt={message.content}
                                                                 className="max-w-full max-h-96 rounded-none object-cover"
                                                                 loading="lazy"
@@ -1863,17 +1861,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </div>
                                                 ) : message.message_type === 'video' && message.media_url ? (
                                                     <div className="space-y-2">
-                                                        <div 
+                                                        <div
                                                             className="relative cursor-pointer group"
                                                             onClick={() => {
-                                                                setMediaViewer({ 
-                                                                    url: message.media_url!, 
-                                                                    type: 'video', 
-                                                                    caption: message.content !== 'Video' ? message.content : undefined 
+                                                                setMediaViewer({
+                                                                    url: message.media_url!,
+                                                                    type: 'video',
+                                                                    caption: message.content !== 'Video' ? message.content : undefined
                                                                 });
                                                             }}
                                                         >
-                                                            <video 
+                                                            <video
                                                                 src={message.media_url}
                                                                 className="max-w-full max-h-96 rounded-none"
                                                                 preload="metadata"
@@ -1894,7 +1892,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <div className="space-y-2">
                                                         <div className="flex items-center gap-2">
                                                             <FileAudio className="w-5 h-5" />
-                                                            <audio 
+                                                            <audio
                                                                 src={message.media_url}
                                                                 controls
                                                                 className="max-w-full"
@@ -1912,8 +1910,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </div>
                                                 ) : message.message_type === 'sticker' && message.media_url ? (
                                                     <div className="space-y-2">
-                                                        <img 
-                                                            src={message.media_url} 
+                                                        <img
+                                                            src={message.media_url}
                                                             alt="Sticker"
                                                             className="w-32 h-32 object-contain"
                                                             loading="lazy"
@@ -1921,8 +1919,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </div>
                                                 ) : message.message_type === 'document' && message.media_url ? (
                                                     <div className="space-y-2">
-                                                        <a 
-                                                            href={message.media_url} 
+                                                        <a
+                                                            href={message.media_url}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="flex items-center gap-2 text-sm hover:underline"
@@ -1933,8 +1931,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </div>
                                                 ) : message.message_type === 'location' && message.media_url ? (
                                                     <div className="space-y-2">
-                                                        <a 
-                                                            href={message.media_url} 
+                                                        <a
+                                                            href={message.media_url}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="flex items-center gap-2 text-sm hover:underline"
@@ -1958,16 +1956,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 )}
 
                                                 {/* Hora y Estado */}
-                                                <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${
-                                                    message.is_from_user ? 'text-gray-500' : 'text-white opacity-70'
-                                                }`}>
+                                                <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${message.is_from_user ? 'text-gray-500' : 'text-white opacity-70'
+                                                    }`}>
                                                     <span>{formatTime(message.created_at)}</span>
                                                     {!message.is_from_user && getStatusIcon(message.status)}
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
-                                    
+
                                     {/* Mensajes optimistas (enviándose) */}
                                     {optimisticMessages.map((message) => (
                                         <div
@@ -1975,11 +1972,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             className="flex justify-end"
                                         >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] rounded-none px-3 md:px-4 py-2 ${
-                                                    message.status === 'error'
-                                                        ? 'bg-gradient-to-b from-red-400 to-red-500 text-white shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_12px_rgba(239,68,68,0.25)]'
-                                                        : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] opacity-80'
-                                                }`}
+                                                className={`max-w-[85%] md:max-w-[70%] rounded-none px-3 md:px-4 py-2 ${message.status === 'error'
+                                                    ? 'bg-gradient-to-b from-red-400 to-red-500 text-white shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_12px_rgba(239,68,68,0.25)]'
+                                                    : 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] opacity-80'
+                                                    }`}
                                             >
                                                 {/* Remitente */}
                                                 {message.sender && (
@@ -1987,7 +1983,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         {message.sender.name}
                                                     </p>
                                                 )}
-                                                
+
                                                 {/* Contenido */}
                                                 <p className="text-sm whitespace-pre-wrap break-words">
                                                     {message.content}
@@ -2005,7 +2001,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </div>
                                         </div>
                                     ))}
-                                    
+
                                     {/* Indicador de "escribiendo..." - Se mostrará cuando se implemente en backend */}
                                     {/* Ejemplo de cómo se vería: */}
                                     {/* <div className="flex justify-start">
@@ -2017,19 +2013,18 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </div>
                                         </div>
                                     </div> */}
-                                    
+
                                     <div ref={messagesEndRef} />
                                 </div>
                             )}
-                            
+
                             {/* Botón flotante para ir al final + indicador de nuevos mensajes */}
                             <button
                                 onClick={() => scrollToBottom()}
-                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 bg-gradient-to-b from-white to-[#fafbfc] hover:from-[#fafbfc] hover:to-[#f0f2f8] text-[#2e3f84] px-3 py-2 rounded-full shadow-[0_2px_8px_rgba(46,63,132,0.15),0_4px_16px_rgba(46,63,132,0.1)] hover:shadow-[0_4px_12px_rgba(46,63,132,0.2),0_8px_24px_rgba(46,63,132,0.15)] z-10 transition-all duration-300 ${
-                                    isAtBottom 
-                                        ? 'opacity-0 translate-y-4 pointer-events-none' 
-                                        : 'opacity-100 translate-y-0'
-                                }`}
+                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 bg-gradient-to-b from-white to-[#fafbfc] hover:from-[#fafbfc] hover:to-[#f0f2f8] text-[#2e3f84] px-3 py-2 rounded-full shadow-[0_2px_8px_rgba(46,63,132,0.15),0_4px_16px_rgba(46,63,132,0.1)] hover:shadow-[0_4px_12px_rgba(46,63,132,0.2),0_8px_24px_rgba(46,63,132,0.15)] z-10 transition-all duration-300 ${isAtBottom
+                                    ? 'opacity-0 translate-y-4 pointer-events-none'
+                                    : 'opacity-100 translate-y-0'
+                                    }`}
                             >
                                 {newMessagesCount > 0 && (
                                     <span className="bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
@@ -2058,7 +2053,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </Button>
                                 </div>
                             )}
-                            
+
                             {/* Preview de archivos de plantilla (múltiples) */}
                             {templateMediaFiles.length > 0 && !selectedFile && (
                                 <div className="mb-2 p-2 bg-gradient-to-b from-green-50 to-green-100/50 rounded-none">
@@ -2080,9 +2075,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         {templateMediaFiles.map((file, index) => (
                                             <div key={index} className="flex-shrink-0">
                                                 {file.type === 'image' ? (
-                                                    <img 
-                                                        src={file.url} 
-                                                        alt={file.filename} 
+                                                    <img
+                                                        src={file.url}
+                                                        alt={file.filename}
                                                         className="w-10 h-10 object-cover rounded"
                                                     />
                                                 ) : (
@@ -2095,7 +2090,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </div>
                                 </div>
                             )}
-                            
+
                             <div className="flex items-end gap-2 md:gap-3">
                                 {/* Input de archivo oculto */}
                                 <input
@@ -2105,7 +2100,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     onChange={handleFileSelect}
                                     className="hidden"
                                 />
-                                
+
                                 {/* Botón de adjuntar */}
                                 <Button
                                     type="button"
@@ -2126,18 +2121,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 bg-gradient-to-b from-white to-[#fafbfc] focus:ring-2 focus:ring-[#2e3f84] shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none transition-shadow duration-200"
                                         onKeyDown={handleTemplateKeyDown}
                                     />
-                                    
+
                                     {/* Dropdown de plantillas */}
                                     {showTemplates && filteredTemplates.length > 0 && (
                                         <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto z-50">
                                             {filteredTemplates.map((template, index) => (
                                                 <div
                                                     key={template.id}
-                                                    className={`px-4 py-3 cursor-pointer transition-colors ${
-                                                        index === selectedTemplateIndex
-                                                            ? 'bg-blue-50 text-blue-700'
-                                                            : 'hover:bg-gray-100'
-                                                    }`}
+                                                    className={`px-4 py-3 cursor-pointer transition-colors ${index === selectedTemplateIndex
+                                                        ? 'bg-blue-50 text-blue-700'
+                                                        : 'hover:bg-gray-100'
+                                                        }`}
                                                     onClick={() => selectTemplate(template)}
                                                 >
                                                     <div className="font-medium text-sm">{template.name}</div>
@@ -2245,7 +2239,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </div>
                             </button>
                         )}
-                        
+
                         {users.map((user) => (
                             <button
                                 key={user.id}
@@ -2253,17 +2247,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     handleAssign(user.id);
                                     setShowAssignModal(false);
                                 }}
-                                className={`w-full flex items-center gap-3 p-3 rounded-none transition-all duration-200 ${
-                                    selectedConversation?.assigned_to === user.id
-                                        ? 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_8px_rgba(46,63,132,0.3)]'
-                                        : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] hover:from-[#e8ebf5] hover:to-[#e0e4f0] text-[#2e3f84]'
-                                }`}
+                                className={`w-full flex items-center gap-3 p-3 rounded-none transition-all duration-200 ${selectedConversation?.assigned_to === user.id
+                                    ? 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_8px_rgba(46,63,132,0.3)]'
+                                    : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] hover:from-[#e8ebf5] hover:to-[#e0e4f0] text-[#2e3f84]'
+                                    }`}
                             >
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
-                                    selectedConversation?.assigned_to === user.id
-                                        ? 'bg-white/20 text-white'
-                                        : 'bg-[#2e3f84] text-white'
-                                }`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${selectedConversation?.assigned_to === user.id
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-[#2e3f84] text-white'
+                                    }`}>
                                     {user.name[0]?.toUpperCase()}
                                 </div>
                                 <div className="flex-1 text-left">
@@ -2309,19 +2301,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                             {t('conversations.newConversationDescription')}
                         </DialogDescription>
                     </DialogHeader>
-                    
+
 
                     <form onSubmit={(e) => {
                         e.preventDefault();
                         setNewChatError('');
-                        
+
                         if (!newChatData.phone_number.trim()) {
                             setNewChatError('El número de teléfono es requerido');
                             return;
                         }
-                        
+
                         setIsCreatingChat(true);
-                        router.post('/admin/chat/create', { 
+                        router.post('/admin/chat/create', {
                             phone_number: newChatData.phone_number,
                             contact_name: newChatData.contact_name,
                             assigned_to: newChatData.assigned_to,
@@ -2436,12 +2428,12 @@ export default function ConversationsIndex({ conversations: initialConversations
 
             {/* Visor de medios fullscreen - estilo WhatsApp Web */}
             {mediaViewer && (
-                <div 
+                <div
                     className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
                     onClick={() => setMediaViewer(null)}
                 >
                     {/* Header con controles */}
-                    <div 
+                    <div
                         className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/50 to-transparent"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -2485,7 +2477,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </button>
                                 </>
                             )}
-                            
+
                             {/* Botón descargar */}
                             <a
                                 href={mediaViewer.url}
@@ -2498,7 +2490,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             >
                                 <Download className="w-5 h-5" />
                             </a>
-                            
+
                             {/* Botón cerrar */}
                             <button
                                 onClick={() => setMediaViewer(null)}
@@ -2511,7 +2503,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     </div>
 
                     {/* Contenido del visor */}
-                    <div 
+                    <div
                         className="flex-1 flex items-center justify-center overflow-hidden p-4"
                         onClick={(e) => {
                             e.stopPropagation();
@@ -2538,10 +2530,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 ref={imageRef}
                                 src={mediaViewer.url}
                                 alt={mediaViewer.caption || 'Imagen'}
-                                className={`max-w-full max-h-full object-contain select-none ${
-                                    zoomLevel > 1 ? 'cursor-grab' : 'cursor-zoom-in'
-                                } ${isDragging ? 'cursor-grabbing' : ''}`}
-                                style={{ 
+                                className={`max-w-full max-h-full object-contain select-none ${zoomLevel > 1 ? 'cursor-grab' : 'cursor-zoom-in'
+                                    } ${isDragging ? 'cursor-grabbing' : ''}`}
+                                style={{
                                     transform: `scale(${zoomLevel}) translate(${imagePosition.x / zoomLevel}px, ${imagePosition.y / zoomLevel}px)`,
                                     transformOrigin: 'center center',
                                     transition: isDragging ? 'none' : 'transform 0.1s ease-out'
@@ -2575,7 +2566,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                     {/* Footer con caption completo si es largo */}
                     {mediaViewer.caption && mediaViewer.caption.length > 50 && (
-                        <div 
+                        <div
                             className="px-4 py-3 bg-gradient-to-t from-black/50 to-transparent"
                             onClick={(e) => e.stopPropagation()}
                         >
