@@ -309,16 +309,17 @@ class AppointmentReminderService
         // Formatear hora usando el mismo método
         $hora = $this->formatHora($appointment->cithor);
         
-        return "Estimado(a) {$appointment->nom_paciente}\n" .
-               "Reciba un cordial saludo.\n" .
-               "Le recordamos que tiene una cita médica programada en el Hospital Universitario del Valle, con los siguientes detalles:\n" .
+        return "Hospital Universitario del Valle\n\n" .
+               "Estimado(a) {$appointment->nom_paciente}\n" .
+               "Reciba un cordial saludo.\n\n" .
+               "Le recordamos que tiene una cita médica programada en el Hospital Universitario del Valle, con los siguientes detalles:\n\n" .
                "Fecha: {$fecha}\n" .
                "Hora: {$hora}\n" .
                "Médico: {$appointment->mednom}\n" .
-               "Especialidad: {$appointment->espnom}\n" .
-               "Dirección: Calle 5 #36-08, barrio San Fernando.\n" .
-               "Le solicitamos presentarse con 40 minutos de anticipación y portar su documento de identificación, autorización de la eps, orden médica e historia clínica.\n" .
-               "Para cualquier inquietud o si necesita reprogramar su cita, por favor comuníquese con nosotros.\n" .
+               "Especialidad: {$appointment->espnom}\n\n" .
+               "Dirección: Calle 5 #36-08, barrio San Fernando.\n\n" .
+               "Le solicitamos presentarse con 40 minutos de anticipación y portar su documento de identificación, autorización de la eps, orden médica e historia clínica.\n\n" .
+               "Para cualquier inquietud o si necesita reprogramar su cita, por favor comuníquese con nosotros.\n\n" .
                "Atentamente,\n" .
                "Hospital Universitario del Valle";
     }

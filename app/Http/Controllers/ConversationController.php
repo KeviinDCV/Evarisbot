@@ -74,7 +74,12 @@ class ConversationController extends Controller
 
         // Filtrar por estado si se proporciona (solo admin)
         if ($user->isAdmin() && $request->has('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+            if ($request->status === 'unanswered') {
+                // Filtrar conversaciones sin leer (con mensajes pendientes por revisar)
+                $query->where('unread_count', '>', 0);
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
         // Filtrar por asignación (solo para admin)
@@ -184,7 +189,12 @@ class ConversationController extends Controller
         // Aplicar filtros si existen (solo admin)
         if ($user->isAdmin()) {
             if ($request->has('status') && $request->status !== 'all') {
-                $query->where('status', $request->status);
+                if ($request->status === 'unanswered') {
+                    // Filtrar conversaciones sin leer (con mensajes pendientes por revisar)
+                    $query->where('unread_count', '>', 0);
+                } else {
+                    $query->where('status', $request->status);
+                }
             }
 
             if ($request->has('assigned')) {
@@ -700,7 +710,8 @@ class ConversationController extends Controller
     protected function sendGreetingCommand(Conversation $conversation, WhatsAppService $whatsappService)
     {
         $user = auth()->user();
-        $advisorName = $user->name;
+        // Usar solo el primer nombre del asesor
+        $advisorName = explode(' ', trim($user->name))[0];
         
         // Generar el texto del mensaje para guardar en BD
         $greetingText = "Buen día.\n" .
@@ -813,8 +824,8 @@ class ConversationController extends Controller
             ]);
         }
 
-        // Usar plantilla de saludo con el nombre del asesor seleccionado
-        $advisorName = $assignedUser->name;
+        // Usar plantilla de saludo con el primer nombre del asesor seleccionado
+        $advisorName = explode(' ', trim($assignedUser->name))[0];
         
         // Generar el texto del mensaje de saludo para guardar en BD
         $greetingText = "Buen día.\n" .

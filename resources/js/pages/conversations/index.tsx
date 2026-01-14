@@ -1127,7 +1127,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                     {/* Dropdown de filtro por estado */}
                                     {showStatusFilter && (
-                                        <div className="absolute right-0 top-full mt-1 bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[150px]">
+                                        <div className="absolute right-0 top-full mt-1 bg-white rounded-none shadow-xl border border-gray-200 py-2 z-50 min-w-[180px]">
                                             <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase">
                                                 Filtrar por estado
                                             </div>
@@ -1137,6 +1137,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 { value: 'active', label: 'Activo', color: 'bg-green-500' },
                                                 { value: 'pending', label: 'Pendiente', color: 'bg-yellow-500' },
                                                 { value: 'resolved', label: 'Resuelto', color: 'bg-gray-400' },
+                                                { value: 'unanswered', label: 'Sin contestar', color: 'bg-red-500' },
                                             ].map((option) => (
                                                 <button
                                                     key={option.value}
