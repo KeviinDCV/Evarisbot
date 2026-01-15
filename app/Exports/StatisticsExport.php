@@ -142,7 +142,7 @@ class StatisticsExport
             ['Total', $this->statistics['conversations']['total']],
             ['Activas', $this->statistics['conversations']['active']],
             ['Pendientes', $this->statistics['conversations']['pending']],
-            ['Cerradas', $this->statistics['conversations']['closed']],
+            ['Resueltas', $this->statistics['conversations']['resolved'] ?? 0],
             ['Con mensajes sin leer', $this->statistics['conversations']['unread']],
         ], self::COLOR_SUCCESS);
         $row += 8;
@@ -296,7 +296,7 @@ class StatisticsExport
             ['Total', $this->statistics['conversations']['total']],
             ['Activas', $this->statistics['conversations']['active']],
             ['Pendientes', $this->statistics['conversations']['pending']],
-            ['Cerradas', $this->statistics['conversations']['closed']],
+            ['Resueltas', $this->statistics['conversations']['resolved'] ?? 0],
             ['Con mensajes sin leer', $this->statistics['conversations']['unread']],
         ];
 
