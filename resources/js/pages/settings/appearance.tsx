@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 
+import AppearanceToggleTab from '@/components/appearance-tabs';
 import HeadingSmall from '@/components/heading-small';
 import { type BreadcrumbItem } from '@/types';
 
@@ -9,7 +10,7 @@ import { edit as editAppearance } from '@/routes/appearance';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Appearance settings',
+        title: 'Configuración de apariencia',
         href: editAppearance().url,
     },
 ];
@@ -17,18 +18,24 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function Appearance() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Appearance settings" />
+            <Head title="Configuración de apariencia" />
 
             <SettingsLayout>
                 <div className="space-y-6">
                     <HeadingSmall
-                        title="Appearance settings"
-                        description="Update your account's appearance settings"
+                        title="Apariencia"
+                        description="Personaliza el tema visual de la aplicación"
                     />
-                    <div className="rounded-none border border-gray-200 bg-white p-6">
-                        <p className="text-sm text-gray-600">
-                            La aplicación está configurada para usar únicamente el modo claro institucional.
-                        </p>
+                    <div className="rounded-lg border border-border bg-card p-6 dark:bg-card">
+                        <div className="space-y-4">
+                            <div>
+                                <h3 className="text-sm font-medium text-foreground">Tema</h3>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Selecciona el modo de visualización que prefieras
+                                </p>
+                            </div>
+                            <AppearanceToggleTab />
+                        </div>
                     </div>
                 </div>
             </SettingsLayout>

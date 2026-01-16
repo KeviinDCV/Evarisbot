@@ -8,6 +8,7 @@ import { logout } from '@/routes';
 import { useInitials } from '@/hooks/use-initials';
 import { LanguageSelector } from '@/components/language-selector';
 import { useTranslation } from 'react-i18next';
+import AppearanceToggleDropdown from '@/components/appearance-dropdown';
 
 interface AdminLayoutProps {
     children: ReactNode;
@@ -95,7 +96,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     });
 
     return (
-        <div className="flex h-screen bg-[#f0f2f8] relative">
+        <div className="flex h-screen bg-background relative">
             {/* Mobile Menu Button - Floating Action Button */}
             <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -114,7 +115,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
             {/* Sidebar - Modern Design */}
             <aside className={`
-                w-64 bg-[#2E3A75] flex flex-col justify-between flex-shrink-0 z-20 shadow-xl relative
+                w-64 bg-sidebar flex flex-col justify-between flex-shrink-0 z-20 shadow-xl relative
                 transition-transform duration-300 ease-in-out
                 
                 ${/* Mobile: Overlay sidebar */''}
@@ -128,15 +129,15 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             `}>
                 <div>
                     {/* Header with logo */}
-                    <div className="h-16 flex items-center px-6 border-b border-white/10 bg-[#1e264d]">
-                        <AppLogoIcon className="h-7 w-auto object-contain brightness-0 invert mr-2" />
-                        <h1 className="text-white font-bold text-lg tracking-wide">Evarisbot</h1>
+                    <div className="h-16 flex items-center px-6 border-b border-sidebar-border bg-sidebar">
+                        <AppLogoIcon className="h-7 w-auto object-contain brightness-0 invert dark:invert mr-2" />
+                        <h1 className="text-sidebar-foreground font-bold text-lg tracking-wide">Evarisbot</h1>
                         {/* Close button only on mobile */}
                         <button
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="lg:hidden ml-auto p-2 hover:bg-white/10 rounded-lg transition-colors"
+                            className="lg:hidden ml-auto p-2 hover:bg-sidebar-accent rounded-lg transition-colors"
                         >
-                            <X className="w-5 h-5 text-white" />
+                            <X className="w-5 h-5 text-sidebar-foreground" />
                         </button>
                     </div>
 
@@ -151,8 +152,8 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                     key={item.href}
                                     href={item.href}
                                     className={`flex items-center px-4 py-3 transition-all rounded-lg group ${isActive
-                                            ? 'bg-white text-[#2E3A75] shadow-md font-semibold'
-                                            : 'text-white/70 hover:bg-white/10 hover:text-white'
+                                            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md font-semibold'
+                                            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
@@ -160,7 +161,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                     <span className="text-sm flex-1">{item.title}</span>
                                     {/* Badge de notificación para Conversaciones */}
                                     {item.href === '/admin/chat' && unreadConversationsCount > 0 && (
-                                        <span className="bg-[#FF4D4F] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                                        <span className="bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
                                             {unreadConversationsCount > 99 ? '99+' : unreadConversationsCount}
                                         </span>
                                     )}
@@ -172,35 +173,38 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
                 {/* User Info & Logout - Footer */}
                 <div className="mb-4 px-4">
-                    <div className="px-4 py-4 bg-white/5 rounded-xl border border-white/5 backdrop-blur-sm">
+                    <div className="px-4 py-4 bg-sidebar-accent/50 rounded-xl border border-sidebar-border backdrop-blur-sm">
                         <div className="flex items-center mb-3">
-                            <Avatar className="h-10 w-10 mr-3 shadow-md border-2 border-white/20">
+                            <Avatar className="h-10 w-10 mr-3 shadow-md border-2 border-sidebar-border">
                                 <AvatarImage src={auth.user?.avatar} alt={auth.user?.name} />
-                                <AvatarFallback className="bg-white text-[#2E3A75] text-sm font-bold">
+                                <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
                                     {getInitials(auth.user?.name)}
                                 </AvatarFallback>
                             </Avatar>
-                            <div className="overflow-hidden">
-                                <p className="text-white text-sm font-semibold truncate">{auth.user?.name}</p>
-                                <p className="text-white/60 text-xs truncate">{t('admin.role')}</p>
+                            <div className="overflow-hidden flex-1">
+                                <p className="text-sidebar-foreground text-sm font-semibold truncate">{auth.user?.name}</p>
+                                <p className="text-sidebar-foreground/60 text-xs truncate">{t('admin.role')}</p>
                             </div>
                         </div>
                         <nav className="flex flex-col gap-1">
                             <Link
                                 href="/settings/profile"
-                                className="flex items-center py-1.5 text-white/70 hover:text-white text-xs transition-colors"
+                                className="flex items-center py-1.5 text-sidebar-foreground/70 hover:text-sidebar-foreground text-xs transition-colors"
                             >
                                 <User className="mr-2 w-[18px] h-[18px]" />
                                 {t('navigation.profile')}
                             </Link>
-                            <div className="flex items-center py-1.5 text-white/70 text-xs">
+                            <div className="flex items-center py-1.5 text-sidebar-foreground/70 text-xs">
                                 <LanguageSelector variant="admin" />
+                            </div>
+                            <div className="flex items-center py-1.5 text-sidebar-foreground/70 text-xs">
+                                <AppearanceToggleDropdown />
                             </div>
                             <Link
                                 href={logout()}
                                 method="post"
                                 as="button"
-                                className="flex items-center py-1.5 text-white/70 hover:text-red-300 text-xs mt-2 border-t border-white/10 pt-3 transition-colors"
+                                className="flex items-center py-1.5 text-sidebar-foreground/70 hover:text-destructive text-xs mt-2 border-t border-sidebar-border pt-3 transition-colors"
                             >
                                 <LogOut className="mr-2 w-[18px] h-[18px]" />
                                 {t('common.logout')}
@@ -211,7 +215,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             </aside>
 
             {/* Main Content - Adjusts to sidebar */}
-            <main className="flex-1 min-w-0 overflow-auto bg-[#f0f2f8] lg:ml-0 pt-16 lg:pt-0">
+            <main className="flex-1 min-w-0 overflow-auto bg-background lg:ml-0 pt-16 lg:pt-0">
                 {children}
             </main>
         </div>

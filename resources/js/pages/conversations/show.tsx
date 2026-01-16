@@ -108,19 +108,19 @@ export default function ConversationShow({ conversation }: ConversationShowProps
             case 'pending':
                 return (
                     <span title={t('conversations.status.sending')}>
-                        <Clock className="w-4 h-4 text-gray-400 animate-pulse" />
+                        <Clock className="w-4 h-4 text-muted-foreground animate-pulse" />
                     </span>
                 );
             case 'sent':
                 return (
                     <span title={t('conversations.status.sent')}>
-                        <Check className="w-4 h-4 text-gray-400" />
+                        <Check className="w-4 h-4 text-muted-foreground" />
                     </span>
                 );
             case 'delivered':
                 return (
                     <span title={t('conversations.status.delivered')}>
-                        <CheckCheck className="w-4 h-4 text-gray-400" />
+                        <CheckCheck className="w-4 h-4 text-muted-foreground" />
                     </span>
                 );
             case 'read':
@@ -172,29 +172,29 @@ export default function ConversationShow({ conversation }: ConversationShowProps
         <AdminLayout>
             <Head title={`Chat - ${conversation.contact_name || conversation.phone_number}`} />
 
-            <div className="h-[calc(100vh-0px)] flex flex-col bg-white">
+            <div className="h-[calc(100vh-0px)] flex flex-col bg-card">
                 {/* Header del Chat */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
                     <div className="flex items-center gap-4">
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => router.visit('/admin/chat')}
-                            className="hover:bg-gray-100"
+                            className="hover:bg-accent"
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </Button>
 
                         {/* Avatar e Información */}
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[#2e3f84] flex items-center justify-center text-white font-medium">
+                            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-medium">
                                 {conversation.contact_name?.[0]?.toUpperCase() || '?'}
                             </div>
                             <div>
-                                <h2 className="font-semibold text-black">
+                                <h2 className="font-semibold text-foreground">
                                     {conversation.contact_name || t('conversations.noName')}
                                 </h2>
-                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                     <Phone className="w-3 h-3" />
                                     <span>{conversation.phone_number}</span>
                                 </div>
@@ -202,15 +202,15 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                         </div>
 
                         {/* Estado */}
-                        <div className="flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-gray-100">
+                        <div className="flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-accent">
                             <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
-                            <span className="text-sm text-gray-700">{getStatusLabel(conversation.status)}</span>
+                            <span className="text-sm text-foreground">{getStatusLabel(conversation.status)}</span>
                         </div>
 
                         {/* Asignación */}
                         {conversation.assigned_user && (
-                            <div className="text-sm text-gray-600 ml-2">
-                                {t('conversations.assignedToLabel')} <span className="font-medium text-black">{conversation.assigned_user.name}</span>
+                            <div className="text-sm text-muted-foreground ml-2">
+                                {t('conversations.assignedToLabel')} <span className="font-medium text-foreground">{conversation.assigned_user.name}</span>
                             </div>
                         )}
                     </div>
@@ -222,14 +222,14 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                                 <MoreVertical className="w-5 h-5" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48 bg-white">
-                            <DropdownMenuItem onClick={handleAssign} className="cursor-pointer hover:bg-gray-100">
+                        <DropdownMenuContent align="end" className="w-48 bg-card">
+                            <DropdownMenuItem onClick={handleAssign} className="cursor-pointer hover:bg-accent">
                                 {conversation.assigned_to ? t('conversations.reassignToMe') : t('conversations.assignToMe')}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                                 onClick={() => handleStatusChange('in_progress')}
-                                className="cursor-pointer hover:bg-gray-100"
+                                className="cursor-pointer hover:bg-accent"
                             >
                                 {t('conversations.markAsInProgress')}
                             </DropdownMenuItem>
@@ -238,7 +238,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                             {conversation.status === 'resolved' ? (
                                 <DropdownMenuItem
                                     onClick={() => handleStatusChange('active')}
-                                    className="cursor-pointer hover:bg-gray-100 text-blue-600"
+                                    className="cursor-pointer hover:bg-accent text-blue-600"
                                 >
                                     <Check className="w-4 h-4 mr-2" />
                                     {t('conversations.reopenConversation')}
@@ -246,7 +246,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                             ) : (
                                 <DropdownMenuItem
                                     onClick={() => handleStatusChange('resolved')}
-                                    className="cursor-pointer hover:bg-gray-100 text-green-600"
+                                    className="cursor-pointer hover:bg-accent text-green-600"
                                 >
                                     <CheckCheck className="w-4 h-4 mr-2" />
                                     {t('conversations.markAsResolved')}
@@ -255,7 +255,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
 
                             <DropdownMenuItem
                                 onClick={() => handleStatusChange('closed')}
-                                className="cursor-pointer hover:bg-gray-100"
+                                className="cursor-pointer hover:bg-accent"
                             >
                                 {t('conversations.closeConversation')}
                             </DropdownMenuItem>
@@ -264,9 +264,9 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                 </div>
 
                 {/* Área de Mensajes */}
-                <div className="flex-1 overflow-y-auto px-6 py-4 bg-gray-50">
+                <div className="flex-1 overflow-y-auto px-6 py-4 bg-muted">
                     {conversation.messages.length === 0 ? (
-                        <div className="flex items-center justify-center h-full text-gray-500">
+                        <div className="flex items-center justify-center h-full text-muted-foreground">
                             <p>{t('conversations.noMessagesInConversation')}</p>
                         </div>
                     ) : (
@@ -279,8 +279,8 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                                     <div
                                         className={`max-w-[70%] rounded-none px-4 py-2 ${
                                             message.is_from_user
-                                                ? 'bg-white border border-gray-200'
-                                                : 'bg-[#2e3f84] text-white'
+                                                ? 'bg-card border border-border'
+                                                : 'bg-primary text-white'
                                         }`}
                                     >
                                         {/* Remitente (si es asesor) */}
@@ -297,7 +297,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
 
                                         {/* Hora y Estado */}
                                         <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${
-                                            message.is_from_user ? 'text-gray-500' : 'text-white opacity-70'
+                                            message.is_from_user ? 'text-muted-foreground' : 'text-white opacity-70'
                                         }`}>
                                             <span>{formatTime(message.created_at)}</span>
                                             {!message.is_from_user && getStatusIcon(message.status)}
@@ -311,17 +311,17 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                 </div>
 
                 {/* Área de Entrada de Mensaje */}
-                <form onSubmit={handleSubmit} className="px-6 py-4 bg-white border-t border-gray-200">
+                <form onSubmit={handleSubmit} className="px-6 py-4 bg-card border-t border-border">
                     <div className="flex items-end gap-3">
                         {/* Botón de adjuntar (futuro) */}
                         <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="hover:bg-gray-100"
+                            className="hover:bg-accent"
                             disabled
                         >
-                            <Paperclip className="w-5 h-5 text-gray-400" />
+                            <Paperclip className="w-5 h-5 text-muted-foreground" />
                         </Button>
 
                         {/* Campo de texto */}
@@ -329,7 +329,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                             value={data.content}
                             onChange={(e) => setData('content', e.target.value)}
                             placeholder={t('conversations.typeMessage')}
-                            className="flex-1 min-h-[44px] max-h-[120px] resize-none border-gray-300 focus:border-[#2e3f84] focus:ring-[#2e3f84] shadow-none"
+                            className="flex-1 min-h-[44px] max-h-[120px] resize-none border-border focus:border-primary focus:ring-primary shadow-none"
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
@@ -342,12 +342,12 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                         <Button
                             type="submit"
                             disabled={!data.content.trim() || processing || isSubmitting}
-                            className="bg-[#2e3f84] hover:bg-[#1e2f74] text-white px-6"
+                            className="bg-primary hover:bg-primary/90 text-white px-6"
                         >
                             <Send className="w-5 h-5" />
                         </Button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-muted-foreground mt-2">
                         {t('conversations.inputHint')}
                     </p>
                 </form>

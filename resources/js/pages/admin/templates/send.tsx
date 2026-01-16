@@ -80,7 +80,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
         <AdminLayout>
             <Head title={`Enviar: ${template.name}`} />
 
-            <div className="min-h-screen bg-[#f0f2f8] p-4 md:p-6 lg:p-8">
+            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="max-w-6xl mx-auto">
                     {/* Header */}
                     <div className="mb-6" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
@@ -103,7 +103,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                 <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
                                     Envío Masivo
                                 </h1>
-                                <p className="text-gray-600" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                                <p className="text-muted-foreground" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                                     Selecciona los destinatarios para: <span className="font-semibold">{template.name}</span>
                                 </p>
                             </div>
@@ -113,7 +113,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                     <div className="grid grid-cols-1 lg:grid-cols-3" style={{ gap: 'var(--space-lg)' }}>
                         {/* Lista de Destinatarios */}
                         <div 
-                            className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-6 lg:col-span-2 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]"
+                            className="card-gradient rounded-none p-6 lg:col-span-2 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]"
                             style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -124,7 +124,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                 <h2 className="font-bold mb-2" style={{ fontSize: 'var(--text-xl)', color: 'var(--primary-base)' }}>
                                     Destinatarios Disponibles
                                 </h2>
-                                <p className="text-gray-600" style={{ fontSize: 'var(--text-sm)' }}>
+                                <p className="text-muted-foreground" style={{ fontSize: 'var(--text-sm)' }}>
                                     {recipients.length} contactos disponibles
                                 </p>
                             </div>
@@ -166,7 +166,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
 
                             {/* Búsqueda */}
                             <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <Input
                                     type="text"
                                     value={search}
@@ -237,7 +237,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
 
                                 {filteredRecipients.length === 0 && (
                                     <div className="text-center py-8">
-                                        <p className="text-gray-500" style={{ fontSize: 'var(--text-sm)' }}>
+                                        <p className="text-muted-foreground" style={{ fontSize: 'var(--text-sm)' }}>
                                             No se encontraron contactos
                                         </p>
                                     </div>
@@ -247,7 +247,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
 
                         {/* Panel de Resumen y Envío */}
                         <div 
-                            className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-6 lg:col-span-1 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]"
+                            className="card-gradient rounded-none p-6 lg:col-span-1 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]"
                             style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -272,13 +272,13 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                 }}
                             >
                                 <div>
-                                    <p className="text-gray-600" style={{ fontSize: 'var(--text-xs)' }}>Plantilla</p>
+                                    <p className="text-muted-foreground" style={{ fontSize: 'var(--text-xs)' }}>Plantilla</p>
                                     <p className="font-bold" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                         {template.name}
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-gray-600" style={{ fontSize: 'var(--text-xs)' }}>Tipo</p>
+                                    <p className="text-muted-foreground" style={{ fontSize: 'var(--text-xs)' }}>Tipo</p>
                                     <p className="font-semibold" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                         {template.message_type === 'text' && 'Texto'}
                                         {template.message_type === 'image' && 'Imagen'}
@@ -294,7 +294,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                     backgroundColor: 'var(--layer-base)',
                                 }}
                             >
-                                <p className="text-gray-600 mb-2" style={{ fontSize: 'var(--text-xs)' }}>Total de Destinatarios</p>
+                                <p className="text-muted-foreground mb-2" style={{ fontSize: 'var(--text-xs)' }}>Total de Destinatarios</p>
                                 <p className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
                                     {totalSelected}
                                 </p>

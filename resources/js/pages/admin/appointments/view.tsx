@@ -154,7 +154,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
     const getStatusBadge = (appointment: Appointment) => {
         if (!appointment.reminder_sent) {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-amber-50 text-amber-700 text-xs font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium">
                     <Clock className="w-3 h-3" />
                     Pendiente
                 </span>
@@ -164,49 +164,49 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         switch (appointment.reminder_status) {
             case 'sent':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 text-emerald-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
                         <CalendarCheck className="w-3 h-3" />
                         Enviado
                     </span>
                 );
             case 'failed':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 text-red-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
                         <CalendarX className="w-3 h-3" />
                         Fallido
                     </span>
                 );
             case 'delivered':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-blue-50 text-blue-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
                         <CalendarCheck className="w-3 h-3" />
                         Entregado
                     </span>
                 );
             case 'confirmed':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-green-50 text-green-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium">
                         <CalendarCheck className="w-3 h-3" />
                         Confirmada
                     </span>
                 );
             case 'cancelled':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 text-red-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
                         <CalendarX className="w-3 h-3" />
                         Cancelada
                     </span>
                 );
             case 'read':
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-indigo-50 text-indigo-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs font-medium">
                         <CalendarCheck className="w-3 h-3" />
                         Leído
                     </span>
                 );
             default:
                 return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-gray-50 text-gray-700 text-xs font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-muted text-foreground text-xs font-medium">
                         <Clock className="w-3 h-3" />
                         Pendiente
                     </span>
@@ -218,7 +218,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         <AdminLayout>
             <Head title="Ver Todas las Citas" />
             
-            <div className="min-h-screen bg-[#f0f2f8] p-4 md:p-6 lg:p-8">
+            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6 md:mb-8">
@@ -289,18 +289,18 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 Exportar a Excel
                             </a>
                         </div>
-                        <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
+                        <h1 className="font-bold text-primary dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)' }}>
                             Gestión de Citas
                         </h1>
-                        <p className="text-sm md:text-base text-[#6b7494] mt-1">
+                        <p className="text-sm md:text-base text-muted-foreground mt-1">
                             Visualiza y filtra todas las citas con sus estados de recordatorio
                         </p>
                     </div>
 
                 {/* Filtros */}
-                <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
+                <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
                     <div className="mb-4">
-                        <h2 className="text-lg font-semibold text-[#2e3f84] mb-3 flex items-center gap-2">
+                        <h2 className="text-lg font-semibold text-primary dark:text-[hsl(231,15%,92%)] mb-3 flex items-center gap-2">
                             <Filter className="w-5 h-5" />
                             Filtros
                         </h2>
@@ -312,8 +312,8 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     className={`
                                         flex items-center gap-2 px-4 py-2 rounded-none font-medium text-sm transition-all duration-200
                                         ${filter === key
-                                            ? 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_8px_rgba(46,63,132,0.25)]'
-                                            : 'bg-white text-[#6b7494] border border-[#d4d8e8] hover:border-[#2e3f84] hover:text-[#2e3f84]'
+                                            ? 'chat-message-sent text-white shadow-[0_2px_8px_rgba(46,63,132,0.25)]'
+                                            : 'bg-card text-muted-foreground border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] hover:border-primary hover:text-primary dark:hover:text-[hsl(231,55%,70%)]'
                                         }
                                     `}
                                 >
@@ -321,7 +321,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <span>{label}</span>
                                     <span className={`
                                         px-2 py-0.5 rounded-none text-xs
-                                        ${filter === key ? 'bg-white/20 text-white' : 'bg-[#f4f5f9] text-[#6b7494]'}
+                                        ${filter === key ? 'bg-card/20 text-white' : 'bg-[#f4f5f9] dark:bg-[hsl(231,25%,18%)] text-muted-foreground'}
                                     `}>
                                         {count.toLocaleString()}
                                     </span>
@@ -332,45 +332,45 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
 
                     {/* Filtro por Fecha */}
                     <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-[#2e3f84] mb-2 flex items-center gap-2">
+                        <h3 className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)] mb-2 flex items-center gap-2">
                             <Calendar className="w-4 h-4" />
                             Filtrar por Fecha de Cita
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
-                                <label htmlFor="date-from" className="block text-xs font-medium text-[#6b7494] mb-1">Desde</label>
+                                <label htmlFor="date-from" className="block text-xs font-medium text-muted-foreground mb-1">Desde</label>
                                 <input
                                     id="date-from"
                                     name="date-from"
                                     type="date"
                                     value={dateFrom}
                                     onChange={(e) => handleDateChange('from', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-none border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
+                                    className="w-full px-3 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
                                 />
                             </div>
                             <div>
-                                <label htmlFor="date-to" className="block text-xs font-medium text-[#6b7494] mb-1">Hasta</label>
+                                <label htmlFor="date-to" className="block text-xs font-medium text-muted-foreground mb-1">Hasta</label>
                                 <input
                                     id="date-to"
                                     name="date-to"
                                     type="date"
                                     value={dateTo}
                                     onChange={(e) => handleDateChange('to', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-none border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
+                                    className="w-full px-3 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
                                 />
                             </div>
                             <div className="flex items-end">
                                 <button
                                     onClick={handleClearDates}
                                     disabled={!dateFrom && !dateTo}
-                                    className="w-full px-4 py-2 rounded-none border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] hover:text-[#2e3f84] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
+                                    className="w-full px-4 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-muted-foreground hover:bg-accent dark:hover:bg-[hsl(231,25%,18%)] hover:text-primary dark:hover:text-[hsl(231,55%,70%)] hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
                                 >
                                     Limpiar Fechas
                                 </button>
                             </div>
                         </div>
                         {(dateFrom || dateTo) && (
-                            <p className="mt-2 text-xs text-[#2e3f84] flex items-center gap-1">
+                            <p className="mt-2 text-xs text-primary dark:text-[hsl(231,55%,70%)] flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
                                 Filtrando citas {dateFrom && `desde ${dateFrom}`} {dateFrom && dateTo && '-'} {dateTo && `hasta ${dateTo}`}
                             </p>
@@ -380,7 +380,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                     {/* Buscador */}
                     <div className="relative">
                         <label htmlFor="view-search" className="sr-only">Buscar citas</label>
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494]" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <input
                             id="view-search"
                             name="view-search"
@@ -388,24 +388,24 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                             placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
                             value={searchTerm}
                             onChange={(e) => handleSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 rounded-none border border-[#d4d8e8] focus:border-[#2e3f84] focus:ring-2 focus:ring-[#2e3f84]/10 outline-none transition-all duration-200 text-sm"
+                            className="w-full pl-10 pr-4 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
                         />
                     </div>
                 </div>
 
                 {/* Tabla */}
-                <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
+                <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
                     <div className="mb-4">
-                        <h2 className="text-lg font-semibold text-[#2e3f84]">
+                        <h2 className="text-lg font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
                             Resultados ({appointments.total})
                         </h2>
-                        <p className="text-sm text-[#6b7494]">
+                        <p className="text-sm text-muted-foreground">
                             Mostrando {appointments.from} - {appointments.to} de {appointments.total} citas
                         </p>
                     </div>
 
                     {/* Tabla con scroll horizontal */}
-                    <div className="overflow-x-auto rounded-none border border-[#d4d8e8]">
+                    <div className="overflow-x-auto rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
                         <table className="w-full text-sm">
                             <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
                                 <tr>
@@ -501,35 +501,35 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-[#e5e7f0]">
+                            <tbody className="bg-card divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
                                 {appointments.data.length > 0 ? (
                                     appointments.data.map((appointment, index) => (
                                         <tr 
                                             key={appointment.id} 
-                                            className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] transition-colors duration-150"
+                                            className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] transition-colors duration-150"
                                         >
-                                            <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
+                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                                                 {appointments.from + index}
                                             </td>
-                                            <td className="px-4 py-3 text-[#2e3f84] font-medium whitespace-nowrap">
+                                            <td className="px-4 py-3 text-primary dark:text-[hsl(231,15%,92%)] font-medium whitespace-nowrap">
                                                 {appointment.nom_paciente || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-[#2e3f84] font-semibold whitespace-nowrap">
+                                            <td className="px-4 py-3 text-primary dark:text-[hsl(231,15%,92%)] font-semibold whitespace-nowrap">
                                                 {appointment.citide || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
+                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                                                 {appointment.pactel || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
+                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                                                 {appointment.citfc || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
+                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                                                 {appointment.cithor || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
+                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                                                 {appointment.mednom || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-[#6b7494] whitespace-nowrap">
+                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                                                 {appointment.espnom || '-'}
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap">
@@ -539,7 +539,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={9} className="px-4 py-8 text-center text-[#6b7494]">
+                                        <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                                             No se encontraron citas con los filtros seleccionados
                                         </td>
                                     </tr>
@@ -551,14 +551,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                     {/* Paginación */}
                     {appointments.last_page > 1 && (
                         <div className="mt-4 flex items-center justify-between">
-                            <p className="text-sm text-[#6b7494]">
+                            <p className="text-sm text-muted-foreground">
                                 Página {appointments.current_page} de {appointments.last_page}
                             </p>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                     disabled={!appointments.prev_page_url}
-                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
+                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-muted-foreground hover:bg-accent dark:hover:bg-[hsl(231,25%,18%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
                                 >
                                     <ChevronLeft className="w-4 h-4" />
                                     Anterior
@@ -566,7 +566,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 <button
                                     onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                     disabled={!appointments.next_page_url}
-                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] text-[#6b7494] hover:bg-[#f8f9fc] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
+                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-muted-foreground hover:bg-accent dark:hover:bg-[hsl(231,25%,18%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
                                 >
                                     Siguiente
                                     <ChevronRight className="w-4 h-4" />

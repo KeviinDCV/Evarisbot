@@ -29,20 +29,20 @@ export default function Profile({
         <AdminLayout>
             <Head title={t('settings.profile.title')} />
 
-            <div className="min-h-screen bg-[#f0f2f8] p-4 md:p-6 lg:p-8">
+            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="max-w-7xl mx-auto">
                     <div className="mb-6 md:mb-8">
-                        <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-[#2e3f84]">{t('settings.profile.title')}</h2>
-                        <p className="text-sm md:text-base text-[#6b7494] mt-1">{t('settings.profile.subtitle')}</p>
+                        <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-primary dark:text-primary">{t('settings.profile.title')}</h2>
+                        <p className="text-sm md:text-base text-muted-foreground mt-1">{t('settings.profile.subtitle')}</p>
                     </div>
 
                     {/* Bento Grid Layout */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                         {/* Información Personal Card */}
-                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 sm:p-6 lg:p-8">
+                        <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 sm:p-6 lg:p-8">
                             <div className="mb-6">
-                                <h3 className="text-xl md:text-2xl font-bold text-[#2e3f84]">{t('settings.profile.personalInfo')}</h3>
-                                <p className="text-sm md:text-base text-[#6b7494] mt-1">{t('settings.profile.personalInfoSubtitle')}</p>
+                                <h3 className="text-xl md:text-2xl font-bold text-primary dark:text-primary">{t('settings.profile.personalInfo')}</h3>
+                                <p className="text-sm md:text-base text-muted-foreground mt-1">{t('settings.profile.personalInfoSubtitle')}</p>
                             </div>
                         <Form
                             {...ProfileController.update.form()}
@@ -54,7 +54,7 @@ export default function Profile({
                             {({ processing, recentlySuccessful, errors }) => (
                                 <>
                                     <div className="space-y-2">
-                                        <Label htmlFor="name" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="name" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
                                             {t('common.name')}
                                         </Label>
 
@@ -72,7 +72,7 @@ export default function Profile({
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="email" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="email" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
                                             {t('common.email')}
                                         </Label>
 
@@ -112,10 +112,10 @@ export default function Profile({
                                             </div>
                                         )}
 
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-4 border-t border-[#e8ebf5] mt-6">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-4 border-t border-border mt-6">
                                         <Button
                                             disabled={processing}
-                                            className="w-full sm:w-auto bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:hover:translate-y-0"
+                                            className="w-full sm:w-auto chat-message-sent hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:hover:translate-y-0"
                                         >
                                             {processing ? t('common.saving') : t('users.saveChanges')}
                                         </Button>
@@ -138,10 +138,10 @@ export default function Profile({
                         </div>
 
                         {/* Cambiar Contraseña Card */}
-                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 sm:p-6 lg:p-8">
+                        <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 sm:p-6 lg:p-8">
                         <div className="mb-6">
-                            <h3 className="text-xl md:text-2xl font-bold text-[#2e3f84]">{t('settings.profile.changePassword')}</h3>
-                            <p className="text-sm md:text-base text-[#6b7494] mt-1">{t('settings.profile.changePasswordSubtitle')}</p>
+                            <h3 className="text-xl md:text-2xl font-bold text-primary dark:text-primary">{t('settings.profile.changePassword')}</h3>
+                            <p className="text-sm md:text-base text-muted-foreground mt-1">{t('settings.profile.changePasswordSubtitle')}</p>
                         </div>
 
                         <Form
@@ -169,7 +169,7 @@ export default function Profile({
                             {({ errors, processing, recentlySuccessful }) => (
                                 <>
                                     <div className="space-y-2">
-                                        <Label htmlFor="current_password" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="current_password" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
                                             {t('settings.profile.currentPassword')}
                                         </Label>
 
@@ -187,7 +187,7 @@ export default function Profile({
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="password" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="password" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
                                             {t('settings.profile.newPassword')}
                                         </Label>
 
@@ -205,7 +205,7 @@ export default function Profile({
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="password_confirmation" className="text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="password_confirmation" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
                                             {t('settings.profile.confirmNewPassword')}
                                         </Label>
 
@@ -221,10 +221,10 @@ export default function Profile({
                                         <InputError message={errors.password_confirmation} />
                                     </div>
 
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-4 border-t border-[#e8ebf5] mt-6">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-4 border-t border-border mt-6">
                                         <Button
                                             disabled={processing}
-                                            className="w-full sm:w-auto bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:hover:translate-y-0"
+                                            className="w-full sm:w-auto chat-message-sent hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:hover:translate-y-0"
                                         >
                                             {processing ? t('common.saving') : t('settings.profile.changePasswordButton')}
                                         </Button>

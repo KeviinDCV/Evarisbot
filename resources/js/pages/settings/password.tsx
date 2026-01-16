@@ -19,11 +19,11 @@ export default function Password() {
 
             <div className="p-8 space-y-6">
                 <div className="space-y-1">
-                    <h2 className="text-2xl font-bold text-black">Cambiar Contraseña</h2>
-                    <p className="text-sm text-gray-600">Asegúrate de usar una contraseña segura para proteger tu cuenta</p>
+                    <h2 className="text-2xl font-bold text-foreground">Cambiar Contraseña</h2>
+                    <p className="text-sm text-muted-foreground">Asegúrate de usar una contraseña segura para proteger tu cuenta</p>
                 </div>
 
-                    <div className="bg-white rounded-none border border-gray-200 shadow-sm p-6">
+                    <div className="bg-card rounded-none border border-border shadow-sm p-6">
                         <Form
                             {...PasswordController.update.form()}
                             options={{
@@ -49,7 +49,7 @@ export default function Password() {
                             {({ errors, processing, recentlySuccessful }) => (
                                 <>
                                     <div className="space-y-2">
-                                        <Label htmlFor="current_password" className="text-sm font-medium text-black">
+                                        <Label htmlFor="current_password" className="text-sm font-medium text-foreground">
                                             Contraseña Actual
                                         </Label>
 
@@ -58,7 +58,7 @@ export default function Password() {
                                             ref={currentPasswordInput}
                                             name="current_password"
                                             type="password"
-                                            className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none"
+                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none"
                                             autoComplete="current-password"
                                             placeholder="Ingresa tu contraseña actual"
                                         />
@@ -67,7 +67,7 @@ export default function Password() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="password" className="text-sm font-medium text-black">
+                                        <Label htmlFor="password" className="text-sm font-medium text-foreground">
                                             Nueva Contraseña
                                         </Label>
 
@@ -76,7 +76,7 @@ export default function Password() {
                                             ref={passwordInput}
                                             name="password"
                                             type="password"
-                                            className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none"
+                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none"
                                             autoComplete="new-password"
                                             placeholder="Mínimo 8 caracteres"
                                         />
@@ -85,7 +85,7 @@ export default function Password() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="password_confirmation" className="text-sm font-medium text-black">
+                                        <Label htmlFor="password_confirmation" className="text-sm font-medium text-foreground">
                                             Confirmar Nueva Contraseña
                                         </Label>
 
@@ -93,7 +93,7 @@ export default function Password() {
                                             id="password_confirmation"
                                             name="password_confirmation"
                                             type="password"
-                                            className="border-0 bg-gray-100 focus:bg-gray-150 shadow-none"
+                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none"
                                             autoComplete="new-password"
                                             placeholder="Repite la nueva contraseña"
                                         />
@@ -104,7 +104,7 @@ export default function Password() {
                                     <div className="flex items-center gap-4 pt-4">
                                         <Button
                                             disabled={processing}
-                                            className="bg-[#2e3f84] hover:bg-[#1e2f74] text-white"
+                                            className="bg-primary hover:bg-primary/90 text-white"
                                         >
                                             {processing ? 'Guardando...' : 'Cambiar Contraseña'}
                                         </Button>

@@ -60,7 +60,7 @@
 }
 
 :root {
-    --background: #ffffff; /* Blanco */
+    --background: #f0f2f8; /* Fondo principal claro */
     --foreground: #000000; /* Negro */
     --card: #ffffff;
     --card-foreground: #000000;
@@ -70,9 +70,9 @@
     --primary-foreground: #ffffff;
     --secondary: #f0f0f0;
     --secondary-foreground: #000000;
-    --muted: #f5f5f5;
-    --muted-foreground: #666666;
-    --accent: #e6e6e6;
+    --muted: #dde1f0;
+    --muted-foreground: #6b7494;
+    --accent: #e8ebf5;
     --accent-foreground: #000000;
     --destructive: #ff0000;
     --destructive-foreground: #ffffff;
@@ -85,13 +85,15 @@
     --chart-4: #8a9bf5;
     --chart-5: #aabbff;
     --radius: 0.625rem;
-    --sidebar: #ffffff;
-    --sidebar-foreground: #000000;
-    --sidebar-primary: #2e3f84;
-    --sidebar-primary-foreground: #ffffff;
-    --sidebar-accent: #f0f0f0;
-    --sidebar-accent-foreground: #000000;
-    --sidebar-border: #e0e0e0;
+    
+    /* Sidebar - siempre oscuro */
+    --sidebar: #2E3A75;
+    --sidebar-foreground: #ffffff;
+    --sidebar-primary: #ffffff;
+    --sidebar-primary-foreground: #2E3A75;
+    --sidebar-accent: rgba(255, 255, 255, 0.1);
+    --sidebar-accent-foreground: #ffffff;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
     --sidebar-ring: #2e3f84;
     
     /* Color Layering System - Basado en #2e3f84 (hsl(231, 48%, 35%)) */
@@ -196,7 +198,118 @@
     --spacing-desktop: 1.5;
 }
 
-
+/* ============================================
+   DARK MODE - Elegante y sutil
+   Basado en el color institucional #2e3f84
+   ============================================ */
+.dark {
+    /* Colores base - tonos oscuros suaves, no negro puro */
+    --background: hsl(231, 25%, 10%);        /* Fondo principal oscuro */
+    --foreground: hsl(231, 15%, 92%);        /* Texto claro */
+    --card: hsl(231, 25%, 13%);              /* Cards ligeramente elevadas */
+    --card-foreground: hsl(231, 15%, 92%);
+    --popover: hsl(231, 25%, 14%);           /* Popovers/dropdowns */
+    --popover-foreground: hsl(231, 15%, 92%);
+    
+    /* Primary - mantiene el azul institucional pero más brillante */
+    --primary: hsl(231, 55%, 55%);           /* Azul más visible en oscuro */
+    --primary-foreground: hsl(231, 15%, 98%);
+    
+    /* Secondary y Muted */
+    --secondary: hsl(231, 20%, 18%);
+    --secondary-foreground: hsl(231, 15%, 88%);
+    --muted: hsl(231, 25%, 18%);
+    --muted-foreground: hsl(231, 15%, 55%);
+    
+    /* Accent */
+    --accent: hsl(231, 25%, 22%);
+    --accent-foreground: hsl(231, 15%, 90%);
+    
+    /* Destructive - rojo más suave */
+    --destructive: hsl(0, 65%, 55%);
+    --destructive-foreground: hsl(0, 0%, 98%);
+    
+    /* Borders e inputs */
+    --border: hsl(231, 20%, 22%);
+    --input: hsl(231, 20%, 20%);
+    --ring: hsl(231, 55%, 55%);
+    
+    /* Charts - colores más vibrantes para contraste */
+    --chart-1: hsl(231, 60%, 60%);
+    --chart-2: hsl(231, 55%, 65%);
+    --chart-3: hsl(231, 50%, 70%);
+    --chart-4: hsl(231, 45%, 75%);
+    --chart-5: hsl(231, 40%, 80%);
+    
+    /* Sidebar - mantiene estilo oscuro en dark mode también */
+    --sidebar: hsl(231, 30%, 15%);
+    --sidebar-foreground: hsl(231, 15%, 92%);
+    --sidebar-primary: hsl(231, 55%, 55%);
+    --sidebar-primary-foreground: hsl(231, 15%, 98%);
+    --sidebar-accent: hsl(231, 25%, 20%);
+    --sidebar-accent-foreground: hsl(231, 15%, 90%);
+    --sidebar-border: hsl(231, 20%, 22%);
+    --sidebar-ring: hsl(231, 55%, 55%);
+    
+    /* Color Layering System - Dark mode */
+    --layer-deepest: hsl(231, 25%, 8%);       /* Fondo más profundo */
+    --layer-deep: hsl(231, 25%, 11%);         /* Cards/Contenedores */
+    --layer-base: hsl(231, 25%, 14%);         /* Inputs/Campos */
+    --layer-elevated: hsl(231, 25%, 17%);     /* Elementos hover */
+    --layer-highest: hsl(231, 25%, 20%);      /* Elementos más elevados */
+    
+    /* Primary Color Variations - Dark mode */
+    --primary-darker: hsl(231, 55%, 45%);
+    --primary-base: hsl(231, 55%, 55%);
+    --primary-lighter: hsl(231, 55%, 65%);
+    
+    /* Shadows - más sutiles en modo oscuro */
+    --shadow-sm: 
+        0 -1px 1px 0 rgba(255, 255, 255, 0.02),
+        0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    
+    --shadow-base: 
+        0 -1px 2px 0 rgba(255, 255, 255, 0.03),
+        0 4px 8px -2px rgba(0, 0, 0, 0.4),
+        0 2px 4px -1px rgba(0, 0, 0, 0.25);
+    
+    --shadow-md: 
+        0 -2px 4px 0 rgba(255, 255, 255, 0.04),
+        0 8px 16px -4px rgba(0, 0, 0, 0.5),
+        0 4px 8px -2px rgba(0, 0, 0, 0.3);
+    
+    --shadow-lg: 
+        0 -3px 6px 0 rgba(255, 255, 255, 0.05),
+        0 12px 24px -6px rgba(0, 0, 0, 0.6),
+        0 6px 12px -3px rgba(0, 0, 0, 0.35);
+    
+    --shadow-xl: 
+        0 -4px 8px 0 rgba(255, 255, 255, 0.06),
+        0 20px 40px -10px rgba(0, 0, 0, 0.7),
+        0 10px 20px -5px rgba(0, 0, 0, 0.4);
+    
+    --shadow-inset-sm: 
+        inset 0 1px 2px 0 rgba(0, 0, 0, 0.3),
+        inset 0 -1px 1px 0 rgba(255, 255, 255, 0.02);
+    
+    --shadow-inset-md: 
+        inset 0 2px 4px 0 rgba(0, 0, 0, 0.4),
+        inset 0 -1px 2px 0 rgba(255, 255, 255, 0.03);
+    
+    /* Gradients - Dark mode */
+    --gradient-shine: linear-gradient(
+        180deg, 
+        rgba(255, 255, 255, 0.05) 0%, 
+        rgba(255, 255, 255, 0) 50%,
+        rgba(0, 0, 0, 0.1) 100%
+    );
+    
+    --gradient-subtle: linear-gradient(
+        180deg, 
+        rgba(255, 255, 255, 0.03) 0%, 
+        rgba(255, 255, 255, 0) 100%
+    );
+}
 
 @layer base {
     * {
@@ -271,4 +384,604 @@
 .custom-scrollbar-light {
     scrollbar-width: thin;
     scrollbar-color: rgba(46, 63, 132, 0.25) rgba(221, 225, 240, 0.5);
+}
+
+/* Dark mode scrollbar styles */
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(147, 162, 220, 0.25);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(147, 162, 220, 0.4);
+}
+
+.dark .custom-scrollbar {
+    scrollbar-color: rgba(147, 162, 220, 0.25) transparent;
+}
+
+.dark .custom-scrollbar-light::-webkit-scrollbar-track {
+    background: rgba(30, 38, 66, 0.5);
+}
+
+.dark .custom-scrollbar-light::-webkit-scrollbar-thumb {
+    background: rgba(147, 162, 220, 0.3);
+}
+
+.dark .custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
+    background: rgba(147, 162, 220, 0.45);
+}
+
+.dark .custom-scrollbar-light {
+    scrollbar-color: rgba(147, 162, 220, 0.3) rgba(30, 38, 66, 0.5);
+}
+
+
+/* ============================================
+   UTILITY CLASSES FOR DARK MODE SUPPORT
+   ============================================ */
+
+/* Card con gradiente - soporta dark mode */
+.card-gradient {
+    background: linear-gradient(to bottom, #ffffff, #fafbfc);
+    box-shadow: 
+        0 1px 2px rgba(46, 63, 132, 0.04),
+        0 2px 6px rgba(46, 63, 132, 0.06),
+        0 6px 16px rgba(46, 63, 132, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.dark .card-gradient {
+    background: linear-gradient(to bottom, hsl(231, 25%, 15%), hsl(231, 25%, 12%));
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        0 2px 6px rgba(0, 0, 0, 0.15),
+        0 6px 16px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Input con gradiente - soporta dark mode */
+.input-gradient {
+    border: 0;
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+    box-shadow: 
+        0 1px 2px rgba(46, 63, 132, 0.04),
+        0 2px 3px rgba(46, 63, 132, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.input-gradient:focus {
+    background: linear-gradient(to bottom, #ffffff, #fafbfc);
+    box-shadow: 
+        0 1px 3px rgba(46, 63, 132, 0.08),
+        0 2px 6px rgba(46, 63, 132, 0.1),
+        0 4px 12px rgba(46, 63, 132, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.dark .input-gradient {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.dark .input-gradient:focus {
+    background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 17%));
+    box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.2),
+        0 2px 6px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Botón primario con gradiente */
+.btn-primary-gradient {
+    background: linear-gradient(to bottom, #3e4f94, #2e3f84);
+    color: white;
+    box-shadow: 
+        0 1px 2px rgba(46, 63, 132, 0.15),
+        0 2px 4px rgba(46, 63, 132, 0.2),
+        0 4px 12px rgba(46, 63, 132, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn-primary-gradient:hover {
+    background: linear-gradient(to bottom, #4e5fa4, #3e4f94);
+    box-shadow: 
+        0 2px 4px rgba(46, 63, 132, 0.2),
+        0 4px 8px rgba(46, 63, 132, 0.25),
+        0 8px 20px rgba(46, 63, 132, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.dark .btn-primary-gradient {
+    background: linear-gradient(to bottom, hsl(231, 55%, 50%), hsl(231, 55%, 40%));
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .btn-primary-gradient:hover {
+    background: linear-gradient(to bottom, hsl(231, 55%, 55%), hsl(231, 55%, 45%));
+}
+
+/* Botón secundario/outline con gradiente */
+.btn-secondary-gradient {
+    border: 0;
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+    color: #2e3f84;
+    box-shadow: 
+        0 1px 2px rgba(46, 63, 132, 0.06),
+        0 2px 4px rgba(46, 63, 132, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.btn-secondary-gradient:hover {
+    box-shadow: 
+        0 2px 4px rgba(46, 63, 132, 0.1),
+        0 4px 8px rgba(46, 63, 132, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transform: translateY(-1px);
+}
+
+.dark .btn-secondary-gradient {
+    background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 17%));
+    color: hsl(231, 15%, 90%);
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Header de sección */
+.section-header {
+    background: linear-gradient(to bottom, #e8ebf5, #dde1f0);
+}
+
+.dark .section-header {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
+}
+
+/* Mensaje de chat - enviado */
+.chat-message-sent {
+    background: linear-gradient(to bottom, #3e4f94, #2e3f84);
+    color: white;
+}
+
+.dark .chat-message-sent {
+    background: linear-gradient(to bottom, hsl(231, 50%, 45%), hsl(231, 50%, 35%));
+}
+
+/* Mensaje de chat - recibido */
+.chat-message-received {
+    background: linear-gradient(to bottom, #ffffff, #fafbfc);
+    color: #1a1a1a;
+}
+
+.dark .chat-message-received {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
+    color: hsl(231, 15%, 92%);
+}
+
+/* Badge/Chip de estado */
+.status-badge {
+    background: linear-gradient(to bottom, #e8ebf5, #dde1f0);
+    color: #2e3f84;
+}
+
+.dark .status-badge {
+    background: linear-gradient(to bottom, hsl(231, 25%, 22%), hsl(231, 25%, 18%));
+    color: hsl(231, 55%, 70%);
+}
+
+/* Tabla header */
+.table-header {
+    background: linear-gradient(to bottom, #f8f9fc, #f4f5f9);
+    color: #2e3f84;
+}
+
+.dark .table-header {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 13%));
+    color: hsl(231, 15%, 85%);
+}
+
+/* Tabla row hover */
+.table-row-hover:hover {
+    background: linear-gradient(to bottom, #f8f9fc, #f4f5f9);
+}
+
+.dark .table-row-hover:hover {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%));
+}
+
+/* Dropdown/Select content */
+.dropdown-content {
+    background: linear-gradient(to bottom, #ffffff, #fafbfc);
+    box-shadow: 
+        0 2px 4px rgba(46, 63, 132, 0.08),
+        0 4px 8px rgba(46, 63, 132, 0.12),
+        0 8px 20px rgba(46, 63, 132, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.dark .dropdown-content {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 13%));
+    box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 4px 8px rgba(0, 0, 0, 0.25),
+        0 8px 20px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Lista de conversaciones - item */
+.conversation-item {
+    background: linear-gradient(to bottom, #ffffff, #fafbfc);
+}
+
+.conversation-item:hover {
+    background: linear-gradient(to bottom, #f8f9fc, #f4f5f9);
+}
+
+.conversation-item.active {
+    background: linear-gradient(to bottom, #e8ebf5, #dde1f0);
+}
+
+.dark .conversation-item {
+    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%));
+}
+
+.dark .conversation-item:hover {
+    background: linear-gradient(to bottom, hsl(231, 25%, 17%), hsl(231, 25%, 15%));
+}
+
+.dark .conversation-item.active {
+    background: linear-gradient(to bottom, hsl(231, 30%, 20%), hsl(231, 30%, 17%));
+}
+
+/* Modal/Dialog */
+.modal-content {
+    background: linear-gradient(to bottom, #ffffff, #fafbfc);
+}
+
+.dark .modal-content {
+    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 11%));
+}
+
+/* Tooltip */
+.tooltip-content {
+    background: #2e3f84;
+    color: white;
+}
+
+.dark .tooltip-content {
+    background: hsl(231, 25%, 20%);
+    color: hsl(231, 15%, 95%);
+}
+
+
+/* Input con estilo de settings - soporta dark mode */
+.settings-input {
+    border: 0;
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+    box-shadow: 
+        0 1px 2px rgba(46, 63, 132, 0.04),
+        0 2px 3px rgba(46, 63, 132, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    transition: all 0.2s;
+}
+
+.settings-input:focus {
+    background: linear-gradient(to bottom, #ffffff, #fafbfc);
+    box-shadow: 
+        0 1px 3px rgba(46, 63, 132, 0.08),
+        0 2px 6px rgba(46, 63, 132, 0.1),
+        0 4px 12px rgba(46, 63, 132, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.settings-input:hover {
+    box-shadow: 
+        0 2px 4px rgba(46, 63, 132, 0.06),
+        0 3px 8px rgba(46, 63, 132, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.dark .settings-input:hover {
+    box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        0 3px 8px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.dark .settings-input {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
+    color: hsl(231, 15%, 92%);
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.dark .settings-input:focus {
+    background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 17%));
+    box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.2),
+        0 2px 6px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.dark .settings-input::placeholder {
+    color: hsl(231, 15%, 50%);
+}
+
+/* Botón primario de settings */
+.settings-btn-primary {
+    background: linear-gradient(to bottom, #3e4f94, #2e3f84);
+    color: white;
+    box-shadow: 
+        0 1px 2px rgba(46, 63, 132, 0.15),
+        0 2px 4px rgba(46, 63, 132, 0.2),
+        0 4px 12px rgba(46, 63, 132, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    transition: all 0.2s;
+}
+
+.settings-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(to bottom, #4e5fa4, #3e4f94);
+    box-shadow: 
+        0 2px 4px rgba(46, 63, 132, 0.2),
+        0 4px 8px rgba(46, 63, 132, 0.25),
+        0 8px 20px rgba(46, 63, 132, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.settings-btn-primary:active:not(:disabled) {
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    transform: translateY(0);
+}
+
+.dark .settings-btn-primary {
+    background: linear-gradient(to bottom, hsl(231, 55%, 50%), hsl(231, 55%, 40%));
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.3),
+        0 2px 4px rgba(0, 0, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .settings-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(to bottom, hsl(231, 55%, 55%), hsl(231, 55%, 45%));
+}
+
+/* Botón secundario de settings */
+.settings-btn-secondary {
+    border: 0;
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+    color: #2e3f84;
+    box-shadow: 
+        0 1px 2px rgba(46, 63, 132, 0.06),
+        0 2px 4px rgba(46, 63, 132, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transition: all 0.2s;
+}
+
+.settings-btn-secondary:hover:not(:disabled) {
+    box-shadow: 
+        0 2px 4px rgba(46, 63, 132, 0.1),
+        0 4px 8px rgba(46, 63, 132, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transform: translateY(-1px);
+}
+
+.settings-btn-secondary:active:not(:disabled) {
+    box-shadow: inset 0 1px 2px rgba(46, 63, 132, 0.1);
+    transform: translateY(0);
+}
+
+.dark .settings-btn-secondary {
+    background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 17%));
+    color: hsl(231, 55%, 70%);
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.dark .settings-btn-secondary:hover:not(:disabled) {
+    background: linear-gradient(to bottom, hsl(231, 25%, 23%), hsl(231, 25%, 20%));
+    box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.25),
+        0 4px 8px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Preview de token/key */
+.token-preview {
+    background: linear-gradient(to bottom, #e8ebf5, #dde1f0);
+}
+
+.dark .token-preview {
+    background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 17%));
+}
+
+/* Status badges */
+.status-configured {
+    background: rgba(34, 197, 94, 0.15);
+    color: #16a34a;
+}
+
+.dark .status-configured {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.status-not-configured {
+    background: rgba(249, 115, 22, 0.15);
+    color: #ea580c;
+}
+
+.dark .status-not-configured {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fb923c;
+}
+
+/* Advisor item */
+.advisor-item {
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+    box-shadow: 
+        0 1px 2px rgba(46, 63, 132, 0.04),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.advisor-item:hover {
+    box-shadow: 
+        0 2px 4px rgba(46, 63, 132, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.advisor-item.selected {
+    background: linear-gradient(to bottom, #e8f5e9, #c8e6c9);
+    box-shadow: 
+        0 1px 2px rgba(34, 197, 94, 0.1),
+        0 2px 4px rgba(34, 197, 94, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.dark .advisor-item {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%));
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.dark .advisor-item:hover {
+    box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.dark .advisor-item.selected {
+    background: linear-gradient(to bottom, hsl(142, 40%, 20%), hsl(142, 35%, 15%));
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Advisor avatar */
+.advisor-avatar {
+    background: linear-gradient(to bottom, #6b7494, #5a637f);
+}
+
+.advisor-avatar.selected {
+    background: linear-gradient(to bottom, #22c55e, #16a34a);
+}
+
+/* Check circle */
+.check-circle {
+    background: linear-gradient(to bottom, #e8ebf5, #dde1f0);
+}
+
+.check-circle.selected {
+    background: linear-gradient(to bottom, #22c55e, #16a34a);
+    color: white;
+}
+
+.dark .check-circle {
+    background: linear-gradient(to bottom, hsl(231, 25%, 22%), hsl(231, 25%, 18%));
+}
+
+
+/* Native select dark mode support */
+.dark select.settings-input {
+    color-scheme: dark;
+}
+
+.dark select.settings-input option {
+    background: hsl(231, 25%, 15%);
+    color: hsl(231, 15%, 92%);
+}
+
+/* Select trigger (Radix UI) dark mode */
+.dark [data-radix-select-trigger] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
+    color: hsl(231, 15%, 92%);
+}
+
+/* Select content (Radix UI) dark mode */
+.dark [data-radix-select-content] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 13%));
+    border-color: hsl(231, 20%, 22%);
+}
+
+.dark [data-radix-select-item] {
+    color: hsl(231, 15%, 92%);
+}
+
+.dark [data-radix-select-item]:hover,
+.dark [data-radix-select-item][data-highlighted] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 18%));
+}
+
+/* Recharts dark mode support */
+.dark .recharts-cartesian-grid line {
+    stroke: hsl(231, 20%, 25%);
+}
+
+.dark .recharts-cartesian-axis-tick text {
+    fill: hsl(231, 15%, 60%);
+}
+
+.dark .recharts-legend-item-text {
+    color: hsl(231, 15%, 85%) !important;
+}
+
+.dark .recharts-default-tooltip {
+    background-color: hsl(231, 25%, 15%) !important;
+    border-color: hsl(231, 20%, 25%) !important;
+}
+
+.dark .recharts-tooltip-label {
+    color: hsl(231, 15%, 92%) !important;
+}
+
+.dark .recharts-tooltip-item {
+    color: hsl(231, 15%, 85%) !important;
+}
+
+/* Dark mode override for inline styles - Settings page */
+.dark [style*="color: #2e3f84"],
+.dark [style*="color:#2e3f84"] {
+    color: hsl(231, 15%, 92%) !important;
+}
+
+.dark [style*="color: #6b7494"],
+.dark [style*="color:#6b7494"] {
+    color: hsl(231, 15%, 60%) !important;
+}
+
+/* Dark mode override for advisor buttons background */
+.dark [style*="linear-gradient(to bottom, #f4f5f9, #f0f2f8)"] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%)) !important;
+}
+
+.dark [style*="linear-gradient(to bottom, #e8f5e9, #c8e6c9)"] {
+    background: linear-gradient(to bottom, hsl(142, 40%, 20%), hsl(142, 35%, 15%)) !important;
+}
+
+.dark [style*="linear-gradient(to bottom, #e8ebf5, #dde1f0)"] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 22%), hsl(231, 25%, 18%)) !important;
+}
+
+/* Dark mode override for green text */
+.dark [style*="color: #16a34a"] {
+    color: #4ade80 !important;
+}
+
+/* Dark mode override for gray text */
+.dark [style*="color: #6b7280"],
+.dark [style*="color:#6b7280"] {
+    color: #9ca3af !important;
+}
+
+.dark [style*="color: #9ca3af"],
+.dark [style*="color:#9ca3af"] {
+    color: #6b7280 !important;
 }

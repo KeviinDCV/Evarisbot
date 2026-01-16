@@ -55,7 +55,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder={t('auth.emailPlaceholder')}
-                                    className="w-full rounded-none border-0 placeholder:text-gray-400 transition-all duration-200"
+                                    className="w-full rounded-none border-0 placeholder:text-muted-foreground transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--layer-base)',
                                         color: 'var(--primary-base)',
@@ -96,7 +96,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                         tabIndex={2}
                                         autoComplete="current-password"
                                         placeholder={t('auth.passwordPlaceholder')}
-                                        className="w-full rounded-none border-0 placeholder:text-gray-400 transition-all duration-200 pr-10"
+                                        className="w-full rounded-none border-0 placeholder:text-muted-foreground transition-all duration-200 pr-10"
                                         style={{
                                             backgroundColor: 'var(--layer-base)',
                                             color: 'var(--primary-base)',
@@ -118,7 +118,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[#6b7494] hover:text-[#2e3f84] transition-colors duration-200"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-primary dark:text-primary transition-colors duration-200"
                                         tabIndex={-1}
                                     >
                                         {showPassword ? (

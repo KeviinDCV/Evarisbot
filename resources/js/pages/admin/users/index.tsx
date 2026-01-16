@@ -85,16 +85,16 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         <AdminLayout>
             <Head title={t('users.title')} />
 
-            <div className="min-h-screen bg-[#f0f2f8] p-4 md:p-6 lg:p-8">
+            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
                             <div>
-                                <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
+                                <h1 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)', color: '#2e3f84' }}>
                                     {t('users.title')}
                                 </h1>
-                                <p className="text-gray-600" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                                <p style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }} className="dark:text-[hsl(231,15%,60%)]">
                                     {t('users.subtitle')}
                                 </p>
                             </div>
@@ -127,13 +127,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </div>
 
                         {/* Filtros */}
-                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
+                        <div className="card-gradient rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                             <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
-                                <label htmlFor="user-search" className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                <label htmlFor="user-search" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
                                     {t('common.search')}
                                 </label>
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: '#6b7494' }} />
                                     <Input
                                         id="user-search"
                                         name="user-search"
@@ -141,10 +141,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
                                         placeholder={t('users.searchPlaceholder')}
-                                        className="pl-10 border-0 rounded-none transition-all duration-200"
+                                        className="pl-10 settings-input rounded-none transition-all duration-200"
                                         style={{
-                                            backgroundColor: 'var(--layer-base)',
-                                            boxShadow: 'var(--shadow-inset-sm)',
                                             height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
                                         }}
@@ -153,7 +151,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </div>
 
                             <div style={{ flex: '0 1 150px' }}>
-                                <label htmlFor="role-filter" className="font-semibold block mb-2" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
+                                <label htmlFor="role-filter" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
                                     {t('users.role')}
                                 </label>
                                 <select
@@ -161,16 +159,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     name="role-filter"
                                     value={roleFilter}
                                     onChange={(e) => setRoleFilter(e.target.value)}
-                                    className="w-full border-0 rounded-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/20"
+                                    className="w-full settings-input rounded-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-primary/20"
                                     style={{
-                                        backgroundColor: 'var(--layer-base)',
-                                        boxShadow: 'var(--shadow-inset-sm)',
                                         height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                         fontSize: 'var(--text-sm)',
                                         padding: '0 2.5rem 0 var(--space-base)',
-                                        color: 'var(--primary-base)',
                                         appearance: 'none',
-                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%232e3f84' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
                                         backgroundRepeat: 'no-repeat',
                                         backgroundPosition: 'right 0.75rem center',
                                         backgroundSize: '1rem',
@@ -189,7 +184,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         {filteredUsers.map((user) => (
                             <div
                                 key={user.id}
-                                className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300"
+                                className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300"
                                 style={{
                                     display: 'flex',
                                     flexDirection: 'column',
@@ -199,18 +194,18 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 {/* Header */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                                     <div style={{ flex: 1 }}>
-                                        <h3 className="font-bold" style={{ fontSize: 'var(--text-lg)', color: 'var(--primary-base)' }}>
+                                        <h3 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-lg)', color: '#2e3f84' }}>
                                             {user.name}
                                         </h3>
-                                        <p className="text-gray-600" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                                        <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }}>
                                             {user.email}
                                         </p>
                                     </div>
                                     <Badge
                                         className={
                                             user.role === 'admin'
-                                                ? 'bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] flex-shrink-0 ml-2'
-                                                : 'bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_3px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] flex-shrink-0 ml-2'
+                                                ? 'chat-message-sent text-white shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] flex-shrink-0 ml-2'
+                                                : 'status-badge shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_3px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)] flex-shrink-0 ml-2'
                                         }
                                     >
                                         {getRoleLabel(user.role)}
@@ -219,10 +214,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                                 {/* Status & Stats */}
                                 <div 
-                                    className="rounded-none p-3"
-                                    style={{
-                                        backgroundColor: 'var(--layer-base)',
-                                    }}
+                                    className="rounded-none p-3 dark:bg-[hsl(231,25%,16%)]"
+                                    style={{ background: 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)' }}
                                 >
                                     {/* Online Status */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
@@ -236,12 +229,12 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         <span style={{ 
                                             fontSize: 'var(--text-sm)', 
                                             fontWeight: 500,
-                                            color: user.is_online ? '#16a34a' : '#6b7280' 
-                                        }}>
+                                            color: user.is_online ? '#16a34a' : '#6b7280'
+                                        }} className={user.is_online ? 'dark:text-green-400' : 'dark:text-gray-400'}>
                                             {user.is_online ? t('users.online') : t('users.offline')}
                                         </span>
                                         {!user.is_online && user.last_activity_at && (
-                                            <span style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>
+                                            <span className="dark:text-gray-500" style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>
                                                 • {formatLastActivity(user.last_activity_at)}
                                             </span>
                                         )}
@@ -249,8 +242,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     
                                     {/* Registered Date */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                                        <Calendar className="w-4 h-4 text-gray-500" />
-                                        <span style={{ fontSize: 'var(--text-xs)', color: 'gray' }}>
+                                        <Calendar className="w-4 h-4" style={{ color: '#6b7494' }} />
+                                        <span className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-xs)', color: '#6b7494' }}>
                                             {t('users.registeredOn')} {new Date(user.created_at).toLocaleDateString('es-ES', {
                                                 day: '2-digit',
                                                 month: 'short',
@@ -261,12 +254,12 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 </div>
 
                                 {/* Actions */}
-                                <div style={{ display: 'flex', gap: 'var(--space-xs)', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--layer-base)' }}>
+                                <div className="border-t border-border dark:border-[hsl(231,20%,20%)]" style={{ display: 'flex', gap: 'var(--space-xs)', paddingTop: 'var(--space-sm)' }}>
                                     <Link href={`/admin/users/${user.id}/edit`} style={{ flex: 1 }}>
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="w-full text-[#2e3f84] hover:text-white hover:bg-gradient-to-b hover:from-[#3e4f94] hover:to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                            className="w-full settings-btn-secondary hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                                             style={{ padding: 'var(--space-xs) var(--space-sm)' }}
                                         >
                                             <Edit className="w-4 h-4 mr-2" />
@@ -277,8 +270,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         size="sm"
                                         variant="outline"
                                         onClick={() => setUserToDelete(user)}
-                                        className="text-red-600 transition-all duration-200"
-                                        style={{ padding: 'var(--space-xs) var(--space-sm)' }}
+                                        className="hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 hover:shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_8px_rgba(239,68,68,0.25)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                        style={{ padding: 'var(--space-xs) var(--space-sm)', color: '#dc2626' }}
                                     >
                                         <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -289,12 +282,12 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                     {/* Empty State */}
                     {filteredUsers.length === 0 && (
-                        <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
-                            <UserCircle className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-                            <h3 className="font-bold mb-2" style={{ fontSize: 'var(--text-xl)', color: 'var(--primary-base)' }}>
+                        <div className="card-gradient rounded-none p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                            <UserCircle className="w-16 h-16 mx-auto mb-4" style={{ color: '#6b7494' }} />
+                            <h3 className="font-bold mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xl)', color: '#2e3f84' }}>
                                 {t('users.noUsers')}
                             </h3>
-                            <p className="text-gray-600 mb-6" style={{ fontSize: 'var(--text-sm)' }}>
+                            <p className="mb-6 dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', color: '#6b7494' }}>
                                 {t('users.noUsersFiltered')}
                             </p>
                         </div>
@@ -303,17 +296,17 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                 {/* Modal de Confirmación */}
                 <Dialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
-                    <DialogContent className="bg-gradient-to-b from-white to-[#fafbfc] shadow-[0_4px_8px_rgba(46,63,132,0.1),0_8px_16px_rgba(46,63,132,0.15),0_16px_32px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                    <DialogContent className="card-gradient shadow-[0_4px_8px_rgba(46,63,132,0.1),0_8px_16px_rgba(46,63,132,0.15),0_16px_32px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.9)]">
                         <DialogHeader>
-                            <DialogTitle className="text-[#2e3f84]">{t('users.deleteConfirm')}</DialogTitle>
-                            <DialogDescription className="text-[#6b7494]">
+                            <DialogTitle className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{t('users.deleteConfirm')}</DialogTitle>
+                            <DialogDescription className="dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                 {t('users.deleteMessage')} <strong>{userToDelete?.name}</strong>?
                                 {t('users.deleteWarning')}
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button variant="outline" className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.1),0_4px_8px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(46,63,132,0.1)] active:translate-y-0 transition-all duration-200">
+                                <Button variant="outline" className="settings-btn-secondary">
                                     {t('common.cancel')}
                                 </Button>
                             </DialogClose>

@@ -178,14 +178,14 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
         <AdminLayout>
             <Head title={t('settings.whatsapp.title')} />
 
-            <div className="min-h-screen bg-[#f0f2f8] p-4 md:p-6 lg:p-8">
+            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6">
-                        <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
+                        <h1 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)', color: '#2e3f84' }}>
                             {t('settings.whatsapp.title')}
                         </h1>
-                        <p className="text-gray-600" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                        <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }}>
                             {t('settings.whatsapp.subtitle')}
                         </p>
                     </div>
@@ -195,10 +195,10 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                         {/* WhatsApp Config */}
                         <div>
-                            <form onSubmit={handleWhatsAppSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 h-full">
+                            <form onSubmit={handleWhatsAppSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 h-full">
                                 <div className="mb-4">
-                                    <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">{t('settings.whatsapp.apiTitle')}</h2>
-                                    <p className="text-xs md:text-sm text-[#6b7494] mt-1">
+                                    <h2 className="text-lg md:text-xl font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{t('settings.whatsapp.apiTitle')}</h2>
+                                    <p className="text-xs md:text-sm dark:text-[hsl(231,15%,60%)] mt-1" style={{ color: '#6b7494' }}>
                                         {t('settings.whatsapp.configureConnection')}
                                     </p>
                                 </div>
@@ -206,12 +206,12 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Token de Acceso */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_token" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="whatsapp_token" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
                                             {t('settings.whatsapp.accessToken')}
                                         </Label>
                                         {settings.whatsapp.token && (
-                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-none">
-                                                <p className="text-xs text-[#6b7494] truncate font-mono">●●●●{settings.whatsapp.token.slice(-4)}</p>
+                                            <div className="px-2 py-1 token-preview rounded-none">
+                                                <p className="text-xs text-muted-foreground truncate font-mono">●●●●{settings.whatsapp.token.slice(-4)}</p>
                                             </div>
                                         )}
                                         <Input
@@ -220,14 +220,14 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={whatsappForm.data.whatsapp_token}
                                             onChange={(e) => whatsappForm.setData('whatsapp_token', e.target.value)}
                                             placeholder={settings.whatsapp.token ? t('settings.whatsapp.updateToken') : t('settings.whatsapp.accessTokenPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 font-mono text-xs md:text-sm"
+                                            className="settings-input rounded-none font-mono text-xs md:text-sm"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_token} />
                                     </div>
 
                                     {/* ID del Teléfono */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_phone_id" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="whatsapp_phone_id" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
                                             {t('settings.whatsapp.phoneId')}
                                         </Label>
                                         <Input
@@ -236,14 +236,14 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={whatsappForm.data.whatsapp_phone_id}
                                             onChange={(e) => whatsappForm.setData('whatsapp_phone_id', e.target.value)}
                                             placeholder={t('settings.whatsapp.phoneIdPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 text-xs md:text-sm"
+                                            className="settings-input rounded-none text-xs md:text-sm"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_phone_id} />
                                     </div>
 
                                     {/* ID de Cuenta de Negocio */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_business_account_id" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="whatsapp_business_account_id" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
                                             {t('settings.whatsapp.businessAccountId')}
                                         </Label>
                                         <Input
@@ -252,19 +252,19 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={whatsappForm.data.whatsapp_business_account_id}
                                             onChange={(e) => whatsappForm.setData('whatsapp_business_account_id', e.target.value)}
                                             placeholder={t('settings.whatsapp.businessAccountIdPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 text-xs md:text-sm"
+                                            className="settings-input rounded-none text-xs md:text-sm"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_business_account_id} />
                                     </div>
 
                                     {/* Verify Token */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_verify_token" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="whatsapp_verify_token" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
                                             {t('settings.whatsapp.verifyToken')}
                                         </Label>
                                         {settings.whatsapp.verify_token && (
-                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-none">
-                                                <p className="text-xs text-[#6b7494] truncate">●●●●{settings.whatsapp.verify_token.slice(-4)}</p>
+                                            <div className="px-2 py-1 token-preview rounded-none">
+                                                <p className="text-xs text-muted-foreground truncate">●●●●{settings.whatsapp.verify_token.slice(-4)}</p>
                                             </div>
                                         )}
                                         <Input
@@ -273,7 +273,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={whatsappForm.data.whatsapp_verify_token}
                                             onChange={(e) => whatsappForm.setData('whatsapp_verify_token', e.target.value)}
                                             placeholder={settings.whatsapp.verify_token ? t('settings.whatsapp.update') : t('settings.whatsapp.verifyTokenPlaceholder')}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 text-xs md:text-sm"
+                                            className="settings-input rounded-none text-xs md:text-sm"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_verify_token} />
                                     </div>
@@ -299,11 +299,11 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 )}
 
                                 {/* Botones */}
-                                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 pt-4 mt-4 border-t border-[#e8ebf5] md:col-span-2">
+                                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 pt-4 mt-4 border-t border-border md:col-span-2">
                                     <Button
                                         type="submit"
                                         disabled={whatsappForm.processing}
-                                        className="w-full sm:flex-1 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                        className="w-full sm:flex-1 settings-btn-primary text-sm disabled:opacity-50"
                                     >
                                         {whatsappForm.processing ? t('common.saving') : t('common.save')}
                                     </Button>
@@ -315,7 +315,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                 variant="outline"
                                                 onClick={testConnection}
                                                 disabled={testingConnection}
-                                                className="w-full sm:flex-1 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.1),0_4px_8px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(46,63,132,0.1)] active:translate-y-0 transition-all duration-200 text-sm"
+                                                className="w-full sm:flex-1 settings-btn-secondary text-sm"
                                             >
                                                 {testingConnection ? (
                                                     <>
@@ -332,7 +332,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                 variant="outline"
                                                 onClick={getBusinessProfile}
                                                 disabled={loadingProfile}
-                                                className="w-full sm:flex-1 border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.1),0_4px_8px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(46,63,132,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                                className="w-full sm:flex-1 settings-btn-secondary text-sm disabled:opacity-50"
                                             >
                                                 {loadingProfile ? (
                                                     <>
@@ -349,34 +349,34 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                                 {/* Business Profile Info */}
                                 {businessProfile && (
-                                    <div className="mt-4 p-4 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.1),0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] md:col-span-2">
-                                        <h3 className="text-sm font-semibold text-[#2e3f84] mb-3">WhatsApp business profile</h3>
+                                    <div className="mt-4 p-4 card-gradient rounded-none md:col-span-2">
+                                        <h3 className="text-sm font-semibold dark:text-[hsl(231,15%,92%)] mb-3" style={{ color: '#2e3f84' }}>WhatsApp business profile</h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Business name:</span>
-                                                <p className="text-[#2e3f84] font-semibold">{businessProfile.business_name}</p>
+                                                <span className="dark:text-[hsl(231,15%,60%)] font-medium" style={{ color: '#6b7494' }}>Business name:</span>
+                                                <p className="dark:text-[hsl(231,15%,92%)] font-semibold" style={{ color: '#2e3f84' }}>{businessProfile.business_name}</p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Phone number:</span>
-                                                <p className="text-[#2e3f84] font-semibold">{businessProfile.phone_number}</p>
+                                                <span className="dark:text-[hsl(231,15%,60%)] font-medium" style={{ color: '#6b7494' }}>Phone number:</span>
+                                                <p className="dark:text-[hsl(231,15%,92%)] font-semibold" style={{ color: '#2e3f84' }}>{businessProfile.phone_number}</p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Phone number ID:</span>
-                                                <p className="text-[#2e3f84] font-semibold font-mono">{businessProfile.phone_number_id}</p>
+                                                <span className="dark:text-[hsl(231,15%,60%)] font-medium" style={{ color: '#6b7494' }}>Phone number ID:</span>
+                                                <p className="dark:text-[hsl(231,15%,92%)] font-semibold font-mono" style={{ color: '#2e3f84' }}>{businessProfile.phone_number_id}</p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Verified:</span>
-                                                <p className={`font-semibold ${businessProfile.verified ? 'text-green-600' : 'text-orange-600'}`}>
+                                                <span className="dark:text-[hsl(231,15%,60%)] font-medium" style={{ color: '#6b7494' }}>Verified:</span>
+                                                <p className={`font-semibold ${businessProfile.verified ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`}>
                                                     {businessProfile.verified ? '✓ Verified' : 'Not verified'}
                                                 </p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Quality rating:</span>
-                                                <p className="text-[#2e3f84] font-semibold">{businessProfile.quality_rating}</p>
+                                                <span className="dark:text-[hsl(231,15%,60%)] font-medium" style={{ color: '#6b7494' }}>Quality rating:</span>
+                                                <p className="dark:text-[hsl(231,15%,92%)] font-semibold" style={{ color: '#2e3f84' }}>{businessProfile.quality_rating}</p>
                                             </div>
                                             <div>
-                                                <span className="text-[#6b7494] font-medium">Messaging limit:</span>
-                                                <p className="text-[#2e3f84] font-semibold">{businessProfile.messaging_limit}</p>
+                                                <span className="dark:text-[hsl(231,15%,60%)] font-medium" style={{ color: '#6b7494' }}>Messaging limit:</span>
+                                                <p className="dark:text-[hsl(231,15%,92%)] font-semibold" style={{ color: '#2e3f84' }}>{businessProfile.messaging_limit}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -386,10 +386,10 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                         {/* Groq Transcription Config */}
                         <div className="mt-6">
-                            <form onSubmit={handleGroqSubmit} className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
+                            <form onSubmit={handleGroqSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
                                 <div className="mb-4">
-                                    <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">🎙️ Transcripción de Audio (Groq)</h2>
-                                    <p className="text-xs md:text-sm text-[#6b7494] mt-1">
+                                    <h2 className="text-lg md:text-xl font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>🎙️ Transcripción de Audio (Groq)</h2>
+                                    <p className="text-xs md:text-sm dark:text-[hsl(231,15%,60%)] mt-1" style={{ color: '#6b7494' }}>
                                         Configura Groq para transcribir automáticamente los audios que envían los clientes.
                                     </p>
                                 </div>
@@ -398,12 +398,12 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                     {/* Status indicator */}
                                     <div className="flex items-center gap-2">
                                         {settings.groq.is_configured ? (
-                                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded">
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 status-configured text-xs font-medium rounded">
                                                 <CheckCircle2 className="w-3 h-3" />
                                                 Configurado
                                             </span>
                                         ) : (
-                                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 status-not-configured text-xs font-medium rounded">
                                                 <AlertCircle className="w-3 h-3" />
                                                 No configurado
                                             </span>
@@ -412,12 +412,12 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                                     {/* API Key */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="groq_api_key" className="text-xs md:text-sm font-medium text-[#2e3f84] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="groq_api_key" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
                                             API Key de Groq
                                         </Label>
                                         {settings.groq.api_key && (
-                                            <div className="px-2 py-1 bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0] rounded-none">
-                                                <p className="text-xs text-[#6b7494] truncate font-mono">●●●●{settings.groq.api_key.slice(-4)}</p>
+                                            <div className="px-2 py-1 token-preview rounded-none">
+                                                <p className="text-xs text-muted-foreground truncate font-mono">●●●●{settings.groq.api_key.slice(-4)}</p>
                                             </div>
                                         )}
                                         <Input
@@ -426,18 +426,18 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={groqForm.data.groq_api_key}
                                             onChange={(e) => groqForm.setData('groq_api_key', e.target.value)}
                                             placeholder={settings.groq.api_key ? 'Actualizar API Key...' : 'gsk_xxxxx...'}
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-none transition-all duration-200 font-mono text-xs md:text-sm"
+                                            className="settings-input rounded-none font-mono text-xs md:text-sm"
                                         />
                                         <InputError message={groqForm.errors.groq_api_key} />
-                                        <p className="text-xs text-[#6b7494]">
-                                            Obtén tu API Key gratis en <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-[#2e3f84] underline hover:no-underline">console.groq.com/keys</a>
+                                        <p className="text-xs dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                            Obtén tu API Key gratis en <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: '#2e3f84' }}>console.groq.com/keys</a>
                                         </p>
                                     </div>
 
                                     <Button
                                         type="submit"
                                         disabled={groqForm.processing || !groqForm.data.groq_api_key}
-                                        className="bg-gradient-to-b from-[#2e3f84] to-[#253470] text-white shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.1)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:-translate-y-0.5 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                        className="settings-btn-primary text-sm disabled:opacity-50 disabled:hover:translate-y-0"
                                     >
                                         {groqForm.processing ? (
                                             <>
@@ -454,19 +454,19 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                         {/* Asesores de Turno */}
                         <div className="mt-6">
-                            <div className="bg-gradient-to-b from-white to-[#fafbfc] rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
+                            <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_2px_6px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.03)] p-4 md:p-6">
                                 <div className="mb-4">
                                     <div className="flex items-center gap-2">
-                                        <Users className="w-5 h-5 text-[#2e3f84]" />
-                                        <h2 className="text-lg md:text-xl font-semibold text-[#2e3f84]">Asesores de turno</h2>
+                                        <Users className="w-5 h-5 dark:text-[hsl(231,55%,65%)]" style={{ color: '#2e3f84' }} />
+                                        <h2 className="text-lg md:text-xl font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Asesores de turno</h2>
                                     </div>
-                                    <p className="text-xs md:text-sm text-[#6b7494] mt-1">
+                                    <p className="text-xs md:text-sm dark:text-[hsl(231,15%,60%)] mt-1" style={{ color: '#6b7494' }}>
                                         Selecciona los asesores que recibirán todas las conversaciones. Útil para rotación semanal de turnos.
                                     </p>
                                 </div>
 
                                 {advisors.length === 0 ? (
-                                    <div className="text-center py-8 text-[#6b7494]">
+                                    <div className="text-center py-8 dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                         <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                                         <p className="text-sm">No hay asesores registrados</p>
                                         <p className="text-xs mt-1">Crea asesores en la sección de Usuarios</p>
@@ -479,27 +479,41 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                     key={advisor.id}
                                                     type="button"
                                                     onClick={() => toggleAdvisor(advisor.id)}
-                                                    className={`w-full flex items-center justify-between p-3 rounded-none transition-all duration-200 ${selectedAdvisors.includes(advisor.id)
-                                                        ? 'bg-gradient-to-b from-[#e8f5e9] to-[#c8e6c9] shadow-[0_1px_2px_rgba(34,197,94,0.1),0_2px_4px_rgba(34,197,94,0.08),inset_0_1px_0_rgba(255,255,255,0.6)]'
-                                                        : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] shadow-[0_1px_2px_rgba(46,63,132,0.04),inset_0_1px_0_rgba(255,255,255,0.6)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)]'
-                                                        }`}
+                                                    className="w-full flex items-center justify-between p-3 rounded-none transition-all duration-200"
+                                                    style={{
+                                                        background: selectedAdvisors.includes(advisor.id)
+                                                            ? 'linear-gradient(to bottom, #e8f5e9, #c8e6c9)'
+                                                            : 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)',
+                                                        boxShadow: selectedAdvisors.includes(advisor.id)
+                                                            ? '0 1px 2px rgba(34,197,94,0.1), 0 2px 4px rgba(34,197,94,0.08), inset 0 1px 0 rgba(255,255,255,0.6)'
+                                                            : '0 1px 2px rgba(46,63,132,0.04), inset 0 1px 0 rgba(255,255,255,0.6)'
+                                                    }}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${selectedAdvisors.includes(advisor.id)
-                                                            ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a]'
-                                                            : 'bg-gradient-to-b from-[#6b7494] to-[#5a637f]'
-                                                            }`}>
+                                                        <div 
+                                                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
+                                                            style={{
+                                                                background: selectedAdvisors.includes(advisor.id)
+                                                                    ? 'linear-gradient(to bottom, #22c55e, #16a34a)'
+                                                                    : 'linear-gradient(to bottom, #6b7494, #5a637f)'
+                                                            }}
+                                                        >
                                                             {advisor.name.charAt(0).toUpperCase()}
                                                         </div>
                                                         <div className="text-left">
-                                                            <p className="text-sm font-medium text-[#2e3f84]">{advisor.name}</p>
-                                                            <p className="text-xs text-[#6b7494]">{advisor.email}</p>
+                                                            <p className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{advisor.name}</p>
+                                                            <p className="text-xs dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>{advisor.email}</p>
                                                         </div>
                                                     </div>
-                                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedAdvisors.includes(advisor.id)
-                                                        ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
-                                                        : 'bg-gradient-to-b from-[#e8ebf5] to-[#dde1f0]'
-                                                        }`}>
+                                                    <div 
+                                                        className="w-6 h-6 rounded-full flex items-center justify-center"
+                                                        style={{
+                                                            background: selectedAdvisors.includes(advisor.id)
+                                                                ? 'linear-gradient(to bottom, #22c55e, #16a34a)'
+                                                                : 'linear-gradient(to bottom, #e8ebf5, #dde1f0)',
+                                                            color: selectedAdvisors.includes(advisor.id) ? 'white' : 'inherit'
+                                                        }}
+                                                    >
                                                         {selectedAdvisors.includes(advisor.id) && (
                                                             <Check className="w-4 h-4" />
                                                         )}
@@ -508,15 +522,15 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             ))}
                                         </div>
 
-                                        <div className="flex items-center justify-between pt-4 mt-4 border-t border-[#e8ebf5]">
-                                            <p className="text-xs text-[#6b7494]">
+                                        <div className="flex items-center justify-between pt-4 mt-4 border-t border-border dark:border-[hsl(231,20%,20%)]">
+                                            <p className="text-xs dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                                 {selectedAdvisors.length} de {advisors.length} asesor{advisors.length !== 1 ? 'es' : ''} seleccionado{selectedAdvisors.length !== 1 ? 's' : ''}
                                             </p>
                                             <Button
                                                 type="button"
                                                 onClick={saveOnDutyAdvisors}
                                                 disabled={savingAdvisors}
-                                                className="bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white shadow-[0_1px_2px_rgba(46,63,132,0.15),0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25),0_8px_20px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2),inset_0_0_8px_rgba(0,0,0,0.1)] active:translate-y-0 transition-all duration-200 text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                                className="settings-btn-primary text-sm disabled:opacity-50 disabled:hover:translate-y-0"
                                             >
                                                 {savingAdvisors ? (
                                                     <>
