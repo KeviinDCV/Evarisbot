@@ -218,7 +218,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         <AdminLayout>
             <Head title="Ver Todas las Citas" />
             
-            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
+            <div className="min-h-screen p-4 md:p-6 lg:p-8" style={{ background: 'linear-gradient(to bottom, #f0f2f8, #e8ebf5)' }}>
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6 md:mb-8">
@@ -289,10 +289,10 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 Exportar a Excel
                             </a>
                         </div>
-                        <h1 className="font-bold text-primary dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)' }}>
+                        <h1 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)', color: '#2e3f84' }}>
                             Gestión de Citas
                         </h1>
-                        <p className="text-sm md:text-base text-muted-foreground mt-1">
+                        <p className="text-sm md:text-base dark:text-[hsl(231,15%,60%)] mt-1" style={{ color: '#6b7494' }}>
                             Visualiza y filtra todas las citas con sus estados de recordatorio
                         </p>
                     </div>
@@ -300,7 +300,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                 {/* Filtros */}
                 <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
                     <div className="mb-4">
-                        <h2 className="text-lg font-semibold text-primary dark:text-[hsl(231,15%,92%)] mb-3 flex items-center gap-2">
+                        <h2 className="text-lg font-semibold dark:text-[hsl(231,15%,92%)] mb-3 flex items-center gap-2" style={{ color: '#2e3f84' }}>
                             <Filter className="w-5 h-5" />
                             Filtros
                         </h2>
@@ -313,16 +313,20 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         flex items-center gap-2 px-4 py-2 rounded-none font-medium text-sm transition-all duration-200
                                         ${filter === key
                                             ? 'chat-message-sent text-white shadow-[0_2px_8px_rgba(46,63,132,0.25)]'
-                                            : 'bg-card text-muted-foreground border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] hover:border-primary hover:text-primary dark:hover:text-[hsl(231,55%,70%)]'
+                                            : 'border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] dark:bg-[hsl(231,25%,14%)] dark:text-[hsl(231,15%,60%)] hover:border-[#2e3f84] dark:hover:text-[hsl(231,55%,70%)]'
                                         }
                                     `}
+                                    style={filter !== key ? { background: 'linear-gradient(to bottom, #ffffff, #fafbfc)', color: '#6b7494' } : undefined}
                                 >
                                     <Icon className="w-4 h-4" />
                                     <span>{label}</span>
-                                    <span className={`
-                                        px-2 py-0.5 rounded-none text-xs
-                                        ${filter === key ? 'bg-card/20 text-white' : 'bg-[#f4f5f9] dark:bg-[hsl(231,25%,18%)] text-muted-foreground'}
-                                    `}>
+                                    <span 
+                                        className={`
+                                            px-2 py-0.5 rounded-none text-xs
+                                            ${filter === key ? 'bg-white/20 text-white' : 'bg-[#f4f5f9] dark:bg-[hsl(231,25%,18%)] dark:text-[hsl(231,15%,60%)]'}
+                                        `}
+                                        style={filter !== key ? { color: '#6b7494' } : undefined}
+                                    >
                                         {count.toLocaleString()}
                                     </span>
                                 </button>
@@ -332,13 +336,13 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
 
                     {/* Filtro por Fecha */}
                     <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)] mb-2 flex items-center gap-2">
+                        <h3 className="text-sm font-semibold dark:text-[hsl(231,15%,92%)] mb-2 flex items-center gap-2" style={{ color: '#2e3f84' }}>
                             <Calendar className="w-4 h-4" />
                             Filtrar por Fecha de Cita
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
-                                <label htmlFor="date-from" className="block text-xs font-medium text-muted-foreground mb-1">Desde</label>
+                                <label htmlFor="date-from" className="block text-xs font-medium dark:text-[hsl(231,15%,60%)] mb-1" style={{ color: '#6b7494' }}>Desde</label>
                                 <input
                                     id="date-from"
                                     name="date-from"
@@ -349,7 +353,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 />
                             </div>
                             <div>
-                                <label htmlFor="date-to" className="block text-xs font-medium text-muted-foreground mb-1">Hasta</label>
+                                <label htmlFor="date-to" className="block text-xs font-medium dark:text-[hsl(231,15%,60%)] mb-1" style={{ color: '#6b7494' }}>Hasta</label>
                                 <input
                                     id="date-to"
                                     name="date-to"
@@ -363,14 +367,15 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 <button
                                     onClick={handleClearDates}
                                     disabled={!dateFrom && !dateTo}
-                                    className="w-full px-4 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-muted-foreground hover:bg-accent dark:hover:bg-[hsl(231,25%,18%)] hover:text-primary dark:hover:text-[hsl(231,55%,70%)] hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
+                                    className="w-full px-4 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] dark:text-[hsl(231,15%,60%)] hover:bg-[#f8f9fc] dark:hover:bg-[hsl(231,25%,18%)] dark:hover:text-[hsl(231,55%,70%)] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
+                                    style={{ color: '#6b7494' }}
                                 >
                                     Limpiar Fechas
                                 </button>
                             </div>
                         </div>
                         {(dateFrom || dateTo) && (
-                            <p className="mt-2 text-xs text-primary dark:text-[hsl(231,55%,70%)] flex items-center gap-1">
+                            <p className="mt-2 text-xs dark:text-[hsl(231,55%,70%)] flex items-center gap-1" style={{ color: '#2e3f84' }}>
                                 <Calendar className="w-3 h-3" />
                                 Filtrando citas {dateFrom && `desde ${dateFrom}`} {dateFrom && dateTo && '-'} {dateTo && `hasta ${dateTo}`}
                             </p>
@@ -380,7 +385,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                     {/* Buscador */}
                     <div className="relative">
                         <label htmlFor="view-search" className="sr-only">Buscar citas</label>
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6b7494' }} />
                         <input
                             id="view-search"
                             name="view-search"
@@ -396,10 +401,10 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                 {/* Tabla */}
                 <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
                     <div className="mb-4">
-                        <h2 className="text-lg font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
+                        <h2 className="text-lg font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
                             Resultados ({appointments.total})
                         </h2>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                             Mostrando {appointments.from} - {appointments.to} de {appointments.total} citas
                         </p>
                     </div>
@@ -501,35 +506,35 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-card divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
+                            <tbody className="divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]" style={{ background: 'linear-gradient(to bottom, #ffffff, #fafbfc)' }}>
                                 {appointments.data.length > 0 ? (
                                     appointments.data.map((appointment, index) => (
                                         <tr 
                                             key={appointment.id} 
-                                            className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] transition-colors duration-150"
+                                            className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] transition-colors duration-150 dark:bg-[hsl(231,25%,14%)]"
                                         >
-                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                            <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                                 {appointments.from + index}
                                             </td>
-                                            <td className="px-4 py-3 text-primary dark:text-[hsl(231,15%,92%)] font-medium whitespace-nowrap">
+                                            <td className="px-4 py-3 dark:text-[hsl(231,15%,92%)] font-medium whitespace-nowrap" style={{ color: '#2e3f84' }}>
                                                 {appointment.nom_paciente || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-primary dark:text-[hsl(231,15%,92%)] font-semibold whitespace-nowrap">
+                                            <td className="px-4 py-3 dark:text-[hsl(231,15%,92%)] font-semibold whitespace-nowrap" style={{ color: '#2e3f84' }}>
                                                 {appointment.citide || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                            <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                                 {appointment.pactel || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                            <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                                 {appointment.citfc || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                            <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                                 {appointment.cithor || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                            <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                                 {appointment.mednom || '-'}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                                            <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                                 {appointment.espnom || '-'}
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap">
@@ -539,7 +544,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                                        <td colSpan={9} className="px-4 py-8 text-center dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                             No se encontraron citas con los filtros seleccionados
                                         </td>
                                     </tr>
@@ -551,14 +556,15 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                     {/* Paginación */}
                     {appointments.last_page > 1 && (
                         <div className="mt-4 flex items-center justify-between">
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
                                 Página {appointments.current_page} de {appointments.last_page}
                             </p>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                     disabled={!appointments.prev_page_url}
-                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-muted-foreground hover:bg-accent dark:hover:bg-[hsl(231,25%,18%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
+                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] dark:text-[hsl(231,15%,92%)] hover:bg-[#f8f9fc] dark:hover:bg-[hsl(231,25%,18%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
+                                    style={{ color: '#2e3f84' }}
                                 >
                                     <ChevronLeft className="w-4 h-4" />
                                     Anterior
@@ -566,7 +572,8 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 <button
                                     onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                     disabled={!appointments.next_page_url}
-                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-muted-foreground hover:bg-accent dark:hover:bg-[hsl(231,25%,18%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
+                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] dark:text-[hsl(231,15%,92%)] hover:bg-[#f8f9fc] dark:hover:bg-[hsl(231,25%,18%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1"
+                                    style={{ color: '#2e3f84' }}
                                 >
                                     Siguiente
                                     <ChevronRight className="w-4 h-4" />

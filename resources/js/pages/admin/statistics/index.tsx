@@ -100,20 +100,15 @@ const COLORS = {
 
 const StatRow = ({ icon: Icon, label, value, index }: { icon: any; label: string; value: number; index?: number }) => (
     <div 
-        className={`flex items-center justify-between py-1.5 px-2 rounded-none transition-colors hover:bg-gradient-to-b hover:from-[#f0f2f8] hover:to-[#e8ebf5] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)]`}
-        style={{
-            background: index !== undefined && index % 2 === 0 
-                ? 'linear-gradient(to bottom, #f8f9fc, #f4f5f9)' 
-                : undefined
-        }}
+        className={`flex items-center justify-between py-1.5 px-2 rounded-none transition-colors stat-row-hover ${index !== undefined && index % 2 === 0 ? 'stat-row-alt' : ''}`}
     >
         <div className="flex items-center gap-2">
-            <Icon className="w-3 h-3 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
-            <span className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-xs)', color: '#6b7494' }}>
+            <Icon className="w-3 h-3 settings-title" />
+            <span className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
                 {label}
             </span>
         </div>
-        <span className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+        <span className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
             {value.toLocaleString()}
         </span>
     </div>
@@ -188,10 +183,10 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                     <div className="mb-6" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
                             <div>
-                                <h1 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)', color: '#2e3f84' }}>
+                                <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
                                     {t('statistics.title')}
                                 </h1>
-                                <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }}>
+                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                                     {t('statistics.subtitle')}
                                 </p>
                             </div>
@@ -245,7 +240,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                         <form onSubmit={handleFilterSubmit}>
                             <div className="card-gradient rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                                 <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
-                                    <label htmlFor="stats-period" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                    <label htmlFor="stats-period" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                         {t('statistics.filters.period')}
                                     </label>
                                     <select

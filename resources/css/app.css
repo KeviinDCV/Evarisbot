@@ -831,13 +831,14 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-.advisor-item:hover {
+.dark .advisor-item {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
     box-shadow: 
-        0 2px 4px rgba(46, 63, 132, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-.advisor-item.selected {
+.advisor-item-selected {
     background: linear-gradient(to bottom, #e8f5e9, #c8e6c9);
     box-shadow: 
         0 1px 2px rgba(34, 197, 94, 0.1),
@@ -845,31 +846,129 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
-.dark .advisor-item {
-    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%));
+.dark .advisor-item-selected {
+    background: linear-gradient(to bottom, hsl(142, 35%, 22%), hsl(142, 30%, 18%));
     box-shadow: 
-        0 1px 2px rgba(0, 0, 0, 0.15),
-        inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        0 1px 2px rgba(34, 197, 94, 0.15),
+        0 2px 4px rgba(34, 197, 94, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-.dark .advisor-item:hover {
-    box-shadow: 
-        0 2px 4px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.dark .advisor-item.selected {
-    background: linear-gradient(to bottom, hsl(142, 40%, 20%), hsl(142, 35%, 15%));
-    box-shadow: 
-        0 1px 2px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-/* Advisor avatar */
 .advisor-avatar {
     background: linear-gradient(to bottom, #6b7494, #5a637f);
 }
 
+.dark .advisor-avatar {
+    background: linear-gradient(to bottom, hsl(231, 25%, 45%), hsl(231, 25%, 38%));
+}
+
+.advisor-avatar-selected {
+    background: linear-gradient(to bottom, #22c55e, #16a34a);
+}
+
+.dark .advisor-avatar-selected {
+    background: linear-gradient(to bottom, #22c55e, #16a34a);
+}
+
+.advisor-check {
+    background: linear-gradient(to bottom, #e8ebf5, #dde1f0);
+}
+
+.dark .advisor-check {
+    background: linear-gradient(to bottom, hsl(231, 25%, 25%), hsl(231, 25%, 20%));
+}
+
+.advisor-check-selected {
+    background: linear-gradient(to bottom, #22c55e, #16a34a);
+    color: white;
+}
+
+.dark .advisor-check-selected {
+    background: linear-gradient(to bottom, #22c55e, #16a34a);
+    color: white;
+}
+
+.advisor-name {
+    color: #2e3f84;
+}
+
+.dark .advisor-name {
+    color: #ffffff;
+}
+
+.advisor-email {
+    color: #6b7494;
+}
+
+.dark .advisor-email {
+    color: hsl(231, 15%, 75%);
+}
+
+/* Settings page text classes */
+.settings-title {
+    color: #2e3f84;
+}
+
+.dark .settings-title {
+    color: hsl(231, 15%, 92%);
+}
+
+.settings-subtitle {
+    color: #6b7494;
+}
+
+.dark .settings-subtitle {
+    color: hsl(231, 15%, 65%);
+}
+
+.settings-label {
+    color: #2e3f84;
+}
+
+.dark .settings-label {
+    color: hsl(231, 15%, 92%);
+}
+
+/* User stats box */
+.user-stats-box {
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+}
+
+.dark .user-stats-box {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
+}
+
+.user-status-online {
+    color: #16a34a;
+}
+
+.dark .user-status-online {
+    color: #4ade80;
+}
+
+.user-status-offline {
+    color: #6b7280;
+}
+
+.dark .user-status-offline {
+    color: #9ca3af;
+}
+
+.user-last-activity {
+    color: #9ca3af;
+}
+
+.dark .user-last-activity {
+    color: #6b7280;
+}
+
+.advisor-item:hover {
+    box-shadow: 
+        0 2px 4px rgba(46, 63, 132, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+/* Advisor avatar - legacy */
 .advisor-avatar.selected {
     background: linear-gradient(to bottom, #22c55e, #16a34a);
 }
@@ -958,12 +1057,14 @@
 }
 
 /* Dark mode override for advisor buttons background */
-.dark [style*="linear-gradient(to bottom, #f4f5f9, #f0f2f8)"] {
-    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%)) !important;
+.dark [style*="linear-gradient(to bottom, #f4f5f9, #f0f2f8)"],
+.dark [style*="linear-gradient(to bottom,#f4f5f9,#f0f2f8)"] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%)) !important;
 }
 
-.dark [style*="linear-gradient(to bottom, #e8f5e9, #c8e6c9)"] {
-    background: linear-gradient(to bottom, hsl(142, 40%, 20%), hsl(142, 35%, 15%)) !important;
+.dark [style*="linear-gradient(to bottom, #e8f5e9, #c8e6c9)"],
+.dark [style*="linear-gradient(to bottom,#e8f5e9,#c8e6c9)"] {
+    background: linear-gradient(to bottom, hsl(142, 35%, 22%), hsl(142, 30%, 18%)) !important;
 }
 
 .dark [style*="linear-gradient(to bottom, #e8ebf5, #dde1f0)"] {
@@ -984,4 +1085,48 @@
 .dark [style*="color: #9ca3af"],
 .dark [style*="color:#9ca3af"] {
     color: #6b7280 !important;
+}
+
+/* Dark mode override for template form backgrounds */
+.dark [style*="linear-gradient(to bottom, #ffffff, #fafbfd)"] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%)) !important;
+}
+
+.dark [style*="linear-gradient(to bottom, #fafbfd, #f8f9fc)"] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%)) !important;
+}
+
+/* Dark mode override for page background gradient */
+.dark [style*="linear-gradient(to bottom, #f0f2f8, #e8ebf5)"] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 10%), hsl(231, 25%, 8%)) !important;
+}
+
+/* Dark mode override for table body background */
+.dark [style*="linear-gradient(to bottom, #ffffff, #fafbfc)"] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%)) !important;
+}
+
+/* Dark mode override for filter buttons background */
+.dark [style*="background: linear-gradient(to bottom, #ffffff, #fafbfc)"] {
+    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%)) !important;
+}
+
+/* Dark mode override for new file items (green gradient) */
+.dark [style*="linear-gradient(to bottom, #e8f5e9, #e0f2e1)"] {
+    background: linear-gradient(to bottom, hsl(142, 30%, 18%), hsl(142, 25%, 15%)) !important;
+}
+
+/* Dark mode override for delete button hover */
+.dark [style*="background: rgb(254, 242, 242)"],
+.dark [style*="background:#fef2f2"] {
+    background: rgba(127, 29, 29, 0.2) !important;
+}
+
+/* Back link hover */
+.settings-back-link:hover {
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+}
+
+.dark .settings-back-link:hover {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 16%));
 }

@@ -91,10 +91,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     <div className="mb-6" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
                             <div>
-                                <h1 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)', color: '#2e3f84' }}>
+                                <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
                                     {t('users.title')}
                                 </h1>
-                                <p style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }} className="dark:text-[hsl(231,15%,60%)]">
+                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                                     {t('users.subtitle')}
                                 </p>
                             </div>
@@ -129,11 +129,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         {/* Filtros */}
                         <div className="card-gradient rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                             <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
-                                <label htmlFor="user-search" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <label htmlFor="user-search" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                     {t('common.search')}
                                 </label>
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: '#6b7494' }} />
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 settings-subtitle" />
                                     <Input
                                         id="user-search"
                                         name="user-search"
@@ -151,7 +151,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </div>
 
                             <div style={{ flex: '0 1 150px' }}>
-                                <label htmlFor="role-filter" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <label htmlFor="role-filter" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                     {t('users.role')}
                                 </label>
                                 <select
@@ -194,10 +194,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 {/* Header */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                                     <div style={{ flex: 1 }}>
-                                        <h3 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-lg)', color: '#2e3f84' }}>
+                                        <h3 className="font-bold settings-title" style={{ fontSize: 'var(--text-lg)' }}>
                                             {user.name}
                                         </h3>
-                                        <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }}>
+                                        <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                                             {user.email}
                                         </p>
                                     </div>
@@ -214,8 +214,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                                 {/* Status & Stats */}
                                 <div 
-                                    className="rounded-none p-3 dark:bg-[hsl(231,25%,16%)]"
-                                    style={{ background: 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)' }}
+                                    className="rounded-none p-3 user-stats-box"
                                 >
                                     {/* Online Status */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
@@ -226,15 +225,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                     : 'bg-gray-400'
                                             }`}
                                         />
-                                        <span style={{ 
-                                            fontSize: 'var(--text-sm)', 
-                                            fontWeight: 500,
-                                            color: user.is_online ? '#16a34a' : '#6b7280'
-                                        }} className={user.is_online ? 'dark:text-green-400' : 'dark:text-gray-400'}>
+                                        <span className={user.is_online ? 'user-status-online' : 'user-status-offline'} style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>
                                             {user.is_online ? t('users.online') : t('users.offline')}
                                         </span>
                                         {!user.is_online && user.last_activity_at && (
-                                            <span className="dark:text-gray-500" style={{ fontSize: 'var(--text-xs)', color: '#9ca3af' }}>
+                                            <span className="user-last-activity" style={{ fontSize: 'var(--text-xs)' }}>
                                                 • {formatLastActivity(user.last_activity_at)}
                                             </span>
                                         )}
@@ -242,8 +237,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     
                                     {/* Registered Date */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                                        <Calendar className="w-4 h-4" style={{ color: '#6b7494' }} />
-                                        <span className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-xs)', color: '#6b7494' }}>
+                                        <Calendar className="w-4 h-4 settings-subtitle" />
+                                        <span className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
                                             {t('users.registeredOn')} {new Date(user.created_at).toLocaleDateString('es-ES', {
                                                 day: '2-digit',
                                                 month: 'short',
@@ -283,11 +278,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     {/* Empty State */}
                     {filteredUsers.length === 0 && (
                         <div className="card-gradient rounded-none p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
-                            <UserCircle className="w-16 h-16 mx-auto mb-4" style={{ color: '#6b7494' }} />
-                            <h3 className="font-bold mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xl)', color: '#2e3f84' }}>
+                            <UserCircle className="w-16 h-16 mx-auto mb-4 settings-subtitle" />
+                            <h3 className="font-bold mb-2 settings-title" style={{ fontSize: 'var(--text-xl)' }}>
                                 {t('users.noUsers')}
                             </h3>
-                            <p className="mb-6 dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', color: '#6b7494' }}>
+                            <p className="mb-6 settings-subtitle" style={{ fontSize: 'var(--text-sm)' }}>
                                 {t('users.noUsersFiltered')}
                             </p>
                         </div>
@@ -298,8 +293,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 <Dialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
                     <DialogContent className="card-gradient shadow-[0_4px_8px_rgba(46,63,132,0.1),0_8px_16px_rgba(46,63,132,0.15),0_16px_32px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.9)]">
                         <DialogHeader>
-                            <DialogTitle className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{t('users.deleteConfirm')}</DialogTitle>
-                            <DialogDescription className="dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                            <DialogTitle className="settings-title">{t('users.deleteConfirm')}</DialogTitle>
+                            <DialogDescription className="settings-subtitle">
                                 {t('users.deleteMessage')} <strong>{userToDelete?.name}</strong>?
                                 {t('users.deleteWarning')}
                             </DialogDescription>

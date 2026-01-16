@@ -182,10 +182,10 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6">
-                        <h1 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)', color: '#2e3f84' }}>
+                        <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
                             {t('settings.whatsapp.title')}
                         </h1>
-                        <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }}>
+                        <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                             {t('settings.whatsapp.subtitle')}
                         </p>
                     </div>
@@ -197,8 +197,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         <div>
                             <form onSubmit={handleWhatsAppSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 h-full">
                                 <div className="mb-4">
-                                    <h2 className="text-lg md:text-xl font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{t('settings.whatsapp.apiTitle')}</h2>
-                                    <p className="text-xs md:text-sm dark:text-[hsl(231,15%,60%)] mt-1" style={{ color: '#6b7494' }}>
+                                    <h2 className="text-lg md:text-xl font-semibold settings-title">{t('settings.whatsapp.apiTitle')}</h2>
+                                    <p className="text-xs md:text-sm settings-subtitle mt-1">
                                         {t('settings.whatsapp.configureConnection')}
                                     </p>
                                 </div>
@@ -206,7 +206,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Token de Acceso */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_token" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                        <Label htmlFor="whatsapp_token" className="text-xs md:text-sm font-medium settings-label">
                                             {t('settings.whatsapp.accessToken')}
                                         </Label>
                                         {settings.whatsapp.token && (
@@ -227,7 +227,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                                     {/* ID del Teléfono */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_phone_id" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                        <Label htmlFor="whatsapp_phone_id" className="text-xs md:text-sm font-medium settings-label">
                                             {t('settings.whatsapp.phoneId')}
                                         </Label>
                                         <Input
@@ -243,7 +243,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                                     {/* ID de Cuenta de Negocio */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_business_account_id" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                        <Label htmlFor="whatsapp_business_account_id" className="text-xs md:text-sm font-medium settings-label">
                                             {t('settings.whatsapp.businessAccountId')}
                                         </Label>
                                         <Input
@@ -259,7 +259,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                                     {/* Verify Token */}
                                     <div className="space-y-2">
-                                        <Label htmlFor="whatsapp_verify_token" className="text-xs md:text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                        <Label htmlFor="whatsapp_verify_token" className="text-xs md:text-sm font-medium settings-label">
                                             {t('settings.whatsapp.verifyToken')}
                                         </Label>
                                         {settings.whatsapp.verify_token && (
@@ -457,16 +457,16 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_2px_6px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.03)] p-4 md:p-6">
                                 <div className="mb-4">
                                     <div className="flex items-center gap-2">
-                                        <Users className="w-5 h-5 dark:text-[hsl(231,55%,65%)]" style={{ color: '#2e3f84' }} />
-                                        <h2 className="text-lg md:text-xl font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Asesores de turno</h2>
+                                        <Users className="w-5 h-5 settings-title" />
+                                        <h2 className="text-lg md:text-xl font-semibold settings-title">Asesores de turno</h2>
                                     </div>
-                                    <p className="text-xs md:text-sm dark:text-[hsl(231,15%,60%)] mt-1" style={{ color: '#6b7494' }}>
+                                    <p className="text-xs md:text-sm settings-subtitle mt-1">
                                         Selecciona los asesores que recibirán todas las conversaciones. Útil para rotación semanal de turnos.
                                     </p>
                                 </div>
 
                                 {advisors.length === 0 ? (
-                                    <div className="text-center py-8 dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                    <div className="text-center py-8 settings-subtitle">
                                         <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                                         <p className="text-sm">No hay asesores registrados</p>
                                         <p className="text-xs mt-1">Crea asesores en la sección de Usuarios</p>
@@ -479,40 +479,33 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                     key={advisor.id}
                                                     type="button"
                                                     onClick={() => toggleAdvisor(advisor.id)}
-                                                    className="w-full flex items-center justify-between p-3 rounded-none transition-all duration-200"
-                                                    style={{
-                                                        background: selectedAdvisors.includes(advisor.id)
-                                                            ? 'linear-gradient(to bottom, #e8f5e9, #c8e6c9)'
-                                                            : 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)',
-                                                        boxShadow: selectedAdvisors.includes(advisor.id)
-                                                            ? '0 1px 2px rgba(34,197,94,0.1), 0 2px 4px rgba(34,197,94,0.08), inset 0 1px 0 rgba(255,255,255,0.6)'
-                                                            : '0 1px 2px rgba(46,63,132,0.04), inset 0 1px 0 rgba(255,255,255,0.6)'
-                                                    }}
+                                                    className={`w-full flex items-center justify-between p-3 rounded-none transition-all duration-200 ${
+                                                        selectedAdvisors.includes(advisor.id)
+                                                            ? 'advisor-item-selected'
+                                                            : 'advisor-item'
+                                                    }`}
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <div 
-                                                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
-                                                            style={{
-                                                                background: selectedAdvisors.includes(advisor.id)
-                                                                    ? 'linear-gradient(to bottom, #22c55e, #16a34a)'
-                                                                    : 'linear-gradient(to bottom, #6b7494, #5a637f)'
-                                                            }}
+                                                            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${
+                                                                selectedAdvisors.includes(advisor.id)
+                                                                    ? 'advisor-avatar-selected'
+                                                                    : 'advisor-avatar'
+                                                            }`}
                                                         >
                                                             {advisor.name.charAt(0).toUpperCase()}
                                                         </div>
                                                         <div className="text-left">
-                                                            <p className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{advisor.name}</p>
-                                                            <p className="text-xs dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>{advisor.email}</p>
+                                                            <p className="text-sm font-medium advisor-name">{advisor.name}</p>
+                                                            <p className="text-xs advisor-email">{advisor.email}</p>
                                                         </div>
                                                     </div>
                                                     <div 
-                                                        className="w-6 h-6 rounded-full flex items-center justify-center"
-                                                        style={{
-                                                            background: selectedAdvisors.includes(advisor.id)
-                                                                ? 'linear-gradient(to bottom, #22c55e, #16a34a)'
-                                                                : 'linear-gradient(to bottom, #e8ebf5, #dde1f0)',
-                                                            color: selectedAdvisors.includes(advisor.id) ? 'white' : 'inherit'
-                                                        }}
+                                                        className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                                            selectedAdvisors.includes(advisor.id)
+                                                                ? 'advisor-check-selected'
+                                                                : 'advisor-check'
+                                                        }`}
                                                     >
                                                         {selectedAdvisors.includes(advisor.id) && (
                                                             <Check className="w-4 h-4" />
@@ -523,7 +516,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                         </div>
 
                                         <div className="flex items-center justify-between pt-4 mt-4 border-t border-border dark:border-[hsl(231,20%,20%)]">
-                                            <p className="text-xs dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                            <p className="text-xs settings-subtitle">
                                                 {selectedAdvisors.length} de {advisors.length} asesor{advisors.length !== 1 ? 'es' : ''} seleccionado{selectedAdvisors.length !== 1 ? 's' : ''}
                                             </p>
                                             <Button

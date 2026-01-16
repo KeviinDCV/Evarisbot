@@ -117,14 +117,22 @@ export default function CreateTemplate() {
         <AdminLayout>
             <Head title={t('templates.createTitle')} />
 
-            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
+            <div className="min-h-screen p-4 md:p-6 lg:p-8" style={{ background: 'linear-gradient(to bottom, #f0f2f8, #e8ebf5)' }}>
                 <div className="max-w-4xl mx-auto">
                     {/* Header */}
                     <div className="mb-6 md:mb-8">
                         <Link
                             href="/admin/templates"
-                            className="inline-flex items-center dark:text-[hsl(231,15%,60%)] hover:dark:text-[hsl(231,55%,70%)] mb-3 md:mb-4 px-3 py-2 rounded-none hover:bg-gradient-to-b hover:from-[#f4f5f9] hover:to-[#f0f2f8] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] transition-all duration-200"
+                            className="inline-flex items-center dark:text-[hsl(231,15%,60%)] mb-3 md:mb-4 px-3 py-2 rounded-none transition-all duration-200"
                             style={{ color: '#6b7494' }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)';
+                                e.currentTarget.style.color = '#2e3f84';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.color = '#6b7494';
+                            }}
                         >
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             <span className="hidden sm:inline">{t('templates.backToTemplates')}</span>
@@ -196,7 +204,11 @@ export default function CreateTemplate() {
                                 {selectedFiles.length > 0 && (
                                     <div className="space-y-2 mb-3">
                                         {selectedFiles.map((mediaFile, index) => (
-                                            <div key={index} className="p-3 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] rounded-none">
+                                            <div 
+                                                key={index} 
+                                                className="p-3 rounded-none"
+                                                style={{ background: 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)' }}
+                                            >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.preview ? (
                                                         <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-none" />
@@ -214,8 +226,16 @@ export default function CreateTemplate() {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveFile(index)}
-                                                        className="p-2 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-none transition-all dark:text-[hsl(231,15%,60%)]"
+                                                        className="p-2 rounded-none transition-all dark:text-[hsl(231,15%,60%)]"
                                                         style={{ color: '#6b7494' }}
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.color = '#ef4444';
+                                                            e.currentTarget.style.background = '#fef2f2';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.color = '#6b7494';
+                                                            e.currentTarget.style.background = 'transparent';
+                                                        }}
                                                     >
                                                         <X className="w-4 h-4" />
                                                     </button>
@@ -229,8 +249,10 @@ export default function CreateTemplate() {
                                 <button
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="w-full p-4 border-2 border-dashed border-border dark:border-[hsl(231,20%,25%)] rounded-none hover:border-[#2e3f84] dark:hover:border-[hsl(231,55%,55%)] hover:bg-accent dark:hover:bg-[hsl(231,25%,18%)] transition-all duration-200 flex flex-col items-center gap-2 dark:text-[hsl(231,15%,60%)]"
-                                    style={{ color: '#6b7494' }}
+                                    className="w-full p-4 border-2 border-dashed border-[#e2e4ed] dark:border-[hsl(231,20%,25%)] rounded-none hover:border-[#2e3f84] dark:hover:border-[hsl(231,55%,55%)] transition-all duration-200 flex flex-col items-center gap-2 dark:text-[hsl(231,15%,60%)]"
+                                    style={{ color: '#6b7494', background: 'linear-gradient(to bottom, #fafbfd, #f8f9fc)' }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #fafbfd, #f8f9fc)'}
                                 >
                                     {selectedFiles.length === 0 ? (
                                         <>
@@ -259,7 +281,12 @@ export default function CreateTemplate() {
                                     Tipo de Plantilla
                                 </Label>
                                 <div className="space-y-2">
-                                    <label className="flex items-center space-x-3 p-3 border border-border dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer hover:bg-muted dark:hover:bg-[hsl(231,25%,18%)] transition-colors">
+                                    <label 
+                                        className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer transition-colors"
+                                        style={{ background: 'linear-gradient(to bottom, #ffffff, #fafbfd)' }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #ffffff, #fafbfd)'}
+                                    >
                                         <input
                                             type="radio"
                                             name="template_type"
@@ -276,7 +303,12 @@ export default function CreateTemplate() {
                                             <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>Disponible para todos los asesores y administradores</p>
                                         </div>
                                     </label>
-                                    <label className="flex items-center space-x-3 p-3 border border-border dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer hover:bg-muted dark:hover:bg-[hsl(231,25%,18%)] transition-colors">
+                                    <label 
+                                        className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer transition-colors"
+                                        style={{ background: 'linear-gradient(to bottom, #ffffff, #fafbfd)' }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #ffffff, #fafbfd)'}
+                                    >
                                         <input
                                             type="radio"
                                             name="template_type"
@@ -300,9 +332,17 @@ export default function CreateTemplate() {
                                         <UserCheck className="inline w-4 h-4 mr-2" />
                                         Asignar a Usuarios
                                     </Label>
-                                    <div className="max-h-40 overflow-y-auto border border-border dark:border-[hsl(231,20%,22%)] rounded-lg p-3 space-y-2 bg-card dark:bg-[hsl(231,25%,14%)]">
+                                    <div 
+                                        className="max-h-40 overflow-y-auto border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg p-3 space-y-2 dark:bg-[hsl(231,25%,14%)]"
+                                        style={{ background: 'linear-gradient(to bottom, #ffffff, #fafbfd)' }}
+                                    >
                                         {users?.map((user: any) => (
-                                            <label key={user.id} className="flex items-center space-x-3 cursor-pointer hover:bg-muted dark:hover:bg-[hsl(231,25%,18%)] p-2 rounded">
+                                            <label 
+                                                key={user.id} 
+                                                className="flex items-center space-x-3 cursor-pointer p-2 rounded transition-colors"
+                                                onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)'}
+                                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                            >
                                                 <input
                                                     type="checkbox"
                                                     checked={data.assigned_users.includes(user.id)}
@@ -343,7 +383,7 @@ export default function CreateTemplate() {
                             </div>
 
                             {/* Botones */}
-                            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border dark:border-[hsl(231,20%,20%)] mt-8">
+                            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-[#e2e4ed] dark:border-[hsl(231,20%,20%)] mt-8">
                                 <Button
                                     type="submit"
                                     disabled={processing}

@@ -52,15 +52,14 @@ export default function EditUser({ user }: EditUserProps) {
                     <div className="mb-6 md:mb-8">
                         <Link
                             href="/admin/users"
-                            className="inline-flex items-center hover:bg-gradient-to-b hover:from-[#f4f5f9] hover:to-[#f0f2f8] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] mb-3 md:mb-4 px-3 py-2 rounded-none transition-all duration-200 dark:text-[hsl(231,15%,60%)] dark:hover:text-[hsl(231,55%,70%)]"
-                            style={{ color: '#6b7494' }}
+                            className="inline-flex items-center mb-3 md:mb-4 px-3 py-2 rounded-none transition-all duration-200 settings-subtitle settings-back-link"
                         >
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             <span className="hidden sm:inline">{t('users.backToUsers')}</span>
                             <span className="sm:hidden">{t('common.back')}</span>
                         </Link>
-                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{t('users.editTitle')}</h1>
-                        <p className="text-sm md:text-base mt-1 dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>{t('users.editSubtitle')}</p>
+                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold settings-title">{t('users.editTitle')}</h1>
+                        <p className="text-sm md:text-base mt-1 settings-subtitle">{t('users.editSubtitle')}</p>
                     </div>
 
                     {/* Form: Centered box with natural max-width */}
@@ -68,7 +67,7 @@ export default function EditUser({ user }: EditUserProps) {
                         <form onSubmit={handleSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] p-4 sm:p-6 lg:p-8 space-y-5 md:space-y-6">
                         {/* Nombre */}
                         <div className="space-y-2">
-                            <Label htmlFor="name" className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                            <Label htmlFor="name" className="text-sm font-medium settings-label">
                                 {t('users.fullName')}
                             </Label>
                             <Input
@@ -85,7 +84,7 @@ export default function EditUser({ user }: EditUserProps) {
 
                         {/* Email */}
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                            <Label htmlFor="email" className="text-sm font-medium settings-label">
                                 {t('auth.email')}
                             </Label>
                             <Input
@@ -102,7 +101,7 @@ export default function EditUser({ user }: EditUserProps) {
 
                         {/* Rol */}
                         <div className="space-y-2">
-                            <Label htmlFor="role" className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                            <Label htmlFor="role" className="text-sm font-medium settings-label">
                                 {t('users.role')}
                             </Label>
                             <Select
@@ -122,7 +121,7 @@ export default function EditUser({ user }: EditUserProps) {
 
                         {/* Contraseña (Opcional) */}
                         <div className="space-y-2">
-                            <Label htmlFor="password" className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                            <Label htmlFor="password" className="text-sm font-medium settings-label">
                                 {t('users.newPassword')}
                             </Label>
                             <Input
@@ -139,7 +138,7 @@ export default function EditUser({ user }: EditUserProps) {
                         {/* Confirmar Contraseña */}
                         {data.password && (
                             <div className="space-y-2">
-                                <Label htmlFor="password_confirmation" className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                <Label htmlFor="password_confirmation" className="text-sm font-medium settings-label">
                                     {t('users.confirmNewPassword')}
                                 </Label>
                                 <Input
