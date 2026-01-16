@@ -268,7 +268,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </select>
                                 </div>
                                 <div style={{ flex: '1 1 180px', minWidth: '160px' }}>
-                                    <label htmlFor="stats-start-date" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                    <label htmlFor="stats-start-date" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                         {t('statistics.filters.startDate')}
                                     </label>
                                     <Input
@@ -285,7 +285,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     />
                                 </div>
                                 <div style={{ flex: '1 1 180px', minWidth: '160px' }}>
-                                    <label htmlFor="stats-end-date" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                    <label htmlFor="stats-end-date" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                         {t('statistics.filters.endDate')}
                                     </label>
                                     <Input
@@ -337,8 +337,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             {/* Mensajes */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <MessageSquare className="w-3.5 h-3.5 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
-                                    <h2 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                    <MessageSquare className="w-3.5 h-3.5 settings-title" />
+                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                         {t('statistics.messages.title')}
                                     </h2>
                                 </div>
@@ -349,24 +349,19 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <StatRow icon={XCircle} label={t('statistics.messages.cancelled')} value={statistics.messages.cancelled} index={3} />
                                 </div>
                                 <div className="mt-2 pt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
-                                    <h3 className="font-semibold mb-1.5 dark:text-[hsl(231,55%,70%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                    <h3 className="font-semibold mb-1.5 settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                         {t('statistics.messages.byStatus')}
                                     </h3>
                                     <div className="space-y-1">
                                         {Object.entries(statistics.messages.by_status).map(([status, count], index) => (
                                             <div 
                                                 key={status} 
-                                                className="flex items-center justify-between py-1 px-2 rounded-none transition-colors hover:bg-gradient-to-b hover:from-[#f0f2f8] hover:to-[#e8ebf5] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)]"
-                                                style={{
-                                                    background: index % 2 === 0 
-                                                        ? 'linear-gradient(to bottom, #f8f9fc, #f4f5f9)' 
-                                                        : undefined
-                                                }}
+                                                className={`flex items-center justify-between py-1 px-2 rounded-none transition-colors stat-row-hover ${index % 2 === 0 ? 'stat-row-alt' : ''}`}
                                             >
-                                                <span className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-xs)', color: '#6b7494' }}>
+                                                <span className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
                                                     {t(`statistics.messages.statuses.${status}`)}
                                                 </span>
-                                                <span className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                                <span className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                                     {count.toLocaleString()}
                                                 </span>
                                             </div>
@@ -378,8 +373,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             {/* Citas */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <Calendar className="w-3.5 h-3.5 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
-                                    <h2 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                    <Calendar className="w-3.5 h-3.5 settings-title" />
+                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                         {t('statistics.appointments.title')}
                                     </h2>
                                 </div>
@@ -396,8 +391,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             {/* Conversaciones */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <MessageSquare className="w-3.5 h-3.5 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
-                                    <h2 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                    <MessageSquare className="w-3.5 h-3.5 settings-title" />
+                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                         {t('statistics.conversations.title')}
                                     </h2>
                                 </div>
@@ -413,8 +408,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             {/* Plantillas */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <FileText className="w-3.5 h-3.5 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
-                                    <h2 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                    <FileText className="w-3.5 h-3.5 settings-title" />
+                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                         {t('statistics.templates.title')}
                                     </h2>
                                 </div>
@@ -429,8 +424,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             {/* Usuarios */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <Users className="w-3.5 h-3.5 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
-                                    <h2 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                    <Users className="w-3.5 h-3.5 settings-title" />
+                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                         {t('statistics.users.title')}
                                     </h2>
                                 </div>
@@ -444,8 +439,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             {/* Asesores */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <Users className="w-3.5 h-3.5 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
-                                    <h2 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                    <Users className="w-3.5 h-3.5 settings-title" />
+                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                         Asesores
                                     </h2>
                                 </div>
@@ -457,13 +452,12 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <StatRow icon={AlertCircle} label="Con Sin Leer" value={statistics.advisors.total_with_unread} index={4} />
                                     <StatRow icon={Send} label="Mensajes Enviados" value={statistics.advisors.total_messages_sent} index={5} />
                                     <div 
-                                        className="flex items-center justify-between py-1.5 px-2 rounded-none transition-colors"
-                                        style={{ background: 'linear-gradient(to bottom, #f8f9fc, #f4f5f9)' }}
+                                        className="flex items-center justify-between py-1.5 px-2 rounded-none transition-colors stat-row-alt"
                                     >
-                                        <span className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-xs)', color: '#6b7494' }}>
+                                        <span className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
                                             Tasa Resolución Prom
                                         </span>
-                                        <span className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                        <span className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                             {statistics.advisors.avg_resolution_rate}%
                                         </span>
                                     </div>
@@ -475,7 +469,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                         <div className="grid grid-cols-2 gap-4 auto-rows-fr">
                             {/* Estadísticas Generales - Ocupa 2 columnas */}
                             <div className="col-span-2 card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-base)', color: '#2e3f84' }}>
+                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-base)' }}>
                                     <BarChart3 className="w-4 h-4" />
                                     Estadísticas Generales
                                 </h2>
@@ -508,7 +502,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
                             {/* Mensajes por Estado */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <MessageSquare className="w-4 h-4" />
                                     {t('statistics.messages.byStatus')}
                                 </h2>
@@ -544,7 +538,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
                             {/* Citas por Estado */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <Calendar className="w-4 h-4" />
                                     {t('statistics.appointments.title')}
                                 </h2>
@@ -580,7 +574,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
                             {/* Conversaciones */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <MessageSquare className="w-4 h-4" />
                                     {t('statistics.conversations.title')}
                                 </h2>
@@ -613,7 +607,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
                             {/* Plantillas */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <FileText className="w-4 h-4" />
                                     {t('statistics.templates.title')}
                                 </h2>
@@ -649,7 +643,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
                             {/* Usuarios */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <Users className="w-4 h-4" />
                                     {t('statistics.users.title')}
                                 </h2>
@@ -687,7 +681,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
                             {/* Asesores - Top Performers */}
                             <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <Users className="w-4 h-4" />
                                     Rendimiento de Asesores
                                 </h2>
@@ -740,7 +734,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         </BarChart>
                                     </ResponsiveContainer>
                                 ) : (
-                                    <div className="flex items-center justify-center h-48 dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                    <div className="flex items-center justify-center h-48 settings-subtitle">
                                         <p>No hay datos de asesores disponibles</p>
                                     </div>
                                 )}

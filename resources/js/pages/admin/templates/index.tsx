@@ -104,10 +104,10 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                     <div className="mb-6" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
                             <div>
-                                <h1 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)', color: '#2e3f84' }}>
+                                <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
                                     {t('templates.title')}
                                 </h1>
-                                <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }}>
+                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                                     {isAdmin ? t('templates.adminSubtitle') : t('templates.viewerSubtitle')}
                                 </p>
                             </div>
@@ -144,11 +144,11 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                         {/* Filtros */}
                         <div className="card-gradient rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
                             <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
-                                <label htmlFor="template-search" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <label htmlFor="template-search" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                     {t('common.search')}
                                 </label>
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: '#6b7494' }} />
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 settings-subtitle" />
                                     <Input
                                         id="template-search"
                                         name="template-search"
@@ -167,7 +167,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                             </div>
 
                             <div style={{ flex: '0 1 150px' }}>
-                                <label htmlFor="template-status" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <label htmlFor="template-status" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                     {t('common.status')}
                                 </label>
                                 <select
@@ -194,7 +194,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                             </div>
 
                             <div style={{ flex: '0 1 150px' }}>
-                                <label htmlFor="template-type" className="font-semibold block mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-sm)', color: '#2e3f84' }}>
+                                <label htmlFor="template-type" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                     {t('templates.type')}
                                 </label>
                                 <select
@@ -253,11 +253,11 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                 {/* Header */}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                                     <div style={{ flex: 1 }}>
-                                        <h3 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-lg)', color: '#2e3f84' }}>
+                                        <h3 className="font-bold settings-title" style={{ fontSize: 'var(--text-lg)' }}>
                                             {template.name}
                                         </h3>
                                         {template.subject && (
-                                            <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-xs)', marginTop: 'var(--space-xs)', color: '#6b7494' }}>
+                                            <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)', marginTop: 'var(--space-xs)' }}>
                                                 {template.subject}
                                             </p>
                                         )}
@@ -265,15 +265,15 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
                                         {(template.media_files?.length ?? 0) > 0 ? (
                                             <>
-                                                <Paperclip className="w-4 h-4 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
-                                                <span className="dark:text-[hsl(231,55%,70%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                                <Paperclip className="w-4 h-4 settings-title" />
+                                                <span className="settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                                     {template.media_files?.length} archivo{(template.media_files?.length ?? 0) !== 1 ? 's' : ''}
                                                 </span>
                                             </>
                                         ) : (
                                             <>
-                                                <span className="dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }}>{getTypeIcon(template.message_type)}</span>
-                                                <span className="dark:text-[hsl(231,55%,70%)]" style={{ fontSize: 'var(--text-xs)', color: '#2e3f84' }}>
+                                                <span className="settings-title">{getTypeIcon(template.message_type)}</span>
+                                                <span className="settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                                     {getTypeLabel(template.message_type)}
                                                 </span>
                                             </>
@@ -287,13 +287,10 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                 </p>
 
                                 {/* Stats */}
-                                <div 
-                                    className="rounded-none p-3 dark:bg-[hsl(231,25%,16%)]"
-                                    style={{ background: 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)' }}
-                                >
+                                <div className="rounded-none p-3 user-stats-box">
                                     <div>
-                                        <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-xs)', color: '#6b7494' }}>{t('templates.stats.sends')}</p>
-                                        <p className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-base)', color: '#2e3f84' }}>
+                                        <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.stats.sends')}</p>
+                                        <p className="font-bold settings-title" style={{ fontSize: 'var(--text-base)' }}>
                                             {template.usage_stats.total_sends}
                                         </p>
                                     </div>
@@ -323,7 +320,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                                 )}
                                             </div>
                                         )}
-                                        <span style={{ fontSize: 'var(--text-xs)', color: template.is_active ? '#16a34a' : '#6b7280' }} className={template.is_active ? 'dark:text-green-400' : 'dark:text-gray-400'}>
+                                        <span className={template.is_active ? 'user-status-online' : 'user-status-offline'} style={{ fontSize: 'var(--text-xs)' }}>
                                             {template.is_active ? t('templates.statusLabels.active') : t('templates.statusLabels.inactive')}
                                         </span>
                                     </div>
@@ -359,11 +356,11 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                     {/* Empty State */}
                     {templates.length === 0 && (
                         <div className="card-gradient rounded-none p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
-                            <MessageSquare className="w-16 h-16 mx-auto mb-4" style={{ color: '#6b7494' }} />
-                            <h3 className="font-bold mb-2 dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-xl)', color: '#2e3f84' }}>
+                            <MessageSquare className="w-16 h-16 mx-auto mb-4 settings-subtitle" />
+                            <h3 className="font-bold mb-2 settings-title" style={{ fontSize: 'var(--text-xl)' }}>
                                 {t('templates.noTemplates')}
                             </h3>
-                            <p className="mb-6 dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', color: '#6b7494' }}>
+                            <p className="mb-6 settings-subtitle" style={{ fontSize: 'var(--text-sm)' }}>
                                 {isAdmin 
                                     ? t('templates.noTemplatesSubtitle')
                                     : t('templates.noTemplatesViewer')

@@ -1130,3 +1130,90 @@
 .dark .settings-back-link:hover {
     background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 16%));
 }
+
+/* Statistics row styles */
+.stat-row-alt {
+    background: linear-gradient(to bottom, #f8f9fc, #f4f5f9);
+}
+
+.dark .stat-row-alt {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
+}
+
+.stat-row-hover:hover {
+    background: linear-gradient(to bottom, #f0f2f8, #e8ebf5);
+}
+
+.dark .stat-row-hover:hover {
+    background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 17%));
+}
+
+/* Template form styles */
+.template-upload-btn {
+    background: linear-gradient(to bottom, #fafbfd, #f8f9fc);
+}
+
+.template-upload-btn:hover {
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+}
+
+.dark .template-upload-btn {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%));
+}
+
+.dark .template-upload-btn:hover {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 16%));
+}
+
+.template-radio-option {
+    background: linear-gradient(to bottom, #ffffff, #fafbfd);
+}
+
+.template-radio-option:hover {
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+}
+
+.dark .template-radio-option {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%));
+}
+
+.dark .template-radio-option:hover {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 16%));
+}
+
+.template-users-list {
+    background: linear-gradient(to bottom, #ffffff, #fafbfd);
+}
+
+.dark .template-users-list {
+    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%));
+}
+
+.template-user-item:hover {
+    background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
+}
+
+.dark .template-user-item:hover {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 16%));
+}
+
+/* Upload dropzone styles */
+.upload-dropzone {
+    background: linear-gradient(to bottom, #f8f9fc, #f4f5f9);
+    box-shadow: inset 0 1px 2px rgba(46, 63, 132, 0.05);
+}
+
+.dark .upload-dropzone {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%));
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.upload-dropzone:hover,
+.upload-dropzone-active {
+    background: linear-gradient(to bottom, #ffffff, #fafbfc);
+}
+
+.dark .upload-dropzone:hover,
+.dark .upload-dropzone-active {
+    background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 18%));
+}

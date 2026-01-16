@@ -117,29 +117,20 @@ export default function CreateTemplate() {
         <AdminLayout>
             <Head title={t('templates.createTitle')} />
 
-            <div className="min-h-screen p-4 md:p-6 lg:p-8" style={{ background: 'linear-gradient(to bottom, #f0f2f8, #e8ebf5)' }}>
+            <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
                 <div className="max-w-4xl mx-auto">
                     {/* Header */}
                     <div className="mb-6 md:mb-8">
                         <Link
                             href="/admin/templates"
-                            className="inline-flex items-center dark:text-[hsl(231,15%,60%)] mb-3 md:mb-4 px-3 py-2 rounded-none transition-all duration-200"
-                            style={{ color: '#6b7494' }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)';
-                                e.currentTarget.style.color = '#2e3f84';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'transparent';
-                                e.currentTarget.style.color = '#6b7494';
-                            }}
+                            className="inline-flex items-center mb-3 md:mb-4 px-3 py-2 rounded-none transition-all duration-200 settings-subtitle settings-back-link"
                         >
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             <span className="hidden sm:inline">{t('templates.backToTemplates')}</span>
                             <span className="sm:hidden">{t('common.back')}</span>
                         </Link>
-                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{t('templates.createTitle')}</h1>
-                        <p className="text-sm md:text-base dark:text-[hsl(231,15%,60%)] mt-1" style={{ color: '#6b7494' }}>{t('templates.createSubtitle')}</p>
+                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold settings-title">{t('templates.createTitle')}</h1>
+                        <p className="text-sm md:text-base settings-subtitle mt-1">{t('templates.createSubtitle')}</p>
                     </div>
 
                     {/* Form */}
@@ -147,7 +138,7 @@ export default function CreateTemplate() {
                         <form onSubmit={handleSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] p-4 sm:p-6 lg:p-8 space-y-5 md:space-y-6">
                             {/* Nombre */}
                             <div className="space-y-2">
-                                <Label htmlFor="name" className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                <Label htmlFor="name" className="text-sm font-medium settings-label">
                                     {t('templates.templateName')}
                                 </Label>
                                 <Input
@@ -164,7 +155,7 @@ export default function CreateTemplate() {
 
                             {/* Mensaje */}
                             <div className="space-y-2">
-                                <Label htmlFor="content" className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                <Label htmlFor="content" className="text-sm font-medium settings-label">
                                     {t('templates.content')}
                                 </Label>
                                 <Textarea
@@ -176,7 +167,7 @@ export default function CreateTemplate() {
                                     className="settings-input rounded-none transition-all duration-200"
                                     required
                                 />
-                                <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                <p className="text-sm settings-subtitle">
                                     {t('templates.characters')}: {data.content.length} / 4096
                                 </p>
                                 <InputError message={errors.content} />
@@ -184,10 +175,10 @@ export default function CreateTemplate() {
 
                             {/* Archivos Adjuntos (Opcional - Múltiples) */}
                             <div className="space-y-2">
-                                <Label className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                <Label className="text-sm font-medium settings-label">
                                     Archivos adjuntos (opcional)
                                 </Label>
-                                <p className="text-xs dark:text-[hsl(231,15%,60%)] mb-2" style={{ color: '#6b7494' }}>
+                                <p className="text-xs settings-subtitle mb-2">
                                     Puedes adjuntar múltiples imágenes, videos o documentos. Formatos soportados: JPG, PNG, GIF, WebP (se convierte a PNG), MP4, MOV, PDF, DOC. Máximo 20MB por archivo.
                                 </p>
                                 
@@ -206,8 +197,7 @@ export default function CreateTemplate() {
                                         {selectedFiles.map((mediaFile, index) => (
                                             <div 
                                                 key={index} 
-                                                className="p-3 rounded-none"
-                                                style={{ background: 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)' }}
+                                                className="p-3 rounded-none user-stats-box"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.preview ? (
@@ -218,24 +208,15 @@ export default function CreateTemplate() {
                                                         </div>
                                                     )}
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium dark:text-[hsl(231,15%,92%)] truncate" style={{ color: '#2e3f84' }}>{mediaFile.file.name}</p>
-                                                        <p className="text-xs dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                        <p className="text-sm font-medium settings-title truncate">{mediaFile.file.name}</p>
+                                                        <p className="text-xs settings-subtitle">
                                                             {getFileTypeLabel(mediaFile.type)} • {(mediaFile.file.size / 1024 / 1024).toFixed(2)} MB
                                                         </p>
                                                     </div>
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveFile(index)}
-                                                        className="p-2 rounded-none transition-all dark:text-[hsl(231,15%,60%)]"
-                                                        style={{ color: '#6b7494' }}
-                                                        onMouseEnter={(e) => {
-                                                            e.currentTarget.style.color = '#ef4444';
-                                                            e.currentTarget.style.background = '#fef2f2';
-                                                        }}
-                                                        onMouseLeave={(e) => {
-                                                            e.currentTarget.style.color = '#6b7494';
-                                                            e.currentTarget.style.background = 'transparent';
-                                                        }}
+                                                        className="p-2 rounded-none transition-all settings-subtitle hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                     >
                                                         <X className="w-4 h-4" />
                                                     </button>
@@ -249,10 +230,7 @@ export default function CreateTemplate() {
                                 <button
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="w-full p-4 border-2 border-dashed border-[#e2e4ed] dark:border-[hsl(231,20%,25%)] rounded-none hover:border-[#2e3f84] dark:hover:border-[hsl(231,55%,55%)] transition-all duration-200 flex flex-col items-center gap-2 dark:text-[hsl(231,15%,60%)]"
-                                    style={{ color: '#6b7494', background: 'linear-gradient(to bottom, #fafbfd, #f8f9fc)' }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #fafbfd, #f8f9fc)'}
+                                    className="w-full p-4 border-2 border-dashed border-[#e2e4ed] dark:border-[hsl(231,20%,25%)] rounded-none hover:border-[#2e3f84] dark:hover:border-[hsl(231,55%,55%)] transition-all duration-200 flex flex-col items-center gap-2 settings-subtitle template-upload-btn"
                                 >
                                     {selectedFiles.length === 0 ? (
                                         <>
@@ -268,7 +246,7 @@ export default function CreateTemplate() {
                                 </button>
                                 
                                 {selectedFiles.length > 0 && (
-                                    <p className="text-xs dark:text-[hsl(231,15%,60%)] mt-2" style={{ color: '#6b7494' }}>
+                                    <p className="text-xs settings-subtitle mt-2">
                                         {selectedFiles.length} archivo{selectedFiles.length !== 1 ? 's' : ''} seleccionado{selectedFiles.length !== 1 ? 's' : ''}
                                     </p>
                                 )}
@@ -277,16 +255,11 @@ export default function CreateTemplate() {
 
                             {/* Tipo de Plantilla */}
                             <div className="space-y-3">
-                                <Label className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                <Label className="text-sm font-medium settings-label">
                                     Tipo de Plantilla
                                 </Label>
                                 <div className="space-y-2">
-                                    <label 
-                                        className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer transition-colors"
-                                        style={{ background: 'linear-gradient(to bottom, #ffffff, #fafbfd)' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #ffffff, #fafbfd)'}
-                                    >
+                                    <label className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer transition-colors template-radio-option">
                                         <input
                                             type="radio"
                                             name="template_type"
@@ -297,18 +270,13 @@ export default function CreateTemplate() {
                                             }}
                                             className="w-4 h-4 text-primary"
                                         />
-                                        <Globe className="w-5 h-5 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
+                                        <Globe className="w-5 h-5 settings-title" />
                                         <div>
-                                            <p className="font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Plantilla Global</p>
-                                            <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>Disponible para todos los asesores y administradores</p>
+                                            <p className="font-medium settings-title">Plantilla Global</p>
+                                            <p className="text-sm settings-subtitle">Disponible para todos los asesores y administradores</p>
                                         </div>
                                     </label>
-                                    <label 
-                                        className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer transition-colors"
-                                        style={{ background: 'linear-gradient(to bottom, #ffffff, #fafbfd)' }}
-                                        onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)'}
-                                        onMouseLeave={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #ffffff, #fafbfd)'}
-                                    >
+                                    <label className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer transition-colors template-radio-option">
                                         <input
                                             type="radio"
                                             name="template_type"
@@ -316,10 +284,10 @@ export default function CreateTemplate() {
                                             onChange={() => setData('is_global', false)}
                                             className="w-4 h-4 text-primary"
                                         />
-                                        <Users className="w-5 h-5 dark:text-[hsl(231,55%,70%)]" style={{ color: '#2e3f84' }} />
+                                        <Users className="w-5 h-5 settings-title" />
                                         <div>
-                                            <p className="font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Plantilla Asignada</p>
-                                            <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>Disponible solo para los usuarios seleccionados</p>
+                                            <p className="font-medium settings-title">Plantilla Asignada</p>
+                                            <p className="text-sm settings-subtitle">Disponible solo para los usuarios seleccionados</p>
                                         </div>
                                     </label>
                                 </div>
@@ -328,20 +296,15 @@ export default function CreateTemplate() {
                             {/* Asignar Usuarios (solo si no es global) */}
                             {!data.is_global && (
                                 <div className="space-y-3">
-                                    <Label className="text-sm font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                    <Label className="text-sm font-medium settings-label">
                                         <UserCheck className="inline w-4 h-4 mr-2" />
                                         Asignar a Usuarios
                                     </Label>
-                                    <div 
-                                        className="max-h-40 overflow-y-auto border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg p-3 space-y-2 dark:bg-[hsl(231,25%,14%)]"
-                                        style={{ background: 'linear-gradient(to bottom, #ffffff, #fafbfd)' }}
-                                    >
+                                    <div className="max-h-40 overflow-y-auto border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg p-3 space-y-2 template-users-list">
                                         {users?.map((user: any) => (
                                             <label 
                                                 key={user.id} 
-                                                className="flex items-center space-x-3 cursor-pointer p-2 rounded transition-colors"
-                                                onMouseEnter={(e) => e.currentTarget.style.background = 'linear-gradient(to bottom, #f4f5f9, #f0f2f8)'}
-                                                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                className="flex items-center space-x-3 cursor-pointer p-2 rounded transition-colors template-user-item"
                                             >
                                                 <input
                                                     type="checkbox"
@@ -356,8 +319,8 @@ export default function CreateTemplate() {
                                                     className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                                                 />
                                                 <div>
-                                                    <p className="font-medium text-sm dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{user.name}</p>
-                                                    <p className="text-xs dark:text-[hsl(231,15%,60%)] capitalize" style={{ color: '#6b7494' }}>{user.role}</p>
+                                                    <p className="font-medium text-sm settings-title">{user.name}</p>
+                                                    <p className="text-xs settings-subtitle capitalize">{user.role}</p>
                                                 </div>
                                             </label>
                                         ))}
@@ -377,7 +340,7 @@ export default function CreateTemplate() {
                                     onChange={(e) => setData('is_active', e.target.checked)}
                                     className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                                 />
-                                <Label htmlFor="is_active" className="text-sm font-medium dark:text-[hsl(231,15%,92%)] cursor-pointer" style={{ color: '#2e3f84' }}>
+                                <Label htmlFor="is_active" className="text-sm font-medium settings-label cursor-pointer">
                                     {t('templates.activateImmediately')}
                                 </Label>
                             </div>

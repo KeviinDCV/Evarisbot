@@ -583,14 +583,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         <AdminLayout>
             <Head title="Citas" />
 
-            <div className="min-h-screen p-4 md:p-6 lg:p-8" style={{ background: 'linear-gradient(to bottom, #f0f2f8, #e8ebf5)' }}>
+            <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6">
-                        <h1 className="font-bold dark:text-[hsl(231,15%,92%)]" style={{ fontSize: 'var(--text-3xl)', color: '#2e3f84' }}>
+                        <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
                             Gestión de citas
                         </h1>
-                        <p className="dark:text-[hsl(231,15%,60%)]" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)', color: '#6b7494' }}>
+                        <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                             Carga un archivo Excel con las citas programadas para enviar recordatorios automáticos
                         </p>
                     </div>
@@ -630,14 +630,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                         <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
-                                    <h2 className="text-lg font-semibold dark:text-[hsl(231,15%,92%)] mb-1 flex items-center gap-2" style={{ color: '#2e3f84' }}>
+                                    <h2 className="text-lg font-semibold settings-title mb-1 flex items-center gap-2">
                                         <Send className="w-5 h-5" />
                                         Control de envío de recordatorios
                                     </h2>
-                                    <div className="text-sm space-y-1" style={{ color: '#6b7494' }}>
+                                    <div className="text-sm space-y-1 settings-subtitle">
                                         {localStats.pending > 0 ? (
-                                            <p className="dark:text-[hsl(231,15%,60%)]">
-                                                <strong style={{ color: '#2e3f84' }} className="dark:text-[hsl(231,15%,92%)]">{localStats.pending}</strong> recordatorios pendientes para <strong>pasado mañana</strong> (2 días)
+                                            <p>
+                                                <strong className="settings-title">{localStats.pending}</strong> recordatorios pendientes para <strong>pasado mañana</strong> (2 días)
                                                 {isProcessing && !isPaused && (
                                                     <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 font-medium">
                                                         <RefreshCw className="w-3 h-3 animate-spin" />
@@ -667,9 +667,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     {/* Barra de progreso en tiempo real - usar estado local isProcessing, no depender del servidor */}
                                     {isProcessing && progress && progress.total > 0 && (
                                         <div className="mt-4 space-y-2">
-                                            <div className="flex items-center justify-between text-xs" style={{ color: '#6b7494' }}>
-                                                <span className="dark:text-[hsl(231,15%,60%)]">Progreso del envío</span>
-                                                <span className="font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                            <div className="flex items-center justify-between text-xs settings-subtitle">
+                                                <span>Progreso del envío</span>
+                                                <span className="font-medium settings-title">
                                                     {progress.percentage}% ({progress.sent + progress.failed} / {progress.total})
                                                 </span>
                                             </div>
@@ -689,7 +689,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                             ✗ Fallidos: {progress.failed}
                                                         </span>
                                                     )}
-                                                    <span className="dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                    <span className="settings-subtitle">
                                                         ⏳ Pendientes: {progress.pending}
                                                     </span>
                                                 </div>
@@ -872,10 +872,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Send className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                        <p className="text-2xl font-bold settings-title">
                                             {localStats.sent.toLocaleString()}
                                         </p>
-                                        <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>Recordatorios enviados</p>
+                                        <p className="text-sm settings-subtitle">Recordatorios enviados</p>
                                     </div>
                                 </div>
                             </div>
@@ -887,10 +887,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Clock className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                        <p className="text-2xl font-bold settings-title">
                                             {localStats.pending.toLocaleString()}
                                         </p>
-                                        <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>Por enviar</p>
+                                        <p className="text-sm settings-subtitle">Por enviar</p>
                                     </div>
                                 </div>
                             </div>
@@ -902,10 +902,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <XCircle className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
-                                        <p className="text-2xl font-bold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                        <p className="text-2xl font-bold settings-title">
                                             {localStats.failed.toLocaleString()}
                                         </p>
-                                        <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>Fallidos</p>
+                                        <p className="text-sm settings-subtitle">Fallidos</p>
                                     </div>
                                 </div>
                             </div>
@@ -917,7 +917,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     >
                         <form onSubmit={submit}>
                             <div className="mb-6">
-                                <h2 className="text-lg font-semibold dark:text-[hsl(231,15%,92%)] mb-4 flex items-center gap-2" style={{ color: '#2e3f84' }}>
+                                <h2 className="text-lg font-semibold settings-title mb-4 flex items-center gap-2">
                                     <FileSpreadsheet className="w-5 h-5" />
                                     Cargar archivo de citas
                                 </h2>
@@ -929,11 +929,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     onDragLeave={handleDragLeave}
                                     className={`
                                     border-2 border-dashed rounded-none p-8 text-center cursor-pointer
-                                    bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)]
-                                    ${isDragging ? 'border-primary from-white to-[#fafbfc] dark:from-[hsl(231,25%,20%)] dark:to-[hsl(231,25%,18%)]' : 'border-[#d4d8e8] dark:border-[hsl(231,20%,25%)]'}
-                                    hover:border-primary hover:from-white hover:to-[#fafbfc] dark:hover:from-[hsl(231,25%,20%)] dark:hover:to-[hsl(231,25%,18%)]
+                                    upload-dropzone
+                                    ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(231,20%,25%)]'}
+                                    hover:border-primary hover:upload-dropzone-active
                                     transition-all duration-200
-                                    shadow-[inset_0_1px_2px_rgba(46,63,132,0.05)] dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.15)]
                                 `}
                                 >
                                     {!data.file ? (
@@ -952,13 +951,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                     <Upload className="w-8 h-8 text-white" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-lg font-medium dark:text-[hsl(231,15%,92%)] mb-1" style={{ color: '#2e3f84' }}>
+                                                    <p className="text-lg font-medium settings-title mb-1">
                                                         Arrastra y suelta tu archivo aquí
                                                     </p>
-                                                    <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                                        o <span className="dark:text-[hsl(231,15%,92%)] font-semibold" style={{ color: '#2e3f84' }}>haz click para seleccionar</span>
+                                                    <p className="text-sm settings-subtitle">
+                                                        o <span className="settings-title font-semibold">haz click para seleccionar</span>
                                                     </p>
-                                                    <p className="text-xs text-[#8891b3] dark:text-[hsl(231,15%,55%)] mt-2">
+                                                    <p className="text-xs settings-subtitle mt-2">
                                                         Formatos soportados: .xlsx, .xls, .csv (máx. 10MB)
                                                     </p>
                                                 </div>
@@ -971,8 +970,8 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                     <FileSpreadsheet className="w-6 h-6 text-white" />
                                                 </div>
                                                 <div className="text-left">
-                                                    <p className="font-medium dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>{data.file.name}</p>
-                                                    <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                    <p className="font-medium settings-title">{data.file.name}</p>
+                                                    <p className="text-sm settings-subtitle">
                                                         {formatFileSize(data.file.size)}
                                                     </p>
                                                 </div>
@@ -1021,14 +1020,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     <CheckCircle2 className="w-6 h-6 text-white" />
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="font-semibold dark:text-[hsl(231,15%,92%)] mb-2" style={{ color: '#2e3f84' }}>
+                                    <h3 className="font-semibold settings-title mb-2">
                                         Archivo cargado exitosamente
                                     </h3>
-                                    <div className="space-y-1 text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <p><span className="font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Nombre:</span> {uploadedFile.name}</p>
-                                        <p><span className="font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Tamaño:</span> {formatFileSize(uploadedFile.size)}</p>
-                                        <p><span className="font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Registros:</span> {uploadedFile.total_rows || initialAppointments.length} citas</p>
-                                        <p><span className="font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Fecha:</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
+                                    <div className="space-y-1 text-sm settings-subtitle">
+                                        <p><span className="font-semibold settings-title">Nombre:</span> {uploadedFile.name}</p>
+                                        <p><span className="font-semibold settings-title">Tamaño:</span> {formatFileSize(uploadedFile.size)}</p>
+                                        <p><span className="font-semibold settings-title">Registros:</span> {uploadedFile.total_rows || initialAppointments.length} citas</p>
+                                        <p><span className="font-semibold settings-title">Fecha:</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1041,10 +1040,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             {/* Header con búsqueda */}
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
-                                    <h2 className="text-lg font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>
+                                    <h2 className="text-lg font-semibold settings-title">
                                         Citas en base de datos ({totalAppointments})
                                     </h2>
-                                    <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                    <p className="text-sm settings-subtitle">
                                         Mostrando últimas {initialAppointments.length} citas (filtradas: {filteredAppointments.length})
                                     </p>
                                 </div>
@@ -1053,7 +1052,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     {/* Buscador */}
                                     <div className="relative">
                                         <label htmlFor="appointment-search" className="sr-only">Buscar citas</label>
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#6b7494' }} />
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 settings-subtitle" />
                                         <input
                                             id="appointment-search"
                                             name="appointment-search"
@@ -1061,8 +1060,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             placeholder="Buscar por paciente, teléfono, médico..."
                                             value={searchTerm}
                                             onChange={(e) => handleSearch(e.target.value)}
-                                            className="pl-10 pr-4 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 w-full md:w-80 text-sm"
-                                            style={{ color: '#2e3f84' }}
+                                            className="pl-10 pr-4 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 w-full md:w-80 text-sm settings-title"
                                         />
                                     </div>
 
@@ -1094,8 +1092,8 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
 
                             {/* Tabla con scroll horizontal */}
-                            <div className="overflow-x-auto rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
-                                <table className="w-full text-sm">
+                            <div className="overflow-x-auto rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] bg-white dark:bg-[hsl(231,25%,14%)]">
+                                <table className="w-full text-sm bg-white dark:bg-[hsl(231,25%,14%)]">
                                     <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
                                         <tr>
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">#</th>
@@ -1108,31 +1106,31 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Recordatorio</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]" style={{ background: 'linear-gradient(to bottom, #ffffff, #fafbfc)' }}>
+                                    <tbody className="divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
                                         {paginatedAppointments.map((appointment, index) => (
                                             <tr
                                                 key={appointment.id}
-                                                className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] transition-colors duration-150 dark:bg-[hsl(231,25%,14%)]"
+                                                className="bg-white dark:bg-[hsl(231,25%,14%)] hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] transition-colors duration-150"
                                             >
-                                                <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
                                                     {(currentPage - 1) * itemsPerPage + index + 1}
                                                 </td>
-                                                <td className="px-4 py-3 dark:text-[hsl(231,15%,92%)] font-medium whitespace-nowrap" style={{ color: '#2e3f84' }}>
+                                                <td className="px-4 py-3 settings-title font-medium whitespace-nowrap">
                                                     {appointment.nom_paciente || '-'}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
                                                     {appointment.pactel || '-'}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
                                                     {appointment.citfc || '-'}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
                                                     {appointment.cithor || '-'}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
                                                     {appointment.mednom || '-'}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
                                                     {appointment.espnom || '-'}
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap">
@@ -1191,15 +1189,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             {/* Paginación */}
                             {totalPages > 1 && (
                                 <div className="mt-4 flex items-center justify-between">
-                                    <p className="text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
+                                    <p className="text-sm settings-subtitle">
                                         Página {currentPage} de {totalPages}
                                     </p>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                             disabled={currentPage === 1}
-                                            className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] dark:text-[hsl(231,15%,92%)] hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
-                                            style={{ color: '#2e3f84' }}
+                                            className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
                                         >
                                             <ChevronLeft className="w-4 h-4" />
                                             Anterior
@@ -1207,8 +1204,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
-                                            className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] dark:text-[hsl(231,15%,92%)] hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
-                                            style={{ color: '#2e3f84' }}
+                                            className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
                                         >
                                             Siguiente
                                             <ChevronRight className="w-4 h-4" />
@@ -1223,38 +1219,38 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     {initialAppointments.length === 0 && (
                         <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6"
                         >
-                            <h3 className="font-semibold dark:text-[hsl(231,15%,92%)] mb-4" style={{ color: '#2e3f84' }}>
+                            <h3 className="font-semibold settings-title mb-4">
                                 Formato del archivo excel
                             </h3>
-                            <div className="space-y-3 text-sm dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                <p className="dark:text-[hsl(231,15%,92%)] font-medium" style={{ color: '#2e3f84' }}>El archivo debe contener las siguientes columnas:</p>
+                            <div className="space-y-3 text-sm settings-subtitle">
+                                <p className="settings-title font-medium">El archivo debe contener las siguientes columnas:</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Citead</strong> - Código admisión
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Citead</strong> - Código admisión
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Nom_paciente</strong> - Nombre paciente
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Nom_paciente</strong> - Nombre paciente
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Pactel</strong> - Teléfono
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Pactel</strong> - Teléfono
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Citfc</strong> - Fecha cita
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Citfc</strong> - Fecha cita
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Cithor</strong> - Hora cita
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Cithor</strong> - Hora cita
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Mednom</strong> - Nombre médico
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Mednom</strong> - Nombre médico
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Espnom</strong> - Especialidad
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Espnom</strong> - Especialidad
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Citdoc</strong> - Documento
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Citdoc</strong> - Documento
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                        <strong className="dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>Citobsobs</strong> - Observaciones
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                        <strong className="settings-title">Citobsobs</strong> - Observaciones
                                     </div>
                                 </div>
                             </div>
