@@ -1090,11 +1090,11 @@ export default function ConversationsIndex({ conversations: initialConversations
             <div className="h-[calc(100vh-0px)] flex bg-background overflow-hidden">
                 {/* Lista de Conversaciones - Izquierda */}
                 {/* Mobile: oculta cuando hay chat | Desktop: siempre visible con toggle */}
-                <div className={`bg-accent dark:bg-accent flex-col transition-all duration-300 flex-shrink-0 ${selectedConversation ? 'hidden md:flex' : 'flex'
+                <div className={`bg-accent dark:bg-accent flex-col transition-all duration-300 flex-shrink-0 conversation-sidebar ${selectedConversation ? 'hidden md:flex' : 'flex'
                     } ${isSidebarVisible ? 'w-full md:w-64 lg:w-72 xl:w-80' : 'hidden md:w-0 md:overflow-hidden'
                     }`}>
                     {/* Header */}
-                    <div className="p-3 md:p-4 bg-muted dark:bg-muted">
+                    <div className="p-3 md:p-4 conversation-header">
                         <div className="flex items-center justify-between mb-2 md:mb-3">
                             <h2 className="text-lg md:text-xl font-bold text-primary dark:text-primary truncate">{t('conversations.title')}</h2>
 
@@ -1127,7 +1127,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                     {/* Dropdown de filtro por estado */}
                                     {showStatusFilter && (
-                                        <div className="absolute right-0 top-full mt-1 bg-card rounded-none shadow-xl border border-border py-2 z-50 min-w-[180px]">
+                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-none shadow-xl border border-border py-2 z-50 min-w-[180px]">
                                             <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
                                                 Filtrar por estado
                                             </div>
@@ -1208,7 +1208,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         {/* Dropdown de filtro por asesor */}
                                         {showAdvisorFilter && (
                                             <div
-                                                className="fixed bg-card rounded-none shadow-xl border border-border py-2 z-[9999] min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar"
+                                                className="fixed card-gradient rounded-none shadow-xl border border-border py-2 z-[9999] min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar"
                                                 style={{ top: advisorDropdownPosition.top, right: advisorDropdownPosition.right }}
                                             >
                                                 <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
@@ -1529,7 +1529,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                         return (
                             <div
-                                className="fixed bg-card rounded-none shadow-xl border border-border py-2 z-50 min-w-[220px]"
+                                className="fixed card-gradient rounded-none shadow-xl border border-border py-2 z-50 min-w-[220px]"
                                 style={{
                                     top: `${contextMenu.y}px`,
                                     left: `${contextMenu.x}px`,
@@ -1804,7 +1804,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         {/* Área de Mensajes */}
                         <div
                             ref={messagesContainerRef}
-                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 bg-muted/30 dark:bg-[hsl(231,25%,10%)] relative custom-scrollbar"
+                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 messages-area relative custom-scrollbar"
                         >
                             {!selectedConversation.messages || selectedConversation.messages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-muted-foreground">

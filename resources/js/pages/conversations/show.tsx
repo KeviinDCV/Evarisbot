@@ -172,9 +172,9 @@ export default function ConversationShow({ conversation }: ConversationShowProps
         <AdminLayout>
             <Head title={`Chat - ${conversation.contact_name || conversation.phone_number}`} />
 
-            <div className="h-[calc(100vh-0px)] flex flex-col bg-card">
+            <div className="h-[calc(100vh-0px)] flex flex-col bg-background">
                 {/* Header del Chat */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border card-gradient">
                     <div className="flex items-center gap-4">
                         <Button
                             variant="ghost"
@@ -264,7 +264,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                 </div>
 
                 {/* Área de Mensajes */}
-                <div className="flex-1 overflow-y-auto px-6 py-4 bg-muted">
+                <div className="flex-1 overflow-y-auto px-6 py-4 messages-area">
                     {conversation.messages.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-muted-foreground">
                             <p>{t('conversations.noMessagesInConversation')}</p>
@@ -311,7 +311,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
                 </div>
 
                 {/* Área de Entrada de Mensaje */}
-                <form onSubmit={handleSubmit} className="px-6 py-4 bg-card border-t border-border">
+                <form onSubmit={handleSubmit} className="px-6 py-4 card-gradient border-t border-border">
                     <div className="flex items-end gap-3">
                         {/* Botón de adjuntar (futuro) */}
                         <Button

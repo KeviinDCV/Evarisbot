@@ -5,6 +5,9 @@
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
+/* CRITICAL: Configure dark mode to use .dark class instead of media query */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
     --font-sans:
         'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
@@ -542,6 +545,38 @@
     background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%));
 }
 
+/* Filter button - inactive state */
+.filter-btn-inactive {
+    background-color: #ffffff;
+    border: 1px solid #d4d8e8;
+    color: #6b7494;
+}
+
+.filter-btn-inactive:hover {
+    border-color: #2e3f84;
+}
+
+.dark .filter-btn-inactive {
+    background-color: hsl(231, 25%, 14%);
+    border-color: hsl(231, 20%, 22%);
+    color: hsl(231, 15%, 60%);
+}
+
+.dark .filter-btn-inactive:hover {
+    color: hsl(231, 55%, 70%);
+}
+
+/* Filter button badge - inactive state */
+.filter-badge-inactive {
+    background-color: #f4f5f9;
+    color: #6b7494;
+}
+
+.dark .filter-badge-inactive {
+    background-color: hsl(231, 25%, 18%);
+    color: hsl(231, 15%, 60%);
+}
+
 /* Mensaje de chat - enviado */
 .chat-message-sent {
     background: linear-gradient(to bottom, #3e4f94, #2e3f84);
@@ -583,15 +618,6 @@
 .dark .table-header {
     background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 13%));
     color: hsl(231, 15%, 85%);
-}
-
-/* Tabla row hover */
-.table-row-hover:hover {
-    background: linear-gradient(to bottom, #f8f9fc, #f4f5f9);
-}
-
-.dark .table-row-hover:hover {
-    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%));
 }
 
 /* Dropdown/Select content */
@@ -636,6 +662,33 @@
 
 .dark .conversation-item.active {
     background: linear-gradient(to bottom, hsl(231, 30%, 20%), hsl(231, 30%, 17%));
+}
+
+/* Messages area background */
+.messages-area {
+    background: linear-gradient(to bottom, #f0f2f8, #e8ebf5);
+}
+
+.dark .messages-area {
+    background: hsl(231, 25%, 10%);
+}
+
+/* Conversation sidebar */
+.conversation-sidebar {
+    background: linear-gradient(to bottom, #e8ebf5, #dde1f0);
+}
+
+.dark .conversation-sidebar {
+    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%));
+}
+
+/* Conversation header */
+.conversation-header {
+    background: linear-gradient(to bottom, #dde1f0, #d4d8e8);
+}
+
+.dark .conversation-header {
+    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%));
 }
 
 /* Modal/Dialog */
@@ -1045,83 +1098,6 @@
     color: hsl(231, 15%, 85%) !important;
 }
 
-/* Dark mode override for inline styles - Settings page */
-.dark [style*="color: #2e3f84"],
-.dark [style*="color:#2e3f84"] {
-    color: hsl(231, 15%, 92%) !important;
-}
-
-.dark [style*="color: #6b7494"],
-.dark [style*="color:#6b7494"] {
-    color: hsl(231, 15%, 60%) !important;
-}
-
-/* Dark mode override for advisor buttons background */
-.dark [style*="linear-gradient(to bottom, #f4f5f9, #f0f2f8)"],
-.dark [style*="linear-gradient(to bottom,#f4f5f9,#f0f2f8)"] {
-    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 15%)) !important;
-}
-
-.dark [style*="linear-gradient(to bottom, #e8f5e9, #c8e6c9)"],
-.dark [style*="linear-gradient(to bottom,#e8f5e9,#c8e6c9)"] {
-    background: linear-gradient(to bottom, hsl(142, 35%, 22%), hsl(142, 30%, 18%)) !important;
-}
-
-.dark [style*="linear-gradient(to bottom, #e8ebf5, #dde1f0)"] {
-    background: linear-gradient(to bottom, hsl(231, 25%, 22%), hsl(231, 25%, 18%)) !important;
-}
-
-/* Dark mode override for green text */
-.dark [style*="color: #16a34a"] {
-    color: #4ade80 !important;
-}
-
-/* Dark mode override for gray text */
-.dark [style*="color: #6b7280"],
-.dark [style*="color:#6b7280"] {
-    color: #9ca3af !important;
-}
-
-.dark [style*="color: #9ca3af"],
-.dark [style*="color:#9ca3af"] {
-    color: #6b7280 !important;
-}
-
-/* Dark mode override for template form backgrounds */
-.dark [style*="linear-gradient(to bottom, #ffffff, #fafbfd)"] {
-    background: linear-gradient(to bottom, hsl(231, 25%, 16%), hsl(231, 25%, 14%)) !important;
-}
-
-.dark [style*="linear-gradient(to bottom, #fafbfd, #f8f9fc)"] {
-    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%)) !important;
-}
-
-/* Dark mode override for page background gradient */
-.dark [style*="linear-gradient(to bottom, #f0f2f8, #e8ebf5)"] {
-    background: linear-gradient(to bottom, hsl(231, 25%, 10%), hsl(231, 25%, 8%)) !important;
-}
-
-/* Dark mode override for table body background */
-.dark [style*="linear-gradient(to bottom, #ffffff, #fafbfc)"] {
-    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%)) !important;
-}
-
-/* Dark mode override for filter buttons background */
-.dark [style*="background: linear-gradient(to bottom, #ffffff, #fafbfc)"] {
-    background: linear-gradient(to bottom, hsl(231, 25%, 14%), hsl(231, 25%, 12%)) !important;
-}
-
-/* Dark mode override for new file items (green gradient) */
-.dark [style*="linear-gradient(to bottom, #e8f5e9, #e0f2e1)"] {
-    background: linear-gradient(to bottom, hsl(142, 30%, 18%), hsl(142, 25%, 15%)) !important;
-}
-
-/* Dark mode override for delete button hover */
-.dark [style*="background: rgb(254, 242, 242)"],
-.dark [style*="background:#fef2f2"] {
-    background: rgba(127, 29, 29, 0.2) !important;
-}
-
 /* Back link hover */
 .settings-back-link:hover {
     background: linear-gradient(to bottom, #f4f5f9, #f0f2f8);
@@ -1216,4 +1192,94 @@
 .dark .upload-dropzone:hover,
 .dark .upload-dropzone-active {
     background: linear-gradient(to bottom, hsl(231, 25%, 20%), hsl(231, 25%, 18%));
+}
+
+/* Force table body background */
+tbody.table-body-light {
+    background: #ffffff;
+}
+
+.dark tbody.table-body-light {
+    background: hsl(231, 25%, 14%);
+}
+
+/* Table row base style for light mode */
+tr.table-row-hover {
+    background-color: #ffffff;
+}
+
+.dark tr.table-row-hover {
+    background-color: hsl(231, 25%, 14%);
+}
+
+/* Table row hover */
+tr.table-row-hover:hover {
+    background: linear-gradient(to bottom, #f8f9fc, #f4f5f9);
+}
+
+.dark tr.table-row-hover:hover {
+    background: linear-gradient(to bottom, hsl(231, 25%, 18%), hsl(231, 25%, 16%));
+}
+
+/* Status badges for appointments table */
+.status-badge-sent {
+    background-color: rgb(236 253 245); /* emerald-50 */
+    color: rgb(4 120 87); /* emerald-700 */
+}
+
+.dark .status-badge-sent {
+    background-color: rgba(6, 78, 59, 0.3); /* emerald-900/30 */
+    color: rgb(52 211 153); /* emerald-400 */
+}
+
+.status-badge-failed,
+.status-badge-cancelled {
+    background-color: rgb(254 242 242); /* red-50 */
+    color: rgb(185 28 28); /* red-700 */
+}
+
+.dark .status-badge-failed,
+.dark .status-badge-cancelled {
+    background-color: rgba(127, 29, 29, 0.3); /* red-900/30 */
+    color: rgb(248 113 113); /* red-400 */
+}
+
+.status-badge-delivered {
+    background-color: rgb(239 246 255); /* blue-50 */
+    color: rgb(29 78 216); /* blue-700 */
+}
+
+.dark .status-badge-delivered {
+    background-color: rgba(30, 58, 138, 0.3); /* blue-900/30 */
+    color: rgb(96 165 250); /* blue-400 */
+}
+
+.status-badge-confirmed {
+    background-color: rgb(240 253 244); /* green-50 */
+    color: rgb(21 128 61); /* green-700 */
+}
+
+.dark .status-badge-confirmed {
+    background-color: rgba(20, 83, 45, 0.3); /* green-900/30 */
+    color: rgb(74 222 128); /* green-400 */
+}
+
+.status-badge-read {
+    background-color: rgb(238 242 255); /* indigo-50 */
+    color: rgb(67 56 202); /* indigo-700 */
+}
+
+.dark .status-badge-read {
+    background-color: rgba(49, 46, 129, 0.3); /* indigo-900/30 */
+    color: rgb(129 140 248); /* indigo-400 */
+}
+
+.status-badge-pending {
+    background-color: rgb(255 251 235); /* amber-50 */
+    color: rgb(180 83 9); /* amber-700 */
+}
+
+.dark .status-badge-pending {
+    background-color: rgba(120, 53, 15, 0.3); /* amber-900/30 */
+    color: rgb(251 191 36); /* amber-400 */
 }

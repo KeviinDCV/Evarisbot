@@ -1092,8 +1092,8 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
 
                             {/* Tabla con scroll horizontal */}
-                            <div className="overflow-x-auto rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] bg-white dark:bg-[hsl(231,25%,14%)]">
-                                <table className="w-full text-sm bg-white dark:bg-[hsl(231,25%,14%)]">
+                            <div className="overflow-x-auto rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
+                                <table className="w-full text-sm">
                                     <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
                                         <tr>
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">#</th>
@@ -1106,11 +1106,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Recordatorio</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
+                                    <tbody className="table-body-light divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
                                         {paginatedAppointments.map((appointment, index) => (
                                             <tr
                                                 key={appointment.id}
-                                                className="bg-white dark:bg-[hsl(231,25%,14%)] hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] transition-colors duration-150"
+                                                className="table-row-hover transition-colors duration-150"
                                             >
                                                 <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
                                                     {(currentPage - 1) * itemsPerPage + index + 1}
@@ -1137,44 +1137,44 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                     {appointment.reminder_sent ? (
                                                         <div className="flex items-center gap-2">
                                                             {appointment.reminder_status === 'sent' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-sent text-xs font-medium">
                                                                     <CheckCircle2 className="w-3 h-3" />
                                                                     Enviado
                                                                 </span>
                                                             )}
                                                             {appointment.reminder_status === 'failed' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-failed text-xs font-medium">
                                                                     <XCircle className="w-3 h-3" />
                                                                     Fallido
                                                                 </span>
                                                             )}
                                                             {appointment.reminder_status === 'delivered' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-delivered text-xs font-medium">
                                                                     <CheckCircle2 className="w-3 h-3" />
                                                                     Entregado
                                                                 </span>
                                                             )}
                                                             {appointment.reminder_status === 'confirmed' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-confirmed text-xs font-medium">
                                                                     <CalendarCheck className="w-3 h-3" />
                                                                     Confirmada
                                                                 </span>
                                                             )}
                                                             {appointment.reminder_status === 'cancelled' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-cancelled text-xs font-medium">
                                                                     <CalendarX className="w-3 h-3" />
                                                                     Cancelada
                                                                 </span>
                                                             )}
                                                             {appointment.reminder_status === 'read' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs font-medium">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-read text-xs font-medium">
                                                                     <CheckCircle2 className="w-3 h-3" />
                                                                     Leído
                                                                 </span>
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-pending text-xs font-medium">
                                                             <Clock className="w-3 h-3" />
                                                             Pendiente
                                                         </span>
