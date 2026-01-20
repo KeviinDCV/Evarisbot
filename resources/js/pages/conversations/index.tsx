@@ -172,6 +172,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
+
+    // Estados para el modal de advertencia de 24 horas
+    const [show24HourWarning, setShow24HourWarning] = useState(false);
+    const [lastUserMessageInfo, setLastUserMessageInfo] = useState<{ date: string; hoursAgo: number } | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
@@ -767,6 +771,44 @@ export default function ConversationsIndex({ conversations: initialConversations
         return labels[status] || status;
     };
 
+    // Función para verificar si han pasado 24 horas desde el último mensaje del usuario
+    const getLastUserMessageInfo = useCallback(() => {
+        if (!selectedConversation?.messages || selectedConversation.messages.length === 0) {
+            return null;
+        }
+
+        // Buscar el último mensaje del usuario (is_from_user = true)
+        const userMessages = selectedConversation.messages.filter(msg => msg.is_from_user);
+
+        if (userMessages.length === 0) {
+            return null;
+        }
+
+        // Ordenar por fecha descendente y obtener el más reciente
+        const sortedUserMessages = [...userMessages].sort((a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        const lastUserMessage = sortedUserMessages[0];
+        const lastMessageDate = new Date(lastUserMessage.created_at);
+        const now = new Date();
+        const diffMs = now.getTime() - lastMessageDate.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        return {
+            date: lastMessageDate.toLocaleString('es-ES', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            }),
+            hoursAgo: Math.floor(diffHours),
+            isExpired: diffHours >= 24
+        };
+    }, [selectedConversation?.messages]);
+
     // Obtener todos los asesores disponibles para filtrar
     const availableAdvisors = users;
 
@@ -933,6 +975,17 @@ export default function ConversationsIndex({ conversations: initialConversations
         const hasFile = selectedFile !== null;
 
         if ((!hasContent && !hasFile) || !selectedConversation) {
+            return;
+        }
+
+        // Verificar si han pasado 24 horas desde el último mensaje del usuario
+        const lastMessageInfo = getLastUserMessageInfo();
+        if (lastMessageInfo && lastMessageInfo.isExpired) {
+            setLastUserMessageInfo({
+                date: lastMessageInfo.date,
+                hoursAgo: lastMessageInfo.hoursAgo
+            });
+            setShow24HourWarning(true);
             return;
         }
 
@@ -2202,6 +2255,60 @@ export default function ConversationsIndex({ conversations: initialConversations
                             className="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-[0_2px_4px_rgba(239,68,68,0.3)]"
                         >
                             Sí, eliminar conversación
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Advertencia de 24 Horas */}
+            <Dialog open={show24HourWarning} onOpenChange={setShow24HourWarning}>
+                <DialogContent className="sm:max-w-lg card-gradient border-2 border-amber-400 dark:border-amber-500">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                            <Clock className="w-6 h-6" />
+                            Ventana de 24 horas expirada
+                        </DialogTitle>
+                        <div className="text-muted-foreground space-y-4 pt-4">
+                            <DialogDescription className="text-sm leading-relaxed text-foreground">
+                                <strong>No se puede enviar el mensaje.</strong> Ha pasado más de 24 horas desde el último mensaje del usuario.
+                            </DialogDescription>
+
+                            {lastUserMessageInfo && (
+                                <div className="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-400 dark:border-amber-500 p-3 rounded-r">
+                                    <div className="text-sm text-amber-900 dark:text-amber-300">
+                                        <strong>Último mensaje del usuario:</strong>
+                                        <br />
+                                        📅 {lastUserMessageInfo.date}
+                                        <br />
+                                        ⏱️ Hace aproximadamente <strong>{lastUserMessageInfo.hoursAgo}</strong> horas
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-500 p-3 rounded-r space-y-2">
+                                <div className="text-sm font-medium text-blue-900 dark:text-blue-300">
+                                    ¿Qué puedes hacer?
+                                </div>
+                                <div className="text-sm text-blue-800 dark:text-blue-400">
+                                    <strong>1.</strong> Utiliza el botón <strong>"Nueva conversación"</strong> en los filtros para iniciar una conversación con una plantilla aprobada por Meta.
+                                </div>
+                                <div className="text-sm text-blue-800 dark:text-blue-400">
+                                    <strong>2.</strong> Espera a que el usuario te envíe un nuevo mensaje para poder responder.
+                                </div>
+                            </div>
+
+                            <div className="text-xs text-muted-foreground italic border-t border-border pt-3">
+                                <strong>¿Por qué ocurre esto?</strong> Meta/WhatsApp solo permite responder a usuarios dentro de las 24 horas posteriores a su último mensaje. Esta es una política de WhatsApp Business API para proteger a los usuarios del spam.
+                            </div>
+                        </div>
+                    </DialogHeader>
+                    <DialogFooter className="gap-3 sm:gap-2">
+                        <Button
+                            type="button"
+                            onClick={() => setShow24HourWarning(false)}
+                            className="w-full settings-btn-primary"
+                        >
+                            Entendido
                         </Button>
                     </DialogFooter>
                 </DialogContent>
