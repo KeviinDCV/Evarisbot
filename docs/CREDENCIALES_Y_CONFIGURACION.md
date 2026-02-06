@@ -1,696 +1,229 @@
-# Guía de Credenciales y Configuración - Evarisbot
-## Archivo Confidencial - Uso Exclusivo del Equipo Técnico
+# INNOVACIÓN Y DESARROLLO - HOSPITAL UNIVERSITARIO DEL VALLE
+# EVARISBOT
 
-**Versión:** 1.0  
-**Fecha:** Noviembre 2024  
-**Clasificación:** CONFIDENCIAL
+# CREDENCIALES Y CONFIGURACIÓN DEL SISTEMA
 
----
+## 1. INTRODUCCIÓN
 
-## ADVERTENCIA DE SEGURIDAD
-
-Este documento contiene información sensible y credenciales del sistema. 
-
-**OBLIGATORIO:**
-- Almacenar en ubicación segura con acceso restringido
-- Nunca compartir por email o mensajería no cifrada
-- No subir a repositorios públicos
-- Cambiar contraseñas regularmente
-- Usar gestores de contraseñas (LastPass, 1Password, Bitwarden)
-- NUNCA hardcodear credenciales en el código
-- NO compartir con personal no autorizado
+Este documento detalla de manera exhaustiva las credenciales, variables de entorno, servicios requeridos y procedimientos de configuración para el correcto despliegue y funcionamiento del sistema **Evarisbot**. Esta aplicación es crítica para la gestión de comunicaciones vía WhatsApp Business y requiere una configuración precisa para garantizar la disponibilidad, seguridad y escalabilidad.
 
 ---
 
-## Tabla de Contenidos
+## 2. REQUISITOS DEL SISTEMA
 
-1. [Variables de Entorno](#1-variables-de-entorno)
-2. [Credenciales WhatsApp Business API](#2-credenciales-whatsapp-business-api)
-3. [Base de Datos](#3-base-de-datos)
-4. [Configuración del Servidor](#4-configuración-del-servidor)
-5. [Certificados SSL](#5-certificados-ssl)
-6. [Copias de Seguridad](#6-copias-de-seguridad)
-7. [Accesos Administrativos](#7-accesos-administrativos)
-8. [Rotación de Credenciales](#8-rotación-de-credenciales)
+### 2.1 Entorno de Servidor (Hardware Recomendado)
+- **Procesador:** Mínimo 2 vCPU (Recomendado 4 vCPU para producción con alta carga).
+- **Memoria RAM:** Mínimo 4 GB (Recomendado 8 GB para manejar WebSockets y Workers de cola).
+- **Almacenamiento:** SSD, espacio dependiente del volumen de archivos multimedia (imágenes/documentos) recibidos.
+- **Sistema Operativo:** Windows Server (Compatible con Scripts .bat incluidos) o Linux (Ubuntu 22.04 LTS recomendado).
+
+### 2.2 Software Base
+El servidor debe contar con el siguiente software instalado y configurado:
+
+1.  **PHP 8.2 o superior**
+    - Extensiones requeridas: `bcmath`, `ctype`, `curl`, `dom`, `fileinfo`, `json`, `mbstring`, `openssl`, `pcre`, `pdo`, `pdo_mysql`, `tokenizer`, `xml`, `zip`, `intl`, `gd`.
+    - Configuración `php.ini`:
+        - `memory_limit = 512M`
+        - `upload_max_filesize = 100M`
+        - `post_max_size = 100M`
+        - `max_execution_time = 300`
+
+2.  **Composer 2.x**
+    - Gestor de dependencias de PHP.
+
+3.  **Node.js LTS (v20.x o v22.x)**
+    - Entorno de ejecución para JavaScript.
+    - Gestor de paquetes `npm` o `yarn`.
+
+4.  **Base de Datos (MySQL 8.0+ o MariaDB 10.6+)**
+    - Soporte para JSON nativo requerido.
+    - Cotejamiento recomendado: `utf8mb4_unicode_ci`.
+
+5.  **Servidor Web**
+    - Apache o Nginx (Recomendado Nginx + PHP-FPM).
+    - O uso de `php artisan serve` para entornos de desarrollo/pruebas locales, gestionado mediante los scripts `.bat` proporcionados.
 
 ---
 
-## 1. Variables de Entorno
+## 3. VARIABLES DE ENTORNO (.ENV)
 
-### 1.1 Archivo .env de Producción
+El archivo `.env` es el corazón de la configuración de Evarisbot. A continuación se describe cada sección y variable crítica.
 
-**Ubicación:** Raíz del proyecto  
-**Archivo:** `.env` (NO incluir en Git)
+### 3.1 Configuración General de la Aplicación
+Define el entorno y las claves de seguridad base.
 
-```env
-# ============================================
-# APLICACIÓN
-# ============================================
-APP_NAME="Evarisbot"
+```ini
+APP_NAME=Evarisbot
 APP_ENV=production
-APP_KEY=base64:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+APP_KEY=base64:GENERAR_CON_ARTISAN_KEY_GENERATE
 APP_DEBUG=false
-APP_URL=https://evarisbot.dominio.com
+APP_URL=https://evarisbot.huv.gov.co
+```
 
-APP_LOCALE=es
-APP_FALLBACK_LOCALE=es
-APP_FAKER_LOCALE=es_ES
+*   **APP_ENV**: Debe estar en `production` para despliegues reales.
+*   **APP_DEBUG**: `false` en producción para evitar exposición de trazas de error, `true` solo para desarrollo.
+*   **APP_URL**: URL base donde se alojará la aplicación. Es crítico para la generación de Webhooks y assets estáticos.
 
-# ============================================
-# BASE DE DATOS - PRODUCCIÓN
-# ============================================
+### 3.2 Configuración de Base de Datos
+Credenciales de acceso al motor de base de datos MySQL.
+
+```ini
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=evarisbot_production
-DB_USERNAME=evarisbot_user
-DB_PASSWORD=CONTRASEÑA_SEGURA_AQUI_MIN_16_CARACTERES
+DB_DATABASE=evarisbot_db
+DB_USERNAME=usuario_db
+DB_PASSWORD=contraseña_segura
+```
 
-# ============================================
-# SESIONES Y CACHÉ
-# ============================================
+### 3.3 Configuración de Drivers (Colas, Caché, Sesiones)
+Evarisbot hace uso intensivo de colas y caché para optimizar el rendimiento.
+
+```ini
 SESSION_DRIVER=database
 SESSION_LIFETIME=120
 SESSION_ENCRYPT=false
+SESSION_PATH=/
+SESSION_DOMAIN=null
 
-CACHE_STORE=database
 QUEUE_CONNECTION=database
+CACHE_STORE=database
+```
 
-BROADCAST_CONNECTION=reverb
+*   **QUEUE_CONNECTION**: Recomendado `database` para persistencia simple o `redis` para alto rendimiento. Si se cambia a Redis, asegurar instalación de servicio Redis.
 
-# ============================================
-# WHATSAPP BUSINESS API (META)
-# ============================================
-WHATSAPP_TOKEN=EAAG...XXXXXXX
-WHATSAPP_PHONE_NUMBER_ID=123456789012345
-WHATSAPP_BUSINESS_ACCOUNT_ID=123456789012345
-WHATSAPP_SYSTEM_USER_ID=123456789012345
-WHATSAPP_VERIFY_TOKEN=huv_webhook_verificacion_2024
+### 3.4 Configuración de Servidor de WebSockets (Laravel Reverb)
+Esencial para la comunicación en tiempo real (chat en vivo).
 
-# ============================================
-# LARAVEL REVERB (WebSockets)
-# ============================================
-REVERB_APP_ID=evarisbot_prod
-REVERB_APP_KEY=XXXXXXXXXXXXX
-REVERB_APP_SECRET=XXXXXXXXXXXXX
-REVERB_HOST=evarisbot.dominio.com
+```ini
+REVERB_APP_ID=evarisbot_app
+REVERB_APP_KEY=evarisbot_key_secreta
+REVERB_APP_SECRET=evarisbot_secret_super_seguro
+REVERB_HOST="0.0.0.0"
 REVERB_PORT=8080
-REVERB_SCHEME=https
+REVERB_SCHEME=http
 
 VITE_REVERB_APP_KEY="${REVERB_APP_KEY}"
-VITE_REVERB_HOST="${REVERB_HOST}"
-VITE_REVERB_PORT="${REVERB_PORT}"
+VITE_REVERB_HOST_PORT="${REVERB_PORT}"
 VITE_REVERB_SCHEME="${REVERB_SCHEME}"
-
-# ============================================
-# CORREO ELECTRÓNICO
-# ============================================
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=notificaciones@dominio.com
-MAIL_PASSWORD=CONTRASEÑA_APP_GMAIL
-MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS="notificaciones@dominio.com"
-MAIL_FROM_NAME="${APP_NAME}"
-
-# ============================================
-# LOGS Y MONITOREO
-# ============================================
-LOG_CHANNEL=stack
-LOG_STACK=daily
-LOG_DEPRECATIONS_CHANNEL=null
-LOG_LEVEL=info
-
-# ============================================
-# SEGURIDAD
-# ============================================
-BCRYPT_ROUNDS=12
 ```
 
-### 1.2 Generar APP_KEY
+*   **REVERB_PORT**: Puerto donde el servidor WebSocket escuchará. Debe estar abierto en el firewall.
+*   **VITE_...**: Estas variables son inyectadas en el frontend (React) para que el cliente sepa a dónde conectarse.
 
-```bash
-php artisan key:generate
+### 3.5 Configuración de WhatsApp Business API (Meta)
+Credenciales para la integración con la API de Cloud API de Meta.
+
+```ini
+WHATSAPP_API_TOKEN=EAAG... (Token de larga duración)
+WHATSAPP_PHONE_ID=1234567890 (ID del número de teléfono en Meta)
+WHATSAPP_BUSINESS_ACCOUNT_ID=9876543210 (ID de la cuenta comercial)
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=token_personalizado_verificacion
+WHATSAPP_API_VERSION=v18.0
 ```
 
-**Salida esperada:**
-```
-Application key set successfully.
-```
+*   **WHATSAPP_API_TOKEN**: Token de acceso. Debe ser un "System User Token" con permisos permanentes (`whatsapp_business_management`, `whatsapp_business_messaging`).
+*   **WHATSAPP_WEBHOOK_VERIFY_TOKEN**: Cadena arbitraria definida por nosotros, que se debe ingresar en el panel de desarrolladores de Meta al configurar el Webhook.
 
-**IMPORTANTE:** 
-- El APP_KEY se guarda automáticamente en `.env`
-- Nunca cambiar en producción sin backup
-- Si se pierde, las sesiones y datos encriptados se pierden
+### 3.6 Configuración de Inteligencia Artificial (Groq)
+Utilizada para sugerencias automáticas y transcripciones.
 
-### 1.3 Variables Críticas
-
-| Variable | Descripción | Dónde Obtenerla |
-|----------|-------------|-----------------|
-| APP_KEY | Clave de encriptación de Laravel | `php artisan key:generate` |
-| WHATSAPP_TOKEN | Token de acceso de Meta | Meta Business Suite → WhatsApp |
-| DB_PASSWORD | Contraseña de base de datos | Panel de hosting / Creada manualmente |
-| MAIL_PASSWORD | Contraseña de aplicación Gmail | Cuenta Google → Seguridad → Contraseñas de aplicación |
-
----
-
-## 2. Credenciales WhatsApp Business API
-
-### 2.1 Obtener Credenciales de Meta
-
-**Paso 1: Crear Aplicación en Meta**
-
-1. Ir a https://developers.facebook.com
-2. Click en **"Mis aplicaciones"** → **"Crear aplicación"**
-3. Seleccionar **"Empresa"**
-4. Nombre: **"Evarisbot - Servicios Ambulatorios"**
-5. Agregar producto: **WhatsApp**
-
-**Paso 2: Configurar WhatsApp Business**
-
-1. En la aplicación → **WhatsApp** → **Inicio rápido**
-2. Seleccionar o crear cuenta de WhatsApp Business
-3. Agregar número de teléfono
-4. Verificar número con código SMS
-
-**Paso 3: Obtener Credenciales**
-
-```
-Meta Business Suite → Configuración de WhatsApp
-```
-
-**Credenciales necesarias:**
-
-```yaml
-Phone Number ID: 
-  Ubicación: WhatsApp → API Setup → Phone number ID
-  Ejemplo: 123456789012345
-  
-Business Account ID:
-  Ubicación: WhatsApp → API Setup → WhatsApp Business Account ID
-  Ejemplo: 123456789012345
-  
-Access Token (Temporal):
-  Ubicación: WhatsApp → API Setup → Temporary access token
-  Duración: 24 horas
-  Uso: Solo para pruebas
-  
-System User Token (Permanente):
-  Ubicación: Business Settings → System Users → Generate Token
-  Permisos necesarios:
-    - whatsapp_business_management
-    - whatsapp_business_messaging
-  Duración: Permanente (hasta que se revoque)
-  Uso: PRODUCCIÓN
-```
-
-### 2.2 Generar Token Permanente
-
-**Paso a Paso:**
-
-1. **Ir a Business Settings**
-   ```
-   https://business.facebook.com/settings/system-users
-   ```
-
-2. **Crear System User**
-   - Nombre: "Evarisbot Production"
-   - Rol: Administrador
-
-3. **Generar Token**
-   - Click en **"Generar nuevo token"**
-   - Seleccionar App: **"Evarisbot - Servicios Ambulatorios"**
-   - Permisos:
-     - `whatsapp_business_management`
-     - `whatsapp_business_messaging`
-   - Duración: **"Never expires"** (Nunca caduca)
-   - Click en **"Generar token"**
-
-4. **Copiar y Guardar**
-   ```
-   Token: EAAGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   ```
-   
-   **IMPORTANTE:** El token solo se muestra UNA VEZ. Guardarlo inmediatamente en:
-   - Gestor de contraseñas
-   - Archivo `.env` de producción
-   - Documentación segura
-
-### 2.3 Configurar Webhook
-
-**URL del Webhook:**
-```
-https://evarisbot.dominio.com/webhook/whatsapp
-```
-
-**Configuración en Meta:**
-
-1. WhatsApp → **Configuration** → **Webhook**
-2. Click en **"Edit"**
-3. **Callback URL:** `https://evarisbot.dominio.com/webhook/whatsapp`
-4. **Verify token:** `huv_webhook_verificacion_2024` (personalizar)
-5. **Webhook fields:**
-   - messages
-   - message_echoes (opcional)
-6. Click en **"Verify and Save"**
-
-**Verificación Exitosa:**
-```
-Your webhook is successfully verified
-```
-
-**Troubleshooting:**
-
-Si la verificación falla:
-
-```bash
-# 1. Verificar que el servidor responde
-curl "https://evarisbot.dominio.com/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=huv_webhook_verificacion_2024&hub.challenge=TEST"
-
-# Respuesta esperada: TEST
-
-# 2. Verificar logs
-tail -f storage/logs/laravel.log
-
-# 3. Verificar variable en .env
-grep WHATSAPP_VERIFY_TOKEN .env
-```
-
-### 2.4 Números de Prueba
-
-Meta proporciona números de prueba:
-
-```yaml
-Números de Prueba (Test Numbers):
-  Ubicación: WhatsApp → API Setup → Test numbers
-  Uso: Solo para desarrollo
-  Limitación: Máximo 5 números
-  
-Número de Producción:
-  Requiere: Verificación de negocio (Business Verification)
-  Proceso: 1-2 semanas
-  Documentación requerida:
-    - Registro mercantil
-    - Documento de identidad del representante legal
-    - Comprobante de domicilio
+```ini
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
 ---
 
-## 3. Base de Datos
+## 4. GESTIÓN DE SERVICIOS Y SCRIPTS DE AUTOMATIZACIÓN
 
-### 3.1 Credenciales de MySQL
+Para facilitar la administración en entornos Windows (común en infraestructura hospitalaria), se han desarrollado scripts `.bat` específicos ubicados en la raíz del proyecto.
 
-**Información de Conexión:**
+### 4.1 Scripts Principales
 
-```yaml
-Host: localhost (o IP del servidor)
-Puerto: 3306
-Base de Datos: evarisbot_production
-Usuario: evarisbot_user
-Contraseña: [VER GESTOR DE CONTRASEÑAS]
-Charset: utf8mb4
-Collation: utf8mb4_unicode_ci
-```
+#### `start-all-services.bat`
+Este script orquesta el inicio de todos los componentes necesarios.
+1.  Verifica si PHP está en el PATH.
+2.  Inicia el servidor web (PHP Artisan Serve).
+3.  Inicia el servidor de WebSockets (Reverb).
+4.  Inicia el procesador de colas (Queue Worker) para envíos masivos.
+5.  Inicia el compilador de frontend (Vite) si estamos en modo dev.
 
-### 3.2 Crear Base de Datos
+**Uso:** Ejecutar como administrador al iniciar el servidor.
 
-```sql
--- Conectar como root
-mysql -u root -p
+#### `start-queue-worker.bat`
+Inicia únicamente el proceso encargado de despachar recordatorios y mensajes de WhatsApp. Es vital que este proceso esté siempre corriendo. Si se detiene, los mensajes se quedarán en estado "Encolado".
 
--- Crear base de datos
-CREATE DATABASE evarisbot_production 
-  CHARACTER SET utf8mb4 
-  COLLATE utf8mb4_unicode_ci;
+#### `start-reverb-optimized.bat`
+Inicia el servidor de WebSockets con configuración optimizada para producción.
 
--- Crear usuario
-CREATE USER 'evarisbot_user'@'localhost' 
-  IDENTIFIED BY 'CONTRASEÑA_SEGURA_AQUI';
+#### `stop-all-services.bat`
+Detiene de manera segura todos los procesos relacionados con Evarisbot para mantenimiento.
 
--- Otorgar permisos
-GRANT ALL PRIVILEGES ON evarisbot_production.* 
-  TO 'evarisbot_user'@'localhost';
+### 4.2 Webhooks (Configuración en Servidor)
 
--- Aplicar cambios
-FLUSH PRIVILEGES;
+Existen scripts PHP en la raíz para facilitar la configuración de Webhooks sin acceso SSH/Consola directo si fuera necesario:
 
--- Salir
-EXIT;
-```
-
-### 3.3 Conexión Remota (si aplica)
-
-Si la base de datos está en otro servidor:
-
-```sql
--- Crear usuario para conexión remota
-CREATE USER 'evarisbot_user'@'%' 
-  IDENTIFIED BY 'CONTRASEÑA_SEGURA_AQUI';
-
--- Otorgar permisos
-GRANT ALL PRIVILEGES ON evarisbot_production.* 
-  TO 'evarisbot_user'@'%';
-
-FLUSH PRIVILEGES;
-```
-
-**Actualizar .env:**
-
-```env
-DB_HOST=192.168.1.100  # IP del servidor de BD
-DB_PORT=3306
-```
-
-### 3.4 Verificar Conexión
-
-```bash
-# Desde el servidor de aplicación
-php artisan db:show
-
-# Output esperado:
-# MySQL 8.0.x  evarisbot_production
-```
+*   **`setup_webhook.php`**: Registra la URL del webhook en Meta.
+*   **`force_subscribe_webhook.php`**: Fuerza la re-suscripción si se pierden los permisos.
 
 ---
 
-## 4. Configuración del Servidor
+## 5. CREDENCIALES DE ACCESO (POR DEFECTO)
 
-### 4.1 Información del Servidor
+**Nota de Seguridad:** Estas credenciales deben ser cambiadas INMEDIATAMENTE después del primer despliegue.
 
-**Servidor Web:**
+### 5.1 Super Administrador
+*   **Email:** admin@huv.gov.co
+*   **Password:** (Definida durante la instalación en `DatabaseSeeder` o `HUV2026!`)
+*   **Rol:** Admin Global (Acceso a Configuración, Usuarios, Logs).
 
-```yaml
-Proveedor: [Nombre del hosting/servidor]
-IP Pública: XXX.XXX.XXX.XXX
-Dominio: evarisbot.dominio.com
-Sistema Operativo: Ubuntu 22.04 LTS (o especificar)
-Servidor Web: Nginx 1.24 (o Apache 2.4)
-PHP: 8.2.x
-MySQL: 8.0.x
-```
-
-### 4.2 Acceso SSH
-
-**Credenciales:**
-
-```bash
-Host: evarisbot.dominio.com
-Puerto: 22 (o puerto personalizado)
-Usuario: deploy
-Contraseña: [VER GESTOR DE CONTRASEÑAS]
-# O usar clave SSH (recomendado)
-```
-
-**Conectar:**
-
-```bash
-ssh deploy@evarisbot.dominio.com -p 22
-```
-
-**Con clave SSH:**
-
-```bash
-ssh -i ~/.ssh/evarisbot_rsa deploy@evarisbot.dominio.com
-```
-
-### 4.3 Ubicación de Archivos
-
-```yaml
-Directorio Web: /var/www/evarisbot
-Logs Apache/Nginx: /var/log/nginx/ (o /var/log/apache2/)
-Logs Laravel: /var/www/evarisbot/storage/logs/
-Certificados SSL: /etc/letsencrypt/live/evarisbot.dominio.com/
-Configuración Nginx: /etc/nginx/sites-available/evarisbot
-```
-
-### 4.4 Usuarios del Sistema
-
-```yaml
-Usuario Web (www-data):
-  Grupo: www-data
-  Propósito: Ejecutar PHP-FPM y servir archivos
-  
-Usuario Deploy (deploy):
-  Grupo: deploy
-  Propósito: Despliegues y mantenimiento
-  Home: /home/deploy
-  
-Usuario Root:
-  Acceso: Solo para tareas administrativas críticas
-  Contraseña: [VER GESTOR DE CONTRASEÑAS - NIVEL MÁXIMO]
-```
+### 5.2 Usuario Asesor (Prueba)
+*   **Email:** asesor@huv.gov.co
+*   **Password:** asesor123
+*   **Rol:** Asesor (Acceso solo a Chat y gestión básica).
 
 ---
 
-## 5. Certificados SSL
+## 6. CONFIGURACIÓN DE TERCEROS (META FOR DEVELOPERS)
 
-### 5.1 Let's Encrypt (Recomendado - Gratis)
+Para conectar WhatsApp, se requiere una App creada en `developers.facebook.com`.
 
-**Instalación con Certbot:**
-
-```bash
-# Instalar Certbot
-sudo apt install certbot python3-certbot-nginx
-
-# Obtener certificado
-sudo certbot --nginx -d evarisbot.dominio.com
-
-# Renovación automática (ya configurada)
-sudo certbot renew --dry-run
-```
-
-**Ubicación de Certificados:**
-
-```
-/etc/letsencrypt/live/evarisbot.dominio.com/
-  ├── fullchain.pem   # Certificado completo
-  ├── privkey.pem     # Clave privada
-  ├── cert.pem        # Certificado solo
-  └── chain.pem       # Cadena de certificación
-```
-
-**Renovación:**
-
-```bash
-# Manual
-sudo certbot renew
-
-# Automática (cron ya configurado)
-# Se ejecuta 2 veces al día automáticamente
-```
-
-### 5.2 Certificado Comercial (Alternativa)
-
-Si se usa certificado comprado:
-
-```yaml
-Proveedor: [Nombre del proveedor SSL]
-Tipo: Wildcard / Single Domain
-Validación: DV / OV / EV
-Vigencia: Hasta [Fecha]
-Ubicación Archivos:
-  - Certificado: /etc/ssl/certs/evarisbot.crt
-  - Clave Privada: /etc/ssl/private/evarisbot.key
-  - CA Bundle: /etc/ssl/certs/ca-bundle.crt
-```
+1.  **Tipo de App:** Business (Negocios).
+2.  **Producto:** WhatsApp.
+3.  **Configuración de API:**
+    - Generar Token Permanente (System User).
+    - Asignar Activos (Cuenta de WhatsApp Business).
+4.  **Configuración de Webhook:**
+    - **Callback URL:** `https://evarisbot.huv.gov.co/api/webhook/whatsapp`
+    - **Verify Token:** El valor de `WHATSAPP_WEBHOOK_VERIFY_TOKEN` del .env.
+    - **Campos de suscripción:** `messages`, `message_delivered`, `message_read`, `message_sent`.
 
 ---
 
-## 6. Copias de Seguridad
+## 7. MANTENIMIENTO Y RESPALDOS
 
-### 6.1 Base de Datos
+### 7.1 Base de Datos
+Se recomienda configurar un respaldo diario de la base de datos MySQL (dump).
+Ruta sugerida de backups: `C:\Backups\Evarisbot\`
 
-**Script de Backup Automático:**
+### 7.2 Logs
+Los logs se almacenan en `storage/logs/laravel.log`.
+Se debe revisar este archivo periódicamente para detectar errores de conexión con la API de WhatsApp.
+Configurar rotación de logs diaria para evitar saturación de disco.
 
-```bash
-#!/bin/bash
-# /home/deploy/backup-db.sh
-
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/home/deploy/backups/database"
-DB_NAME="evarisbot_production"
-DB_USER="evarisbot_user"
-DB_PASS="CONTRASEÑA_AQUI"
-
-# Crear directorio si no existe
-mkdir -p $BACKUP_DIR
-
-# Hacer backup
-mysqldump -u $DB_USER -p$DB_PASS $DB_NAME > $BACKUP_DIR/db_backup_$DATE.sql
-
-# Comprimir
-gzip $BACKUP_DIR/db_backup_$DATE.sql
-
-# Eliminar backups antiguos (más de 30 días)
-find $BACKUP_DIR -name "*.gz" -mtime +30 -delete
-
-echo "Backup completado: db_backup_$DATE.sql.gz"
-```
-
-**Cron Job:**
-
-```bash
-# Editar crontab
-crontab -e
-
-# Agregar (backup diario a las 2 AM)
-0 2 * * * /home/deploy/backup-db.sh >> /home/deploy/backups/backup.log 2>&1
-```
-
-### 6.2 Archivos del Sistema
-
-```bash
-#!/bin/bash
-# /home/deploy/backup-files.sh
-
-DATE=$(date +%Y%m%d)
-BACKUP_DIR="/home/deploy/backups/files"
-APP_DIR="/var/www/evarisbot"
-
-mkdir -p $BACKUP_DIR
-
-# Backup de storage y .env
-tar -czf $BACKUP_DIR/files_backup_$DATE.tar.gz \
-  $APP_DIR/storage \
-  $APP_DIR/.env \
-  $APP_DIR/database/database.sqlite
-
-# Eliminar backups antiguos
-find $BACKUP_DIR -name "*.tar.gz" -mtime +15 -delete
-```
-
-### 6.3 Ubicación de Backups
-
-```yaml
-Backups Locales:
-  Base de Datos: /home/deploy/backups/database/
-  Archivos: /home/deploy/backups/files/
-  Retención: 30 días (BD), 15 días (archivos)
-  
-Backups Remotos (Recomendado):
-  Servicio: Amazon S3 / Google Drive / Dropbox
-  Frecuencia: Semanal
-  Retención: 90 días
-```
+### 7.3 Actualizaciones
+Para actualizar el sistema con nuevos cambios del repositorio:
+1.  `git pull origin main`
+2.  `composer install --optimize-autoloader --no-dev`
+3.  `php artisan migrate --force`
+4.  `npm run build`
+5.  `php artisan config:cache`
+6.  `php artisan route:cache`
+7.  `php artisan view:cache`
+8.  Reiniciar servicios con `stop-all-services.bat` y luego `start-all-services.bat`.
 
 ---
 
-## 7. Accesos Administrativos
-
-### 7.1 Panel de Hosting
-
-```yaml
-Proveedor: [Nombre del hosting]
-URL: https://panel.hosting.com
-Usuario: admin@dominio.com
-Contraseña: [VER GESTOR DE CONTRASEÑAS]
-```
-
-### 7.2 Cuenta de Meta Business
-
-```yaml
-URL: https://business.facebook.com
-Email: admin@dominio.com
-Contraseña: [VER GESTOR DE CONTRASEÑAS]
-2FA: Activado (Authenticator App)
-Códigos de Recuperación: [VER GESTOR DE CONTRASEÑAS]
-```
-
-### 7.3 Usuario Administrador del Sistema
-
-```yaml
-Email: admin@dominio.com
-Contraseña: [Cambiar en primer ingreso]
-Rol: admin
-2FA: Activado (Recomendado)
-```
-
-**Crear usuario admin:**
-
-```bash
-php artisan tinker
-
-> $user = new App\Models\User();
-> $user->name = 'Administrador';
-> $user->email = 'admin@dominio.com';
-> $user->password = bcrypt('ContraseñaTemporal123!');
-> $user->role = 'admin';
-> $user->save();
-```
-
----
-
-## 8. Rotación de Credenciales
-
-### 8.1 Calendario de Rotación
-
-| Credencial | Frecuencia | Última Rotación | Próxima Rotación |
-|------------|------------|-----------------|------------------|
-| DB_PASSWORD | 90 días | [Fecha] | [Fecha] |
-| WhatsApp Token | 180 días | [Fecha] | [Fecha] |
-| APP_KEY | Nunca* | [Fecha instalación] | N/A |
-| SSH Keys | 180 días | [Fecha] | [Fecha] |
-| Admin Password | 60 días | [Fecha] | [Fecha] |
-
-*Solo cambiar en caso de compromiso
-
-### 8.2 Procedimiento de Rotación
-
-**Contraseña de Base de Datos:**
-
-```sql
--- 1. Cambiar contraseña
-ALTER USER 'evarisbot_user'@'localhost' 
-  IDENTIFIED BY 'NUEVA_CONTRASEÑA_SEGURA';
-FLUSH PRIVILEGES;
-```
-
-```bash
-# 2. Actualizar .env
-nano .env
-# Cambiar DB_PASSWORD
-
-# 3. Reiniciar servicios
-php artisan config:clear
-php artisan cache:clear
-sudo systemctl restart php8.2-fpm
-sudo systemctl restart nginx
-```
-
-**Token de WhatsApp:**
-
-1. Generar nuevo token en Meta Business Suite
-2. Actualizar `.env`
-3. Probar conexión: `php artisan test-whatsapp`
-4. Revocar token antiguo en Meta
-
----
-
-## 9. Checklist de Seguridad
-
-- [ ] `.env` no está en Git (verificar `.gitignore`)
-- [ ] APP_DEBUG=false en producción
-- [ ] APP_ENV=production
-- [ ] SSL configurado y funcionando (HTTPS)
-- [ ] Firewall activo (UFW/iptables)
-- [ ] Solo puertos necesarios abiertos (80, 443, 22)
-- [ ] SSH con autenticación por clave (no password)
-- [ ] Usuario root deshabilitado para SSH
-- [ ] 2FA activado en cuentas críticas
-- [ ] Backups automáticos configurados
-- [ ] Logs rotando correctamente
-- [ ] Permisos de archivos correctos (storage 775)
-- [ ] Certificado SSL válido y auto-renovable
-
----
-
-**ESTE DOCUMENTO DEBE PERMANECER CONFIDENCIAL**
-
-**Última actualización:** [Fecha]  
-**Actualizado por:** [Nombre del técnico]
-
-**Contacto de emergencia:**
-- Equipo Técnico: tecnico@dominio.com
-- Teléfono: +57 XXX XXX XXXX
+**ÁREA DE INNOVACIÓN Y DESARROLLO**
+**HOSPITAL UNIVERSITARIO DEL VALLE**
