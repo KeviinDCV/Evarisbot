@@ -252,12 +252,27 @@ class AppointmentController extends Controller
     }
 
     /**
-     * Exportar citas a Excel con filtros aplicados
+     * Exportar citas a Excel (.xlsx) — optimizado para grandes volúmenes
+     *
+     * Usa PhpSpreadsheet directamente (sin Maatwebsite) con:
+     *  - Solo las columnas necesarias desde la BD (select)
+     *  - Chunks de 1 000 filas para no saturar RAM
+     *  - Estilos aplicados una sola vez por rango
+     *  - Escritura a archivo temporal y descarga con borrado automático
      */
     public function export(Request $request)
     {
-        $query = Appointment::query();
-        
+        // Aumentar límites para exportaciones grandes
+        set_time_limit(300);
+        ini_set('memory_limit', '512M');
+
+        $query = Appointment::query()
+            ->select([
+                'citead', 'cianom', 'nom_paciente', 'citide', 'pactel',
+                'citfc', 'cithor', 'mednom', 'espnom', 'connom', 'citobsobs',
+                'reminder_sent', 'reminder_sent_at', 'reminder_status', 'created_at',
+            ]);
+
         // Aplicar filtro por estado de recordatorio
         $filter = $request->get('filter', 'all');
         if ($filter !== 'all') {
@@ -269,23 +284,22 @@ class AppointmentController extends Controller
                 $query->where('reminder_status', 'cancelled');
             }
         }
-        
+
         // Filtro por fecha de cita
         $dateFrom = $request->get('date_from');
-        $dateTo = $request->get('date_to');
-        
+        $dateTo   = $request->get('date_to');
+
         if ($dateFrom) {
             $query->whereDate('citfc', '>=', $dateFrom);
         }
-        
         if ($dateTo) {
             $query->whereDate('citfc', '<=', $dateTo);
         }
-        
+
         // Búsqueda
         $search = $request->get('search');
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('nom_paciente', 'LIKE', "%{$search}%")
                   ->orWhere('citide', 'LIKE', "%{$search}%")
                   ->orWhere('pactel', 'LIKE', "%{$search}%")
@@ -293,15 +307,103 @@ class AppointmentController extends Controller
                   ->orWhere('espnom', 'LIKE', "%{$search}%");
             });
         }
-        
-        // Ordenar por fecha de creación
+
         $query->orderBy('created_at', 'desc');
-        
-        // Generar nombre del archivo
+
+        // ---------- Construir spreadsheet ----------
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Citas');
+
+        // Desactivar cálculo automático (acelera escritura)
+        $spreadsheet->getCalculationEngine()
+            ?->disableCalculationCache();
+
+        // Encabezados
+        $headings = [
+            'Admisión', 'IPS', 'Paciente', 'Cédula', 'Teléfono',
+            'Fecha Cita', 'Hora', 'Médico', 'Especialidad', 'Convenio',
+            'Observaciones', 'Recordatorio Enviado', 'Fecha Envío', 'Estado Recordatorio',
+        ];
+        $sheet->fromArray($headings, null, 'A1');
+
+        // Estilo del encabezado (una sola operación sobre el rango)
+        $headerRange = 'A1:N1';
+        $sheet->getStyle($headerRange)->applyFromArray([
+            'font' => [
+                'bold'  => true,
+                'size'  => 12,
+                'color' => ['rgb' => 'FFFFFF'],
+            ],
+            'fill' => [
+                'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => ['rgb' => '2e3f84'],
+            ],
+        ]);
+
+        // Anchos de columna
+        $widths = [
+            'A' => 12, 'B' => 20, 'C' => 30, 'D' => 15, 'E' => 15,
+            'F' => 12, 'G' => 8,  'H' => 25, 'I' => 20, 'J' => 20,
+            'K' => 40, 'L' => 12, 'M' => 16, 'N' => 18,
+        ];
+        foreach ($widths as $col => $w) {
+            $sheet->getColumnDimension($col)->setWidth($w);
+        }
+
+        // Mapa de estados
+        $statusLabels = [
+            'pending'   => 'Pendiente',
+            'sent'      => 'Enviado',
+            'delivered'  => 'Entregado',
+            'read'      => 'Leído',
+            'confirmed' => 'Confirmado',
+            'cancelled' => 'Cancelado',
+            'failed'    => 'Fallido',
+        ];
+
+        // Escribir datos en chunks
+        $row = 2;
+        $query->chunk(1000, function ($appointments) use ($sheet, &$row, $statusLabels) {
+            $batchData = [];
+            foreach ($appointments as $appt) {
+                $batchData[] = [
+                    $appt->citead ?? '',
+                    $appt->cianom ?? '',
+                    $appt->nom_paciente ?? '',
+                    $appt->citide ?? '',
+                    $appt->pactel ?? '',
+                    $appt->citfc  ? $appt->citfc->format('Y-m-d')  : '',
+                    $appt->cithor ? $appt->cithor->format('H:i')   : '',
+                    $appt->mednom ?? '',
+                    $appt->espnom ?? '',
+                    $appt->connom ?? '',
+                    $appt->citobsobs ?? '',
+                    $appt->reminder_sent ? 'Sí' : 'No',
+                    $appt->reminder_sent_at ? $appt->reminder_sent_at->format('Y-m-d H:i') : '',
+                    $statusLabels[$appt->reminder_status] ?? '-',
+                ];
+            }
+            // fromArray escribe todo el bloque de golpe (mucho más rápido que celda a celda)
+            $sheet->fromArray($batchData, null, "A{$row}");
+            $row += count($batchData);
+        });
+
+        // Guardar a archivo temporal y descargar
         $fileName = 'citas_' . now()->format('Y-m-d_His') . '.xlsx';
-        
-        // Exportar
-        return Excel::download(new AppointmentsExport($query), $fileName);
+        $temp     = tempnam(sys_get_temp_dir(), 'citas_export_');
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $writer->setPreCalculateFormulas(false);
+        $writer->save($temp);
+
+        // Liberar memoria
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+
+        return response()->download($temp, $fileName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
     }
 
     /**
@@ -779,9 +881,22 @@ class AppointmentController extends Controller
                 ->where('reminder_sent', false)
                 ->whereNotNull('citfc')
                 ->whereNotNull('pactel')
+                ->where('pactel', '!=', '') // Excluir teléfonos vacíos
                 ->orderBy('citfc', 'asc') // Ordenar por fecha de cita
                 ->limit($maxPerDay) // Respetar límite diario de Meta
                 ->pluck('id');
+
+            // Limpiar errores temporales de intentos previos para permitir reintento
+            Appointment::whereIn('id', $appointments)
+                ->whereNotNull('reminder_error')
+                ->where(function ($q) {
+                    $q->where('reminder_error', 'like', '%attempted too many%')
+                      ->orWhere('reminder_error', 'like', '%Something went wrong%');
+                })
+                ->update([
+                    'reminder_error' => null,
+                    'reminder_status' => 'pending',
+                ]);
             
             Log::info('Iniciando envío de recordatorios masivos', [
                 'user_id' => auth()->id(),

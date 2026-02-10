@@ -21,8 +21,8 @@ class SendAppointmentReminderJob implements ShouldQueue
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 60; // 1 minuto por job
-    public $tries = 3; // Reintentar hasta 3 veces
-    public $backoff = [10, 30, 60]; // Esperar 10s, 30s, 60s entre reintentos
+    public $maxExceptions = 3; // Solo fallar después de 3 ERRORES REALES (no lock contention)
+    public $backoff = [5, 10, 30]; // Esperar 5s, 10s, 30s entre reintentos
 
     /**
      * Create a new job instance.
@@ -38,7 +38,7 @@ class SendAppointmentReminderJob implements ShouldQueue
     public function middleware(): array
     {
         return [
-            new WithoutOverlapping('whatsapp-send', 3), // Un solo mensaje a la vez, liberar después de 3 seg
+            (new WithoutOverlapping('whatsapp-send'))->releaseAfter(10)->expireAfter(30),
         ];
     }
 
@@ -47,7 +47,7 @@ class SendAppointmentReminderJob implements ShouldQueue
      */
     public function retryUntil(): \DateTime
     {
-        return now()->addMinutes(30);
+        return now()->addHours(3); // Permitir hasta 3 horas para lotes grandes (1000+ citas)
     }
 
     /**
@@ -55,10 +55,10 @@ class SendAppointmentReminderJob implements ShouldQueue
      */
     public function handle(AppointmentReminderService $reminderService): void
     {
-        // Rate limiting: esperar 6 segundos entre mensajes
-        // Meta limita mensajes al mismo número, con 6 segundos = 10 mensajes/minuto
-        // Esto es seguro para casos donde múltiples citas van al mismo teléfono
-        sleep(6);
+        // Rate limiting: esperar 3 segundos entre mensajes
+        // Meta permite ~80 mensajes/segundo en Business API, pero es bueno ir conservador
+        // Con 3s entre mensajes = ~20 mensajes/minuto, seguro para cualquier tier
+        sleep(3);
         
         // Verificar si el batch fue cancelado
         if ($this->batch() && $this->batch()->cancelled()) {
@@ -93,9 +93,22 @@ class SendAppointmentReminderJob implements ShouldQueue
             $result = $reminderService->sendReminder($appointment);
             
             if (!$result['success']) {
-                // Actualizar progreso de fallidos
+                $error = $result['error'] ?? 'Error desconocido';
+                
+                // Errores permanentes: no reintentar (teléfono inválido, formato incorrecto)
+                if (str_contains($error, 'Número de teléfono inválido') || str_contains($error, 'formato inválido')) {
+                    $this->updateProgress(false);
+                    Log::warning('Error permanente, no se reintentará', [
+                        'appointment_id' => $this->appointmentId,
+                        'error' => $error
+                    ]);
+                    $this->fail(new \Exception($error));
+                    return;
+                }
+                
+                // Errores temporales: reintentar
                 $this->updateProgress(false);
-                throw new \Exception($result['error'] ?? 'Error desconocido');
+                throw new \Exception($error);
             }
 
             // Actualizar progreso de enviados exitosamente

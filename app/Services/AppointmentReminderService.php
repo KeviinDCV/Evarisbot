@@ -97,7 +97,13 @@ class AppointmentReminderService
         return Appointment::query()
             ->whereDate('citfc', $targetDate)
             ->where('reminder_sent', false)
-            ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
+            ->where(function ($query) {
+                // Excluir solo fallos permanentes (teléfono inválido, etc.)
+                // Permitir reintentar las que fallaron por problemas temporales (lock contention, API timeout)
+                $query->whereNull('reminder_error')
+                      ->orWhere('reminder_error', 'like', '%attempted too many%')
+                      ->orWhere('reminder_error', 'like', '%Something went wrong%');
+            })
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
             ->limit($limit)

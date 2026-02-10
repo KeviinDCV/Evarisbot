@@ -183,7 +183,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                             </Avatar>
                             <div className="overflow-hidden flex-1">
                                 <p className="text-sidebar-foreground text-sm font-semibold truncate">{auth.user?.name}</p>
-                                <p className="text-sidebar-foreground/60 text-xs truncate">{t('admin.role')}</p>
+                                <p className="text-sidebar-foreground/60 text-xs truncate">{auth.user?.role === 'admin' ? t('users.roles.admin') : t('users.roles.advisor')}</p>
                             </div>
                         </div>
                         <nav className="flex flex-col gap-1">

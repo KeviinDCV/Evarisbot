@@ -8,7 +8,7 @@ echo.
 
 :loop
 echo [%date% %time%] Iniciando worker...
-php artisan queue:work database --sleep=3 --tries=3 --max-jobs=100 --max-time=3600 --memory=512 --timeout=60
+php artisan queue:work database --sleep=3 --max-jobs=100 --max-time=3600 --memory=512 --timeout=120
 
 echo.
 echo [%date% %time%] Worker detenido. Reiniciando en 5 segundos...

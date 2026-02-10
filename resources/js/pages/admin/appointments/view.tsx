@@ -160,58 +160,47 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                 </span>
             );
         }
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                <CalendarCheck className="w-3 h-3" />
+                Enviado
+            </span>
+        );
+    };
 
-        switch (appointment.reminder_status) {
-            case 'sent':
-                return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
-                        <CalendarCheck className="w-3 h-3" />
-                        Enviado
-                    </span>
-                );
-            case 'failed':
-                return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
-                        <CalendarX className="w-3 h-3" />
-                        Fallido
-                    </span>
-                );
-            case 'delivered':
-                return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
-                        <CalendarCheck className="w-3 h-3" />
-                        Entregado
-                    </span>
-                );
-            case 'confirmed':
-                return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-medium">
-                        <CalendarCheck className="w-3 h-3" />
-                        Confirmada
-                    </span>
-                );
-            case 'cancelled':
-                return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
-                        <CalendarX className="w-3 h-3" />
-                        Cancelada
-                    </span>
-                );
-            case 'read':
-                return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs font-medium">
-                        <CalendarCheck className="w-3 h-3" />
-                        Leído
-                    </span>
-                );
-            default:
-                return (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-muted text-foreground text-xs font-medium">
-                        <Clock className="w-3 h-3" />
-                        Pendiente
-                    </span>
-                );
+    const getDeliveryStatusBadge = (appointment: Appointment) => {
+        if (!appointment.reminder_sent) {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none text-xs font-medium settings-subtitle">
+                    —
+                </span>
+            );
         }
+
+        if (appointment.reminder_status === 'failed') {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
+                    <CalendarX className="w-3 h-3" />
+                    Error
+                </span>
+            );
+        }
+
+        if (['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status)) {
+            return (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
+                    <CalendarCheck className="w-3 h-3" />
+                    Recibido
+                </span>
+            );
+        }
+
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+                <Clock className="w-3 h-3" />
+                En camino
+            </span>
+        );
     };
 
     return (
@@ -286,7 +275,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 }}
                             >
                                 <Download className="w-4 h-4" />
-                                Exportar a Excel
+                                Exportar Excel
                             </a>
                         </div>
                         <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
@@ -501,6 +490,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                             )}
                                         </div>
                                     </th>
+                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Estado</th>
                                 </tr>
                             </thead>
                             <tbody className="table-body-light divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
@@ -537,11 +527,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                             <td className="px-4 py-3 whitespace-nowrap">
                                                 {getStatusBadge(appointment)}
                                             </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                {getDeliveryStatusBadge(appointment)}
+                                            </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={9} className="px-4 py-8 text-center settings-subtitle">
+                                        <td colSpan={10} className="px-4 py-8 text-center settings-subtitle">
                                             No se encontraron citas con los filtros seleccionados
                                         </td>
                                     </tr>

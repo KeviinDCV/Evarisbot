@@ -101,6 +101,17 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/{conversation}/status', 'updateStatus')->name('chat.status');
         Route::delete('/{conversation}/hide', 'hide')->name('chat.hide');
     });
+
+    // Etiquetas de conversaciones
+    Route::controller(\App\Http\Controllers\TagController::class)->prefix('tags')->name('tags.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/', 'store')->name('store');
+        Route::put('/{tag}', 'update')->name('update');
+        Route::delete('/{tag}', 'destroy')->name('destroy');
+        Route::get('/conversation/{conversation}', 'conversationTags')->name('conversation');
+        Route::post('/conversation/{conversation}/attach', 'attach')->name('attach');
+        Route::delete('/conversation/{conversation}/detach/{tag}', 'detach')->name('detach');
+    });
     
     // Plantillas - Solo lectura para asesores
     Route::get('templates', [\App\Http\Controllers\Admin\TemplateController::class, 'index'])->name('templates.index');

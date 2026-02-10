@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Conversation extends Model
@@ -94,5 +95,13 @@ class Conversation extends Model
     public function scopeWithUnread($query)
     {
         return $query->where('unread_count', '>', 0);
+    }
+
+    /**
+     * Etiquetas de la conversación
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'conversation_tag')->withTimestamps();
     }
 }

@@ -9,10 +9,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 
 interface Statistics {
     messages: {
+        total: number;
         sent: number;
-        answered: number;
-        confirmed: number;
-        cancelled: number;
+        received: number;
         by_status: {
             [key: string]: number;
         };
@@ -32,11 +31,10 @@ interface Statistics {
         total: number;
         active: number;
         pending: number;
+        in_progress: number;
         resolved: number;
+        closed: number;
         unread: number;
-        by_status: {
-            [key: string]: number;
-        };
     };
     templates: {
         total: number;
@@ -162,15 +160,17 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     const conversationsStatusData = [
         { name: t('statistics.conversations.active'), value: statistics.conversations.active },
         { name: t('statistics.conversations.pending'), value: statistics.conversations.pending },
+        { name: t('statistics.conversations.inProgress'), value: statistics.conversations.in_progress },
         { name: t('statistics.conversations.resolved'), value: statistics.conversations.resolved },
+        { name: t('statistics.conversations.closed'), value: statistics.conversations.closed },
     ];
 
     const mainStatsData = [
+        { name: t('statistics.messages.total'), value: statistics.messages.total },
         { name: t('statistics.messages.sent'), value: statistics.messages.sent },
-        { name: t('statistics.messages.answered'), value: statistics.messages.answered },
+        { name: t('statistics.messages.received'), value: statistics.messages.received },
         { name: t('statistics.appointments.total'), value: statistics.appointments.total },
         { name: t('statistics.conversations.total'), value: statistics.conversations.total },
-        { name: t('statistics.templates.total'), value: statistics.templates.total },
     ];
 
     return (
@@ -343,10 +343,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={Send} label={t('statistics.messages.sent')} value={statistics.messages.sent} index={0} />
-                                    <StatRow icon={MessageSquare} label={t('statistics.messages.answered')} value={statistics.messages.answered} index={1} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.messages.confirmed')} value={statistics.messages.confirmed} index={2} />
-                                    <StatRow icon={XCircle} label={t('statistics.messages.cancelled')} value={statistics.messages.cancelled} index={3} />
+                                    <StatRow icon={MessageSquare} label={t('statistics.messages.total')} value={statistics.messages.total} index={0} />
+                                    <StatRow icon={Send} label={t('statistics.messages.sent')} value={statistics.messages.sent} index={1} />
+                                    <StatRow icon={MessageSquare} label={t('statistics.messages.received')} value={statistics.messages.received} index={2} />
                                 </div>
                                 <div className="mt-2 pt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
                                     <h3 className="font-semibold mb-1.5 settings-title" style={{ fontSize: 'var(--text-xs)' }}>
@@ -400,8 +399,10 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <StatRow icon={MessageSquare} label={t('statistics.conversations.total')} value={statistics.conversations.total} index={0} />
                                     <StatRow icon={CheckCircle2} label={t('statistics.conversations.active')} value={statistics.conversations.active} index={1} />
                                     <StatRow icon={Clock} label={t('statistics.conversations.pending')} value={statistics.conversations.pending} index={2} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.conversations.resolved')} value={statistics.conversations.resolved} index={3} />
-                                    <StatRow icon={AlertCircle} label={t('statistics.conversations.unread')} value={statistics.conversations.unread} index={4} />
+                                    <StatRow icon={Clock} label={t('statistics.conversations.inProgress')} value={statistics.conversations.in_progress} index={3} />
+                                    <StatRow icon={CheckCircle2} label={t('statistics.conversations.resolved')} value={statistics.conversations.resolved} index={4} />
+                                    <StatRow icon={XCircle} label={t('statistics.conversations.closed')} value={statistics.conversations.closed} index={5} />
+                                    <StatRow icon={AlertCircle} label={t('statistics.conversations.unread')} value={statistics.conversations.unread} index={6} />
                                 </div>
                             </div>
 
@@ -446,10 +447,10 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 </div>
                                 <div className="space-y-1">
                                     <StatRow icon={Users} label="Total Asesores" value={statistics.advisors.total_advisors} index={0} />
-                                    <StatRow icon={MessageSquare} label="Conversaciones Totales" value={statistics.advisors.total_conversations} index={1} />
+                                    <StatRow icon={MessageSquare} label="Conversaciones Atendidas" value={statistics.advisors.total_conversations} index={1} />
                                     <StatRow icon={CheckCircle2} label="Conversaciones Resueltas" value={statistics.advisors.total_resolved} index={2} />
                                     <StatRow icon={Clock} label="Conversaciones Activas" value={statistics.advisors.total_active} index={3} />
-                                    <StatRow icon={AlertCircle} label="Con Sin Leer" value={statistics.advisors.total_with_unread} index={4} />
+                                    <StatRow icon={AlertCircle} label="Conversaciones Sin Leer" value={statistics.advisors.total_with_unread} index={4} />
                                     <StatRow icon={Send} label="Mensajes Enviados" value={statistics.advisors.total_messages_sent} index={5} />
                                     <div 
                                         className="flex items-center justify-between py-1.5 px-2 rounded-none transition-colors stat-row-alt"

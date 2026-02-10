@@ -1104,6 +1104,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Médico</th>
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Especialidad</th>
                                             <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Recordatorio</th>
+                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Estado</th>
                                         </tr>
                                     </thead>
                                     <tbody className="table-body-light divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
@@ -1135,48 +1136,36 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap">
                                                     {appointment.reminder_sent ? (
-                                                        <div className="flex items-center gap-2">
-                                                            {appointment.reminder_status === 'sent' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-sent text-xs font-medium">
-                                                                    <CheckCircle2 className="w-3 h-3" />
-                                                                    Enviado
-                                                                </span>
-                                                            )}
-                                                            {appointment.reminder_status === 'failed' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-failed text-xs font-medium">
-                                                                    <XCircle className="w-3 h-3" />
-                                                                    Fallido
-                                                                </span>
-                                                            )}
-                                                            {appointment.reminder_status === 'delivered' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-delivered text-xs font-medium">
-                                                                    <CheckCircle2 className="w-3 h-3" />
-                                                                    Entregado
-                                                                </span>
-                                                            )}
-                                                            {appointment.reminder_status === 'confirmed' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-confirmed text-xs font-medium">
-                                                                    <CalendarCheck className="w-3 h-3" />
-                                                                    Confirmada
-                                                                </span>
-                                                            )}
-                                                            {appointment.reminder_status === 'cancelled' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-cancelled text-xs font-medium">
-                                                                    <CalendarX className="w-3 h-3" />
-                                                                    Cancelada
-                                                                </span>
-                                                            )}
-                                                            {appointment.reminder_status === 'read' && (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-read text-xs font-medium">
-                                                                    <CheckCircle2 className="w-3 h-3" />
-                                                                    Leído
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-sent text-xs font-medium">
+                                                            <CheckCircle2 className="w-3 h-3" />
+                                                            Enviado
+                                                        </span>
                                                     ) : (
                                                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-pending text-xs font-medium">
                                                             <Clock className="w-3 h-3" />
                                                             Pendiente
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    {!appointment.reminder_sent ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none text-xs font-medium settings-subtitle">
+                                                            —
+                                                        </span>
+                                                    ) : appointment.reminder_status === 'failed' ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-failed text-xs font-medium">
+                                                            <XCircle className="w-3 h-3" />
+                                                            Error
+                                                        </span>
+                                                    ) : ['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status) ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-delivered text-xs font-medium">
+                                                            <CheckCircle2 className="w-3 h-3" />
+                                                            Recibido
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-sent text-xs font-medium">
+                                                            <Clock className="w-3 h-3" />
+                                                            En camino
                                                         </span>
                                                     )}
                                                 </td>

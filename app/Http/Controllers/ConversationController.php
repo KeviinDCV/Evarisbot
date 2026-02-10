@@ -52,7 +52,7 @@ class ConversationController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Conversation::with(['lastMessage', 'assignedUser'])
+        $query = Conversation::with(['lastMessage', 'assignedUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         $user = auth()->user();
@@ -96,6 +96,11 @@ class ConversationController extends Controller
             }
         }
 
+        // Filtrar por etiqueta
+        if ($request->has('tag') && is_numeric($request->tag)) {
+            $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
         // Buscar por nombre, teléfono o contenido de mensajes
         if ($request->has('search') && !empty($request->search)) {
             $search = trim($request->search);
@@ -127,6 +132,9 @@ class ConversationController extends Controller
         // Obtener todos los usuarios (asesores) disponibles para asignación
         $users = User::select('id', 'name', 'role')->get();
 
+        // Obtener todas las etiquetas disponibles
+        $allTags = \App\Models\Tag::withCount('conversations')->orderBy('name')->get();
+
         // Si es una petición de paginación (AJAX), devolver solo las conversaciones
         if ($request->wantsJson() || $request->has('page')) {
             return response()->json([
@@ -140,7 +148,8 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'hasMore' => $hasMore,
             'users' => $users,
-            'filters' => $request->only(['status', 'assigned', 'search']),
+            'allTags' => $allTags,
+            'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
         ]);
     }
 
@@ -168,7 +177,7 @@ class ConversationController extends Controller
             }
         }
 
-        $query = Conversation::with(['lastMessage', 'assignedUser'])
+        $query = Conversation::with(['lastMessage', 'assignedUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         // Si es asesor, verificar si está de turno
@@ -208,6 +217,11 @@ class ConversationController extends Controller
             }
         }
 
+        // Filtrar por etiqueta
+        if ($request->has('tag') && is_numeric($request->tag)) {
+            $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
         // Buscar por nombre, teléfono o contenido de mensajes
         if ($request->has('search') && !empty($request->search)) {
             $search = trim($request->search);
@@ -230,13 +244,16 @@ class ConversationController extends Controller
         $hasMore = $conversations->count() === $perPage;
         
         // Cargar la conversación seleccionada con todos sus mensajes
-        $conversation->load(['messages.sender', 'assignedUser']);
+        $conversation->load(['messages.sender', 'assignedUser', 'tags']);
         
         // Marcar mensajes como leídos
         $conversation->markAsRead();
 
         // Obtener todos los usuarios (asesores) disponibles para asignación
         $users = User::select('id', 'name', 'role')->get();
+
+        // Obtener todas las etiquetas disponibles
+        $allTags = \App\Models\Tag::withCount('conversations')->orderBy('name')->get();
 
         // Obtener plantillas activas (globales o asignadas al usuario actual)
         $templates = Template::active()
@@ -260,7 +277,8 @@ class ConversationController extends Controller
             'hasMore' => $hasMore,
             'selectedConversation' => $conversation,
             'users' => $users,
-            'filters' => $request->only(['status', 'assigned', 'search']),
+            'allTags' => $allTags,
+            'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
             'templates' => $templates,
         ]);
     }

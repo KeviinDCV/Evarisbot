@@ -119,12 +119,11 @@ class StatisticsExport
 
         // Resumen de Mensajes
         $this->addSection($sheet, $row, 'MENSAJES', [
-            ['Enviados', $this->statistics['messages']['sent']],
-            ['Contestados', $this->statistics['messages']['answered']],
-            ['Confirmados', $this->statistics['messages']['confirmed']],
-            ['Cancelados', $this->statistics['messages']['cancelled']],
+            ['Total de mensajes', $this->statistics['messages']['total']],
+            ['Enviados por el sistema', $this->statistics['messages']['sent']],
+            ['Recibidos de pacientes', $this->statistics['messages']['received']],
         ], self::COLOR_INFO);
-        $row += 8;
+        $row += 7;
 
         // Resumen de Citas
         $this->addSection($sheet, $row, 'CITAS', [
@@ -142,10 +141,12 @@ class StatisticsExport
             ['Total', $this->statistics['conversations']['total']],
             ['Activas', $this->statistics['conversations']['active']],
             ['Pendientes', $this->statistics['conversations']['pending']],
+            ['En progreso', $this->statistics['conversations']['in_progress'] ?? 0],
             ['Resueltas', $this->statistics['conversations']['resolved'] ?? 0],
+            ['Cerradas', $this->statistics['conversations']['closed'] ?? 0],
             ['Con mensajes sin leer', $this->statistics['conversations']['unread']],
         ], self::COLOR_SUCCESS);
-        $row += 8;
+        $row += 11;
 
         // Resumen de Plantillas
         $this->addSection($sheet, $row, 'PLANTILLAS', [
@@ -187,10 +188,9 @@ class StatisticsExport
         $row++;
 
         $data = [
-            ['Enviados', $this->statistics['messages']['sent']],
-            ['Contestados', $this->statistics['messages']['answered']],
-            ['Confirmados', $this->statistics['messages']['confirmed']],
-            ['Cancelados', $this->statistics['messages']['cancelled']],
+            ['Total de mensajes', $this->statistics['messages']['total']],
+            ['Enviados por el sistema', $this->statistics['messages']['sent']],
+            ['Recibidos de pacientes', $this->statistics['messages']['received']],
         ];
 
         $dataRow = 0;
@@ -296,7 +296,9 @@ class StatisticsExport
             ['Total', $this->statistics['conversations']['total']],
             ['Activas', $this->statistics['conversations']['active']],
             ['Pendientes', $this->statistics['conversations']['pending']],
+            ['En progreso', $this->statistics['conversations']['in_progress'] ?? 0],
             ['Resueltas', $this->statistics['conversations']['resolved'] ?? 0],
+            ['Cerradas', $this->statistics['conversations']['closed'] ?? 0],
             ['Con mensajes sin leer', $this->statistics['conversations']['unread']],
         ];
 
@@ -445,7 +447,7 @@ class StatisticsExport
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
-        $sheet->setCellValue('A' . $row, 'Con Sin Leer');
+        $sheet->setCellValue('A' . $row, 'Conversaciones Sin Leer');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_with_unread']);
         $sheet->mergeCells('B' . $row . ':G' . $row);
         $this->styleInfoRow($sheet, $row, 'A');

@@ -36,7 +36,9 @@ import {
     CornerDownLeft,
     CheckSquare,
     Square,
-    ListFilter
+    ListFilter,
+    Tag,
+    Pencil,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -100,6 +102,14 @@ interface Conversation {
         is_from_user: boolean;
     } | null;
     messages?: Message[];
+    tags?: TagItem[];
+}
+
+interface TagItem {
+    id: number;
+    name: string;
+    color: string;
+    conversations_count?: number;
 }
 
 interface User {
@@ -129,15 +139,17 @@ interface ConversationsIndexProps {
     hasMore?: boolean;
     selectedConversation?: Conversation;
     users: User[];
+    allTags?: TagItem[];
     filters: {
         search?: string;
         status?: string;
         assigned?: string;
+        tag?: string;
     };
     templates?: Template[];
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, filters, templates = [] }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, allTags: initialAllTags = [], filters, templates = [] }: ConversationsIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -187,6 +199,95 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [showTemplates, setShowTemplates] = useState(false);
     const [templateFilter, setTemplateFilter] = useState('');
     const [selectedTemplateIndex, setSelectedTemplateIndex] = useState(0);
+
+    // Estados para etiquetas
+    const [allTags, setAllTags] = useState<TagItem[]>(initialAllTags);
+    const [showTagSubmenu, setShowTagSubmenu] = useState(false);
+    const [newTagName, setNewTagName] = useState('');
+    const [newTagColor, setNewTagColor] = useState('#6366f1');
+    const [tagFilterId, setTagFilterId] = useState<number | null>(
+        filters.tag && !isNaN(Number(filters.tag)) ? Number(filters.tag) : null
+    );
+    const [showTagFilter, setShowTagFilter] = useState(false);
+    const [tagDropdownPosition, setTagDropdownPosition] = useState({ top: 0, right: 0 });
+    const tagFilterButtonRef = useRef<HTMLButtonElement>(null);
+    const [editingTag, setEditingTag] = useState<{ id: number; name: string; color: string } | null>(null);
+
+    const TAG_COLORS = ['#6366f1', '#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#8b5cf6', '#14b8a6'];
+
+    // Funciones de etiquetas
+    const createTag = async (name: string, color: string) => {
+        try {
+            const res = await fetch('/admin/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                body: JSON.stringify({ name, color }),
+            });
+            if (res.ok) {
+                const tag = await res.json();
+                setAllTags(prev => [...prev, { ...tag, conversations_count: 0 }].sort((a, b) => a.name.localeCompare(b.name)));
+                return tag;
+            }
+        } catch {}
+        return null;
+    };
+
+    const attachTag = async (conversationId: number, tagId: number) => {
+        try {
+            await fetch(`/admin/tags/conversation/${conversationId}/attach`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                body: JSON.stringify({ tag_id: tagId }),
+            });
+            router.reload({ only: ['conversations', 'selectedConversation', 'allTags'] });
+        } catch {}
+    };
+
+    const detachTag = async (conversationId: number, tagId: number) => {
+        try {
+            await fetch(`/admin/tags/conversation/${conversationId}/detach/${tagId}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+            });
+            router.reload({ only: ['conversations', 'selectedConversation', 'allTags'] });
+        } catch {}
+    };
+
+    const deleteTag = async (tagId: number) => {
+        if (!confirm('¿Eliminar esta etiqueta? Se quitará de todas las conversaciones.')) return;
+        try {
+            await fetch(`/admin/tags/${tagId}`, {
+                method: 'DELETE',
+                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+            });
+            setAllTags(prev => prev.filter(t => t.id !== tagId));
+            if (tagFilterId === tagId) {
+                setTagFilterId(null);
+                applyFiltersWithTag(statusFilter, filterByAdvisor, null);
+            }
+            setEditingTag(null);
+            router.reload({ only: ['conversations', 'selectedConversation'] });
+        } catch {}
+    };
+
+    const updateTag = async (tagId: number, name: string, color: string) => {
+        try {
+            const res = await fetch(`/admin/tags/${tagId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({ name, color }),
+            });
+            if (res.ok) {
+                const updated = await res.json();
+                setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, name: updated.name, color: updated.color } : t));
+                setEditingTag(null);
+                router.reload({ only: ['conversations', 'selectedConversation'] });
+            }
+        } catch {}
+    };
 
     // Filtrar plantillas basadas en el texto después de /
     const filteredTemplates = templates.filter(template =>
@@ -422,6 +523,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Ref para trackear los últimos filtros de status y assigned
     const lastStatusFilterRef = useRef<string>(filters.status || 'all');
     const lastAssignedFilterRef = useRef<string>(filters.assigned || '');
+    const lastTagFilterRef = useRef<string>(filters.tag || '');
     // Ref para trackear si había conversación seleccionada
     const lastSelectedConversationRef = useRef<number | null>(selectedConversation?.id || null);
 
@@ -430,20 +532,23 @@ export default function ConversationsIndex({ conversations: initialConversations
         const currentSearchFilter = filters.search || '';
         const currentStatusFilter = filters.status || 'all';
         const currentAssignedFilter = filters.assigned || '';
+        const currentTagFilter = filters.tag || '';
 
         const searchChanged = currentSearchFilter !== lastSearchFilterRef.current;
         const statusChanged = currentStatusFilter !== lastStatusFilterRef.current;
         const assignedChanged = currentAssignedFilter !== lastAssignedFilterRef.current;
+        const tagChanged = currentTagFilter !== lastTagFilterRef.current;
         const selectedChanged = (selectedConversation?.id || null) !== lastSelectedConversationRef.current;
 
         // Actualizar refs
         lastSearchFilterRef.current = currentSearchFilter;
         lastStatusFilterRef.current = currentStatusFilter;
         lastAssignedFilterRef.current = currentAssignedFilter;
+        lastTagFilterRef.current = currentTagFilter;
         lastSelectedConversationRef.current = selectedConversation?.id || null;
 
         // Si cambió algún filtro, resetear completamente
-        if (searchChanged || statusChanged || assignedChanged) {
+        if (searchChanged || statusChanged || assignedChanged || tagChanged) {
             setLocalConversations(initialConversations);
             setHasMore(initialHasMore);
             setCurrentPage(1);
@@ -498,6 +603,11 @@ export default function ConversationsIndex({ conversations: initialConversations
             });
         });
     }, [initialConversations, filters.search, filters.status, filters.assigned, initialHasMore, selectedConversation?.id]);
+
+    // Sincronizar allTags con props de Inertia
+    useEffect(() => {
+        setAllTags(initialAllTags);
+    }, [initialAllTags]);
 
     // Función para cargar más conversaciones (scroll infinito)
     const loadMoreConversations = useCallback(async () => {
@@ -567,7 +677,11 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Cerrar menú contextual al hacer click fuera
     useEffect(() => {
-        const handleClickOutside = () => setContextMenu(null);
+        const handleClickOutside = () => {
+            setContextMenu(null);
+            setShowTagSubmenu(false);
+            setNewTagName('');
+        };
 
         if (contextMenu) {
             window.addEventListener('click', handleClickOutside);
@@ -611,11 +725,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setShowBulkAssignMenu(false);
                 setBulkAssignSearchQuery('');
             }
+            if (showTagFilter) {
+                setShowTagFilter(false);
+                setEditingTag(null);
+            }
         };
 
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
-    }, [showAdvisorFilter, showStatusFilter, showBulkAssignMenu]);
+    }, [showAdvisorFilter, showStatusFilter, showBulkAssignMenu, showTagFilter]);
 
     // Cerrar visor de medios con Escape y manejar wheel zoom
     useEffect(() => {
@@ -833,6 +951,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (search) params.search = search;
         if (newStatus !== 'all') params.status = newStatus;
         if (newAdvisor !== null) params.assigned = String(newAdvisor);
+        if (tagFilterId !== null) params.tag = String(tagFilterId);
 
         // Si hay una conversación seleccionada, mantenerla abierta
         const url = selectedConversation
@@ -844,6 +963,29 @@ export default function ConversationsIndex({ conversations: initialConversations
             preserveScroll: true,
             replace: true,
             only: ['conversations', 'hasMore', 'filters'],
+        });
+    }, [search, selectedConversation, tagFilterId]);
+
+    // Función para aplicar filtros incluyendo tag
+    const applyFiltersWithTag = useCallback((newStatus: string, newAdvisor: number | null, newTagId: number | null) => {
+        setCurrentPage(1);
+        hasLoadedExtraPagesRef.current = false;
+
+        const params: Record<string, string> = {};
+        if (search) params.search = search;
+        if (newStatus !== 'all') params.status = newStatus;
+        if (newAdvisor !== null) params.assigned = String(newAdvisor);
+        if (newTagId !== null) params.tag = String(newTagId);
+
+        const url = selectedConversation
+            ? `/admin/chat/${selectedConversation.id}`
+            : '/admin/chat';
+
+        router.get(url, params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            only: ['conversations', 'hasMore', 'filters', 'allTags'],
         });
     }, [search, selectedConversation]);
 
@@ -978,17 +1120,6 @@ export default function ConversationsIndex({ conversations: initialConversations
             return;
         }
 
-        // Verificar si han pasado 24 horas desde el último mensaje del usuario
-        const lastMessageInfo = getLastUserMessageInfo();
-        if (lastMessageInfo && lastMessageInfo.isExpired) {
-            setLastUserMessageInfo({
-                date: lastMessageInfo.date,
-                hoursAgo: lastMessageInfo.hoursAgo
-            });
-            setShow24HourWarning(true);
-            return;
-        }
-
         setIsSubmitting(true);
 
         // Guardar conteo de mensajes actual para detectar cuando llegue el real
@@ -1107,6 +1238,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (!selectedConversation) return;
         router.post(`/admin/chat/${selectedConversation.id}/status`, { status }, {
             preserveScroll: true,
+            onSuccess: () => {
+                if (status === 'resolved') {
+                    // Navegar al índice para deseleccionar y refrescar lista
+                    router.visit('/admin/chat', { preserveScroll: true });
+                }
+            },
         });
     };
 
@@ -1114,6 +1251,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         setContextMenu(null);
         router.post(`/admin/chat/${conversationId}/status`, { status }, {
             preserveScroll: true,
+            onSuccess: () => {
+                if (status === 'resolved') {
+                    // Refrescar lista inmediatamente
+                    router.reload({ only: ['conversations'] });
+                }
+            },
         });
     };
 
@@ -1149,19 +1292,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                     {/* Header */}
                     <div className="p-3 md:p-4 conversation-header">
                         <div className="flex items-center justify-between mb-2 md:mb-3">
-                            <h2 className="text-lg md:text-xl font-bold text-primary dark:text-primary truncate">{t('conversations.title')}</h2>
+                            <h2 className="text-base md:text-lg font-bold text-primary dark:text-primary whitespace-nowrap">{t('conversations.title')}</h2>
 
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                                {/* Botón para nueva conversación - Solo visible para admin */}
-                                {isAdmin && (
-                                    <button
-                                        onClick={() => setShowNewChatModal(true)}
-                                        className="p-1.5 chat-message-sent text-white rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
-                                        title={t('conversations.newConversation')}
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                    </button>
-                                )}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* Botón para nueva conversación - Visible para admin y asesor */}
+                                <button
+                                    onClick={() => setShowNewChatModal(true)}
+                                    className="p-1.5 chat-message-sent text-white rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                    title={t('conversations.newConversation')}
+                                >
+                                    <Plus className="w-4 h-4" />
+                                </button>
                                 {/* Botón de filtro por estado */}
                                 <div className="relative" onClick={(e) => e.stopPropagation()}>
                                     <button
@@ -1209,6 +1350,161 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     {statusFilter === option.value && <Check className="w-4 h-4 text-primary dark:text-primary" />}
                                                 </button>
                                             ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Botón de filtro por etiqueta */}
+                                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                        ref={tagFilterButtonRef}
+                                        onClick={() => {
+                                            setShowStatusFilter(false);
+                                            setShowAdvisorFilter(false);
+                                            if (!showTagFilter && tagFilterButtonRef.current) {
+                                                const rect = tagFilterButtonRef.current.getBoundingClientRect();
+                                                setTagDropdownPosition({
+                                                    top: rect.bottom + 4,
+                                                    right: window.innerWidth - rect.right
+                                                });
+                                            }
+                                            setShowTagFilter(!showTagFilter);
+                                        }}
+                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${tagFilterId !== null
+                                            ? 'bg-gradient-to-b from-[#8b5cf6] to-[#7c3aed] text-white'
+                                            : 'chat-message-sent text-white'
+                                            }`}
+                                        title="Filtrar por etiqueta"
+                                    >
+                                        <Tag className="w-4 h-4" />
+                                    </button>
+
+                                    {showTagFilter && (
+                                        <div 
+                                            className="fixed card-gradient rounded-none shadow-xl border border-border py-2 z-[9999] min-w-[280px] overflow-y-auto" 
+                                            style={{ 
+                                                top: tagDropdownPosition.top, 
+                                                right: tagDropdownPosition.right,
+                                                maxHeight: 'min(500px, calc(100vh - 150px))' // Altura adaptativa segura
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
+                                                Gestionar etiquetas
+                                            </div>
+                                            {/* Opción "Todas" para quitar filtro */}
+                                            <button
+                                                onClick={() => {
+                                                    setTagFilterId(null);
+                                                    setShowTagFilter(false);
+                                                    setEditingTag(null);
+                                                    applyFiltersWithTag(statusFilter, filterByAdvisor, null);
+                                                }}
+                                                className={`w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between ${tagFilterId === null ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                            >
+                                                <span>Todas</span>
+                                                {tagFilterId === null && <Check className="w-4 h-4 text-primary" />}
+                                            </button>
+
+                                            <div className="border-t border-border my-1"></div>
+
+                                            {/* Lista de etiquetas con acciones */}
+                                            {allTags.map((tag) => (
+                                                <div key={tag.id}>
+                                                    {editingTag?.id === tag.id ? (
+                                                        /* Modo edición inline */
+                                                        <div className="px-3 py-2 space-y-2">
+                                                            <input
+                                                                type="text"
+                                                                value={editingTag.name}
+                                                                onChange={(e) => setEditingTag({ ...editingTag, name: e.target.value })}
+                                                                className="w-full px-2 py-1 text-sm border border-border rounded bg-muted focus:outline-none focus:border-primary"
+                                                                autoFocus
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter' && editingTag.name.trim()) {
+                                                                        updateTag(tag.id, editingTag.name.trim(), editingTag.color);
+                                                                    }
+                                                                    if (e.key === 'Escape') setEditingTag(null);
+                                                                }}
+                                                            />
+                                                            <div className="flex gap-1 flex-wrap">
+                                                                {TAG_COLORS.map((c) => (
+                                                                    <button
+                                                                        key={c}
+                                                                        onClick={() => setEditingTag({ ...editingTag, color: c })}
+                                                                        className={`w-5 h-5 rounded-full border-2 transition-all ${editingTag.color === c ? 'border-foreground scale-110' : 'border-transparent'}`}
+                                                                        style={{ backgroundColor: c }}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                            <div className="flex gap-1">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (editingTag.name.trim()) {
+                                                                            updateTag(tag.id, editingTag.name.trim(), editingTag.color);
+                                                                        }
+                                                                    }}
+                                                                    className="flex-1 px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90"
+                                                                >
+                                                                    Guardar
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingTag(null)}
+                                                                    className="flex-1 px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent"
+                                                                >
+                                                                    Cancelar
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        /* Modo normal: filtrar + acciones */
+                                                        <div className={`flex items-center group hover:bg-accent ${tagFilterId === tag.id ? 'bg-muted' : ''}`}>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setTagFilterId(tag.id);
+                                                                    setShowTagFilter(false);
+                                                                    setEditingTag(null);
+                                                                    applyFiltersWithTag(statusFilter, filterByAdvisor, tag.id);
+                                                                }}
+                                                                className="flex-1 px-3 py-2 text-left text-sm flex items-center gap-2 min-w-0"
+                                                            >
+                                                                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }}></span>
+                                                                <span className="truncate">{tag.name}</span>
+                                                                <span className="text-xs text-muted-foreground flex-shrink-0">({tag.conversations_count ?? 0})</span>
+                                                            </button>
+                                                            {/* Botones editar/eliminar */}
+                                                            <div className="flex items-center gap-0.5 pr-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setEditingTag({ id: tag.id, name: tag.name, color: tag.color });
+                                                                    }}
+                                                                    className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-muted-foreground hover:text-blue-600"
+                                                                    title="Editar etiqueta"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        deleteTag(tag.id);
+                                                                    }}
+                                                                    className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600"
+                                                                    title="Eliminar etiqueta"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+
+                                            {allTags.length === 0 && (
+                                                <div className="px-3 py-2 text-xs text-muted-foreground text-center">
+                                                    Sin etiquetas. Clic derecho en un chat para crear una.
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -1437,6 +1733,26 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </span>
                                                 )}
                                             </div>
+                                            {/* Etiquetas de la conversación */}
+                                            {conversation.tags && conversation.tags.length > 0 && (
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {conversation.tags.slice(0, 3).map((tag) => (
+                                                        <span
+                                                            key={tag.id}
+                                                            className="text-[10px] text-white px-1.5 py-0.5 rounded-sm truncate max-w-[70px]"
+                                                            style={{ backgroundColor: tag.color }}
+                                                            title={tag.name}
+                                                        >
+                                                            {tag.name}
+                                                        </span>
+                                                    ))}
+                                                    {conversation.tags.length > 3 && (
+                                                        <span className="text-[10px] text-muted-foreground px-1">
+                                                            +{conversation.tags.length - 3}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </button>
                                 ))}
@@ -1580,13 +1896,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                         const conversation = localConversations.find((c: Conversation) => c.id === contextMenu.conversationId);
                         if (!conversation) return null;
 
+                        // Lógica de posicionamiento inteligente para evitar desbordamiento
+                        const windowHeight = window.innerHeight;
+                        const spaceBelow = windowHeight - contextMenu.y;
+                        const minSpaceResult = 400; // Espacio mínimo deseado
+                        
+                        // Si hay poco espacio abajo (menos de 400px), mostrar hacia arriba
+                        const showUpwards = spaceBelow < minSpaceResult;
+
                         return (
                             <div
-                                className="fixed card-gradient rounded-none shadow-xl border border-border py-2 z-50 min-w-[220px]"
+                                className="fixed card-gradient rounded-none shadow-xl border border-border py-2 z-50 min-w-[240px] overflow-y-auto"
                                 style={{
-                                    top: `${contextMenu.y}px`,
                                     left: `${contextMenu.x}px`,
-                                    maxHeight: '400px'
+                                    top: showUpwards ? 'auto' : `${contextMenu.y}px`,
+                                    bottom: showUpwards ? `${windowHeight - contextMenu.y}px` : 'auto',
+                                    maxHeight: 'calc(100vh - 100px)' // Altura máxima adaptativa
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                             >
@@ -1657,6 +1982,127 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         </div>
                                         <div className="border-t border-border my-1"></div>
                                     </>
+                                )}
+
+                                {/* Cambiar estado */}
+                                {/* Sección de Etiquetas */}
+                                <div className="border-t border-border my-1"></div>
+                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                                    <Tag className="w-3 h-3" />
+                                    Etiquetas
+                                </div>
+
+                                {/* Etiquetas actuales de esta conversación */}
+                                {conversation.tags && conversation.tags.length > 0 && (
+                                    <div className="px-3 py-1 flex flex-wrap gap-1">
+                                        {conversation.tags.map((tag) => (
+                                            <span
+                                                key={tag.id}
+                                                className="inline-flex items-center gap-1 text-[11px] text-white px-2 py-0.5 rounded-sm cursor-pointer hover:opacity-80"
+                                                style={{ backgroundColor: tag.color }}
+                                                title={`Clic para quitar "${tag.name}"`}
+                                                onClick={() => {
+                                                    detachTag(conversation.id, tag.id);
+                                                    setContextMenu(null);
+                                                }}
+                                            >
+                                                {tag.name}
+                                                <X className="w-3 h-3" />
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Agregar etiqueta existente */}
+                                {allTags.filter(t => !(conversation.tags || []).some(ct => ct.id === t.id)).length > 0 && (
+                                    <div className="max-h-[120px] overflow-y-auto">
+                                        {allTags.filter(t => !(conversation.tags || []).some(ct => ct.id === t.id)).map((tag) => (
+                                            <button
+                                                key={tag.id}
+                                                onClick={() => {
+                                                    attachTag(conversation.id, tag.id);
+                                                    setContextMenu(null);
+                                                }}
+                                                className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent flex items-center gap-2"
+                                            >
+                                                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }}></span>
+                                                <span className="truncate">{tag.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Crear nueva etiqueta */}
+                                {!showTagSubmenu ? (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setShowTagSubmenu(true); }}
+                                        className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent text-primary flex items-center gap-2"
+                                    >
+                                        <Plus className="w-3.5 h-3.5" />
+                                        Nueva etiqueta...
+                                    </button>
+                                ) : (
+                                    <div className="px-3 py-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                            type="text"
+                                            value={newTagName}
+                                            onChange={(e) => setNewTagName(e.target.value)}
+                                            placeholder="Nombre de etiqueta"
+                                            className="w-full px-2 py-1.5 text-sm border border-border rounded focus:outline-none focus:border-primary bg-muted"
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && newTagName.trim()) {
+                                                    createTag(newTagName.trim(), newTagColor).then((tag) => {
+                                                        if (tag) {
+                                                            attachTag(conversation.id, tag.id);
+                                                            setNewTagName('');
+                                                            setShowTagSubmenu(false);
+                                                            setContextMenu(null);
+                                                        }
+                                                    });
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    setShowTagSubmenu(false);
+                                                    setNewTagName('');
+                                                }
+                                            }}
+                                        />
+                                        <div className="flex gap-1">
+                                            {TAG_COLORS.map((c) => (
+                                                <button
+                                                    key={c}
+                                                    onClick={() => setNewTagColor(c)}
+                                                    className={`w-5 h-5 rounded-full flex-shrink-0 ${newTagColor === c ? 'ring-2 ring-offset-1 ring-primary' : ''}`}
+                                                    style={{ backgroundColor: c }}
+                                                />
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => {
+                                                    if (newTagName.trim()) {
+                                                        createTag(newTagName.trim(), newTagColor).then((tag) => {
+                                                            if (tag) {
+                                                                attachTag(conversation.id, tag.id);
+                                                                setNewTagName('');
+                                                                setShowTagSubmenu(false);
+                                                                setContextMenu(null);
+                                                            }
+                                                        });
+                                                    }
+                                                }}
+                                                className="flex-1 py-1 text-xs bg-primary text-white rounded hover:bg-primary/90"
+                                            >
+                                                Crear
+                                            </button>
+                                            <button
+                                                onClick={() => { setShowTagSubmenu(false); setNewTagName(''); }}
+                                                className="flex-1 py-1 text-xs bg-muted text-foreground rounded hover:bg-muted/80"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
 
                                 {/* Cambiar estado */}
