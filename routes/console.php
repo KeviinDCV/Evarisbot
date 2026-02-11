@@ -17,6 +17,16 @@ Schedule::command('appointments:send-reminders')
     ->onOneServer()
     ->runInBackground();
 
+// Envío automático de recordatorios cada 5 minutos
+// Detecta citas para mañana y pasado mañana que aún no tienen recordatorio enviado
+// y lanza el batch de envío automáticamente (como si se presionara el botón manual)
+Schedule::command('appointments:auto-send')
+    ->everyFiveMinutes()
+    ->timezone('America/Bogota')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();
+
 // Procesar cola de recordatorios cada minuto (para cPanel)
 // Esto procesa cualquier job que haya quedado pendiente en la cola
 Schedule::command('reminders:process-queue --limit=50')

@@ -102,11 +102,11 @@ class StatisticsController extends Controller
                 COUNT(*) as total,
                 SUM(CASE WHEN is_from_user = 0 THEN 1 ELSE 0 END) as sent_by_system,
                 SUM(CASE WHEN is_from_user = 1 THEN 1 ELSE 0 END) as received_from_users,
-                SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as status_pending,
-                SUM(CASE WHEN status = "sent" THEN 1 ELSE 0 END) as status_sent,
-                SUM(CASE WHEN status = "delivered" THEN 1 ELSE 0 END) as status_delivered,
-                SUM(CASE WHEN status = "read" THEN 1 ELSE 0 END) as status_read,
-                SUM(CASE WHEN status = "failed" THEN 1 ELSE 0 END) as status_failed
+                SUM(CASE WHEN is_from_user = 0 AND status = "pending" THEN 1 ELSE 0 END) as status_pending,
+                SUM(CASE WHEN is_from_user = 0 AND status = "sent" THEN 1 ELSE 0 END) as status_sent,
+                SUM(CASE WHEN is_from_user = 0 AND status = "delivered" THEN 1 ELSE 0 END) as status_delivered,
+                SUM(CASE WHEN is_from_user = 0 AND status = "read" THEN 1 ELSE 0 END) as status_read,
+                SUM(CASE WHEN is_from_user = 0 AND status = "failed" THEN 1 ELSE 0 END) as status_failed
             ');
 
         if ($startDate && $endDate) {
@@ -115,19 +115,23 @@ class StatisticsController extends Controller
 
         $result = $stats->first();
 
-        $byStatus = [
-            'pending' => (int) ($result->status_pending ?? 0),
-            'sent' => (int) ($result->status_sent ?? 0),
-            'delivered' => (int) ($result->status_delivered ?? 0),
-            'read' => (int) ($result->status_read ?? 0),
-            'failed' => (int) ($result->status_failed ?? 0),
-        ];
+        $statusPending = (int) ($result->status_pending ?? 0);
+        $statusSent = (int) ($result->status_sent ?? 0);
+        $statusDelivered = (int) ($result->status_delivered ?? 0);
+        $statusRead = (int) ($result->status_read ?? 0);
+        $statusFailed = (int) ($result->status_failed ?? 0);
 
         return [
             'total' => (int) ($result->total ?? 0),
-            'sent' => (int) ($result->sent_by_system ?? 0),
-            'received' => (int) ($result->received_from_users ?? 0),
-            'by_status' => $byStatus,
+            'sent_by_system' => (int) ($result->sent_by_system ?? 0),
+            'received_from_users' => (int) ($result->received_from_users ?? 0),
+            'delivery_status' => [
+                'pending' => $statusPending,
+                'sent' => $statusSent,
+                'delivered' => $statusDelivered,
+                'read' => $statusRead,
+                'failed' => $statusFailed,
+            ],
         ];
     }
 

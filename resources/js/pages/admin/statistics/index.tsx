@@ -10,10 +10,14 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 interface Statistics {
     messages: {
         total: number;
-        sent: number;
-        received: number;
-        by_status: {
-            [key: string]: number;
+        sent_by_system: number;
+        received_from_users: number;
+        delivery_status: {
+            pending: number;
+            sent: number;
+            delivered: number;
+            read: number;
+            failed: number;
         };
     };
     appointments: {
@@ -146,8 +150,16 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     };
 
     // Preparar datos para gráficos
-    const messagesStatusData = Object.entries(statistics.messages.by_status).map(([name, value]) => ({
-        name: t(`statistics.messages.statuses.${name}`),
+    const deliveryStatusLabels: Record<string, string> = {
+        pending: 'Pendiente de envío',
+        sent: 'Procesando',
+        delivered: 'Entregado',
+        read: 'Leído',
+        failed: 'Fallido',
+    };
+
+    const messagesStatusData = Object.entries(statistics.messages.delivery_status).map(([name, value]) => ({
+        name: deliveryStatusLabels[name] || name,
         value,
     }));
 
@@ -166,9 +178,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     ];
 
     const mainStatsData = [
-        { name: t('statistics.messages.total'), value: statistics.messages.total },
-        { name: t('statistics.messages.sent'), value: statistics.messages.sent },
-        { name: t('statistics.messages.received'), value: statistics.messages.received },
+        { name: 'Total mensajes', value: statistics.messages.total },
+        { name: 'Enviados (sistema)', value: statistics.messages.sent_by_system },
+        { name: 'Recibidos (clientes)', value: statistics.messages.received_from_users },
         { name: t('statistics.appointments.total'), value: statistics.appointments.total },
         { name: t('statistics.conversations.total'), value: statistics.conversations.total },
     ];
@@ -343,28 +355,20 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={MessageSquare} label={t('statistics.messages.total')} value={statistics.messages.total} index={0} />
-                                    <StatRow icon={Send} label={t('statistics.messages.sent')} value={statistics.messages.sent} index={1} />
-                                    <StatRow icon={MessageSquare} label={t('statistics.messages.received')} value={statistics.messages.received} index={2} />
+                                    <StatRow icon={MessageSquare} label="Total de mensajes" value={statistics.messages.total} index={0} />
+                                    <StatRow icon={Send} label="Enviados por asesores/sistema" value={statistics.messages.sent_by_system} index={1} />
+                                    <StatRow icon={MessageSquare} label="Recibidos de clientes" value={statistics.messages.received_from_users} index={2} />
                                 </div>
                                 <div className="mt-2 pt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
                                     <h3 className="font-semibold mb-1.5 settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        {t('statistics.messages.byStatus')}
+                                        Estado de entrega (solo mensajes enviados)
                                     </h3>
                                     <div className="space-y-1">
-                                        {Object.entries(statistics.messages.by_status).map(([status, count], index) => (
-                                            <div 
-                                                key={status} 
-                                                className={`flex items-center justify-between py-1 px-2 rounded-none transition-colors stat-row-hover ${index % 2 === 0 ? 'stat-row-alt' : ''}`}
-                                            >
-                                                <span className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    {t(`statistics.messages.statuses.${status}`)}
-                                                </span>
-                                                <span className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    {count.toLocaleString()}
-                                                </span>
-                                            </div>
-                                        ))}
+                                        <StatRow icon={Clock} label="Pendiente de envío" value={statistics.messages.delivery_status.pending} index={0} />
+                                        <StatRow icon={Send} label="Procesando envío" value={statistics.messages.delivery_status.sent} index={1} />
+                                        <StatRow icon={CheckCircle2} label="Entregado al destinatario" value={statistics.messages.delivery_status.delivered} index={2} />
+                                        <StatRow icon={CheckCircle2} label="Leído por el destinatario" value={statistics.messages.delivery_status.read} index={3} />
+                                        <StatRow icon={XCircle} label="Fallido" value={statistics.messages.delivery_status.failed} index={4} />
                                     </div>
                                 </div>
                             </div>
@@ -378,12 +382,19 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={Calendar} label={t('statistics.appointments.total')} value={statistics.appointments.total} index={0} />
-                                    <StatRow icon={Send} label={t('statistics.appointments.reminderSent')} value={statistics.appointments.reminder_sent} index={1} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.appointments.confirmed')} value={statistics.appointments.confirmed} index={2} />
-                                    <StatRow icon={XCircle} label={t('statistics.appointments.cancelled')} value={statistics.appointments.cancelled} index={3} />
-                                    <StatRow icon={Clock} label={t('statistics.appointments.pending')} value={statistics.appointments.pending} index={4} />
-                                    <StatRow icon={AlertCircle} label={t('statistics.appointments.failed')} value={statistics.appointments.failed} index={5} />
+                                    <StatRow icon={Calendar} label="Total de citas cargadas" value={statistics.appointments.total} index={0} />
+                                    <StatRow icon={Send} label="Recordatorios enviados" value={statistics.appointments.reminder_sent} index={1} />
+                                </div>
+                                <div className="mt-2 pt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
+                                    <h3 className="font-semibold mb-1.5 settings-title" style={{ fontSize: 'var(--text-xs)' }}>
+                                        Respuesta del paciente
+                                    </h3>
+                                    <div className="space-y-1">
+                                        <StatRow icon={CheckCircle2} label="Confirmaron asistencia" value={statistics.appointments.confirmed} index={0} />
+                                        <StatRow icon={XCircle} label="Cancelaron la cita" value={statistics.appointments.cancelled} index={1} />
+                                        <StatRow icon={Clock} label="Sin respuesta aún" value={statistics.appointments.pending} index={2} />
+                                        <StatRow icon={AlertCircle} label="Error al enviar" value={statistics.appointments.failed} index={3} />
+                                    </div>
                                 </div>
                             </div>
 
@@ -442,27 +453,46 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
                                     <Users className="w-3.5 h-3.5 settings-title" />
                                     <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        Asesores
+                                        Rendimiento de Asesores
                                     </h2>
                                 </div>
-                                <div className="space-y-1">
-                                    <StatRow icon={Users} label="Total Asesores" value={statistics.advisors.total_advisors} index={0} />
-                                    <StatRow icon={MessageSquare} label="Conversaciones Atendidas" value={statistics.advisors.total_conversations} index={1} />
-                                    <StatRow icon={CheckCircle2} label="Conversaciones Resueltas" value={statistics.advisors.total_resolved} index={2} />
-                                    <StatRow icon={Clock} label="Conversaciones Activas" value={statistics.advisors.total_active} index={3} />
-                                    <StatRow icon={AlertCircle} label="Conversaciones Sin Leer" value={statistics.advisors.total_with_unread} index={4} />
-                                    <StatRow icon={Send} label="Mensajes Enviados" value={statistics.advisors.total_messages_sent} index={5} />
-                                    <div 
-                                        className="flex items-center justify-between py-1.5 px-2 rounded-none transition-colors stat-row-alt"
-                                    >
-                                        <span className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                                            Tasa Resolución Prom
-                                        </span>
-                                        <span className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                            {statistics.advisors.avg_resolution_rate}%
-                                        </span>
+                                {statistics.advisors.advisors.length > 0 ? (
+                                    <div className="space-y-1">
+                                        {statistics.advisors.advisors.map((advisor, index) => (
+                                            <div 
+                                                key={advisor.id}
+                                                className={`py-1.5 px-2 rounded-none transition-colors stat-row-hover ${index % 2 === 0 ? 'stat-row-alt' : ''}`}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-semibold settings-title truncate" style={{ fontSize: 'var(--text-xs)' }}>
+                                                        {advisor.name}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ 
+                                                        backgroundColor: advisor.resolution_rate >= 70 ? '#dcfce7' : advisor.resolution_rate >= 40 ? '#fef9c3' : '#fee2e2',
+                                                        color: advisor.resolution_rate >= 70 ? '#166534' : advisor.resolution_rate >= 40 ? '#854d0e' : '#991b1b',
+                                                    }}>
+                                                        {advisor.resolution_rate}% resueltas
+                                                    </span>
+                                                </div>
+                                                <div className="flex gap-3 mt-0.5">
+                                                    <span className="settings-subtitle" style={{ fontSize: '10px' }}>
+                                                        {advisor.total_conversations} conv.
+                                                    </span>
+                                                    <span className="settings-subtitle" style={{ fontSize: '10px' }}>
+                                                        {advisor.resolved_conversations} resueltas
+                                                    </span>
+                                                    <span className="settings-subtitle" style={{ fontSize: '10px' }}>
+                                                        {advisor.messages_sent} msgs
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="text-center py-4 settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
+                                        No hay datos de asesores disponibles
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (

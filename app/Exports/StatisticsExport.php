@@ -120,8 +120,8 @@ class StatisticsExport
         // Resumen de Mensajes
         $this->addSection($sheet, $row, 'MENSAJES', [
             ['Total de mensajes', $this->statistics['messages']['total']],
-            ['Enviados por el sistema', $this->statistics['messages']['sent']],
-            ['Recibidos de pacientes', $this->statistics['messages']['received']],
+            ['Enviados por asesores/sistema', $this->statistics['messages']['sent_by_system']],
+            ['Recibidos de clientes', $this->statistics['messages']['received_from_users']],
         ], self::COLOR_INFO);
         $row += 7;
 
@@ -189,8 +189,8 @@ class StatisticsExport
 
         $data = [
             ['Total de mensajes', $this->statistics['messages']['total']],
-            ['Enviados por el sistema', $this->statistics['messages']['sent']],
-            ['Recibidos de pacientes', $this->statistics['messages']['received']],
+            ['Enviados por asesores/sistema', $this->statistics['messages']['sent_by_system']],
+            ['Recibidos de clientes', $this->statistics['messages']['received_from_users']],
         ];
 
         $dataRow = 0;
@@ -203,14 +203,21 @@ class StatisticsExport
         }
 
         $row++;
-        $sheet->setCellValue('A' . $row, 'Por Estado:');
+        $sheet->setCellValue('A' . $row, 'Estado de Entrega (solo enviados):');
         $sheet->mergeCells('A' . $row . ':B' . $row);
         $this->styleSubtitle($sheet, $row);
         $row++;
 
-        foreach ($this->statistics['messages']['by_status'] as $status => $count) {
+        $deliveryLabels = [
+            'pending' => 'Pendiente de envío',
+            'sent' => 'Procesando envío',
+            'delivered' => 'Entregado al destinatario',
+            'read' => 'Leído por el destinatario',
+            'failed' => 'Fallido',
+        ];
+        foreach ($this->statistics['messages']['delivery_status'] as $status => $count) {
             $this->styleDataRow($sheet, $row, $dataRow % 2 == 0);
-            $sheet->setCellValue('A' . $row, ucfirst($status));
+            $sheet->setCellValue('A' . $row, $deliveryLabels[$status] ?? ucfirst($status));
             $sheet->setCellValue('B' . $row, $count);
             $row++;
             $dataRow++;
