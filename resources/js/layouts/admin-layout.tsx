@@ -162,7 +162,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                     {/* Badge de notificación para Conversaciones */}
                                     {item.href === '/admin/chat' && unreadConversationsCount > 0 && (
                                         <span className="bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                                            {unreadConversationsCount > 99 ? '99+' : unreadConversationsCount}
+                                            {unreadConversationsCount}
                                         </span>
                                     )}
                                 </Link>

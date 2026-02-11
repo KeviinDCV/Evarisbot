@@ -1757,7 +1757,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 </div>
                                             )}
                                             {!isSelectionMode && conversation.unread_count > 0 && (
-                                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-b from-[#22c55e] to-[#16a34a] rounded-full flex items-center justify-center text-white text-xs font-bold shadow-[0_2px_4px_rgba(22,163,74,0.3),0_1px_2px_rgba(22,163,74,0.2)]">
+                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-gradient-to-b from-[#22c55e] to-[#16a34a] rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-[0_2px_4px_rgba(22,163,74,0.3),0_1px_2px_rgba(22,163,74,0.2)]">
                                                     {conversation.unread_count}
                                                 </div>
                                             )}
