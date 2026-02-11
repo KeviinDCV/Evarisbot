@@ -39,6 +39,9 @@ import {
     ListFilter,
     Tag,
     Pencil,
+    SlidersHorizontal,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -212,6 +215,11 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [tagDropdownPosition, setTagDropdownPosition] = useState({ top: 0, right: 0 });
     const tagFilterButtonRef = useRef<HTMLButtonElement>(null);
     const [editingTag, setEditingTag] = useState<{ id: number; name: string; color: string } | null>(null);
+
+    // Panel unificado de filtros
+    const [showFiltersPanel, setShowFiltersPanel] = useState(false);
+    const [expandedFilterSection, setExpandedFilterSection] = useState<string | null>(null);
+    const filtersPanelRef = useRef<HTMLDivElement>(null);
 
     const TAG_COLORS = ['#6366f1', '#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#8b5cf6', '#14b8a6'];
 
@@ -414,6 +422,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [hasMore, setHasMore] = useState(initialHasMore);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
     // Ref para trackear si se cargaron páginas adicionales (para no resetear hasMore)
     const hasLoadedExtraPagesRef = useRef(false);
 
@@ -552,6 +561,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             setLocalConversations(initialConversations);
             setHasMore(initialHasMore);
             setCurrentPage(1);
+            setNextCursor(null);
             hasLoadedExtraPagesRef.current = false;
             // Resetear scroll al inicio cuando cambian los filtros
             if (conversationsListRef.current) {
@@ -624,6 +634,15 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (statusFilter !== 'all') params.set('status', statusFilter);
             if (filterByAdvisor !== null) params.set('assigned', String(filterByAdvisor));
 
+            // Usar cursor-based pagination para evitar duplicados
+            // Calcular cursor del último elemento cargado
+            const lastConv = localConversations[localConversations.length - 1];
+            if (lastConv?.last_message_at) {
+                params.set('cursor', lastConv.last_message_at);
+            } else if (nextCursor) {
+                params.set('cursor', nextCursor);
+            }
+
             const response = await fetch(`/admin/chat?${params.toString()}`, {
                 headers: {
                     'Accept': 'application/json',
@@ -633,9 +652,15 @@ export default function ConversationsIndex({ conversations: initialConversations
 
             if (response.ok) {
                 const data = await response.json();
-                setLocalConversations(prev => [...prev, ...data.conversations]);
+                setLocalConversations(prev => {
+                    // Deduplicar: solo agregar conversaciones que no existan ya
+                    const existingIds = new Set(prev.map(c => c.id));
+                    const newConvs = data.conversations.filter((c: Conversation) => !existingIds.has(c.id));
+                    return [...prev, ...newConvs];
+                });
                 setHasMore(data.hasMore);
                 setCurrentPage(nextPage);
+                setNextCursor(data.nextCursor || null);
                 // Marcar que se cargaron páginas adicionales
                 hasLoadedExtraPagesRef.current = true;
             }
@@ -644,7 +669,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         } finally {
             setIsLoadingMore(false);
         }
-    }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor]);
+    }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor, localConversations, nextCursor]);
 
     // Detectar scroll al final de la lista de conversaciones
     useEffect(() => {
@@ -714,7 +739,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Cerrar dropdowns de filtro cuando se hace clic fuera
     useEffect(() => {
-        const handleClickOutside = () => {
+        const handleClickOutside = (e: MouseEvent) => {
             if (showAdvisorFilter) {
                 setShowAdvisorFilter(false);
             }
@@ -729,11 +754,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setShowTagFilter(false);
                 setEditingTag(null);
             }
+            if (showFiltersPanel && filtersPanelRef.current && !filtersPanelRef.current.contains(e.target as Node)) {
+                setShowFiltersPanel(false);
+            }
         };
 
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
-    }, [showAdvisorFilter, showStatusFilter, showBulkAssignMenu, showTagFilter]);
+    }, [showAdvisorFilter, showStatusFilter, showBulkAssignMenu, showTagFilter, showFiltersPanel]);
 
     // Cerrar visor de medios con Escape y manejar wheel zoom
     useEffect(() => {
@@ -854,17 +882,15 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (!date) return '';
         const d = new Date(date);
         const now = new Date();
-        const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+        const isToday = d.toDateString() === now.toDateString();
+        const time = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-        if (diffDays === 0) {
-            return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true });
-        } else if (diffDays === 1) {
-            return t('conversations.yesterday');
-        } else if (diffDays < 7) {
-            return d.toLocaleDateString('es-ES', { weekday: 'short' });
-        } else {
-            return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+        if (isToday) {
+            return time;
         }
+
+        const dateStr = d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return `${dateStr} ${time}`;
     };
 
     const getStatusColor = (status: string) => {
@@ -929,6 +955,13 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Obtener todos los asesores disponibles para filtrar
     const availableAdvisors = users;
+
+    // Contar filtros activos para mostrar badge en el botón unificado
+    const activeFilterCount = [
+        statusFilter !== 'all',
+        tagFilterId !== null,
+        filterByAdvisor !== null,
+    ].filter(Boolean).length;
 
     // Filtrar asesores por búsqueda
     const filteredAdvisors = users.filter(user =>
@@ -1097,6 +1130,26 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
     };
 
+    // Manejar pegado de imágenes desde el portapapeles (Ctrl+V)
+    const handlePaste = (e: React.ClipboardEvent) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            // Verificar si es un archivo (imagen, etc.)
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    e.preventDefault();
+                    setSelectedFile(file);
+                    setData('media_file', file);
+                    break;
+                }
+            }
+        }
+    };
+
     const handleRemoveFile = () => {
         setSelectedFile(null);
         setData('media_file', null);
@@ -1236,13 +1289,15 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const handleStatusChange = (status: string) => {
         if (!selectedConversation) return;
-        router.post(`/admin/chat/${selectedConversation.id}/status`, { status }, {
+        const convId = selectedConversation.id;
+        router.post(`/admin/chat/${convId}/status`, { status }, {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => {
-                if (status === 'resolved') {
-                    // Navegar al índice para deseleccionar y refrescar lista
-                    router.visit('/admin/chat', { preserveScroll: true });
-                }
+                // Actualizar estado localmente sin recargar ni navegar
+                setLocalConversations(prev =>
+                    prev.map(c => c.id === convId ? { ...c, status } : c)
+                );
             },
         });
     };
@@ -1251,11 +1306,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         setContextMenu(null);
         router.post(`/admin/chat/${conversationId}/status`, { status }, {
             preserveScroll: true,
+            preserveState: true,
             onSuccess: () => {
-                if (status === 'resolved') {
-                    // Refrescar lista inmediatamente
-                    router.reload({ only: ['conversations'] });
-                }
+                // Actualizar estado localmente sin recargar (evita scroll jump y pérdida de tags)
+                setLocalConversations(prev =>
+                    prev.map(c => c.id === conversationId ? { ...c, status } : c)
+                );
             },
         });
     };
@@ -1295,7 +1351,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             <h2 className="text-base md:text-lg font-bold text-primary dark:text-primary whitespace-nowrap">{t('conversations.title')}</h2>
 
                             <div className="flex items-center gap-1 flex-shrink-0">
-                                {/* Botón para nueva conversación - Visible para admin y asesor */}
+                                {/* Botón para nueva conversación */}
                                 <button
                                     onClick={() => setShowNewChatModal(true)}
                                     className="p-1.5 chat-message-sent text-white rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
@@ -1303,213 +1359,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 >
                                     <Plus className="w-4 h-4" />
                                 </button>
-                                {/* Botón de filtro por estado */}
-                                <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                    <button
-                                        onClick={() => {
-                                            setShowAdvisorFilter(false);
-                                            setShowStatusFilter(!showStatusFilter);
-                                        }}
-                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${statusFilter !== 'all'
-                                            ? 'bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white'
-                                            : 'chat-message-sent text-white'
-                                            }`}
-                                        title="Filtrar por estado"
-                                    >
-                                        <ListFilter className="w-4 h-4" />
-                                    </button>
 
-                                    {/* Dropdown de filtro por estado */}
-                                    {showStatusFilter && (
-                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-none shadow-xl border border-border py-2 z-50 min-w-[180px]">
-                                            <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
-                                                Filtrar por estado
-                                            </div>
-
-                                            {[
-                                                { value: 'all', label: 'Todos', color: '' },
-                                                { value: 'active', label: 'Activo', color: 'bg-green-500' },
-                                                { value: 'pending', label: 'Pendiente', color: 'bg-yellow-500' },
-                                                { value: 'resolved', label: 'Resuelto', color: 'bg-gray-400' },
-                                                { value: 'unanswered', label: 'Sin contestar', color: 'bg-red-500' },
-                                            ].map((option) => (
-                                                <button
-                                                    key={option.value}
-                                                    onClick={() => {
-                                                        setStatusFilter(option.value);
-                                                        setShowStatusFilter(false);
-                                                        applyFilters(option.value, filterByAdvisor);
-                                                    }}
-                                                    className={`w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between ${statusFilter === option.value ? 'font-bold text-primary dark:text-primary bg-muted' : ''
-                                                        }`}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        {option.color && <span className={`w-2 h-2 rounded-full ${option.color}`}></span>}
-                                                        <span>{option.label}</span>
-                                                    </div>
-                                                    {statusFilter === option.value && <Check className="w-4 h-4 text-primary dark:text-primary" />}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Botón de filtro por etiqueta */}
-                                <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                    <button
-                                        ref={tagFilterButtonRef}
-                                        onClick={() => {
-                                            setShowStatusFilter(false);
-                                            setShowAdvisorFilter(false);
-                                            if (!showTagFilter && tagFilterButtonRef.current) {
-                                                const rect = tagFilterButtonRef.current.getBoundingClientRect();
-                                                setTagDropdownPosition({
-                                                    top: rect.bottom + 4,
-                                                    right: window.innerWidth - rect.right
-                                                });
-                                            }
-                                            setShowTagFilter(!showTagFilter);
-                                        }}
-                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${tagFilterId !== null
-                                            ? 'bg-gradient-to-b from-[#8b5cf6] to-[#7c3aed] text-white'
-                                            : 'chat-message-sent text-white'
-                                            }`}
-                                        title="Filtrar por etiqueta"
-                                    >
-                                        <Tag className="w-4 h-4" />
-                                    </button>
-
-                                    {showTagFilter && (
-                                        <div 
-                                            className="fixed card-gradient rounded-none shadow-xl border border-border py-2 z-[9999] min-w-[280px] overflow-y-auto" 
-                                            style={{ 
-                                                top: tagDropdownPosition.top, 
-                                                right: tagDropdownPosition.right,
-                                                maxHeight: 'min(500px, calc(100vh - 150px))' // Altura adaptativa segura
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
-                                                Gestionar etiquetas
-                                            </div>
-                                            {/* Opción "Todas" para quitar filtro */}
-                                            <button
-                                                onClick={() => {
-                                                    setTagFilterId(null);
-                                                    setShowTagFilter(false);
-                                                    setEditingTag(null);
-                                                    applyFiltersWithTag(statusFilter, filterByAdvisor, null);
-                                                }}
-                                                className={`w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between ${tagFilterId === null ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
-                                            >
-                                                <span>Todas</span>
-                                                {tagFilterId === null && <Check className="w-4 h-4 text-primary" />}
-                                            </button>
-
-                                            <div className="border-t border-border my-1"></div>
-
-                                            {/* Lista de etiquetas con acciones */}
-                                            {allTags.map((tag) => (
-                                                <div key={tag.id}>
-                                                    {editingTag?.id === tag.id ? (
-                                                        /* Modo edición inline */
-                                                        <div className="px-3 py-2 space-y-2">
-                                                            <input
-                                                                type="text"
-                                                                value={editingTag.name}
-                                                                onChange={(e) => setEditingTag({ ...editingTag, name: e.target.value })}
-                                                                className="w-full px-2 py-1 text-sm border border-border rounded bg-muted focus:outline-none focus:border-primary"
-                                                                autoFocus
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter' && editingTag.name.trim()) {
-                                                                        updateTag(tag.id, editingTag.name.trim(), editingTag.color);
-                                                                    }
-                                                                    if (e.key === 'Escape') setEditingTag(null);
-                                                                }}
-                                                            />
-                                                            <div className="flex gap-1 flex-wrap">
-                                                                {TAG_COLORS.map((c) => (
-                                                                    <button
-                                                                        key={c}
-                                                                        onClick={() => setEditingTag({ ...editingTag, color: c })}
-                                                                        className={`w-5 h-5 rounded-full border-2 transition-all ${editingTag.color === c ? 'border-foreground scale-110' : 'border-transparent'}`}
-                                                                        style={{ backgroundColor: c }}
-                                                                    />
-                                                                ))}
-                                                            </div>
-                                                            <div className="flex gap-1">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        if (editingTag.name.trim()) {
-                                                                            updateTag(tag.id, editingTag.name.trim(), editingTag.color);
-                                                                        }
-                                                                    }}
-                                                                    className="flex-1 px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90"
-                                                                >
-                                                                    Guardar
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setEditingTag(null)}
-                                                                    className="flex-1 px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent"
-                                                                >
-                                                                    Cancelar
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        /* Modo normal: filtrar + acciones */
-                                                        <div className={`flex items-center group hover:bg-accent ${tagFilterId === tag.id ? 'bg-muted' : ''}`}>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setTagFilterId(tag.id);
-                                                                    setShowTagFilter(false);
-                                                                    setEditingTag(null);
-                                                                    applyFiltersWithTag(statusFilter, filterByAdvisor, tag.id);
-                                                                }}
-                                                                className="flex-1 px-3 py-2 text-left text-sm flex items-center gap-2 min-w-0"
-                                                            >
-                                                                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }}></span>
-                                                                <span className="truncate">{tag.name}</span>
-                                                                <span className="text-xs text-muted-foreground flex-shrink-0">({tag.conversations_count ?? 0})</span>
-                                                            </button>
-                                                            {/* Botones editar/eliminar */}
-                                                            <div className="flex items-center gap-0.5 pr-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setEditingTag({ id: tag.id, name: tag.name, color: tag.color });
-                                                                    }}
-                                                                    className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-muted-foreground hover:text-blue-600"
-                                                                    title="Editar etiqueta"
-                                                                >
-                                                                    <Pencil className="w-3.5 h-3.5" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        deleteTag(tag.id);
-                                                                    }}
-                                                                    className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600"
-                                                                    title="Eliminar etiqueta"
-                                                                >
-                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-
-                                            {allTags.length === 0 && (
-                                                <div className="px-3 py-2 text-xs text-muted-foreground text-center">
-                                                    Sin etiquetas. Clic derecho en un chat para crear una.
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Botón modo de selección */}
+                                {/* Botón modo de selección - Solo Admin */}
                                 {isAdmin && (
                                     <button
                                         onClick={() => {
@@ -1529,79 +1380,301 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </button>
                                 )}
 
-                                {/* Botón de filtro por asesor - Solo Admin */}
-                                {isAdmin && availableAdvisors.length > 0 && (
-                                    <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                        <button
-                                            ref={advisorFilterButtonRef}
-                                            onClick={() => {
-                                                setShowStatusFilter(false);
-                                                if (!showAdvisorFilter && advisorFilterButtonRef.current) {
-                                                    const rect = advisorFilterButtonRef.current.getBoundingClientRect();
-                                                    setAdvisorDropdownPosition({
-                                                        top: rect.bottom + 4,
-                                                        right: window.innerWidth - rect.right
-                                                    });
-                                                }
-                                                setShowAdvisorFilter(!showAdvisorFilter);
-                                            }}
-                                            className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${filterByAdvisor
-                                                ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
-                                                : 'chat-message-sent text-white'
-                                                }`}
-                                            title={t('conversations.filterByAdvisor')}
-                                        >
-                                            <Filter className="w-4 h-4" />
-                                        </button>
-
-                                        {/* Dropdown de filtro por asesor */}
-                                        {showAdvisorFilter && (
-                                            <div
-                                                className="fixed card-gradient rounded-none shadow-xl border border-border py-2 z-[9999] min-w-[200px] max-h-[300px] overflow-y-auto custom-scrollbar"
-                                                style={{ top: advisorDropdownPosition.top, right: advisorDropdownPosition.right }}
-                                            >
-                                                <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
-                                                    {t('conversations.filterByAdvisor')}
-                                                </div>
-
-                                                {/* Opción para mostrar todos */}
-                                                <button
-                                                    onClick={() => {
-                                                        setFilterByAdvisor(null);
-                                                        setShowAdvisorFilter(false);
-                                                        applyFilters(statusFilter, null);
-                                                    }}
-                                                    className={`w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between ${!filterByAdvisor ? 'font-bold text-primary dark:text-primary bg-muted' : ''
-                                                        }`}
-                                                >
-                                                    <span>{t('common.all')}</span>
-                                                    {!filterByAdvisor && <Check className="w-4 h-4 text-primary dark:text-primary" />}
-                                                </button>
-
-                                                <div className="border-t border-border my-1"></div>
-
-                                                {/* Lista de todos los asesores */}
-                                                {availableAdvisors.map((user) => {
-                                                    return (
-                                                        <button
-                                                            key={user.id}
-                                                            onClick={() => {
-                                                                setFilterByAdvisor(user.id);
-                                                                setShowAdvisorFilter(false);
-                                                                applyFilters(statusFilter, user.id);
-                                                            }}
-                                                            className={`w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between ${filterByAdvisor === user.id ? 'font-bold text-primary dark:text-primary bg-muted' : ''
-                                                                }`}
-                                                        >
-                                                            <span className="truncate">{user.name}</span>
-                                                            {filterByAdvisor === user.id && <Check className="w-4 h-4 text-primary dark:text-primary" />}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
+                                {/* Botón unificado de filtros */}
+                                <div className="relative" ref={filtersPanelRef} onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                        onClick={() => setShowFiltersPanel(!showFiltersPanel)}
+                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${activeFilterCount > 0
+                                            ? 'bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white'
+                                            : 'chat-message-sent text-white'
+                                            }`}
+                                        title="Filtros"
+                                    >
+                                        <SlidersHorizontal className="w-4 h-4" />
+                                        {activeFilterCount > 0 && (
+                                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                                {activeFilterCount}
+                                            </span>
                                         )}
-                                    </div>
-                                )}
+                                    </button>
+
+                                    {/* Panel unificado de filtros */}
+                                    {showFiltersPanel && (
+                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-none shadow-xl border border-border py-1 z-[100] w-64 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                                            {/* Sección: Estado */}
+                                            <div>
+                                                <button
+                                                    onClick={() => setExpandedFilterSection(expandedFilterSection === 'status' ? null : 'status')}
+                                                    className="w-full px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between hover:bg-accent"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <ListFilter className="w-3.5 h-3.5" />
+                                                        <span>Estado</span>
+                                                        {statusFilter !== 'all' && (
+                                                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 rounded">
+                                                                {statusFilter === 'unanswered' ? 'Sin contestar' : statusFilter === 'active' ? 'Activo' : statusFilter === 'pending' ? 'Pendiente' : 'Resuelto'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {expandedFilterSection === 'status' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                </button>
+                                                {expandedFilterSection === 'status' && (
+                                                    <div className="pb-1">
+                                                        {[
+                                                            { value: 'all', label: 'Todos', color: '' },
+                                                            { value: 'active', label: 'Activo', color: 'bg-green-500' },
+                                                            { value: 'pending', label: 'Pendiente', color: 'bg-yellow-500' },
+                                                            { value: 'resolved', label: 'Resuelto', color: 'bg-gray-400' },
+                                                            { value: 'unanswered', label: 'Sin contestar', color: 'bg-red-500' },
+                                                        ].map((option) => (
+                                                            <button
+                                                                key={option.value}
+                                                                onClick={() => {
+                                                                    setStatusFilter(option.value);
+                                                                    applyFilters(option.value, filterByAdvisor);
+                                                                }}
+                                                                className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between ${statusFilter === option.value ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    {option.color && <span className={`w-2 h-2 rounded-full ${option.color}`}></span>}
+                                                                    <span>{option.label}</span>
+                                                                </div>
+                                                                {statusFilter === option.value && <Check className="w-3.5 h-3.5 text-primary dark:text-primary" />}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="border-t border-border my-0.5"></div>
+
+                                            {/* Sección: Etiquetas */}
+                                            <div>
+                                                <button
+                                                    onClick={() => setExpandedFilterSection(expandedFilterSection === 'tags' ? null : 'tags')}
+                                                    className="w-full px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between hover:bg-accent"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <Tag className="w-3.5 h-3.5" />
+                                                        <span>Etiquetas</span>
+                                                        {tagFilterId !== null && (
+                                                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 rounded">
+                                                                {allTags.find(t => t.id === tagFilterId)?.name || ''}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {expandedFilterSection === 'tags' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                </button>
+                                                {expandedFilterSection === 'tags' && (
+                                                    <div className="pb-1">
+                                                        {/* Opción "Todas" para quitar filtro */}
+                                                        <button
+                                                            onClick={() => {
+                                                                setTagFilterId(null);
+                                                                setEditingTag(null);
+                                                                applyFiltersWithTag(statusFilter, filterByAdvisor, null);
+                                                            }}
+                                                            className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between ${tagFilterId === null ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                                        >
+                                                            <span>Todas</span>
+                                                            {tagFilterId === null && <Check className="w-3.5 h-3.5 text-primary" />}
+                                                        </button>
+
+                                                        {/* Lista de etiquetas */}
+                                                        {allTags.map((tag) => (
+                                                            <div key={tag.id}>
+                                                                {editingTag?.id === tag.id ? (
+                                                                    <div className="px-4 py-2 space-y-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={editingTag.name}
+                                                                            onChange={(e) => setEditingTag({ ...editingTag, name: e.target.value })}
+                                                                            className="w-full px-2 py-1 text-sm border border-border rounded bg-muted focus:outline-none focus:border-primary"
+                                                                            autoFocus
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter' && editingTag.name.trim()) {
+                                                                                    updateTag(tag.id, editingTag.name.trim(), editingTag.color);
+                                                                                }
+                                                                                if (e.key === 'Escape') setEditingTag(null);
+                                                                            }}
+                                                                        />
+                                                                        <div className="flex gap-1 flex-wrap">
+                                                                            {TAG_COLORS.map((c) => (
+                                                                                <button
+                                                                                    key={c}
+                                                                                    onClick={() => setEditingTag({ ...editingTag, color: c })}
+                                                                                    className={`w-5 h-5 rounded-full border-2 transition-all ${editingTag.color === c ? 'border-foreground scale-110' : 'border-transparent'}`}
+                                                                                    style={{ backgroundColor: c }}
+                                                                                />
+                                                                            ))}
+                                                                        </div>
+                                                                        <div className="flex gap-1">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    if (editingTag.name.trim()) {
+                                                                                        updateTag(tag.id, editingTag.name.trim(), editingTag.color);
+                                                                                    }
+                                                                                }}
+                                                                                className="flex-1 px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:opacity-90"
+                                                                            >
+                                                                                Guardar
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => setEditingTag(null)}
+                                                                                className="flex-1 px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent"
+                                                                            >
+                                                                                Cancelar
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className={`flex items-center group hover:bg-accent ${tagFilterId === tag.id ? 'bg-muted' : ''}`}>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setTagFilterId(tag.id);
+                                                                                setEditingTag(null);
+                                                                                applyFiltersWithTag(statusFilter, filterByAdvisor, tag.id);
+                                                                            }}
+                                                                            className="flex-1 px-4 py-1.5 text-left text-sm flex items-center gap-2 min-w-0"
+                                                                        >
+                                                                            <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }}></span>
+                                                                            <span className="truncate">{tag.name}</span>
+                                                                            <span className="text-xs text-muted-foreground flex-shrink-0">({tag.conversations_count ?? 0})</span>
+                                                                        </button>
+                                                                        <div className="flex items-center gap-0.5 pr-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setEditingTag({ id: tag.id, name: tag.name, color: tag.color });
+                                                                                }}
+                                                                                className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-muted-foreground hover:text-blue-600"
+                                                                                title="Editar etiqueta"
+                                                                            >
+                                                                                <Pencil className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    deleteTag(tag.id);
+                                                                                }}
+                                                                                className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-muted-foreground hover:text-red-600"
+                                                                                title="Eliminar etiqueta"
+                                                                            >
+                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+
+                                                        {allTags.length === 0 && (
+                                                            <div className="px-4 py-2 text-xs text-muted-foreground text-center">
+                                                                Sin etiquetas. Clic derecho en un chat para crear una.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Sección: Asesor (solo admin) */}
+                                            {isAdmin && availableAdvisors.length > 0 && (
+                                                <>
+                                                    <div className="border-t border-border my-0.5"></div>
+                                                    <div>
+                                                        <button
+                                                            onClick={() => setExpandedFilterSection(expandedFilterSection === 'advisor' ? null : 'advisor')}
+                                                            className="w-full px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between hover:bg-accent"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <Users className="w-3.5 h-3.5" />
+                                                                <span>Asesor</span>
+                                                                {filterByAdvisor !== null && (
+                                                                    <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded truncate max-w-[100px]">
+                                                                        {availableAdvisors.find(u => u.id === filterByAdvisor)?.name || ''}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {expandedFilterSection === 'advisor' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                        </button>
+                                                        {expandedFilterSection === 'advisor' && (
+                                                            <div className="pb-1">
+                                                                {/* Buscador de asesores */}
+                                                                <div className="px-3 py-2 border-b border-border">
+                                                                    <div className="relative">
+                                                                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                                                                        <input 
+                                                                            type="text" 
+                                                                            placeholder="Buscar asesor..." 
+                                                                            className="w-full pl-7 pr-2 py-1 text-xs border border-border rounded bg-muted focus:outline-none focus:border-primary"
+                                                                            value={advisorSearchQuery}
+                                                                            onChange={(e) => setAdvisorSearchQuery(e.target.value)}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setFilterByAdvisor(null);
+                                                                            applyFilters(statusFilter, null);
+                                                                        }}
+                                                                        className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between ${!filterByAdvisor ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                                                    >
+                                                                        <span>{t('common.all')}</span>
+                                                                        {!filterByAdvisor && <Check className="w-3.5 h-3.5 text-primary dark:text-primary" />}
+                                                                    </button>
+                                                                    <div className="border-t border-border my-0.5"></div>
+                                                                    {filteredAdvisors.length > 0 ? (
+                                                                        filteredAdvisors.map((user) => (
+                                                                            <button
+                                                                                key={user.id}
+                                                                                onClick={() => {
+                                                                                    setFilterByAdvisor(user.id);
+                                                                                    applyFilters(statusFilter, user.id);
+                                                                                }}
+                                                                                className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between ${filterByAdvisor === user.id ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                                                            >
+                                                                                <span className="truncate">{user.name}</span>
+                                                                                {filterByAdvisor === user.id && <Check className="w-3.5 h-3.5 text-primary dark:text-primary" />}
+                                                                            </button>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="px-4 py-2 text-xs text-muted-foreground text-center">
+                                                                            No se encontraron asesores
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </>
+                                            )}
+
+                                            {/* Limpiar todos los filtros */}
+                                            {activeFilterCount > 0 && (
+                                                <>
+                                                    <div className="border-t border-border my-0.5"></div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setStatusFilter('all');
+                                                            setTagFilterId(null);
+                                                            setFilterByAdvisor(null);
+                                                            setEditingTag(null);
+                                                            setShowFiltersPanel(false);
+                                                            setExpandedFilterSection(null);
+                                                            applyFiltersWithTag('all', null, null);
+                                                        }}
+                                                        className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                        <span>Limpiar todos los filtros</span>
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -2620,6 +2693,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         placeholder={t('conversations.messagePlaceholder')}
                                         className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 card-gradient focus:ring-2 focus:ring-primary shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none transition-shadow duration-200"
                                         onKeyDown={handleTemplateKeyDown}
+                                        onPaste={handlePaste}
+                                        spellCheck={true}
+                                        lang="es"
+                                        autoCorrect="on"
                                     />
 
                                     {/* Dropdown de plantillas */}

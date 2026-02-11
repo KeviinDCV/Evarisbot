@@ -604,9 +604,11 @@ class WhatsAppService
             }
 
             // Si la conversación estaba resuelta, reactivarla cuando llega un mensaje nuevo
+            // Quitar asignación para que entre al pool compartido de asesores de turno
             if ($conversation->status === 'resolved') {
                 $conversation->update([
                     'status' => 'active',
+                    'assigned_to' => null,
                     'last_message_at' => now(),
                     'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
                               'Conversación reactivada automáticamente por mensaje entrante el ' . now()->format('Y-m-d H:i:s')
@@ -805,98 +807,112 @@ class WhatsAppService
 
             // Normalizar el texto
             $messageText = trim($messageText);
-            
-            $responseMessage = null;
-            
-            // Formatear hora para respuestas
-            $horaFormateada = $this->formatHoraForResponse($appointment->cithor);
 
-            // Verificar si la cita ya fue confirmada o cancelada previamente
-            if (in_array($appointment->reminder_status, ['confirmed', 'cancelled'])) {
-                // La cita ya tiene un estado final, no se puede cambiar
-                Log::info('Appointment already has final status, ignoring new response', [
-                    'appointment_id' => $appointment->id,
-                    'current_status' => $appointment->reminder_status,
-                    'phone' => $from,
-                    'attempted_action' => $messageText
-                ]);
-                
-                // No enviar respuesta automática, ya respondió previamente
-                return;
-            }
+            // Usar transacción con bloqueo pesimista para evitar condiciones de carrera
+            // (ej: usuario presiona "Confirmar" y luego "Cancelar" rápidamente)
+            \Illuminate\Support\Facades\DB::transaction(function () use ($from, $messageText, $appointment, $conversation) {
+                // Recargar el appointment con bloqueo FOR UPDATE para evitar lecturas concurrentes
+                $lockedAppointment = \App\Models\Appointment::where('id', $appointment->id)
+                    ->lockForUpdate()
+                    ->first();
 
-            // Detectar tipo de respuesta
-            if (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
-                // Confirmación de asistencia
-                $appointment->update([
-                    'reminder_status' => 'confirmed',
-                    'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
-                ]);
-
-                $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$appointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
-
-                Log::info('Appointment confirmed by patient', [
-                    'appointment_id' => $appointment->id,
-                    'phone' => $from,
-                ]);
-
-            } elseif (preg_match('/cancelar|cancelo|no.*asistir|no.*podré|❌/i', $messageText)) {
-                // Cancelación
-                $appointment->update([
-                    'reminder_status' => 'cancelled',
-                    'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
-                ]);
-
-                $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$appointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\n_HUV - Evaristo García_";
-
-                Log::info('Appointment cancelled by patient', [
-                    'appointment_id' => $appointment->id,
-                    'phone' => $from,
-                ]);
-
-            } else {
-                // Respuesta no reconocida
-                return;
-            }
-
-            // Enviar respuesta automática y guardar en BD
-            if ($responseMessage) {
-                // Enviar mensaje a WhatsApp
-                $result = $this->sendTextMessage($from, $responseMessage);
-                
-                Log::info('Send automatic response result', [
-                    'success' => $result['success'] ?? false,
-                    'message_id' => $result['message_id'] ?? null,
-                    'error' => $result['error'] ?? null
-                ]);
-                
-                // Guardar mensaje en la conversación (usar la conversación pasada como parámetro)
-                if (($result['success'] ?? false) && isset($result['message_id'])) {
-                    $messageId = $result['message_id'];
-                    
-                    // Guardar mensaje de respuesta
-                    \App\Models\Message::create([
-                        'conversation_id' => $conversation->id,
-                        'content' => $responseMessage,
-                        'message_type' => 'text',
-                        'is_from_user' => false,
-                        'whatsapp_message_id' => $messageId,
-                        'status' => 'sent',
-                        'sent_by' => null // Sistema automático
+                if (!$lockedAppointment) {
+                    Log::warning('Appointment not found during locked read', [
+                        'appointment_id' => $appointment->id,
                     ]);
-                    
-                    Log::info('Automatic response saved to database', [
-                        'conversation_id' => $conversation->id,
-                        'message_id' => $messageId,
-                        'appointment_id' => $appointment->id
-                    ]);
-                } else {
-                    Log::error('Failed to save automatic response', [
-                        'result' => $result,
-                        'from' => $from
-                    ]);
+                    return;
                 }
-            }
+
+                // Verificar si la cita ya fue confirmada o cancelada previamente
+                // Esta verificación se hace CON el bloqueo, así que es atómica
+                if (in_array($lockedAppointment->reminder_status, ['confirmed', 'cancelled'])) {
+                    Log::info('Appointment already has final status, ignoring new response', [
+                        'appointment_id' => $lockedAppointment->id,
+                        'current_status' => $lockedAppointment->reminder_status,
+                        'phone' => $from,
+                        'attempted_action' => $messageText
+                    ]);
+                    // No enviar respuesta automática, ya respondió previamente
+                    return;
+                }
+
+                $responseMessage = null;
+
+                // Formatear hora para respuestas
+                $horaFormateada = $this->formatHoraForResponse($lockedAppointment->cithor);
+
+                // Detectar tipo de respuesta
+                if (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
+                    // Confirmación de asistencia
+                    $lockedAppointment->update([
+                        'reminder_status' => 'confirmed',
+                        'notes' => ($lockedAppointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
+                    ]);
+
+                    $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$lockedAppointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+
+                    Log::info('Appointment confirmed by patient', [
+                        'appointment_id' => $lockedAppointment->id,
+                        'phone' => $from,
+                    ]);
+
+                } elseif (preg_match('/cancelar|cancelo|no.*asistir|no.*podré|❌/i', $messageText)) {
+                    // Cancelación
+                    $lockedAppointment->update([
+                        'reminder_status' => 'cancelled',
+                        'notes' => ($lockedAppointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
+                    ]);
+
+                    $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$lockedAppointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\n_HUV - Evaristo García_";
+
+                    Log::info('Appointment cancelled by patient', [
+                        'appointment_id' => $lockedAppointment->id,
+                        'phone' => $from,
+                    ]);
+
+                } else {
+                    // Respuesta no reconocida
+                    return;
+                }
+
+                // Enviar respuesta automática y guardar en BD
+                if ($responseMessage) {
+                    // Enviar mensaje a WhatsApp
+                    $result = $this->sendTextMessage($from, $responseMessage);
+                    
+                    Log::info('Send automatic response result', [
+                        'success' => $result['success'] ?? false,
+                        'message_id' => $result['message_id'] ?? null,
+                        'error' => $result['error'] ?? null
+                    ]);
+                    
+                    // Guardar mensaje en la conversación
+                    if (($result['success'] ?? false) && isset($result['message_id'])) {
+                        $messageId = $result['message_id'];
+                        
+                        \App\Models\Message::create([
+                            'conversation_id' => $conversation->id,
+                            'content' => $responseMessage,
+                            'message_type' => 'text',
+                            'is_from_user' => false,
+                            'whatsapp_message_id' => $messageId,
+                            'status' => 'sent',
+                            'sent_by' => null // Sistema automático
+                        ]);
+                        
+                        Log::info('Automatic response saved to database', [
+                            'conversation_id' => $conversation->id,
+                            'message_id' => $messageId,
+                            'appointment_id' => $lockedAppointment->id
+                        ]);
+                    } else {
+                        Log::error('Failed to save automatic response', [
+                            'result' => $result,
+                            'from' => $from
+                        ]);
+                    }
+                }
+            });
 
         } catch (\Exception $e) {
             Log::error('Send appointment auto response exception', [

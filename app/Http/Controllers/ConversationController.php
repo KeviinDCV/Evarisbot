@@ -61,29 +61,32 @@ class ConversationController extends Controller
         if ($user->isAdvisor()) {
             if ($user->isOnDuty()) {
                 // Asesor de turno: ve chats SIN asignar + chats asignados a él
+                // Incluye resueltas para que no desaparezcan al marcarlas
                 $query->where(function ($q) {
                     $q->whereNull('assigned_to')  // Sin asignar (pool compartido)
                       ->orWhere('assigned_to', auth()->id());  // O asignados a él
-                })->whereIn('status', ['active', 'pending']);
+                });
             } else {
                 // Asesor normal: solo ve las asignadas a él
-                $query->where('assigned_to', auth()->id())
-                      ->whereIn('status', ['active', 'pending']);
+                $query->where('assigned_to', auth()->id());
             }
         }
 
-        // Filtrar por estado si se proporciona (solo admin)
-        if ($user->isAdmin() && $request->has('status') && $request->status !== 'all') {
+        // Filtrar por estado (disponible para todos los usuarios)
+        if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
                 // Filtrar conversaciones sin leer (con mensajes pendientes por revisar)
                 $query->where('unread_count', '>', 0);
             } else {
                 $query->where('status', $request->status);
             }
+        } elseif ($user->isAdvisor()) {
+            // Si el asesor no tiene filtro de estado explícito, mostrar active+pending+resolved
+            $query->whereIn('status', ['active', 'pending', 'resolved']);
         }
 
         // Filtrar por asignación (solo para admin)
-        if (auth()->user()->isAdmin()) {
+        if ($user->isAdmin()) {
             if ($request->has('assigned')) {
                 if ($request->assigned === 'me') {
                     $query->where('assigned_to', auth()->id());
@@ -117,17 +120,34 @@ class ConversationController extends Controller
         }
 
         // Paginación: cargar solo 50 conversaciones a la vez para mejor rendimiento
+        // Usamos paginación basada en cursor (last_message_at) para evitar duplicados
+        // cuando las conversaciones cambian de posición entre páginas
         $perPage = 50;
         $page = $request->get('page', 1);
+        $cursor = $request->get('cursor'); // timestamp ISO del último elemento cargado
         
+        if ($cursor) {
+            // Paginación por cursor: obtener conversaciones más antiguas que el cursor
+            $query->where(function ($q) use ($cursor) {
+                $q->where('last_message_at', '<', $cursor)
+                  ->orWhereNull('last_message_at');
+            });
+        }
+
         $conversations = $query
             ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'last_message_at'])
             ->limit($perPage)
-            ->offset(($page - 1) * $perPage)
             ->get();
         
         // Contar total solo si es la primera página (para evitar queries innecesarias)
         $hasMore = $conversations->count() === $perPage;
+        
+        // Calcular el cursor para la siguiente página
+        $nextCursor = null;
+        if ($hasMore && $conversations->isNotEmpty()) {
+            $lastConv = $conversations->last();
+            $nextCursor = $lastConv->last_message_at?->toISOString();
+        }
 
         // Obtener todos los usuarios (asesores) disponibles para asignación
         $users = User::select('id', 'name', 'role')->get();
@@ -136,11 +156,12 @@ class ConversationController extends Controller
         $allTags = \App\Models\Tag::withCount('conversations')->orderBy('name')->get();
 
         // Si es una petición de paginación (AJAX), devolver solo las conversaciones
-        if ($request->wantsJson() || $request->has('page')) {
+        if ($request->wantsJson() || $request->has('page') || $request->has('cursor')) {
             return response()->json([
                 'conversations' => $conversations,
                 'hasMore' => $hasMore,
                 'page' => (int) $page,
+                'nextCursor' => $nextCursor,
             ]);
         }
 
@@ -187,24 +208,27 @@ class ConversationController extends Controller
                 $query->where(function ($q) {
                     $q->whereNull('assigned_to')
                       ->orWhere('assigned_to', auth()->id());
-                })->whereIn('status', ['active', 'pending']);
+                });
             } else {
                 // Asesor normal: solo ve las asignadas a él
-                $query->where('assigned_to', auth()->id())
-                      ->whereIn('status', ['active', 'pending']);
+                $query->where('assigned_to', auth()->id());
             }
         }
 
-        // Aplicar filtros si existen (solo admin)
-        if ($user->isAdmin()) {
-            if ($request->has('status') && $request->status !== 'all') {
-                if ($request->status === 'unanswered') {
-                    // Filtrar conversaciones sin leer (con mensajes pendientes por revisar)
-                    $query->where('unread_count', '>', 0);
-                } else {
-                    $query->where('status', $request->status);
-                }
+        // Filtrar por estado (disponible para todos los usuarios)
+        if ($request->has('status') && $request->status !== 'all') {
+            if ($request->status === 'unanswered') {
+                $query->where('unread_count', '>', 0);
+            } else {
+                $query->where('status', $request->status);
             }
+        } elseif ($user->isAdvisor()) {
+            // Si el asesor no tiene filtro de estado explícito, mostrar active+pending+resolved
+            $query->whereIn('status', ['active', 'pending', 'resolved']);
+        }
+
+        // Aplicar filtros adicionales si existen (solo admin)
+        if ($user->isAdmin()) {
 
             if ($request->has('assigned')) {
                 if ($request->assigned === 'me') {
@@ -688,21 +712,10 @@ class ConversationController extends Controller
             'status' => 'required|in:active,pending,resolved',
         ]);
 
-        // Si se marca como resuelta, también quitar la asignación
-        // Así cuando el cliente vuelva a escribir, no le aparecerá al asesor anterior
-        if ($validated['status'] === 'resolved') {
-            $conversation->update([
-                'status' => $validated['status'],
-                'assigned_to' => null,
-            ]);
-            
-            // Si es asesor, redirigir al índice (ya no tiene acceso a esta conversación)
-            if (auth()->user()->isAdvisor()) {
-                return redirect()->route('admin.chat.index')->with('success', 'Conversación marcada como resuelta.');
-            }
-        } else {
-            $conversation->update(['status' => $validated['status']]);
-        }
+        // Actualizar solo el estado, mantener asignación y etiquetas intactas
+        $conversation->update([
+            'status' => $validated['status'],
+        ]);
 
         return back()->with('success', 'Estado actualizado.');
     }
