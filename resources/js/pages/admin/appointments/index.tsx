@@ -169,9 +169,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     setProgress(null);
                 }
 
-                // Actualizar estadísticas cada 3 segundos (cada 6 consultas con 500ms) para no sobrecargar
+                // Actualizar estadísticas cada 5 polls (15 segundos con intervalo de 3s)
                 updateCount++;
-                if (updateCount % 6 === 0 && data.pending_count !== undefined) {
+                if (updateCount % 5 === 0 && data.pending_count !== undefined) {
                     router.reload({
                         only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
                         onSuccess: (page: any) => {
@@ -189,14 +189,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         // Actualizar inmediatamente
         updateStatus();
 
-        // Luego actualizar cada 500ms (más espaciado para reducir carga)
+        // Actualizar cada 3 segundos (reduce carga en BD y evita congelamientos)
         intervalId = setInterval(() => {
             if (!shouldStop) {
                 updateStatus();
             } else if (intervalId) {
                 clearInterval(intervalId);
             }
-        }, 500);
+        }, 3000);
 
         return () => {
             shouldStop = true;

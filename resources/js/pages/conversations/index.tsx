@@ -98,6 +98,12 @@ interface Conversation {
     assigned_user?: {
         name: string;
     };
+    resolved_by?: number | null;
+    resolved_at?: string | null;
+    resolved_by_user?: {
+        id: number;
+        name: string;
+    } | null;
     last_message_at: string | null;
     last_message: {
         content: string;
@@ -1290,13 +1296,35 @@ export default function ConversationsIndex({ conversations: initialConversations
     const handleStatusChange = (status: string) => {
         if (!selectedConversation) return;
         const convId = selectedConversation.id;
+
+        if (status === 'resolved') {
+            // Al resolver: navegar al listado (quitar selección) y remover de la lista del asesor
+            router.post(`/admin/chat/${convId}/status`, { status }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    if (!isAdmin) {
+                        // Asesor: remover la conversación de su lista y deseleccionar
+                        setLocalConversations(prev => prev.filter(c => c.id !== convId));
+                    } else {
+                        // Admin: actualizar estado localmente y mostrar quién resolvió
+                        setLocalConversations(prev =>
+                            prev.map(c => c.id === convId ? { ...c, status, resolved_by_user: { id: auth.user.id, name: auth.user.name }, resolved_at: new Date().toISOString() } : c)
+                        );
+                    }
+                    // Navegar al listado general (deseleccionar chat)
+                    router.visit('/admin/chat', { preserveState: false });
+                },
+            });
+            return;
+        }
+
         router.post(`/admin/chat/${convId}/status`, { status }, {
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
                 // Actualizar estado localmente sin recargar ni navegar
                 setLocalConversations(prev =>
-                    prev.map(c => c.id === convId ? { ...c, status } : c)
+                    prev.map(c => c.id === convId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
                 );
             },
         });
@@ -1304,13 +1332,34 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const handleStatusChangeFromContext = (conversationId: number, status: string) => {
         setContextMenu(null);
+
+        if (status === 'resolved') {
+            router.post(`/admin/chat/${conversationId}/status`, { status }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    if (!isAdmin) {
+                        setLocalConversations(prev => prev.filter(c => c.id !== conversationId));
+                    } else {
+                        setLocalConversations(prev =>
+                            prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: { id: auth.user.id, name: auth.user.name }, resolved_at: new Date().toISOString() } : c)
+                        );
+                    }
+                    // Si la conversación resuelta estaba seleccionada, deseleccionar
+                    if (selectedConversation?.id === conversationId) {
+                        router.visit('/admin/chat', { preserveState: false });
+                    }
+                },
+            });
+            return;
+        }
+
         router.post(`/admin/chat/${conversationId}/status`, { status }, {
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
-                // Actualizar estado localmente sin recargar (evita scroll jump y pérdida de tags)
+                // Actualizar estado localmente sin recargar
                 setLocalConversations(prev =>
-                    prev.map(c => c.id === conversationId ? { ...c, status } : c)
+                    prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
                 );
             },
         });
@@ -1799,6 +1848,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
                                                     <span className="text-xs text-muted-foreground">{getStatusLabel(conversation.status)}</span>
                                                 </div>
+                                                {/* Mostrar quién resolvió la conversación */}
+                                                {conversation.status === 'resolved' && conversation.resolved_by_user && (
+                                                    <span className="text-[10px] text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded truncate max-w-[120px]" title={`Resuelto por ${conversation.resolved_by_user.name}`}>
+                                                        <CheckCheck className="w-3 h-3 inline mr-0.5" />
+                                                        {conversation.resolved_by_user.name.split(' ')[0]}
+                                                    </span>
+                                                )}
                                                 {/* Mostrar asesor asignado (solo si no está resuelta) */}
                                                 {conversation.assigned_user && conversation.status !== 'resolved' && (
                                                     <span className="text-[10px] text-muted-foreground bg-accent dark:bg-accent px-1.5 py-0.5 rounded truncate max-w-[80px]" title={conversation.assigned_user.name}>
@@ -2372,6 +2428,29 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Banner de conversación resuelta */}
+                        {selectedConversation.status === 'resolved' && selectedConversation.resolved_by_user && (
+                            <div className="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800">
+                                <CheckCheck className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                <span className="text-sm text-green-700 dark:text-green-300">
+                                    Conversación resuelta por <strong>{selectedConversation.resolved_by_user.name}</strong>
+                                    {selectedConversation.resolved_at && (
+                                        <> el {new Date(selectedConversation.resolved_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+                                    )}
+                                </span>
+                                {isAdmin && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 h-7"
+                                        onClick={() => handleStatusChange('active')}
+                                    >
+                                        Reabrir
+                                    </Button>
+                                )}
+                            </div>
+                        )}
 
                         {/* Área de Mensajes */}
                         <div

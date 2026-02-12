@@ -45,6 +45,12 @@ interface Conversation {
     assigned_user?: {
         name: string;
     };
+    resolved_by?: number | null;
+    resolved_at?: string | null;
+    resolved_by_user?: {
+        id: number;
+        name: string;
+    } | null;
     messages: Message[];
 }
 
@@ -90,6 +96,16 @@ export default function ConversationShow({ conversation }: ConversationShowProps
     };
 
     const handleStatusChange = (status: string) => {
+        if (status === 'resolved') {
+            // Al resolver, navegar al listado
+            router.post(`/admin/chat/${conversation.id}/status`, { status }, {
+                preserveScroll: false,
+                onSuccess: () => {
+                    router.visit('/admin/chat');
+                },
+            });
+            return;
+        }
         router.post(`/admin/chat/${conversation.id}/status`, { status }, {
             preserveScroll: true,
         });

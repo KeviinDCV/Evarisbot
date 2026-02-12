@@ -155,28 +155,32 @@ class SendAppointmentReminderJob implements ShouldQueue
     }
 
     /**
-     * Actualizar progreso del envío masivo
+     * Actualizar progreso del envío masivo.
+     * Solo se actualiza si hay un envío MANUAL activo (reminder_processing=true).
+     * El envío automático NO usa estos contadores para evitar carga innecesaria en la BD.
      */
     private function updateProgress(bool $success): void
     {
         try {
+            // Verificar si hay un envío manual activo que necesite tracking de progreso
+            $isManualProcessing = Cache::remember('setting.reminder_processing', 10, function () {
+                return DB::table('settings')->where('key', 'reminder_processing')->value('value') === 'true';
+            });
+
+            if (!$isManualProcessing) {
+                return; // Envío automático: no trackear progreso
+            }
+
             if ($success) {
-                // Incrementar contador de enviados directamente en BD sin caché
-                $currentSent = (int) DB::table('settings')->where('key', 'reminder_progress_sent')->value('value') ?? 0;
-                $newSent = $currentSent + 1;
-                DB::table('settings')->updateOrInsert(
-                    ['key' => 'reminder_progress_sent'],
-                    ['value' => (string) $newSent, 'updated_at' => now()]
-                );
+                // Incremento atómico para evitar race conditions
+                DB::table('settings')
+                    ->where('key', 'reminder_progress_sent')
+                    ->update(['value' => DB::raw('CAST(value AS UNSIGNED) + 1'), 'updated_at' => now()]);
                 Cache::forget('setting.reminder_progress_sent');
             } else {
-                // Incrementar contador de fallidos directamente en BD sin caché
-                $currentFailed = (int) DB::table('settings')->where('key', 'reminder_progress_failed')->value('value') ?? 0;
-                $newFailed = $currentFailed + 1;
-                DB::table('settings')->updateOrInsert(
-                    ['key' => 'reminder_progress_failed'],
-                    ['value' => (string) $newFailed, 'updated_at' => now()]
-                );
+                DB::table('settings')
+                    ->where('key', 'reminder_progress_failed')
+                    ->update(['value' => DB::raw('CAST(value AS UNSIGNED) + 1'), 'updated_at' => now()]);
                 Cache::forget('setting.reminder_progress_failed');
             }
         } catch (\Exception $e) {

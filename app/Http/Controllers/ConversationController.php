@@ -52,7 +52,7 @@ class ConversationController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Conversation::with(['lastMessage', 'assignedUser', 'tags'])
+        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         $user = auth()->user();
@@ -198,7 +198,7 @@ class ConversationController extends Controller
             }
         }
 
-        $query = Conversation::with(['lastMessage', 'assignedUser', 'tags'])
+        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         // Si es asesor, verificar si está de turno
@@ -223,8 +223,8 @@ class ConversationController extends Controller
                 $query->where('status', $request->status);
             }
         } elseif ($user->isAdvisor()) {
-            // Si el asesor no tiene filtro de estado explícito, mostrar active+pending+resolved
-            $query->whereIn('status', ['active', 'pending', 'resolved']);
+            // Si el asesor no tiene filtro de estado explícito, mostrar active+pending (NO resolved)
+            $query->whereIn('status', ['active', 'pending']);
         }
 
         // Aplicar filtros adicionales si existen (solo admin)
@@ -261,14 +261,14 @@ class ConversationController extends Controller
         // Paginación: cargar solo 50 conversaciones
         $perPage = 50;
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'last_message_at'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at'])
             ->limit($perPage)
             ->get();
         
         $hasMore = $conversations->count() === $perPage;
         
         // Cargar la conversación seleccionada con todos sus mensajes
-        $conversation->load(['messages.sender', 'assignedUser', 'tags']);
+        $conversation->load(['messages.sender', 'assignedUser', 'resolvedByUser', 'tags']);
         
         // Marcar mensajes como leídos
         $conversation->markAsRead();
@@ -712,12 +712,27 @@ class ConversationController extends Controller
             'status' => 'required|in:active,pending,resolved',
         ]);
 
-        // Actualizar solo el estado, mantener asignación y etiquetas intactas
-        $conversation->update([
+        $updateData = [
             'status' => $validated['status'],
-        ]);
+        ];
 
-        return back()->with('success', 'Estado actualizado.');
+        if ($validated['status'] === 'resolved') {
+            // Guardar quién resolvió y cuándo
+            $updateData['resolved_by'] = auth()->id();
+            $updateData['resolved_at'] = now();
+        } else {
+            // Si se reabre, limpiar info de resolución
+            $updateData['resolved_by'] = null;
+            $updateData['resolved_at'] = null;
+        }
+
+        $conversation->update($updateData);
+
+        $resolverName = auth()->user()->name;
+
+        return back()->with('success', $validated['status'] === 'resolved'
+            ? "Conversación resuelta por {$resolverName}."
+            : 'Estado actualizado.');
     }
 
     /**
@@ -728,6 +743,8 @@ class ConversationController extends Controller
         // Marcar como resuelta
         $conversation->update([
             'status' => 'resolved',
+            'resolved_by' => auth()->id(),
+            'resolved_at' => now(),
             'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
                       'Chat marcado como resuelto por ' . auth()->user()->name . ' el ' . now()->format('Y-m-d H:i:s')
         ]);

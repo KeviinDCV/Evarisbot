@@ -21,28 +21,30 @@ class AutoSendAppointmentReminders extends Command
     {
         // ---------------------------------------------------------------
         // 1. Verificar que no haya un batch activo (no duplicar envíos)
+        //    Usar 'auto_send_batch_id' separado para NO activar el
+        //    polling agresivo del frontend (reminder_processing).
         // ---------------------------------------------------------------
-        $isProcessing = Setting::get('reminder_processing', 'false') === 'true';
 
-        if ($isProcessing) {
-            $batchId = Setting::get('reminder_batch_id');
-            if ($batchId) {
-                $batch = DB::table('job_batches')->where('id', $batchId)->first();
-                $hasActiveBatch = $batch && !$batch->cancelled_at && !$batch->finished_at;
+        // Verificar primero si hay un envío MANUAL activo
+        $isManualProcessing = Setting::get('reminder_processing', 'false') === 'true';
+        if ($isManualProcessing) {
+            $this->info('⏳ Ya hay un envío manual en curso. Se reintentará en la próxima ejecución.');
+            return Command::SUCCESS;
+        }
 
-                if ($hasActiveBatch) {
-                    $this->info('⏳ Ya hay un envío en curso. Se reintentará en la próxima ejecución.');
-                    return Command::SUCCESS;
-                }
+        // Verificar si hay un envío AUTOMÁTICO previo activo
+        $autoBatchId = Setting::get('auto_send_batch_id');
+        if ($autoBatchId) {
+            $batch = DB::table('job_batches')->where('id', $autoBatchId)->first();
+            $hasActiveBatch = $batch && !$batch->cancelled_at && !$batch->finished_at;
 
-                // Batch muerto pero flag activa → limpiar
-                Setting::set('reminder_processing', 'false');
-                Setting::set('reminder_paused', 'false');
-                Setting::remove('reminder_batch_id');
-                Setting::remove('reminder_progress_sent');
-                Setting::remove('reminder_progress_failed');
-                Setting::remove('reminder_progress_total');
+            if ($hasActiveBatch) {
+                $this->info('⏳ Ya hay un envío automático en curso. Se reintentará en la próxima ejecución.');
+                return Command::SUCCESS;
             }
+
+            // Batch terminó o muerto → limpiar
+            Setting::remove('auto_send_batch_id');
         }
 
         // ---------------------------------------------------------------
@@ -117,23 +119,18 @@ class AutoSendAppointmentReminders extends Command
             ]);
 
         // ---------------------------------------------------------------
-        // 4. Crear batch de jobs (misma lógica del botón manual)
+        // 4. Crear batch de jobs SIN activar reminder_processing
+        //    para NO disparar el polling del frontend.
+        //    Los jobs corren silenciosamente en segundo plano.
         // ---------------------------------------------------------------
-        Setting::set('reminder_processing', 'true');
-        Setting::set('reminder_paused', 'false');
-        Setting::set('reminder_progress_total', (string) $total);
-        Setting::set('reminder_progress_sent', '0');
-        Setting::set('reminder_progress_failed', '0');
-
         $jobs = $pendingAppointments->map(fn ($id) => new SendAppointmentReminderJob($id))->toArray();
 
         $batch = Bus::batch($jobs)
             ->name('Auto-recordatorios - ' . now()->format('Y-m-d H:i'))
             ->allowFailures()
             ->finally(function ($batch) {
-                Setting::set('reminder_processing', 'false');
-                Setting::set('reminder_paused', 'false');
-                Setting::remove('reminder_batch_id');
+                // Solo limpiar nuestro propio flag de re-entrada
+                Setting::remove('auto_send_batch_id');
 
                 Log::info('Batch automático de recordatorios completado', [
                     'batch_id'     => $batch->id,
@@ -144,7 +141,8 @@ class AutoSendAppointmentReminders extends Command
             })
             ->dispatch();
 
-        Setting::set('reminder_batch_id', $batch->id);
+        // Guardar batch_id solo para evitar re-entrada (NO activar reminder_processing)
+        Setting::set('auto_send_batch_id', $batch->id);
 
         Log::info('Envío automático de recordatorios iniciado', [
             'batch_id'    => $batch->id,

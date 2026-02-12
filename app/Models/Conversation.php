@@ -15,6 +15,8 @@ class Conversation extends Model
         'profile_picture_url',
         'status',
         'assigned_to',
+        'resolved_by',
+        'resolved_at',
         'last_message_at',
         'unread_count',
         'notes',
@@ -22,6 +24,7 @@ class Conversation extends Model
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'resolved_at' => 'datetime',
     ];
 
     /**
@@ -46,6 +49,14 @@ class Conversation extends Model
     public function assignedUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /**
+     * Usuario que resolvió la conversación
+     */
+    public function resolvedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 
     /**
