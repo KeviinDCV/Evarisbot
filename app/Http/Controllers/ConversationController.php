@@ -81,8 +81,8 @@ class ConversationController extends Controller
                 $query->where('status', $request->status);
             }
         } elseif ($user->isAdvisor()) {
-            // Si el asesor no tiene filtro de estado explícito, mostrar active+pending+resolved
-            $query->whereIn('status', ['active', 'pending', 'resolved']);
+            // Si el asesor no tiene filtro de estado explícito, mostrar active+pending (NO resolved)
+            $query->whereIn('status', ['active', 'pending']);
         }
 
         // Filtrar por asignación (solo para admin)
@@ -135,7 +135,7 @@ class ConversationController extends Controller
         }
 
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'last_message_at'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at'])
             ->limit($perPage)
             ->get();
         
@@ -730,9 +730,13 @@ class ConversationController extends Controller
 
         $resolverName = auth()->user()->name;
 
-        return back()->with('success', $validated['status'] === 'resolved'
-            ? "Conversación resuelta por {$resolverName}."
-            : 'Estado actualizado.');
+        if ($validated['status'] === 'resolved') {
+            // Al resolver, redirigir al listado para que el chat desaparezca de la vista del asesor
+            return redirect()->route('admin.chat.index')
+                ->with('success', "Conversación resuelta por {$resolverName}.");
+        }
+
+        return back()->with('success', 'Estado actualizado.');
     }
 
     /**
