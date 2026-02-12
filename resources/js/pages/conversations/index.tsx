@@ -1298,22 +1298,10 @@ export default function ConversationsIndex({ conversations: initialConversations
         const convId = selectedConversation.id;
 
         if (status === 'resolved') {
-            // Al resolver: navegar al listado (quitar selección) y remover de la lista del asesor
+            // Backend ya redirige a /admin/chat (index) al resolver.
+            // Esto desselecciona el chat y recarga datos frescos con tags.
             router.post(`/admin/chat/${convId}/status`, { status }, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    if (!isAdmin) {
-                        // Asesor: remover la conversación de su lista y deseleccionar
-                        setLocalConversations(prev => prev.filter(c => c.id !== convId));
-                    } else {
-                        // Admin: actualizar estado localmente y mostrar quién resolvió
-                        setLocalConversations(prev =>
-                            prev.map(c => c.id === convId ? { ...c, status, resolved_by_user: { id: auth.user.id, name: auth.user.name }, resolved_at: new Date().toISOString() } : c)
-                        );
-                    }
-                    // Navegar al listado general (deseleccionar chat)
-                    router.visit('/admin/chat', { preserveState: false });
-                },
+                preserveScroll: false,
             });
             return;
         }
@@ -1334,21 +1322,9 @@ export default function ConversationsIndex({ conversations: initialConversations
         setContextMenu(null);
 
         if (status === 'resolved') {
+            // Backend ya redirige a /admin/chat (index) al resolver.
             router.post(`/admin/chat/${conversationId}/status`, { status }, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    if (!isAdmin) {
-                        setLocalConversations(prev => prev.filter(c => c.id !== conversationId));
-                    } else {
-                        setLocalConversations(prev =>
-                            prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: { id: auth.user.id, name: auth.user.name }, resolved_at: new Date().toISOString() } : c)
-                        );
-                    }
-                    // Si la conversación resuelta estaba seleccionada, deseleccionar
-                    if (selectedConversation?.id === conversationId) {
-                        router.visit('/admin/chat', { preserveState: false });
-                    }
-                },
+                preserveScroll: false,
             });
             return;
         }
@@ -1357,7 +1333,6 @@ export default function ConversationsIndex({ conversations: initialConversations
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
-                // Actualizar estado localmente sin recargar
                 setLocalConversations(prev =>
                     prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
                 );
