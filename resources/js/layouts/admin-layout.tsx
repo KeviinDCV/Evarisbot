@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { type PropsWithChildren, type ReactNode, useState, useEffect } from 'react';
-import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText, Calendar, BarChart3, Send } from 'lucide-react';
+import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText, Calendar, BarChart3, Send, MessagesSquare } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     const getInitials = useInitials();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [unreadConversationsCount, setUnreadConversationsCount] = useState(initialUnreadCount);
+    const [unreadInternalChatCount, setUnreadInternalChatCount] = useState(0);
 
     // Actualizar el contador de conversaciones no leídas cada 5 segundos
     useEffect(() => {
@@ -52,6 +53,30 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
         return () => clearInterval(interval);
     }, []);
 
+    // Actualizar el contador de chat interno no leído
+    useEffect(() => {
+        const updateInternalUnread = async () => {
+            try {
+                const response = await fetch('/admin/internal-chat/unread-count', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setUnreadInternalChatCount(data.count || 0);
+                }
+            } catch (error) {
+                // Silenciar
+            }
+        };
+
+        updateInternalUnread();
+        const interval = setInterval(updateInternalUnread, 8000);
+        return () => clearInterval(interval);
+    }, []);
+
     const menuItems = [
         {
             title: t('navigation.conversations'),
@@ -67,6 +92,11 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             title: t('navigation.bulkSends'),
             href: '/admin/bulk-sends',
             icon: Send,
+        },
+        {
+            title: t('navigation.internalChat'),
+            href: '/admin/internal-chat',
+            icon: MessagesSquare,
         },
         {
             title: t('navigation.templates'),
@@ -94,7 +124,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     const visibleMenuItems = menuItems.filter((item) => {
         // Asesores solo ven Conversaciones y Plantillas
         if (auth.user.role === 'advisor') {
-            return item.href === '/admin/chat' || item.href === '/admin/templates';
+            return item.href === '/admin/chat' || item.href === '/admin/templates' || item.href === '/admin/internal-chat';
         }
         // Admins ven todo
         return true;
@@ -168,6 +198,11 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                     {item.href === '/admin/chat' && unreadConversationsCount > 0 && (
                                         <span className="bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
                                             {unreadConversationsCount}
+                                        </span>
+                                    )}
+                                    {item.href === '/admin/internal-chat' && unreadInternalChatCount > 0 && (
+                                        <span className="bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                                            {unreadInternalChatCount}
                                         </span>
                                     )}
                                 </Link>

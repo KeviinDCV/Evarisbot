@@ -183,6 +183,9 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [showAdvisorFilter, setShowAdvisorFilter] = useState(false);
     const [selectedConversations, setSelectedConversations] = useState<number[]>([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [isDragSelecting, setIsDragSelecting] = useState(false);
+    const dragSelectionActionRef = useRef<'select' | 'deselect'>('select');
+    const dragDidMoveRef = useRef(false);
     const [statusFilter, setStatusFilter] = useState<string>(filters.status || 'all');
     const [showStatusFilter, setShowStatusFilter] = useState(false);
     const [showBulkAssignMenu, setShowBulkAssignMenu] = useState(false);
@@ -600,7 +603,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                     }
                 } else {
                     // Esta conversación fue cargada por scroll, mantenerla
-                    scrollLoadedConvs.push(conv);
+                    // PERO excluir conversaciones resueltas (ya no deben verse para asesores)
+                    if (conv.status !== 'resolved') {
+                        scrollLoadedConvs.push(conv);
+                    }
                 }
             });
 
@@ -1033,6 +1039,11 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Función para manejar selección de conversación
     const handleConversationSelect = (conversationId: number, event: React.MouseEvent) => {
+        // Si se acaba de hacer drag-select, ignorar el click para no duplicar toggle
+        if (dragDidMoveRef.current || isDragSelecting) {
+            event.preventDefault();
+            return;
+        }
         if (isSelectionMode || event.ctrlKey || event.metaKey) {
             event.preventDefault();
             setSelectedConversations(prev => {
@@ -1052,37 +1063,62 @@ export default function ConversationsIndex({ conversations: initialConversations
     };
 
     // Función para asignar múltiples conversaciones
-    const handleBulkAssign = async (userId: number | null) => {
+    const handleBulkAssign = (userId: number | null) => {
         if (selectedConversations.length === 0) return;
 
-        try {
-            await Promise.all(
-                selectedConversations.map(convId =>
-                    router.post(`/admin/chat/${convId}/assign`, { user_id: userId }, { preserveScroll: true, preserveState: true })
-                )
-            );
-            setSelectedConversations([]);
-            setIsSelectionMode(false);
-        } catch (error) {
-            console.error('Error al asignar conversaciones:', error);
-        }
+        router.post('/admin/chat/bulk-assign', {
+            ids: selectedConversations,
+            user_id: userId
+        }, {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                setSelectedConversations([]);
+                setIsSelectionMode(false);
+            },
+            onError: (errors) => {
+                console.error('Error al asignar conversaciones:', errors);
+            }
+        });
     };
 
     // Función para cambiar estado de múltiples conversaciones
-    const handleBulkStatusChange = async (status: string) => {
+    const handleBulkStatusChange = (status: string) => {
         if (selectedConversations.length === 0) return;
 
-        try {
-            await Promise.all(
-                selectedConversations.map(convId =>
-                    router.post(`/admin/chat/${convId}/status`, { status }, { preserveScroll: true, preserveState: true })
-                )
-            );
-            setSelectedConversations([]);
-            setIsSelectionMode(false);
-        } catch (error) {
-            console.error('Error al cambiar estado de conversaciones:', error);
+        const idsToUpdate = [...selectedConversations];
+
+        if (status === 'resolved') {
+            // Quitar inmediatamente del listado local para respuesta instantánea
+            setLocalConversations(prev => prev.filter(c => !idsToUpdate.includes(c.id)));
         }
+
+        router.post('/admin/chat/bulk-status', {
+            ids: idsToUpdate,
+            status: status
+        }, {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                setSelectedConversations([]);
+                setIsSelectionMode(false);
+                
+                // Si no era resolved, actualizar estado local (si era resolved ya los quitamos)
+                if (status !== 'resolved') {
+                    setLocalConversations(prev => 
+                        prev.map(c => idsToUpdate.includes(c.id) 
+                            ? { ...c, status, resolved_by_user: null, resolved_at: null } 
+                            : c
+                        )
+                    );
+                }
+            },
+            onError: (errors) => {
+                console.error('Error al cambiar estado de conversaciones:', errors);
+                // Si hubo error en resolved, tal vez deberíamos restaurarlos... 
+                // pero por complejidad dejémoslo así por ahora o recargar la página.
+            }
+        });
     };
 
     // Limpiar selección
@@ -1090,6 +1126,123 @@ export default function ConversationsIndex({ conversations: initialConversations
         setSelectedConversations([]);
         setIsSelectionMode(false);
     };
+
+    // --- Drag-to-select handlers ---
+    const handleDragSelectStart = (conversationId: number) => {
+        if (!isSelectionMode) return;
+        setIsDragSelecting(true);
+        dragDidMoveRef.current = false;
+        // Si el chat ya está seleccionado, arrastrar para deseleccionar; sino, para seleccionar
+        const isAlreadySelected = selectedConversations.includes(conversationId);
+        dragSelectionActionRef.current = isAlreadySelected ? 'deselect' : 'select';
+        setSelectedConversations(prev =>
+            isAlreadySelected ? prev.filter(id => id !== conversationId) : [...prev, conversationId]
+        );
+    };
+
+    const handleDragSelectEnter = (conversationId: number) => {
+        if (!isDragSelecting || !isSelectionMode) return;
+        dragDidMoveRef.current = true;
+        setSelectedConversations(prev => {
+            if (dragSelectionActionRef.current === 'select') {
+                return prev.includes(conversationId) ? prev : [...prev, conversationId];
+            } else {
+                return prev.filter(id => id !== conversationId);
+            }
+        });
+    };
+
+    const handleDragSelectEnd = () => {
+        setIsDragSelecting(false);
+    };
+
+    // Auto-scroll when dragging near edges of the conversation list
+    const autoScrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const currentScrollSpeedRef = useRef(0);
+
+    const startAutoScroll = (clientY: number) => {
+        const container = conversationsListRef.current;
+        if (!container || !isDragSelecting) return;
+
+        const rect = container.getBoundingClientRect();
+        const edgeZone = 120; // Aumentado para mayor rango de control
+        const maxSpeed = 60; // Mucho más rápido (antes 12)
+
+        let speed = 0;
+        if (clientY < rect.top + edgeZone) {
+            // Near top — scroll up
+            speed = -maxSpeed * (1 - (clientY - rect.top) / edgeZone);
+            // Asegurar velocidad mínima si está en la zona
+            if (speed > -5) speed = -5;
+        } else if (clientY > rect.bottom - edgeZone) {
+            // Near bottom — scroll down
+            speed = maxSpeed * (1 - (rect.bottom - clientY) / edgeZone);
+            if (speed < 5) speed = 5;
+        }
+
+        currentScrollSpeedRef.current = speed;
+
+        if (speed !== 0) {
+            if (!autoScrollIntervalRef.current) {
+                autoScrollIntervalRef.current = setInterval(() => {
+                    if (conversationsListRef.current) {
+                        conversationsListRef.current.scrollTop += currentScrollSpeedRef.current;
+                    }
+                }, 16);
+            }
+        } else {
+            if (autoScrollIntervalRef.current) {
+                clearInterval(autoScrollIntervalRef.current);
+                autoScrollIntervalRef.current = null;
+            }
+        }
+    };
+
+    const stopAutoScroll = () => {
+        if (autoScrollIntervalRef.current) {
+            clearInterval(autoScrollIntervalRef.current);
+            autoScrollIntervalRef.current = null;
+        }
+    };
+
+    // Track mouse position during drag for auto-scroll
+    useEffect(() => {
+        if (!isDragSelecting) {
+            stopAutoScroll();
+            return;
+        }
+
+        const onMouseMove = (e: MouseEvent) => {
+            startAutoScroll(e.clientY);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        return () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            stopAutoScroll();
+        };
+    }, [isDragSelecting]);
+
+    // Global keyboard listener for Escape to cancel selection mode
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                if (isSelectionMode) {
+                    clearSelection();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isSelectionMode]);
+
+    // Global mouseup to stop drag-select even if mouse leaves the list
+    useEffect(() => {
+        const onMouseUp = () => setIsDragSelecting(false);
+        window.addEventListener('mouseup', onMouseUp);
+        return () => window.removeEventListener('mouseup', onMouseUp);
+    }, []);
 
     const getStatusIcon = (status: string) => {
         switch (status) {
@@ -1298,8 +1451,9 @@ export default function ConversationsIndex({ conversations: initialConversations
         const convId = selectedConversation.id;
 
         if (status === 'resolved') {
+            // Quitar inmediatamente del listado local para que desaparezca
+            setLocalConversations(prev => prev.filter(c => c.id !== convId));
             // Backend ya redirige a /admin/chat (index) al resolver.
-            // Esto desselecciona el chat y recarga datos frescos con tags.
             router.post(`/admin/chat/${convId}/status`, { status }, {
                 preserveScroll: false,
             });
@@ -1322,6 +1476,8 @@ export default function ConversationsIndex({ conversations: initialConversations
         setContextMenu(null);
 
         if (status === 'resolved') {
+            // Quitar inmediatamente del listado local para que desaparezca
+            setLocalConversations(prev => prev.filter(c => c.id !== conversationId));
             // Backend ya redirige a /admin/chat (index) al resolver.
             router.post(`/admin/chat/${conversationId}/status`, { status }, {
                 preserveScroll: false,
@@ -1378,7 +1534,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Botón para nueva conversación */}
                                 <button
                                     onClick={() => setShowNewChatModal(true)}
-                                    className="p-1.5 chat-message-sent text-white rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                    className="p-1.5 chat-message-sent text-white rounded-lg shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
                                     title={t('conversations.newConversation')}
                                 >
                                     <Plus className="w-4 h-4" />
@@ -1394,7 +1550,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 setIsSelectionMode(true);
                                             }
                                         }}
-                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${isSelectionMode
+                                        className={`p-1.5 rounded-lg shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${isSelectionMode
                                             ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
                                             : 'chat-message-sent text-white'
                                             }`}
@@ -1408,7 +1564,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <div className="relative" ref={filtersPanelRef} onClick={(e) => e.stopPropagation()}>
                                     <button
                                         onClick={() => setShowFiltersPanel(!showFiltersPanel)}
-                                        className={`p-1.5 rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${activeFilterCount > 0
+                                        className={`p-1.5 rounded-lg shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${activeFilterCount > 0
                                             ? 'bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white'
                                             : 'chat-message-sent text-white'
                                             }`}
@@ -1424,7 +1580,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                     {/* Panel unificado de filtros */}
                                     {showFiltersPanel && (
-                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-none shadow-xl border border-border py-1 z-[100] w-64 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-xl shadow-xl border border-border py-1 z-[100] w-64 max-h-[70vh] overflow-y-auto custom-scrollbar">
                                             {/* Sección: Estado */}
                                             <div>
                                                 <button
@@ -1718,7 +1874,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         e.preventDefault();
                                     }
                                 }}
-                                className="pl-10 settings-input rounded-none transition-all duration-200"
+                                className="pl-10 settings-input rounded-2xl transition-all duration-200"
                             />
                         </div>
                     </div>
@@ -1755,7 +1911,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         key={conversation.id}
                                         onClick={(e) => handleConversationSelect(conversation.id, e)}
                                         onContextMenu={(e) => handleContextMenu(e, conversation.id)}
-                                        className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-none ${selectedConversations.includes(conversation.id)
+                                        onMouseDown={() => handleDragSelectStart(conversation.id)}
+                                        onMouseEnter={() => handleDragSelectEnter(conversation.id)}
+                                        onMouseUp={handleDragSelectEnd}
+                                        className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-xl select-none ${selectedConversations.includes(conversation.id)
                                             ? 'bg-gradient-to-b from-[#bbf7d0] to-[#86efac] dark:from-[hsl(142,40%,25%)] dark:to-[hsl(142,35%,20%)] shadow-[0_1px_3px_rgba(34,197,94,0.15),0_4px_12px_rgba(34,197,94,0.2)] ring-2 ring-green-400 dark:ring-green-600'
                                             : selectedConversation?.id === conversation.id
                                                 ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]'
@@ -1802,7 +1961,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     {formatTime(conversation.last_message_at)}
                                                 </span>
                                             </div>
-                                            <p className="text-xs md:text-sm text-muted-foreground truncate flex items-center gap-1">
+                                            <p className={`text-xs md:text-sm truncate flex items-center gap-1 ${conversation.unread_count > 0 ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
                                                 {conversation.last_message && (
                                                     conversation.last_message.is_from_user ? (
                                                         <span title="Mensaje del cliente">
@@ -1893,100 +2052,102 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </button>
                             </div>
 
-                            {/* Botón y menú para asignar */}
-                            <div className="relative" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                    onClick={() => setShowBulkAssignMenu(!showBulkAssignMenu)}
-                                    className="w-full py-2 px-3 bg-card/10 hover:bg-card/20 text-white text-sm rounded-none flex items-center justify-center gap-2 transition-colors"
-                                >
-                                    <UserPlus className="w-4 h-4" />
-                                    Asignar a asesor
-                                </button>
+                            {/* Botón y menú para asignar - Solo Admin */}
+                            {isAdmin && (
+                                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                        onClick={() => setShowBulkAssignMenu(!showBulkAssignMenu)}
+                                        className="w-full py-2 px-3 bg-card/10 hover:bg-card/20 text-white text-sm rounded-lg flex items-center justify-center gap-2 transition-colors"
+                                    >
+                                        <UserPlus className="w-4 h-4" />
+                                        Asignar a asesor
+                                    </button>
 
-                                {showBulkAssignMenu && (
-                                    <div className="absolute bottom-full left-0 right-0 mb-1 bg-card rounded-none shadow-xl border border-border py-2 z-50">
-                                        <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
-                                            Asignar a
-                                        </div>
+                                    {showBulkAssignMenu && (
+                                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-card rounded-xl shadow-xl border border-border py-2 z-50">
+                                            <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
+                                                Asignar a
+                                            </div>
 
-                                        {/* Buscador */}
-                                        <div className="px-2 py-1.5">
-                                            <div className="relative">
-                                                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-                                                <input
-                                                    type="text"
-                                                    placeholder={t('conversations.searchAdvisor')}
-                                                    value={bulkAssignSearchQuery}
-                                                    onChange={(e) => setBulkAssignSearchQuery(e.target.value)}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="w-full pl-7 pr-2 py-1.5 text-sm border border-border rounded focus:outline-none focus:border-primary bg-muted"
-                                                />
+                                            {/* Buscador */}
+                                            <div className="px-2 py-1.5">
+                                                <div className="relative">
+                                                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder={t('conversations.searchAdvisor')}
+                                                        value={bulkAssignSearchQuery}
+                                                        onChange={(e) => setBulkAssignSearchQuery(e.target.value)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="w-full pl-7 pr-2 py-1.5 text-sm border border-border rounded focus:outline-none focus:border-primary bg-muted"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Opción para quitar asignación */}
+                                            <button
+                                                onClick={() => {
+                                                    handleBulkAssign(null);
+                                                    setShowBulkAssignMenu(false);
+                                                    setBulkAssignSearchQuery('');
+                                                }}
+                                                className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2 border-b border-gray-100"
+                                            >
+                                                <X className="w-4 h-4" />
+                                                Sin asignar
+                                            </button>
+
+                                            {/* Lista de asesores con scroll */}
+                                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                                                {filteredBulkAdvisors.length === 0 ? (
+                                                    <div className="px-3 py-2 text-sm text-muted-foreground text-center">
+                                                        {t('conversations.noAdvisorsFound')}
+                                                    </div>
+                                                ) : (
+                                                    filteredBulkAdvisors.map((user) => (
+                                                        <button
+                                                            key={user.id}
+                                                            onClick={() => {
+                                                                handleBulkAssign(user.id);
+                                                                setShowBulkAssignMenu(false);
+                                                                setBulkAssignSearchQuery('');
+                                                            }}
+                                                            className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between"
+                                                        >
+                                                            <span>
+                                                                {user.name}
+                                                                <span className="text-xs text-muted-foreground ml-1">
+                                                                    ({user.role === 'admin' ? t('users.roleAdmin') : t('users.roleAdvisor')})
+                                                                </span>
+                                                            </span>
+                                                        </button>
+                                                    ))
+                                                )}
                                             </div>
                                         </div>
-
-                                        {/* Opción para quitar asignación */}
-                                        <button
-                                            onClick={() => {
-                                                handleBulkAssign(null);
-                                                setShowBulkAssignMenu(false);
-                                                setBulkAssignSearchQuery('');
-                                            }}
-                                            className="w-full px-3 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2 border-b border-gray-100"
-                                        >
-                                            <X className="w-4 h-4" />
-                                            Sin asignar
-                                        </button>
-
-                                        {/* Lista de asesores con scroll */}
-                                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                                            {filteredBulkAdvisors.length === 0 ? (
-                                                <div className="px-3 py-2 text-sm text-muted-foreground text-center">
-                                                    {t('conversations.noAdvisorsFound')}
-                                                </div>
-                                            ) : (
-                                                filteredBulkAdvisors.map((user) => (
-                                                    <button
-                                                        key={user.id}
-                                                        onClick={() => {
-                                                            handleBulkAssign(user.id);
-                                                            setShowBulkAssignMenu(false);
-                                                            setBulkAssignSearchQuery('');
-                                                        }}
-                                                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center justify-between"
-                                                    >
-                                                        <span>
-                                                            {user.name}
-                                                            <span className="text-xs text-muted-foreground ml-1">
-                                                                ({user.role === 'admin' ? t('users.roleAdmin') : t('users.roleAdvisor')})
-                                                            </span>
-                                                        </span>
-                                                    </button>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Botones de cambiar estado */}
                             <div className="flex gap-2 mt-2">
                                 <button
                                     onClick={() => handleBulkStatusChange('active')}
-                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-blue-500/30 text-white text-xs rounded-none flex items-center justify-center gap-1 transition-colors"
+                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-blue-500/30 text-white text-xs rounded-lg flex items-center justify-center gap-1 transition-colors"
                                 >
                                     <Check className="w-3 h-3" />
                                     Activo
                                 </button>
                                 <button
                                     onClick={() => handleBulkStatusChange('pending')}
-                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-yellow-500/30 text-white text-xs rounded-none flex items-center justify-center gap-1 transition-colors"
+                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-yellow-500/30 text-white text-xs rounded-lg flex items-center justify-center gap-1 transition-colors"
                                 >
                                     <Clock className="w-3 h-3" />
                                     Pendiente
                                 </button>
                                 <button
                                     onClick={() => handleBulkStatusChange('resolved')}
-                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-green-500/30 text-white text-xs rounded-none flex items-center justify-center gap-1 transition-colors"
+                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-green-500/30 text-white text-xs rounded-lg flex items-center justify-center gap-1 transition-colors"
                                 >
                                     <CheckCheck className="w-3 h-3" />
                                     Resuelto
@@ -2010,7 +2171,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                         return (
                             <div
-                                className="fixed card-gradient rounded-none shadow-xl border border-border py-2 z-50 min-w-[240px] overflow-y-auto"
+                                className="fixed card-gradient rounded-xl shadow-xl border border-border py-2 z-50 min-w-[240px] overflow-y-auto"
                                 style={{
                                     left: `${contextMenu.x}px`,
                                     top: showUpwards ? 'auto' : `${contextMenu.y}px`,
@@ -2253,12 +2414,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                 {/* En mobile: muestra solo cuando hay selección | En desktop: siempre visible */}
                 {!selectedConversation ? (
                     <div className="hidden md:flex flex-1 items-center justify-center bg-background">
-                        <div className="text-center text-muted-foreground card-gradient p-8 md:p-12 rounded-none shadow-[0_4px_8px_rgba(46,63,132,0.06),0_12px_24px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
-                            <MessageSquare className="w-24 h-24 mx-auto mb-4 text-muted-foreground" />
-                            <h3 className="text-xl font-semibold text-primary dark:text-primary mb-2">
+                        <div className="text-center text-muted-foreground p-8 md:p-12">
+                            <MessageSquare className="w-24 h-24 mx-auto mb-4 text-muted-foreground/40" />
+                            <h3 className="text-xl font-semibold text-foreground/60 mb-2">
                                 {t('conversations.selectConversation')}
                             </h3>
-                            <p className="text-sm">
+                            <p className="text-sm text-muted-foreground">
                                 {t('conversations.selectConversationHint')}
                             </p>
                         </div>
@@ -2266,7 +2427,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 ) : (
                     <div className="flex-1 flex flex-col bg-card w-full md:w-auto">
                         {/* Header del Chat */}
-                        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-background">
+                        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-background/80 backdrop-blur-sm border-b border-border">
                             <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
                                 {/* Botón volver (mobile) / toggle sidebar (desktop) */}
                                 <Button
@@ -2444,9 +2605,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'}`}
                                         >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] rounded-none px-3 md:px-4 py-2 ${message.is_from_user
-                                                    ? 'card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
-                                                    : 'chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
+                                                className={`max-w-[85%] md:max-w-[70%] px-3 md:px-4 py-2 ${message.is_from_user
+                                                    ? 'rounded-[18px_18px_18px_4px] card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                                                    : 'rounded-[18px_18px_4px_18px] chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
                                                     }`}
                                             >
                                                 {/* Remitente (si es asesor) */}
@@ -2473,7 +2634,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             <img
                                                                 src={message.media_url}
                                                                 alt={message.content}
-                                                                className="max-w-full max-h-96 rounded-none object-cover"
+                                                                className="max-w-full max-h-96 rounded-xl object-cover"
                                                                 loading="lazy"
                                                             />
                                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
@@ -2500,7 +2661,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         >
                                                             <video
                                                                 src={message.media_url}
-                                                                className="max-w-full max-h-96 rounded-none"
+                                                                className="max-w-full max-h-96 rounded-xl"
                                                                 preload="metadata"
                                                             >
                                                                 Your browser does not support video playback.
@@ -2599,7 +2760,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             className="flex justify-end"
                                         >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] rounded-none px-3 md:px-4 py-2 ${message.status === 'error'
+                                                className={`max-w-[85%] md:max-w-[70%] rounded-[18px_18px_4px_18px] px-3 md:px-4 py-2 ${message.status === 'error'
                                                     ? 'bg-gradient-to-b from-red-400 to-red-500 text-white shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_12px_rgba(239,68,68,0.25)]'
                                                     : 'chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] opacity-80'
                                                     }`}
@@ -2632,7 +2793,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     {/* Indicador de "escribiendo..." - Se mostrará cuando se implemente en backend */}
                                     {/* Ejemplo de cómo se vería: */}
                                     {/* <div className="flex justify-start">
-                                        <div className="card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none px-4 py-3">
+                                        <div className="card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-2xl px-4 py-3">
                                             <div className="flex items-center gap-1">
                                                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                                                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
@@ -2666,7 +2827,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-background">
                             {/* Preview del archivo seleccionado */}
                             {selectedFile && (
-                                <div className="mb-2 flex items-center gap-2 p-2 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-none">
+                                <div className="mb-2 flex items-center gap-2 p-2 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-lg">
                                     <Paperclip className="w-4 h-4 text-primary dark:text-primary" />
                                     <span className="text-sm text-primary dark:text-primary flex-1 truncate">{selectedFile.name}</span>
                                     <Button
@@ -2683,7 +2844,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                             {/* Preview de archivos de plantilla (múltiples) */}
                             {templateMediaFiles.length > 0 && !selectedFile && (
-                                <div className="mb-2 p-2 bg-gradient-to-b from-green-50 to-green-100/50 rounded-none">
+                                <div className="mb-2 p-2 bg-gradient-to-b from-green-50 to-green-100/50 rounded-lg">
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-sm text-green-800 font-medium">
                                             📎 {templateMediaFiles.length} archivo{templateMediaFiles.length !== 1 ? 's' : ''} de plantilla
@@ -2745,7 +2906,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         value={data.content}
                                         onChange={(e) => handleMessageChange(e.target.value)}
                                         placeholder={t('conversations.messagePlaceholder')}
-                                        className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 card-gradient focus:ring-2 focus:ring-primary shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-none transition-shadow duration-200"
+                                        className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 card-gradient focus:ring-2 focus:ring-primary shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-3xl transition-shadow duration-200"
                                         onKeyDown={handleTemplateKeyDown}
                                         onPaste={handlePaste}
                                         spellCheck={true}
@@ -2779,7 +2940,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <Button
                                     type="submit"
                                     disabled={(!(data.content?.trim()) && !selectedFile) || processing || isSubmitting}
-                                    className="chat-message-sent hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white px-4 md:px-6 shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="chat-message-sent hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white w-11 h-11 rounded-full shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
                                 >
                                     <Send className="w-5 h-5" />
                                 </Button>
@@ -2911,7 +3072,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     handleAssign(undefined);
                                     setShowAssignModal(false);
                                 }}
-                                className="w-full flex items-center gap-3 p-3 rounded-none transition-all duration-200 bg-gradient-to-b from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-900/20 hover:from-red-100 hover:to-red-150 dark:hover:from-red-900/40 dark:hover:to-red-900/30 text-red-600 dark:text-red-400 border-b border-red-200 dark:border-red-800 mb-2"
+                                className="w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 bg-gradient-to-b from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-900/20 hover:from-red-100 hover:to-red-150 dark:hover:from-red-900/40 dark:hover:to-red-900/30 text-red-600 dark:text-red-400 border-b border-red-200 dark:border-red-800 mb-2"
                             >
                                 <div className="w-10 h-10 rounded-full flex items-center justify-center bg-red-500 text-white">
                                     <X className="w-5 h-5" />
@@ -2932,7 +3093,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     handleAssign(user.id);
                                     setShowAssignModal(false);
                                 }}
-                                className={`w-full flex items-center gap-3 p-3 rounded-none transition-all duration-200 ${selectedConversation?.assigned_to === user.id
+                                className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${selectedConversation?.assigned_to === user.id
                                     ? 'chat-message-sent text-white shadow-[0_2px_8px_rgba(46,63,132,0.3)]'
                                     : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] hover:from-[#e8ebf5] hover:to-[#e0e4f0] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] text-primary dark:text-[hsl(231,15%,92%)]'
                                     }`}
@@ -3026,7 +3187,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     placeholder="3001234567 o +573001234567"
                                     value={newChatData.phone_number}
                                     onChange={(e) => setNewChatData({ ...newChatData, phone_number: e.target.value })}
-                                    className="pl-10 settings-input rounded-none"
+                                    className="pl-10 settings-input rounded-xl"
                                 />
                             </div>
                             <p className="text-xs text-muted-foreground">
@@ -3045,7 +3206,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     placeholder="Nombre del contacto"
                                     value={newChatData.contact_name}
                                     onChange={(e) => setNewChatData({ ...newChatData, contact_name: e.target.value })}
-                                    className="pl-10 settings-input rounded-none"
+                                    className="pl-10 settings-input rounded-xl"
                                 />
                             </div>
                         </div>
@@ -3057,7 +3218,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             <select
                                 value={newChatData.assigned_to || ''}
                                 onChange={(e) => setNewChatData({ ...newChatData, assigned_to: e.target.value ? Number(e.target.value) : null })}
-                                className="w-full h-10 px-3 settings-input rounded-none"
+                                className="w-full h-10 px-3 settings-input rounded-xl"
                             >
                                 <option value="">Yo mismo (Admin)</option>
                                 {users.filter(user => user.id !== auth.user.id).map((user) => (
@@ -3075,7 +3236,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {newChatError && (
-                            <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 dark:border-red-500 p-3 rounded-none">
+                            <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 dark:border-red-500 p-3 rounded-lg">
                                 <p className="text-sm text-red-800 dark:text-red-300">{newChatError}</p>
                             </div>
                         )}

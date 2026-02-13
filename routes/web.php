@@ -99,11 +99,26 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
 
 // Rutas para Admin y Asesores (Conversaciones y Plantillas)
 Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
+    // Chat Interno - Accesible para todos los usuarios
+    Route::controller(\App\Http\Controllers\Admin\InternalChatController::class)->prefix('internal-chat')->name('internal-chat.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/unread-count', 'unreadCount')->name('unread-count');
+        Route::post('/create', 'create')->name('create');
+        Route::get('/{chat}/messages', 'messages')->name('messages');
+        Route::post('/{chat}/send', 'send')->name('send');
+        Route::post('/{chat}/read', 'markRead')->name('read');
+        Route::get('/{chat}/poll', 'poll')->name('poll');
+    });
+
     // Conversaciones (WhatsApp) - Accesible para Admin y Asesores
     Route::controller(\App\Http\Controllers\ConversationController::class)->prefix('chat')->group(function () {
         Route::get('/', 'index')->name('chat.index');
         Route::get('/unread-count', 'getUnreadCount')->name('chat.unread-count');
         Route::post('/create', 'store')->name('chat.store'); // Crear nueva conversación
+        // Operaciones masivas
+        Route::post('/bulk-assign', 'bulkAssign')->name('chat.bulk-assign');
+        Route::post('/bulk-status', 'bulkUpdateStatus')->name('chat.bulk-status');
+        
         Route::get('/{conversation}', 'show')->name('chat.show');
         Route::post('/{conversation}/send', 'sendMessage')->name('chat.send');
         Route::post('/{conversation}/assign', 'assign')->name('chat.assign');

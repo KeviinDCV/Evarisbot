@@ -682,6 +682,57 @@ class ConversationController extends Controller
     }
 
     /**
+     * Asignación masiva de conversaciones
+     */
+    public function bulkAssign(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:conversations,id',
+            'user_id' => 'nullable|exists:users,id',
+        ]);
+
+        $userId = $validated['user_id'];
+        $updateData = ['assigned_to' => $userId];
+        
+        // Si se asigna a un usuario, reactivar la conversación
+        if ($userId) {
+            $updateData['status'] = 'active';
+        }
+
+        Conversation::whereIn('id', $validated['ids'])->update($updateData);
+
+        return back()->with('success', count($validated['ids']) . ' conversaciones actualizadas.');
+    }
+
+    /**
+     * Actualización masiva de estado
+     */
+    public function bulkUpdateStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:conversations,id',
+            'status' => 'required|in:active,pending,resolved',
+        ]);
+
+        $status = $validated['status'];
+        $updateData = ['status' => $status];
+
+        if ($status === 'resolved') {
+            $updateData['resolved_by'] = auth()->id();
+            $updateData['resolved_at'] = now();
+        } else {
+            $updateData['resolved_by'] = null;
+            $updateData['resolved_at'] = null;
+        }
+
+        Conversation::whereIn('id', $validated['ids'])->update($updateData);
+
+        return back()->with('success', count($validated['ids']) . ' conversaciones actualizadas.');
+    }
+
+    /**
      * Asignar conversación a un asesor
      */
     public function assign(Request $request, Conversation $conversation)

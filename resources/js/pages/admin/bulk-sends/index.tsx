@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone } from 'lucide-react';
+import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from 'react-i18next';
@@ -33,12 +33,22 @@ interface ActiveProgress {
     percentage: number;
 }
 
+interface WhatsappTemplate {
+    id: number;
+    name: string;
+    meta_template_name: string;
+    preview_text: string | null;
+    language: string;
+    default_params: string[] | null;
+}
+
 interface BulkSendsProps {
     bulkSends: BulkSendRecord[];
     activeProgress: ActiveProgress | null;
+    whatsappTemplates: WhatsappTemplate[];
 }
 
-export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgress }: BulkSendsProps) {
+export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgress, whatsappTemplates }: BulkSendsProps) {
     const { t } = useTranslation();
     const [recipients, setRecipients] = useState<Recipient[]>([]);
     const [templateName, setTemplateName] = useState('');
@@ -55,6 +65,25 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [activeProgress, setActiveProgress] = useState<ActiveProgress | null>(initialProgress);
     const [isProcessing, setIsProcessing] = useState(!!initialProgress);
     const [newParamValue, setNewParamValue] = useState('');
+    const [selectedTemplate, setSelectedTemplate] = useState<WhatsappTemplate | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
+
+    const handleSelectTemplate = (templateId: string) => {
+        const template = whatsappTemplates.find(t => t.id === Number(templateId));
+        if (template) {
+            setSelectedTemplate(template);
+            setTemplateName(template.meta_template_name);
+            if (template.default_params) {
+                setTemplateParams(template.default_params);
+            } else {
+                setTemplateParams([]);
+            }
+        } else {
+            setSelectedTemplate(null);
+            setTemplateName('');
+            setTemplateParams([]);
+        }
+    };
 
     // Polling para progreso activo
     useEffect(() => {
@@ -197,8 +226,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     };
 
     const handleStartSend = async () => {
-        if (!templateName.trim()) {
-            setError('Ingrese el nombre del template de WhatsApp');
+        if (!selectedTemplate) {
+            setError('Seleccione una plantilla de WhatsApp');
             return;
         }
         if (recipients.length === 0) {
@@ -236,6 +265,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setTemplateName('');
                 setTemplateParams([]);
                 setSendName('');
+                setSelectedTemplate(null);
+                setShowPreview(false);
                 setTimeout(() => setSuccess(''), 5000);
             } else {
                 setError(data.message || 'Error al iniciar el envío');
@@ -273,13 +304,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
     const statusLabel = (status: string) => {
         const labels: Record<string, { text: string; color: string }> = {
-            draft: { text: 'Borrador', color: 'bg-gray-100 text-gray-800' },
-            processing: { text: 'Procesando', color: 'bg-blue-100 text-blue-800' },
-            completed: { text: 'Completado', color: 'bg-green-100 text-green-800' },
-            failed: { text: 'Fallido', color: 'bg-red-100 text-red-800' },
-            cancelled: { text: 'Cancelado', color: 'bg-yellow-100 text-yellow-800' },
+            draft: { text: 'Borrador', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
+            processing: { text: 'Procesando', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
+            completed: { text: 'Completado', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
+            failed: { text: 'Fallido', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+            cancelled: { text: 'Cancelado', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
         };
-        return labels[status] || { text: status, color: 'bg-gray-100 text-gray-800' };
+        return labels[status] || { text: status, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' };
     };
 
     return (
@@ -382,23 +413,23 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                             {/* Columna izquierda: Template y destinatarios */}
                             <div className="space-y-[var(--space-lg)]">
-                                {/* Configuración del template */}
+                                {/* Seleccionar Template */}
                                 <div className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
                                     <h2 className="font-semibold flex items-center gap-2 mb-4 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                                        <FileSpreadsheet className="w-5 h-5" />
-                                        Configuración del Template
+                                        <MessageSquareText className="w-5 h-5" />
+                                        Seleccionar Plantilla
                                     </h2>
 
                                     <div className="space-y-4">
                                         <div>
                                             <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Nombre descriptivo (opcional)
+                                                Nombre descriptivo del envío (opcional)
                                             </label>
                                             <input
                                                 type="text"
                                                 value={sendName}
                                                 onChange={(e) => setSendName(e.target.value)}
-                                                placeholder="Ej: Recordatorio citas policía - Enero 2025"
+                                                placeholder="Ej: Aviso contrato policía - Feb 2026"
                                                 className="w-full settings-input rounded-none transition-all duration-200"
                                                 style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                             />
@@ -406,64 +437,113 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                                         <div>
                                             <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Nombre del Template de WhatsApp *
+                                                Plantilla de WhatsApp *
                                             </label>
-                                            <input
-                                                type="text"
-                                                value={templateName}
-                                                onChange={(e) => setTemplateName(e.target.value)}
-                                                placeholder="Ej: appointment_reminder"
-                                                className="w-full settings-input rounded-none transition-all duration-200"
-                                                style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
-                                            />
-                                            <p className="settings-subtitle mt-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                El template debe estar aprobado en Meta Business.
-                                            </p>
-                                        </div>
-
-                                        {/* Parámetros del template */}
-                                        <div>
-                                            <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Parámetros del Template (opcionales)
-                                            </label>
-                                            <div className="space-y-2">
-                                                {templateParams.map((param, index) => (
-                                                    <div key={index} className="flex items-center gap-2">
-                                                        <span className="text-xs text-muted-foreground w-10">
-                                                            {`{{${index + 1}}}`}
-                                                        </span>
-                                                        <span className="flex-1 px-3 py-1.5 bg-muted rounded text-sm">
-                                                            {param}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => removeParam(index)}
-                                                            className="text-red-500 hover:text-red-700"
+                                            {whatsappTemplates.length > 0 ? (
+                                                <div className="space-y-3">
+                                                    <div className="relative">
+                                                        <select
+                                                            value={selectedTemplate?.id || ''}
+                                                            onChange={(e) => handleSelectTemplate(e.target.value)}
+                                                            className="w-full settings-input rounded-none transition-all duration-200 appearance-none pr-10 cursor-pointer"
+                                                            style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                                         >
-                                                            <X className="w-4 h-4" />
-                                                        </button>
+                                                            <option value="">— Seleccione una plantilla —</option>
+                                                            {whatsappTemplates.map((t) => (
+                                                                <option key={t.id} value={t.id}>
+                                                                    {t.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                                                     </div>
-                                                ))}
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="text"
-                                                        value={newParamValue}
-                                                        onChange={(e) => setNewParamValue(e.target.value)}
-                                                        onKeyDown={(e) => e.key === 'Enter' && addParam()}
-                                                        placeholder={`Valor para {{${templateParams.length + 1}}}`}
-                                                        className="flex-1 settings-input rounded-none transition-all duration-200"
-                                                        style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
-                                                    />
-                                                    <Button 
-                                                        size="sm" 
-                                                        variant="outline" 
-                                                        onClick={addParam}
-                                                        className="settings-btn-secondary"
-                                                    >
-                                                        <Plus className="w-4 h-4" />
-                                                    </Button>
+
+                                                    {/* Preview del template seleccionado */}
+                                                    {selectedTemplate && (
+                                                        <div className="border border-border/60 rounded-lg overflow-hidden">
+                                                            <button
+                                                                onClick={() => setShowPreview(!showPreview)}
+                                                                className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
+                                                            >
+                                                                <span className="flex items-center gap-2 text-sm font-medium text-foreground/80">
+                                                                    <Eye className="w-4 h-4" />
+                                                                    Vista previa del mensaje
+                                                                </span>
+                                                                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${showPreview ? 'rotate-180' : ''}`} />
+                                                            </button>
+                                                            {showPreview && (
+                                                                <div className="px-4 py-3 bg-green-50/60 dark:bg-green-950/20 border-t border-border/40">
+                                                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 max-w-sm">
+                                                                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                                                                            {selectedTemplate.preview_text || 'Sin texto de previsualización disponible.'}
+                                                                        </p>
+                                                                    </div>
+                                                                    <p className="text-xs text-muted-foreground mt-2">
+                                                                        Template Meta: <span className="font-mono font-medium">{selectedTemplate.meta_template_name}</span> · Idioma: {selectedTemplate.language}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-6 border-2 border-dashed border-border/50 rounded-lg">
+                                                    <MessageSquareText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
+                                                    <p className="text-sm text-muted-foreground">
+                                                        No hay plantillas configuradas.
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        Primero apruebe el template en Meta Business y luego agreguelo en la base de datos.
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Parámetros del template (solo si hay template seleccionado y tiene params) */}
+                                        {selectedTemplate && (
+                                            <div>
+                                                <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
+                                                    Parámetros del Template (opcionales)
+                                                </label>
+                                                <div className="space-y-2">
+                                                    {templateParams.map((param, index) => (
+                                                        <div key={index} className="flex items-center gap-2">
+                                                            <span className="text-xs text-muted-foreground w-10">
+                                                                {`{{${index + 1}}}`}
+                                                            </span>
+                                                            <span className="flex-1 px-3 py-1.5 bg-muted rounded text-sm">
+                                                                {param}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => removeParam(index)}
+                                                                className="text-red-500 hover:text-red-700"
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={newParamValue}
+                                                            onChange={(e) => setNewParamValue(e.target.value)}
+                                                            onKeyDown={(e) => e.key === 'Enter' && addParam()}
+                                                            placeholder={`Valor para {{${templateParams.length + 1}}}`}
+                                                            className="flex-1 settings-input rounded-none transition-all duration-200"
+                                                            style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
+                                                        />
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="outline" 
+                                                            onClick={addParam}
+                                                            className="settings-btn-secondary"
+                                                        >
+                                                            <Plus className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -610,7 +690,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <div className="pt-4 mt-auto">
                                             <Button
                                                 onClick={handleStartSend}
-                                                disabled={isSending || !templateName.trim()}
+                                                disabled={isSending || !selectedTemplate}
                                                 className="w-full font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
                                                 style={{
                                                     backgroundColor: 'var(--primary-base)',
@@ -642,9 +722,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     </>
                                                 )}
                                             </Button>
-                                            {!templateName.trim() && (
+                                            {!selectedTemplate && (
                                                 <p className="text-xs text-red-500 mt-2 text-center font-medium">
-                                                    Ingrese el nombre del template antes de enviar
+                                                    Seleccione una plantilla antes de enviar
                                                 </p>
                                             )}
                                         </div>

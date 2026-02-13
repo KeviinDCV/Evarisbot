@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendBulkMessageJob;
 use App\Models\BulkSend;
 use App\Models\BulkSendRecipient;
+use App\Models\WhatsappTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
@@ -67,9 +68,22 @@ class BulkSendController extends Controller
             }
         }
 
+        $whatsappTemplates = WhatsappTemplate::active()
+            ->orderBy('name')
+            ->get()
+            ->map(fn($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'meta_template_name' => $t->meta_template_name,
+                'preview_text' => $t->preview_text,
+                'language' => $t->language,
+                'default_params' => $t->default_params,
+            ]);
+
         return Inertia::render('admin/bulk-sends/index', [
             'bulkSends' => $bulkSends,
             'activeProgress' => $activeProgress,
+            'whatsappTemplates' => $whatsappTemplates,
         ]);
     }
 
