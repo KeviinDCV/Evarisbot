@@ -120,7 +120,7 @@ class SendBulkMessageJob implements ShouldQueue
             }
 
             // Enviar template via WhatsApp API
-            $response = $this->sendTemplateMessage($phoneNumber, $bulkSend->template_name, $components);
+            $response = $this->sendTemplateMessage($phoneNumber, $bulkSend->template_name, $components, $bulkSend->template_language ?? 'es_CO');
 
             if (isset($response['messages'][0]['id'])) {
                 $messageId = $response['messages'][0]['id'];
@@ -196,7 +196,7 @@ class SendBulkMessageJob implements ShouldQueue
     /**
      * Enviar template via WhatsApp Business API (mismo patrón que AppointmentReminderService)
      */
-    private function sendTemplateMessage(string $to, string $templateName, array $components): array
+    private function sendTemplateMessage(string $to, string $templateName, array $components, string $language = 'es_CO'): array
     {
         $token = Setting::get('whatsapp_token');
         $phoneNumberId = Setting::get('whatsapp_phone_number_id');
@@ -214,7 +214,7 @@ class SendBulkMessageJob implements ShouldQueue
             'type' => 'template',
             'template' => [
                 'name' => $templateName,
-                'language' => ['code' => 'es_CO'],
+                'language' => ['code' => $language],
             ],
         ];
 

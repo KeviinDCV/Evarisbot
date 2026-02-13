@@ -60,6 +60,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { useTranslation } from 'react-i18next';
+import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
 
 interface Message {
     id: number;
@@ -225,6 +226,11 @@ export default function ConversationsIndex({ conversations: initialConversations
     const tagFilterButtonRef = useRef<HTMLButtonElement>(null);
     const [editingTag, setEditingTag] = useState<{ id: number; name: string; color: string } | null>(null);
 
+    // Autocorrección
+    const [lastCorrection, setLastCorrection] = useState<CorrectionEvent | null>(null);
+    const [previousTextRef] = useState({ current: '' });
+    const correctionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // Panel unificado de filtros
     const [showFiltersPanel, setShowFiltersPanel] = useState(false);
     const [expandedFilterSection, setExpandedFilterSection] = useState<string | null>(null);
@@ -313,19 +319,31 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Manejar cambios en el input de mensaje
     const handleMessageChange = (value: string) => {
-        setData('content', value);
+        // Aplicar autocorrección
+        const { correctedText, wasChanged, original, corrected } = autoCorrectText(value, previousTextRef.current);
+        const finalValue = wasChanged ? correctedText : value;
+        previousTextRef.current = finalValue;
+
+        if (wasChanged) {
+            // Mostrar notificación sutil de corrección
+            setLastCorrection({ original, corrected, timestamp: Date.now() });
+            if (correctionTimeoutRef.current) clearTimeout(correctionTimeoutRef.current);
+            correctionTimeoutRef.current = setTimeout(() => setLastCorrection(null), 2500);
+        }
+
+        setData('content', finalValue);
 
         // Detectar el comando /
-        const cursorPosition = value.length;
-        const lastSlashIndex = value.lastIndexOf('/');
+        const cursorPosition = finalValue.length;
+        const lastSlashIndex = finalValue.lastIndexOf('/');
 
         if (lastSlashIndex !== -1) {
             // Verificar si / está al inicio o después de un espacio
-            const beforeSlash = value[lastSlashIndex - 1];
+            const beforeSlash = finalValue[lastSlashIndex - 1];
             const isValidSlash = lastSlashIndex === 0 || beforeSlash === ' ';
 
             if (isValidSlash) {
-                const textAfterSlash = value.substring(lastSlashIndex + 1);
+                const textAfterSlash = finalValue.substring(lastSlashIndex + 1);
                 const hasSpaceAfterSlash = textAfterSlash.includes(' ');
 
                 if (!hasSpaceAfterSlash) {
@@ -2932,6 +2950,35 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </div>
                                                 </div>
                                             ))}
+                                        </div>
+                                    )}
+
+                                    {/* Indicador de autocorrección */}
+                                    {lastCorrection && (
+                                        <div className="absolute bottom-full left-2 mb-1 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-full shadow-sm">
+                                                <Check className="w-3 h-3 text-blue-500" />
+                                                <span className="text-[11px] text-blue-600 dark:text-blue-400">
+                                                    <span className="line-through opacity-60">{lastCorrection.original}</span>
+                                                    {' → '}
+                                                    <span className="font-medium">{lastCorrection.corrected}</span>
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className="ml-0.5 text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
+                                                    onClick={() => {
+                                                        // Deshacer la corrección
+                                                        const currentContent = data.content;
+                                                        const undone = currentContent.replace(lastCorrection.corrected, lastCorrection.original);
+                                                        setData('content', undone);
+                                                        previousTextRef.current = undone;
+                                                        setLastCorrection(null);
+                                                    }}
+                                                    title="Deshacer corrección"
+                                                >
+                                                    <RotateCcw className="w-3 h-3" />
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

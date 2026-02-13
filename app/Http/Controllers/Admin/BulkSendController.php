@@ -22,7 +22,6 @@ class BulkSendController extends Controller
     {
         $bulkSends = BulkSend::with('creator')
             ->orderBy('created_at', 'desc')
-            ->limit(50)
             ->get()
             ->map(fn($bs) => [
                 'id' => $bs->id,
@@ -195,11 +194,19 @@ class BulkSendController extends Controller
         try {
             $recipients = $request->input('recipients');
 
+            // Buscar el idioma real del template
+            $templateLang = 'es_CO'; // fallback
+            $template = WhatsappTemplate::where('meta_template_name', $request->input('template_name'))->first();
+            if ($template && $template->language) {
+                $templateLang = $template->language;
+            }
+
             // Crear el registro de envío masivo
             $bulkSend = BulkSend::create([
                 'name' => $request->input('name') ?: 'Envío ' . now()->format('Y-m-d H:i'),
                 'template_name' => $request->input('template_name'),
                 'template_params' => $request->input('template_params'),
+                'template_language' => $templateLang,
                 'status' => 'processing',
                 'total_recipients' => count($recipients),
                 'sent_count' => 0,

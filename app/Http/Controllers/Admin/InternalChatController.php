@@ -43,9 +43,14 @@ class InternalChatController extends Controller
                         'user_name' => $chat->latestMessage->user->name,
                         'created_at' => $chat->latestMessage->created_at->diffForHumans(),
                     ] : null,
+                    'latest_message_raw' => $chat->latestMessage?->created_at?->toISOString(),
                 ];
             })
-            ->sortByDesc(fn($c) => $c['unread'] > 0 ? 1 : 0) // No leídos primero
+            ->sortBy([
+                fn($a, $b) => ($b['unread'] > 0 ? 1 : 0) <=> ($a['unread'] > 0 ? 1 : 0), // No leídos primero
+                fn($a, $b) => ($b['latest_message_raw'] ?? '') <=> ($a['latest_message_raw'] ?? ''), // Más recientes primero
+            ])
+            ->map(function ($c) { unset($c['latest_message_raw']); return $c; })
             ->values();
 
         $users = User::where('id', '!=', $userId)
@@ -125,6 +130,11 @@ class InternalChatController extends Controller
      */
     public function create(Request $request)
     {
+        // Solo administradores pueden crear chats/grupos
+        if (auth()->user()->role !== 'admin') {
+            return response()->json(['error' => 'Solo los administradores pueden crear chats o grupos'], 403);
+        }
+
         $userId = auth()->id();
 
         $request->validate([
@@ -190,8 +200,12 @@ class InternalChatController extends Controller
 
         $request->validate([
             'body' => 'nullable|string|max:5000',
+            'content' => 'nullable|string|max:5000',
             'file' => 'nullable|file|max:25600', // Max 25MB
         ]);
+
+        // Accept both 'body' and 'content' from frontend
+        $bodyText = $request->input('body') ?? $request->input('content');
 
         $type = 'text';
         $filePath = null;
@@ -220,14 +234,14 @@ class InternalChatController extends Controller
             $filePath = $file->store('internal-chat/' . $chat->id, 'public');
         }
 
-        if (!$request->input('body') && !$filePath) {
+        if (!$bodyText && !$filePath) {
             return response()->json(['error' => 'Envíe un mensaje o archivo'], 422);
         }
 
         $message = InternalMessage::create([
             'internal_chat_id' => $chat->id,
             'user_id' => $userId,
-            'body' => $request->input('body'),
+            'body' => $bodyText,
             'type' => $type,
             'file_path' => $filePath,
             'file_name' => $fileName,
@@ -337,5 +351,60 @@ class InternalChatController extends Controller
         }
 
         return response()->json(['messages' => $messages]);
+    }
+
+    /**
+     * Renombrar un chat grupal
+     */
+    public function rename(Request $request, InternalChat $chat)
+    {
+        $userId = auth()->id();
+
+        if (!$chat->hasParticipant($userId)) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+
+        if ($chat->type !== 'group') {
+            return response()->json(['error' => 'Solo se pueden renombrar grupos'], 400);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:100',
+        ]);
+
+        $chat->update(['name' => $request->input('name')]);
+
+        return response()->json(['success' => true, 'name' => $chat->name]);
+    }
+
+    /**
+     * Eliminar un chat (salir del chat)
+     */
+    public function destroy(InternalChat $chat)
+    {
+        $userId = auth()->id();
+
+        if (!$chat->hasParticipant($userId)) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+
+        if ($chat->type === 'direct') {
+            // En chat directo, eliminar para ambos: borrar mensajes y el chat
+            $chat->messages()->delete();
+            $chat->participants()->detach();
+            $chat->delete();
+        } else {
+            // En grupo: si es el creador, eliminar todo; si no, solo salir
+            if ($chat->created_by === $userId) {
+                $chat->messages()->delete();
+                $chat->participants()->detach();
+                $chat->delete();
+            } else {
+                // Solo salir del grupo
+                $chat->participants()->detach($userId);
+            }
+        }
+
+        return response()->json(['success' => true]);
     }
 }

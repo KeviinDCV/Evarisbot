@@ -12,6 +12,7 @@ class BulkSend extends Model
         'name',
         'template_name',
         'template_params',
+        'template_language',
         'status',
         'total_recipients',
         'sent_count',

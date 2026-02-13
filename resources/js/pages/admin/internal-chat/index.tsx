@@ -6,7 +6,6 @@ import {
     Paperclip,
     Search,
     MoreVertical,
-    Phone,
     FileText,
     Image as ImageIcon,
     Music,
@@ -18,12 +17,16 @@ import {
     Users,
     X,
     Check,
+    Trash2,
+    Pencil,
+    LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 
 // --- Interfaces matching backend API ---
@@ -89,8 +92,16 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const [userSearchQuery, setUserSearchQuery] = useState('');
     const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
+    // Rename modal
+    const [showRenameModal, setShowRenameModal] = useState(false);
+    const [renameValue, setRenameValue] = useState('');
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const isAtBottomRef = useRef(true);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const lastMessageIdRef = useRef<number>(0);
+    const lastChatPollRef = useRef<string>('');
 
     const isAdmin = auth.user.role === 'admin';
 
@@ -118,9 +129,19 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             .slice(0, 2);
     }
 
-    function scrollToBottom() {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    function scrollToBottom(force = false) {
+        if (force || isAtBottomRef.current) {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }
     }
+
+    // Track scroll position to know if user is at bottom
+    const handleMessagesScroll = () => {
+        const el = messagesContainerRef.current;
+        if (!el) return;
+        const threshold = 80;
+        isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    };
 
     function getChatIcon(chat: ChatItem) {
         if (chat.type === 'group') return null;
@@ -140,55 +161,104 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
     // --- Effects ---
 
-    // Polling for chat list
+    // Polling for chat list - optimized with fingerprint comparison
     useEffect(() => {
-        const interval = setInterval(async () => {
+        const pollChats = async () => {
             try {
                 const res = await axios.get('/admin/internal-chat', {
                     headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
                 });
 
                 if (res.data?.props?.chats) {
-                    setChats(res.data.props.chats);
+                    const newChats: ChatItem[] = res.data.props.chats;
+                    // Build a fingerprint to avoid unnecessary re-renders
+                    const fingerprint = JSON.stringify(newChats.map(c => ({
+                        id: c.id, u: c.unread, lm: c.latest_message?.body, lmt: c.latest_message?.created_at
+                    })));
+
+                    if (fingerprint !== lastChatPollRef.current) {
+                        lastChatPollRef.current = fingerprint;
+                        setChats(newChats);
+
+                        // Update active chat data if it changed (name, participants, unread)
+                        if (activeChat) {
+                            const updated = newChats.find(c => c.id === activeChat.id);
+                            if (!updated) {
+                                // Chat was deleted, clear active
+                                setActiveChat(null);
+                                setMessages([]);
+                                lastMessageIdRef.current = 0;
+                            } else if (updated.name !== activeChat.name || updated.participants.length !== activeChat.participants.length) {
+                                setActiveChat(updated);
+                            }
+                        }
+                    }
                 }
             } catch {
                 // Silent fail
             }
-        }, 5000);
-        return () => clearInterval(interval);
-    }, []);
+        };
 
-    // Polling for messages in active chat
+        // Immediate first poll
+        pollChats();
+        const interval = setInterval(pollChats, 3000);
+        return () => clearInterval(interval);
+    }, [activeChat?.id]);
+
+    // Polling for messages in active chat - using last message ID for reliability
     useEffect(() => {
         if (!activeChat) return;
 
-        const interval = setInterval(async () => {
+        const pollMessages = async () => {
             try {
                 const res = await axios.get(`/admin/internal-chat/${activeChat.id}/messages`);
                 if (res.data?.messages && Array.isArray(res.data.messages)) {
-                    if (res.data.messages.length !== messages.length) {
-                        setMessages(res.data.messages);
-                        scrollToBottom();
+                    const newMessages: MessageItem[] = res.data.messages;
+                    const newLastId = newMessages.length > 0 ? newMessages[newMessages.length - 1].id : 0;
+
+                    // Compare by last message ID instead of length (more reliable)
+                    if (newLastId !== lastMessageIdRef.current) {
+                        const hadNewMessages = newLastId > lastMessageIdRef.current;
+                        lastMessageIdRef.current = newLastId;
+                        setMessages(newMessages);
+
+                        // Only scroll if new messages arrived (not on initial load / edits)
+                        if (hadNewMessages) {
+                            setTimeout(() => scrollToBottom(), 50);
+                        }
                     }
                 }
-            } catch (e) {
-                console.error(e);
+            } catch (e: any) {
+                // If chat was deleted (404), stop polling and clear
+                if (e?.response?.status === 404) {
+                    setActiveChat(null);
+                    setMessages([]);
+                    lastMessageIdRef.current = 0;
+                    return;
+                }
             }
-        }, 3000);
+        };
 
+        const interval = setInterval(pollMessages, 2000);
         return () => clearInterval(interval);
-    }, [activeChat, messages.length]);
+    }, [activeChat?.id]);
 
     // Fetch messages when active chat changes
     useEffect(() => {
         if (activeChat) {
+            // Reset tracking for new chat
+            lastMessageIdRef.current = 0;
+
             axios.get(`/admin/internal-chat/${activeChat.id}/messages`)
                 .then(res => {
                     if (res.data?.messages) {
-                        setMessages(res.data.messages);
+                        const msgs: MessageItem[] = res.data.messages;
+                        setMessages(msgs);
+                        lastMessageIdRef.current = msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
                         setActiveChatInfo(res.data.chat || null);
                     }
-                    setTimeout(scrollToBottom, 100);
+                    // Force scroll to bottom on chat switch
+                    setTimeout(() => scrollToBottom(true), 100);
                 })
                 .catch(console.error);
 
@@ -210,18 +280,40 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         const originalText = inputText;
         setInputText('');
 
+        // Optimistic: add message locally before server confirms
+        const tempId = Date.now();
+        const optimisticMsg: MessageItem = {
+            id: tempId,
+            body: originalText,
+            type: 'text',
+            file_url: null,
+            file_name: null,
+            file_mime: null,
+            file_size_human: null,
+            user: { id: auth.user.id, name: auth.user.name },
+            is_mine: true,
+            created_at: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            created_at_full: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+        setTimeout(() => scrollToBottom(true), 50);
+
         try {
-            await axios.post(`/admin/internal-chat/${activeChat.id}/send`, {
-                content: originalText,
+            const sendRes = await axios.post(`/admin/internal-chat/${activeChat.id}/send`, {
+                body: originalText,
                 type: 'text'
             });
-            const res = await axios.get(`/admin/internal-chat/${activeChat.id}/messages`);
-            if (res.data?.messages) {
-                setMessages(res.data.messages);
+
+            // Replace optimistic message with real one from server
+            if (sendRes.data?.message) {
+                const realMsg = sendRes.data.message;
+                lastMessageIdRef.current = realMsg.id;
+                setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
             }
-            scrollToBottom();
         } catch (error) {
             console.error(error);
+            // Remove optimistic message and restore input on error
+            setMessages(prev => prev.filter(m => m.id !== tempId));
             setInputText(originalText);
         }
     };
@@ -237,20 +329,42 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         if (file.type.startsWith('image/')) type = 'image';
         else if (file.type.startsWith('audio/')) type = 'audio';
         else if (file.type.startsWith('video/')) type = 'video';
+        else type = 'document';
         formData.append('type', type);
+
+        // Optimistic: show uploading placeholder
+        const tempId = Date.now();
+        const optimisticMsg: MessageItem = {
+            id: tempId,
+            body: `📎 Enviando ${file.name}...`,
+            type: type as MessageItem['type'],
+            file_url: null,
+            file_name: file.name,
+            file_mime: file.type,
+            file_size_human: `${(file.size / 1024).toFixed(0)} KB`,
+            user: { id: auth.user.id, name: auth.user.name },
+            is_mine: true,
+            created_at: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            created_at_full: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+        setTimeout(() => scrollToBottom(true), 50);
 
         setIsUploading(true);
         try {
-            await axios.post(`/admin/internal-chat/${activeChat.id}/send`, formData, {
+            const sendRes = await axios.post(`/admin/internal-chat/${activeChat.id}/send`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            const res = await axios.get(`/admin/internal-chat/${activeChat.id}/messages`);
-            if (res.data?.messages) {
-                setMessages(res.data.messages);
+
+            // Replace optimistic with real message
+            if (sendRes.data?.message) {
+                const realMsg = sendRes.data.message;
+                lastMessageIdRef.current = realMsg.id;
+                setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
             }
-            scrollToBottom();
         } catch (error) {
             console.error("Upload error", error);
+            setMessages(prev => prev.filter(m => m.id !== tempId));
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -324,14 +438,16 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             <h2 className="text-base md:text-lg font-bold text-primary dark:text-primary whitespace-nowrap">Chat Interno</h2>
 
                             <div className="flex items-center gap-1 flex-shrink-0">
-                                {/* Botón para nuevo chat/grupo */}
-                                <button
-                                    onClick={() => setShowCreateGroup(true)}
-                                    className="p-1.5 chat-message-sent text-white rounded-lg shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
-                                    title="Nuevo chat o grupo"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                </button>
+                                {/* Botón para nuevo chat/grupo - Solo admins */}
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => setShowCreateGroup(true)}
+                                        className="p-1.5 chat-message-sent text-white rounded-lg shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                        title="Nuevo chat o grupo"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -482,17 +598,76 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                             {/* Acciones del header */}
                             <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="sm" className="hover:bg-accent">
-                                    <Phone className="w-4 h-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" className="hover:bg-accent">
-                                    <MoreVertical className="w-4 h-4" />
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="hover:bg-accent">
+                                            <MoreVertical className="w-4 h-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                        {activeChat.type === 'group' && (
+                                            <DropdownMenuItem
+                                                onClick={() => {
+                                                    setRenameValue(activeChat.name);
+                                                    setShowRenameModal(true);
+                                                }}
+                                                className="cursor-pointer"
+                                            >
+                                                <Pencil className="w-4 h-4 mr-2" />
+                                                Renombrar grupo
+                                            </DropdownMenuItem>
+                                        )}
+                                        {activeChat.type === 'group' && (
+                                            <DropdownMenuItem
+                                                className="cursor-pointer"
+                                                onClick={() => {
+                                                    // Show participants
+                                                }}
+                                            >
+                                                <Users className="w-4 h-4 mr-2" />
+                                                Ver participantes ({activeChat.participants.length})
+                                            </DropdownMenuItem>
+                                        )}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30"
+                                            onClick={async () => {
+                                                const label = activeChat.type === 'group'
+                                                    ? (activeChat.participants.some(p => p.id === auth.user.id) ? 'Eliminar grupo' : 'Salir del grupo')
+                                                    : 'Eliminar chat';
+                                                if (!confirm(`¿${label}? Esta acción no se puede deshacer.`)) return;
+                                                try {
+                                                    const deletedId = activeChat.id;
+                                                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                                                    await axios.delete(`/admin/internal-chat/${deletedId}`, {
+                                                        headers: { 'X-CSRF-TOKEN': csrfToken }
+                                                    });
+                                                    // Immediately clean up local state to stop polling
+                                                    lastMessageIdRef.current = 0;
+                                                    lastChatPollRef.current = '';
+                                                    setMessages([]);
+                                                    setActiveChat(null);
+                                                    // Remove from local list immediately (optimistic)
+                                                    setChats(prev => prev.filter(c => c.id !== deletedId));
+                                                } catch (err) {
+                                                    console.error('Error eliminando chat:', err);
+                                                }
+                                            }}
+                                        >
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            {activeChat.type === 'group' ? 'Eliminar grupo' : 'Eliminar chat'}
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </div>
 
                         {/* Mensajes */}
-                        <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar-light bg-card">
+                        <div
+                            ref={messagesContainerRef}
+                            onScroll={handleMessagesScroll}
+                            className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar-light bg-card"
+                        >
                             {messages.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                                     <MessageSquare className="w-16 h-16 mb-4 text-muted-foreground/40" />
@@ -788,6 +963,73 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                                 ) : null}
                                 {selectedUserIds.length > 1 ? 'Crear grupo' : 'Iniciar chat'}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal: Renombrar grupo */}
+            <Dialog open={showRenameModal} onOpenChange={setShowRenameModal}>
+                <DialogContent className="sm:max-w-sm card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
+                            <Pencil className="w-5 h-5" />
+                            Renombrar grupo
+                        </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Cambia el nombre del grupo
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 pt-2">
+                        <Input
+                            type="text"
+                            placeholder="Nombre del grupo"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            className="settings-input rounded-xl"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && renameValue.trim()) {
+                                    e.preventDefault();
+                                    // trigger rename
+                                    (async () => {
+                                        if (!activeChat || !renameValue.trim()) return;
+                                        try {
+                                            await axios.put(`/admin/internal-chat/${activeChat.id}/rename`, { name: renameValue.trim() });
+                                            // Update local state
+                                            setActiveChat({ ...activeChat, name: renameValue.trim() });
+                                            setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, name: renameValue.trim() } : c));
+                                            setShowRenameModal(false);
+                                        } catch (err) {
+                                            console.error('Error renombrando grupo:', err);
+                                        }
+                                    })();
+                                }
+                            }}
+                            autoFocus
+                        />
+
+                        <div className="flex justify-end gap-2">
+                            <Button variant="outline" onClick={() => setShowRenameModal(false)} className="rounded-lg">
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={async () => {
+                                    if (!activeChat || !renameValue.trim()) return;
+                                    try {
+                                        await axios.put(`/admin/internal-chat/${activeChat.id}/rename`, { name: renameValue.trim() });
+                                        setActiveChat({ ...activeChat, name: renameValue.trim() });
+                                        setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, name: renameValue.trim() } : c));
+                                        setShowRenameModal(false);
+                                    } catch (err) {
+                                        console.error('Error renombrando grupo:', err);
+                                    }
+                                }}
+                                disabled={!renameValue.trim()}
+                                className="chat-message-sent text-white rounded-lg shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] disabled:opacity-50"
+                            >
+                                Guardar
                             </Button>
                         </div>
                     </div>

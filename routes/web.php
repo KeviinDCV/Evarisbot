@@ -108,6 +108,8 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/{chat}/send', 'send')->name('send');
         Route::post('/{chat}/read', 'markRead')->name('read');
         Route::get('/{chat}/poll', 'poll')->name('poll');
+        Route::put('/{chat}/rename', 'rename')->name('rename');
+        Route::delete('/{chat}', 'destroy')->name('destroy');
     });
 
     // Conversaciones (WhatsApp) - Accesible para Admin y Asesores
