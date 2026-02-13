@@ -13,6 +13,7 @@ return new class extends Migration
             $table->string('name')->nullable(); // Nombre descriptivo del envío
             $table->string('template_name'); // Nombre del template de WhatsApp
             $table->json('template_params')->nullable(); // Parámetros del template (JSON)
+            $table->string('template_language')->default('es_CO'); // Idioma del template
             $table->enum('status', ['draft', 'processing', 'completed', 'failed', 'cancelled'])->default('draft');
             $table->unsignedInteger('total_recipients')->default(0);
             $table->unsignedInteger('sent_count')->default(0);

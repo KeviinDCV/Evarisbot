@@ -13,8 +13,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Helper para agregar índice solo si no existe
+        // Helper para agregar índice solo si la tabla y el índice no existen
         $addIndexIfNotExists = function($table, $columns, $name = null) {
+            if (!Schema::hasTable($table)) {
+                return; // Skip if table doesn't exist yet
+            }
+
             $columns = is_array($columns) ? $columns : [$columns];
             $indexName = $name ?? $table . '_' . implode('_', $columns) . '_index';
             

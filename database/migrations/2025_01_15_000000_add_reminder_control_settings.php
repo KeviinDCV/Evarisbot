@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -10,6 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Skip if settings table doesn't exist yet (will be seeded later)
+        if (!Schema::hasTable('settings')) {
+            return;
+        }
+
         $settings = [
             [
                 'key' => 'reminder_paused',
@@ -53,6 +59,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (!Schema::hasTable('settings')) {
+            return;
+        }
+
         DB::table('settings')->whereIn('key', [
             'reminder_paused',
             'reminder_processing',
