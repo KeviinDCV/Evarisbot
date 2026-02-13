@@ -347,6 +347,7 @@
     "dashboard": "Dashboard",
     "conversations": "Conversations",
     "appointments": "Appointments",
+    "bulkSends": "Bulk Send",
     "templates": "Templates",
     "statistics": "Statistics",
     "users": "Users",

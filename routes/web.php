@@ -86,6 +86,15 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/', 'index')->name('index');
         Route::get('/export', 'export')->name('export');
     });
+
+    // Envío Masivo
+    Route::controller(\App\Http\Controllers\Admin\BulkSendController::class)->prefix('bulk-sends')->name('bulk-sends.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::post('/upload', 'upload')->name('upload');
+        Route::post('/start', 'start')->name('start');
+        Route::get('/status', 'status')->name('status');
+        Route::post('/{bulkSend}/cancel', 'cancel')->name('cancel');
+    });
 });
 
 // Rutas para Admin y Asesores (Conversaciones y Plantillas)
