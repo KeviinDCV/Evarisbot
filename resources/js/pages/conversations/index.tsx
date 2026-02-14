@@ -945,6 +945,22 @@ export default function ConversationsIndex({ conversations: initialConversations
         return labels[status] || status;
     };
 
+    // Colores determinísticos por usuario para badges de "resuelto por"
+    const userBadgeColors = [
+        { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800', banner: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800', bannerText: 'text-blue-700 dark:text-blue-300', bannerIcon: 'text-blue-600 dark:text-blue-400' },
+        { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800', banner: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800', bannerText: 'text-purple-700 dark:text-purple-300', bannerIcon: 'text-purple-600 dark:text-purple-400' },
+        { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-300', border: 'border-teal-200 dark:border-teal-800', banner: 'bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800', bannerText: 'text-teal-700 dark:text-teal-300', bannerIcon: 'text-teal-600 dark:text-teal-400' },
+        { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800', banner: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800', bannerText: 'text-orange-700 dark:text-orange-300', bannerIcon: 'text-orange-600 dark:text-orange-400' },
+        { bg: 'bg-pink-100 dark:bg-pink-900/30', text: 'text-pink-700 dark:text-pink-300', border: 'border-pink-200 dark:border-pink-800', banner: 'bg-pink-50 dark:bg-pink-900/20 border-pink-200 dark:border-pink-800', bannerText: 'text-pink-700 dark:text-pink-300', bannerIcon: 'text-pink-600 dark:text-pink-400' },
+        { bg: 'bg-cyan-100 dark:bg-cyan-900/30', text: 'text-cyan-700 dark:text-cyan-300', border: 'border-cyan-200 dark:border-cyan-800', banner: 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800', bannerText: 'text-cyan-700 dark:text-cyan-300', bannerIcon: 'text-cyan-600 dark:text-cyan-400' },
+        { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800', banner: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800', bannerText: 'text-amber-700 dark:text-amber-300', bannerIcon: 'text-amber-600 dark:text-amber-400' },
+        { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300', border: 'border-indigo-200 dark:border-indigo-800', banner: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800', bannerText: 'text-indigo-700 dark:text-indigo-300', bannerIcon: 'text-indigo-600 dark:text-indigo-400' },
+    ];
+
+    const getUserBadgeColor = (userId: number) => {
+        return userBadgeColors[userId % userBadgeColors.length];
+    };
+
     // Función para verificar si han pasado 24 horas desde el último mensaje del usuario
     const getLastUserMessageInfo = useCallback(() => {
         if (!selectedConversation?.messages || selectedConversation.messages.length === 0) {
@@ -2001,12 +2017,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <span className="text-xs text-muted-foreground">{getStatusLabel(conversation.status)}</span>
                                                 </div>
                                                 {/* Mostrar quién resolvió la conversación */}
-                                                {conversation.status === 'resolved' && conversation.resolved_by_user && (
-                                                    <span className="text-[10px] text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded truncate max-w-[120px]" title={`Resuelto por ${conversation.resolved_by_user.name}`}>
-                                                        <CheckCheck className="w-3 h-3 inline mr-0.5" />
-                                                        {conversation.resolved_by_user.name.split(' ')[0]}
-                                                    </span>
-                                                )}
+                                                {conversation.status === 'resolved' && conversation.resolved_by_user && (() => {
+                                                    const colors = getUserBadgeColor(conversation.resolved_by_user!.id);
+                                                    return (
+                                                        <span className={`text-[10px] ${colors.text} ${colors.bg} border ${colors.border} px-1.5 py-0.5 rounded-full truncate max-w-[130px] font-medium`} title={`Resuelto por ${conversation.resolved_by_user!.name}`}>
+                                                            <CheckCheck className="w-3 h-3 inline mr-0.5" />
+                                                            {conversation.resolved_by_user!.name.split(' ')[0]}
+                                                        </span>
+                                                    );
+                                                })()}
                                                 {/* Mostrar asesor asignado (solo si no está resuelta) */}
                                                 {conversation.assigned_user && conversation.status !== 'resolved' && (
                                                     <span className="text-[10px] text-muted-foreground bg-accent dark:bg-accent px-1.5 py-0.5 rounded truncate max-w-[80px]" title={conversation.assigned_user.name}>
@@ -2584,27 +2603,30 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {/* Banner de conversación resuelta */}
-                        {selectedConversation.status === 'resolved' && selectedConversation.resolved_by_user && (
-                            <div className="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800">
-                                <CheckCheck className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                                <span className="text-sm text-green-700 dark:text-green-300">
-                                    Conversación resuelta por <strong>{selectedConversation.resolved_by_user.name}</strong>
-                                    {selectedConversation.resolved_at && (
-                                        <> el {new Date(selectedConversation.resolved_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+                        {selectedConversation.status === 'resolved' && selectedConversation.resolved_by_user && (() => {
+                            const colors = getUserBadgeColor(selectedConversation.resolved_by_user!.id);
+                            return (
+                                <div className={`flex items-center gap-2 px-4 py-2 ${colors.banner} border-b`}>
+                                    <CheckCheck className={`w-4 h-4 ${colors.bannerIcon} flex-shrink-0`} />
+                                    <span className={`text-sm ${colors.bannerText}`}>
+                                        Conversación resuelta por <strong>{selectedConversation.resolved_by_user!.name}</strong>
+                                        {selectedConversation.resolved_at && (
+                                            <> el {new Date(selectedConversation.resolved_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>
+                                        )}
+                                    </span>
+                                    {isAdmin && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 h-7"
+                                            onClick={() => handleStatusChange('active')}
+                                        >
+                                            Reabrir
+                                        </Button>
                                     )}
-                                </span>
-                                {isAdmin && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 h-7"
-                                        onClick={() => handleStatusChange('active')}
-                                    >
-                                        Reabrir
-                                    </Button>
-                                )}
-                            </div>
-                        )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Área de Mensajes */}
                         <div
