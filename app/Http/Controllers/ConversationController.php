@@ -723,12 +723,21 @@ class ConversationController extends Controller
         if ($status === 'resolved') {
             $updateData['resolved_by'] = auth()->id();
             $updateData['resolved_at'] = now();
+            $updateData['unread_count'] = 0;
         } else {
             $updateData['resolved_by'] = null;
             $updateData['resolved_at'] = null;
         }
 
         Conversation::whereIn('id', $validated['ids'])->update($updateData);
+
+        // Si se resuelven, marcar todos los mensajes de usuario como leídos
+        if ($status === 'resolved') {
+            Message::whereIn('conversation_id', $validated['ids'])
+                ->where('is_from_user', true)
+                ->where('status', '!=', 'read')
+                ->update(['status' => 'read']);
+        }
 
         return back()->with('success', count($validated['ids']) . ' conversaciones actualizadas.');
     }
@@ -780,6 +789,11 @@ class ConversationController extends Controller
 
         $conversation->update($updateData);
 
+        // Si se resuelve, marcar todos los mensajes como leídos
+        if ($validated['status'] === 'resolved') {
+            $conversation->markAsRead();
+        }
+
         $resolverName = auth()->user()->name;
 
         if ($validated['status'] === 'resolved') {
@@ -796,7 +810,7 @@ class ConversationController extends Controller
      */
     public function hide(Conversation $conversation)
     {
-        // Marcar como resuelta
+        // Marcar como resuelta y marcar mensajes como leídos
         $conversation->update([
             'status' => 'resolved',
             'resolved_by' => auth()->id(),
@@ -804,6 +818,9 @@ class ConversationController extends Controller
             'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
                       'Chat marcado como resuelto por ' . auth()->user()->name . ' el ' . now()->format('Y-m-d H:i:s')
         ]);
+
+        // Marcar todos los mensajes como leídos para que el badge baje
+        $conversation->markAsRead();
 
         return redirect()->route('admin.chat.index')->with('success', 'Conversación marcada como resuelta.');
     }

@@ -44,11 +44,13 @@ class HandleInertiaRequests extends Middleware
             // Si el usuario es asesor, solo contar las asignadas a él
             if ($request->user()->role === 'advisor') {
                 $unreadConversationsCount = \App\Models\Conversation::where('assigned_to', $request->user()->id)
+                    ->whereIn('status', ['active', 'pending'])
                     ->where('unread_count', '>', 0)
                     ->count();
             } else {
-                // Si es admin, contar todas las conversaciones con mensajes no leídos
-                $unreadConversationsCount = \App\Models\Conversation::where('unread_count', '>', 0)
+                // Si es admin, contar todas las conversaciones con mensajes no leídos (excluir resueltas)
+                $unreadConversationsCount = \App\Models\Conversation::whereIn('status', ['active', 'pending'])
+                    ->where('unread_count', '>', 0)
                     ->count();
             }
         }
