@@ -37,8 +37,9 @@ class ConversationController extends Controller
                     ->count();
             }
         } else {
-            // Si es admin, contar todas las conversaciones con mensajes no leídos
-            $count = Conversation::where('unread_count', '>', 0)
+            // Si es admin, contar todas las conversaciones con mensajes no leídos (excluir resueltas)
+            $count = Conversation::whereIn('status', ['active', 'pending'])
+                ->where('unread_count', '>', 0)
                 ->count();
         }
 

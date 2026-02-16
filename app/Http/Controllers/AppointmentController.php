@@ -103,6 +103,7 @@ class AppointmentController extends Controller
             ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
+            ->where('pactel', '!=', '') // Excluir teléfonos vacíos
             ->count();
         
         // Obtener citas pendientes para MAÑANA (1 día desde hoy) - para el botón "Enviar Día Antes"
@@ -115,6 +116,7 @@ class AppointmentController extends Controller
             ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
             ->whereNotNull('citfc')
             ->whereNotNull('pactel')
+            ->where('pactel', '!=', '') // Excluir teléfonos vacíos
             ->count();
         
         $remindersStats = [
@@ -875,28 +877,36 @@ class AppointmentController extends Controller
             $targetDate = now()->addDays($daysInAdvance)->startOfDay();
             $targetDateString = $targetDate->format('Y-m-d');
             
-            // Obtener SOLO las citas de pasado mañana
+            // PASO 1: Limpiar errores temporales ANTES de consultar
+            // Esto permite reintentar citas con errores transitorios (rate limit, timeout, etc.)
+            // pero NO limpia errores permanentes (teléfono inválido, formato incorrecto)
+            Appointment::query()
+                ->whereDate('citfc', '=', $targetDateString)
+                ->where('reminder_sent', false)
+                ->whereNotNull('reminder_error')
+                ->where(function ($q) {
+                    $q->where('reminder_error', 'like', '%attempted too many%')
+                      ->orWhere('reminder_error', 'like', '%Something went wrong%')
+                      ->orWhere('reminder_error', 'like', '%timeout%')
+                      ->orWhere('reminder_error', 'like', '%rate limit%');
+                })
+                ->update([
+                    'reminder_error' => null,
+                    'reminder_status' => 'pending',
+                ]);
+            
+            // PASO 2: Obtener citas pendientes EXCLUYENDO las que tienen errores permanentes
+            // Esto coincide con el conteo del index page (que también usa whereNull('reminder_error'))
             $appointments = Appointment::query()
                 ->whereDate('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
+                ->whereNull('reminder_error') // Excluir errores permanentes (teléfono inválido, etc.)
                 ->whereNotNull('citfc')
                 ->whereNotNull('pactel')
                 ->where('pactel', '!=', '') // Excluir teléfonos vacíos
                 ->orderBy('citfc', 'asc') // Ordenar por fecha de cita
                 ->limit($maxPerDay) // Respetar límite diario de Meta
                 ->pluck('id');
-
-            // Limpiar errores temporales de intentos previos para permitir reintento
-            Appointment::whereIn('id', $appointments)
-                ->whereNotNull('reminder_error')
-                ->where(function ($q) {
-                    $q->where('reminder_error', 'like', '%attempted too many%')
-                      ->orWhere('reminder_error', 'like', '%Something went wrong%');
-                })
-                ->update([
-                    'reminder_error' => null,
-                    'reminder_status' => 'pending',
-                ]);
             
             Log::info('Iniciando envío de recordatorios masivos', [
                 'user_id' => auth()->id(),

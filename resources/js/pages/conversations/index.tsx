@@ -205,6 +205,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    // Ref para pausar polling mientras el usuario hace scroll en la lista de chats
+    const isScrollingChatsRef = useRef(false);
+    const scrollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const savedScrollTopRef = useRef<number | null>(null);
     const advisorFilterButtonRef = useRef<HTMLButtonElement>(null);
     const [advisorDropdownPosition, setAdvisorDropdownPosition] = useState({ top: 0, right: 0 });
 
@@ -605,42 +609,48 @@ export default function ConversationsIndex({ conversations: initialConversations
                 return initialConversations;
             }
 
-            // IDs que vienen del servidor (primera página)
-            const serverIds = new Set(initialConversations.map(c => c.id));
+            // Crear mapa de datos frescos del servidor (primera página)
+            const serverMap = new Map(initialConversations.map(c => [c.id, c]));
 
-            // Separar: conversaciones de la primera página vs las cargadas por scroll
-            const firstPageConvs: Conversation[] = [];
-            const scrollLoadedConvs: Conversation[] = [];
-
-            prev.forEach(conv => {
-                if (serverIds.has(conv.id)) {
-                    // Esta conversación está en la primera página, actualizar con datos frescos
-                    const freshConv = initialConversations.find(c => c.id === conv.id);
-                    if (freshConv) {
-                        firstPageConvs.push(freshConv);
+            // Actualizar in-place: mantener el mismo orden, solo actualizar datos
+            let hasChanges = false;
+            const updated = prev.map(conv => {
+                const freshConv = serverMap.get(conv.id);
+                if (freshConv) {
+                    // Verificar si realmente cambió algo
+                    if (freshConv.unread_count !== conv.unread_count ||
+                        freshConv.status !== conv.status ||
+                        freshConv.last_message_at !== conv.last_message_at ||
+                        freshConv.assigned_to !== conv.assigned_to ||
+                        freshConv.contact_name !== conv.contact_name ||
+                        freshConv.resolved_by !== conv.resolved_by) {
+                        hasChanges = true;
+                        return freshConv;
                     }
-                } else {
-                    // Esta conversación fue cargada por scroll, mantenerla
-                    // PERO excluir conversaciones resueltas (ya no deben verse para asesores)
-                    if (conv.status !== 'resolved') {
-                        scrollLoadedConvs.push(conv);
-                    }
+                    return conv; // Sin cambios, mantener referencia original
                 }
-            });
+                return conv; // No está en primera página, mantener
+            }).filter(conv => conv.status !== 'resolved' || serverMap.has(conv.id));
 
-            // Agregar nuevas conversaciones que no existían (al principio de la primera página)
-            const existingIds = new Set(firstPageConvs.map(c => c.id));
+            // Detectar nuevas conversaciones que no existían
+            const existingIds = new Set(prev.map(c => c.id));
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id));
 
-            // Combinar: nuevas + primera página actualizada + cargadas por scroll
-            const combined = [...newConvs, ...firstPageConvs, ...scrollLoadedConvs];
+            if (newConvs.length > 0) {
+                hasChanges = true;
+                // Insertar nuevas al inicio (son las más recientes)
+                const result = [...newConvs, ...updated];
+                return result;
+            }
 
-            // Ordenar por last_message_at descendente para que los más recientes estén arriba
-            return combined.sort((a, b) => {
-                const dateA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-                const dateB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-                return dateB - dateA;
-            });
+            // Si hubo cambios de datos, verificar si necesitamos reordenar
+            // Solo reordenamos los primeros 50 (primera página) para no mover scroll
+            if (hasChanges) {
+                return updated;
+            }
+
+            // Sin cambios reales, devolver la misma referencia para evitar re-render
+            return prev;
         });
     }, [initialConversations, filters.search, filters.status, filters.assigned, initialHasMore, selectedConversation?.id]);
 
@@ -701,12 +711,22 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
     }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor, localConversations, nextCursor]);
 
-    // Detectar scroll al final de la lista de conversaciones
+    // Detectar scroll al final de la lista de conversaciones + trackear si está scrolleando
     useEffect(() => {
         const container = conversationsListRef.current;
         if (!container) return;
 
         const handleScroll = () => {
+            // Marcar que el usuario está haciendo scroll (pausa el polling)
+            isScrollingChatsRef.current = true;
+            if (scrollingTimeoutRef.current) {
+                clearTimeout(scrollingTimeoutRef.current);
+            }
+            // Desmarcar después de 3 segundos sin scroll
+            scrollingTimeoutRef.current = setTimeout(() => {
+                isScrollingChatsRef.current = false;
+            }, 3000);
+
             const { scrollTop, scrollHeight, clientHeight } = container;
             // Si llegamos al 80% del scroll, cargar más
             if (scrollTop + clientHeight >= scrollHeight * 0.8 && hasMore && !isLoadingMore) {
@@ -715,7 +735,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         };
 
         container.addEventListener('scroll', handleScroll);
-        return () => container.removeEventListener('scroll', handleScroll);
+        return () => {
+            container.removeEventListener('scroll', handleScroll);
+            if (scrollingTimeoutRef.current) {
+                clearTimeout(scrollingTimeoutRef.current);
+            }
+        };
     }, [hasMore, isLoadingMore, loadMoreConversations]);
 
     // Detectar tecla Escape para cerrar el chat
@@ -745,17 +770,36 @@ export default function ConversationsIndex({ conversations: initialConversations
     }, [contextMenu]);
 
     // Polling para actualizar la lista de conversaciones (siempre activo)
+    // Se pausa automáticamente cuando el usuario está haciendo scroll
     useEffect(() => {
         let isActive = true;
 
         // Actualizar lista de conversaciones cada 5 segundos
         const conversationsInterval = setInterval(() => {
             if (!isActive) return;
+            // NO recargar si el usuario está haciendo scroll (evita saltos)
+            if (isScrollingChatsRef.current) return;
+
+            // Guardar posición del scroll antes del reload
+            if (conversationsListRef.current) {
+                savedScrollTopRef.current = conversationsListRef.current.scrollTop;
+            }
 
             router.reload({
                 only: ['conversations'],
                 onError: () => {
                     // Silenciar errores de conflicto para evitar spam en consola
+                },
+                onFinish: () => {
+                    // Restaurar posición del scroll después del reload
+                    if (savedScrollTopRef.current !== null && conversationsListRef.current) {
+                        requestAnimationFrame(() => {
+                            if (conversationsListRef.current && savedScrollTopRef.current !== null) {
+                                conversationsListRef.current.scrollTop = savedScrollTopRef.current;
+                                savedScrollTopRef.current = null;
+                            }
+                        });
+                    }
                 },
             });
         }, 5000); // 5 segundos para reducir carga
