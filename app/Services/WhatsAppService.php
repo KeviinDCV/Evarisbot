@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 
 class WhatsAppService
 {
-    private string $apiUrl = 'https://graph.facebook.com/v18.0';
+    private string $apiUrl = 'https://graph.facebook.com/v21.0';
     private ?string $token;
     private ?string $phoneNumberId;
 
@@ -60,13 +60,26 @@ class WhatsAppService
             }
 
             Log::error('WhatsApp API error', [
+                'to' => $to,
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
 
+            $errorJson = $response->json();
+            $errorMsg = $errorJson['error']['message'] ?? 'Error desconocido';
+            $errorCode = $errorJson['error']['code'] ?? null;
+            $errorSubcode = $errorJson['error']['error_subcode'] ?? null;
+            $errorDetail = $errorJson['error']['error_data']['details'] ?? null;
+            
+            $fullError = $errorMsg;
+            if ($errorCode) $fullError .= " (code: {$errorCode}";
+            if ($errorSubcode) $fullError .= ", subcode: {$errorSubcode}";
+            if ($errorCode) $fullError .= ')';
+            if ($errorDetail) $fullError .= " - {$errorDetail}";
+
             return [
                 'success' => false,
-                'error' => $response->json()['error']['message'] ?? 'Error desconocido',
+                'error' => $fullError,
             ];
 
         } catch (\Exception $e) {
@@ -459,13 +472,27 @@ class WhatsAppService
             }
 
             Log::error('Error enviando plantilla de saludo', [
+                'to' => $to,
+                'formatted_to' => $this->formatPhoneNumber($to),
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
 
+            $errorJson = $response->json();
+            $errorMsg = $errorJson['error']['message'] ?? 'Error desconocido';
+            $errorCode = $errorJson['error']['code'] ?? null;
+            $errorSubcode = $errorJson['error']['error_subcode'] ?? null;
+            $errorDetail = $errorJson['error']['error_data']['details'] ?? null;
+            
+            $fullError = $errorMsg;
+            if ($errorCode) $fullError .= " (code: {$errorCode}";
+            if ($errorSubcode) $fullError .= ", subcode: {$errorSubcode}";
+            if ($errorCode) $fullError .= ')';
+            if ($errorDetail) $fullError .= " - {$errorDetail}";
+
             return [
                 'success' => false,
-                'error' => $response->json()['error']['message'] ?? 'Error desconocido',
+                'error' => $fullError,
             ];
 
         } catch (\Exception $e) {

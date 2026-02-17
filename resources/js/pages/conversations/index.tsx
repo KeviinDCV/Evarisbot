@@ -70,6 +70,7 @@ interface Message {
     transcription?: string | null;
     is_from_user: boolean;
     status: string;
+    error_message?: string | null;
     created_at: string;
     sender?: {
         name: string;
@@ -255,7 +256,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setAllTags(prev => [...prev, { ...tag, conversations_count: 0 }].sort((a, b) => a.name.localeCompare(b.name)));
                 return tag;
             }
-        } catch {}
+        } catch { }
         return null;
     };
 
@@ -267,7 +268,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 body: JSON.stringify({ tag_id: tagId }),
             });
             router.reload({ only: ['conversations', 'selectedConversation', 'allTags'] });
-        } catch {}
+        } catch { }
     };
 
     const detachTag = async (conversationId: number, tagId: number) => {
@@ -277,7 +278,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             });
             router.reload({ only: ['conversations', 'selectedConversation', 'allTags'] });
-        } catch {}
+        } catch { }
     };
 
     const deleteTag = async (tagId: number) => {
@@ -294,7 +295,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             }
             setEditingTag(null);
             router.reload({ only: ['conversations', 'selectedConversation'] });
-        } catch {}
+        } catch { }
     };
 
     const updateTag = async (tagId: number, name: string, color: string) => {
@@ -313,7 +314,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setEditingTag(null);
                 router.reload({ only: ['conversations', 'selectedConversation'] });
             }
-        } catch {}
+        } catch { }
     };
 
     // Filtrar plantillas basadas en el texto después de /
@@ -1180,12 +1181,12 @@ export default function ConversationsIndex({ conversations: initialConversations
             onSuccess: () => {
                 setSelectedConversations([]);
                 setIsSelectionMode(false);
-                
+
                 // Si no era resolved, actualizar estado local (si era resolved ya los quitamos)
                 if (status !== 'resolved') {
-                    setLocalConversations(prev => 
-                        prev.map(c => idsToUpdate.includes(c.id) 
-                            ? { ...c, status, resolved_by_user: null, resolved_at: null } 
+                    setLocalConversations(prev =>
+                        prev.map(c => idsToUpdate.includes(c.id)
+                            ? { ...c, status, resolved_by_user: null, resolved_at: null }
                             : c
                         )
                     );
@@ -1322,7 +1323,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         return () => window.removeEventListener('mouseup', onMouseUp);
     }, []);
 
-    const getStatusIcon = (status: string) => {
+    const getStatusIcon = (status: string, errorMessage?: string | null) => {
         switch (status) {
             case 'pending':
                 return (
@@ -1350,7 +1351,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 );
             case 'failed':
                 return (
-                    <span title={t('conversations.status.failed')}>
+                    <span title={errorMessage ? `Error: ${errorMessage}` : t('conversations.status.failed')}>
                         <X className="w-4 h-4 text-red-500" />
                     </span>
                 );
@@ -1861,9 +1862,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                 <div className="px-3 py-2 border-b border-border">
                                                                     <div className="relative">
                                                                         <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                                                                        <input 
-                                                                            type="text" 
-                                                                            placeholder="Buscar asesor..." 
+                                                                        <input
+                                                                            type="text"
+                                                                            placeholder="Buscar asesor..."
                                                                             className="w-full pl-7 pr-2 py-1 text-xs border border-border rounded bg-muted focus:outline-none focus:border-primary"
                                                                             value={advisorSearchQuery}
                                                                             onChange={(e) => setAdvisorSearchQuery(e.target.value)}
@@ -2246,7 +2247,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         const windowHeight = window.innerHeight;
                         const spaceBelow = windowHeight - contextMenu.y;
                         const minSpaceResult = 400; // Espacio mínimo deseado
-                        
+
                         // Si hay poco espacio abajo (menos de 400px), mostrar hacia arriba
                         const showUpwards = spaceBelow < minSpaceResult;
 
@@ -2831,7 +2832,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${message.is_from_user ? 'text-muted-foreground' : 'text-white opacity-70'
                                                     }`}>
                                                     <span>{formatTime(message.created_at)}</span>
-                                                    {!message.is_from_user && getStatusIcon(message.status)}
+                                                    {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
                                                 </div>
                                             </div>
                                         </div>

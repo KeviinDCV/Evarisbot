@@ -136,7 +136,17 @@ class WhatsAppWebhookController extends Controller
             // Actualizar estado del mensaje en la base de datos
             $message = \App\Models\Message::where('whatsapp_message_id', $messageId)->first();
             if ($message) {
-                $message->update(['status' => $statusType]);
+                $updateData = ['status' => $statusType];
+                
+                // Si falló, guardar el motivo del error para mostrarlo en el frontend
+                if ($statusType === 'failed' && !empty($errorInfo)) {
+                    $errorCode = $errorInfo[0]['code'] ?? null;
+                    $errorTitle = $errorInfo[0]['title'] ?? 'Error desconocido';
+                    $errorMsg = $errorCode ? "{$errorTitle} (code: {$errorCode})" : $errorTitle;
+                    $updateData['error_message'] = $errorMsg;
+                }
+                
+                $message->update($updateData);
 
                 // Si el mensaje era de envío masivo y falló, actualizar contadores del BulkSend
                 if ($statusType === 'failed' && str_contains($message->content ?? '', '[Envío masivo:')) {
