@@ -54,6 +54,8 @@ class ConversationController extends Controller
     public function index(Request $request)
     {
         $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+            ->orderBy('is_pinned', 'desc')
+            ->orderBy('pinned_at', 'desc')
             ->orderBy('last_message_at', 'desc');
 
         $user = auth()->user();
@@ -200,6 +202,8 @@ class ConversationController extends Controller
         }
 
         $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+            ->orderBy('is_pinned', 'desc')
+            ->orderBy('pinned_at', 'desc')
             ->orderBy('last_message_at', 'desc');
 
         // Si es asesor, verificar si está de turno
@@ -823,6 +827,24 @@ class ConversationController extends Controller
         $conversation->markAsRead();
 
         return redirect()->route('admin.chat.index')->with('success', 'Conversación marcada como resuelta.');
+    }
+
+    /**
+     * Fijar o desfijar una conversación
+     */
+    public function togglePin(Conversation $conversation)
+    {
+        $isPinned = !$conversation->is_pinned;
+
+        $conversation->update([
+            'is_pinned' => $isPinned,
+            'pinned_at' => $isPinned ? now() : null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'is_pinned' => $isPinned,
+        ]);
     }
 
     /**

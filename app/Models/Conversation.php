@@ -20,11 +20,15 @@ class Conversation extends Model
         'last_message_at',
         'unread_count',
         'notes',
+        'is_pinned',
+        'pinned_at',
     ];
 
     protected $casts = [
         'last_message_at' => 'datetime',
         'resolved_at' => 'datetime',
+        'pinned_at' => 'datetime',
+        'is_pinned' => 'boolean',
     ];
 
     /**

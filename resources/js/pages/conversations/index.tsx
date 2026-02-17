@@ -42,6 +42,7 @@ import {
     SlidersHorizontal,
     ChevronDown,
     ChevronUp,
+    Pin,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -106,6 +107,8 @@ interface Conversation {
         id: number;
         name: string;
     } | null;
+    is_pinned?: boolean;
+    pinned_at?: string | null;
     last_message_at: string | null;
     last_message: {
         content: string;
@@ -624,7 +627,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                         freshConv.last_message_at !== conv.last_message_at ||
                         freshConv.assigned_to !== conv.assigned_to ||
                         freshConv.contact_name !== conv.contact_name ||
-                        freshConv.resolved_by !== conv.resolved_by) {
+                        freshConv.resolved_by !== conv.resolved_by ||
+                        freshConv.is_pinned !== conv.is_pinned) {
                         hasChanges = true;
                         return freshConv;
                     }
@@ -1511,6 +1515,35 @@ export default function ConversationsIndex({ conversations: initialConversations
         setContextMenu({ conversationId, x: e.clientX, y: e.clientY });
     };
 
+    const handleTogglePin = (conversationId: number) => {
+        setContextMenu(null);
+        // Optimistic update
+        setLocalConversations(prev => {
+            const updated = prev.map(c =>
+                c.id === conversationId
+                    ? { ...c, is_pinned: !c.is_pinned, pinned_at: !c.is_pinned ? new Date().toISOString() : null }
+                    : c
+            );
+            // Re-sort: pinned first, then by last_message_at
+            return updated.sort((a, b) => {
+                if (a.is_pinned && !b.is_pinned) return -1;
+                if (!a.is_pinned && b.is_pinned) return 1;
+                if (a.is_pinned && b.is_pinned) {
+                    return new Date(b.pinned_at || 0).getTime() - new Date(a.pinned_at || 0).getTime();
+                }
+                return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+            });
+        });
+        // Use fetch instead of router.post to avoid Inertia page reload
+        fetch(`/admin/chat/${conversationId}/pin`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+        }).catch(err => console.error('Error toggling pin:', err));
+    };
+
     const handleAssign = (userId?: number | null) => {
         if (!selectedConversation) return;
         router.post(`/admin/chat/${selectedConversation.id}/assign`, { user_id: userId ?? null }, {
@@ -2029,8 +2062,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between mb-1">
                                                 <div className="flex-1 min-w-0">
-                                                    <h3 className="font-semibold text-foreground truncate text-sm">
+                                                    <h3 className="font-semibold text-foreground truncate text-sm flex items-center gap-1">
                                                         {conversation.contact_name || 'Sin nombre'}
+                                                        {conversation.is_pinned && (
+                                                            <Pin className="w-3 h-3 text-primary flex-shrink-0 rotate-45" />
+                                                        )}
                                                     </h3>
                                                     <p className="text-xs text-muted-foreground truncate">
                                                         {conversation.phone_number}
@@ -2331,7 +2367,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </>
                                 )}
 
-                                {/* Cambiar estado */}
+                                {/* Fijar / Desfijar chat */}
+                                <button
+                                    onClick={() => handleTogglePin(conversation.id)}
+                                    className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
+                                >
+                                    <Pin className={`w-4 h-4 ${conversation.is_pinned ? 'text-primary rotate-45' : 'text-muted-foreground'}`} />
+                                    {conversation.is_pinned ? 'Desfijar chat' : 'Fijar chat'}
+                                </button>
+
                                 {/* Sección de Etiquetas */}
                                 <div className="border-t border-border my-1"></div>
                                 <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1">
