@@ -272,74 +272,70 @@ class StatisticsController extends Controller
     }
 
     /**
-     * Get advisor performance statistics
+     * Get advisor performance statistics - CORREGIDO para contar mensajes independientemente de la asignación actual
      */
     private function getAdvisorStatistics(?\Carbon\Carbon $startDate, ?\Carbon\Carbon $endDate): array
     {
-        // Obtener estadísticas por asesor
-        $advisorStats = DB::table('users as u')
-            ->selectRaw('
-                u.id,
-                u.name,
-                COUNT(DISTINCT c.id) as total_conversations,
-                COUNT(DISTINCT CASE WHEN c.status IN ("resolved", "closed") THEN c.id END) as resolved_conversations,
-                COUNT(DISTINCT CASE WHEN c.status = "active" THEN c.id END) as active_conversations,
-                COUNT(DISTINCT CASE WHEN c.unread_count > 0 THEN c.id END) as conversations_with_unread,
-                COUNT(m.id) as messages_sent,
-                ROUND(
-                    CASE 
-                        WHEN COUNT(DISTINCT c.id) > 0 
-                        THEN (COUNT(DISTINCT CASE WHEN c.status IN ("resolved", "closed") THEN c.id END) * 100.0 / COUNT(DISTINCT c.id))
-                        ELSE 0 
-                    END, 
-                    2
-                ) as resolution_rate
-            ')
-            ->leftJoin('conversations as c', 'u.id', '=', 'c.assigned_to')
-            ->leftJoin('messages as m', function ($join) use ($startDate, $endDate) {
-                $join->on('c.id', '=', 'm.conversation_id')
-                     ->where('m.is_from_user', false)
-                     ->where('m.sent_by', '=', DB::raw('u.id'));
-            })
-            ->where('u.role', 'advisor')
-            ->groupBy('u.id', 'u.name')
-            ->orderBy('resolved_conversations', 'desc');
+        // Obtener todos los asesores
+        $advisors = User::where('role', 'advisor')->get();
 
-        // Aplicar filtro de fechas si se especifica
-        if ($startDate && $endDate) {
-            $advisorStats->where(function ($query) use ($startDate, $endDate) {
-                $query->whereNull('c.created_at')
-                      ->orWhereBetween('c.created_at', [$startDate, $endDate]);
-            });
-        }
+        $advisorStats = $advisors->map(function ($advisor) use ($startDate, $endDate) {
+            // 1. Estadísticas de Conversaciones (basadas en asignación actual)
+            $convQuery = Conversation::where('assigned_to', $advisor->id);
+            
+            // Si hay filtro de fecha, aplicarlo a la fecha de creación de la conversación
+            if ($startDate && $endDate) {
+                $convQuery->whereBetween('created_at', [$startDate, $endDate]);
+            }
 
-        $advisors = $advisorStats->get()->map(function ($advisor) {
+            // Clonar queries para diferentes conteos
+            $totalConversations = (clone $convQuery)->count();
+            $resolvedConversations = (clone $convQuery)->whereIn('status', ['resolved', 'closed'])->count();
+            $activeConversations = (clone $convQuery)->where('status', 'active')->count();
+            $conversationsWithUnread = (clone $convQuery)->where('unread_count', '>', 0)->count();
+
+            // 2. Estadísticas de Mensajes Enviados (independiente de la asignación actual)
+            // Se cuenta cualquier mensaje enviado por este asesor en el rango de fechas
+            $msgQuery = Message::where('sent_by', $advisor->id)
+                ->where('is_from_user', false);
+            
+            if ($startDate && $endDate) {
+                $msgQuery->whereBetween('created_at', [$startDate, $endDate]);
+            }
+            
+            $messagesSent = $msgQuery->count();
+
+            // Calcular tasa de resolución
+            $resolutionRate = $totalConversations > 0 
+                ? round(($resolvedConversations * 100.0) / $totalConversations, 2) 
+                : 0;
+
             return [
                 'id' => $advisor->id,
                 'name' => $advisor->name,
-                'total_conversations' => (int) $advisor->total_conversations,
-                'resolved_conversations' => (int) $advisor->resolved_conversations,
-                'active_conversations' => (int) $advisor->active_conversations,
-                'conversations_with_unread' => (int) $advisor->conversations_with_unread,
-                'messages_sent' => (int) $advisor->messages_sent,
-                'resolution_rate' => (float) $advisor->resolution_rate,
+                'total_conversations' => $totalConversations,
+                'resolved_conversations' => $resolvedConversations,
+                'active_conversations' => $activeConversations,
+                'conversations_with_unread' => $conversationsWithUnread,
+                'messages_sent' => $messagesSent,
+                'resolution_rate' => $resolutionRate,
             ];
-        })->toArray();
+        })->sortByDesc('resolved_conversations')->values()->toArray();
 
-        // Calcular totales y promedios
-        $totalAdvisors = count($advisors);
-        $totalConversations = array_sum(array_column($advisors, 'total_conversations'));
-        $totalResolved = array_sum(array_column($advisors, 'resolved_conversations'));
-        $totalActive = array_sum(array_column($advisors, 'active_conversations'));
-        $totalUnread = array_sum(array_column($advisors, 'conversations_with_unread'));
-        $totalMessages = array_sum(array_column($advisors, 'messages_sent'));
+        // Calcular totales y promedios para el resumen
+        $totalAdvisors = count($advisorStats);
+        $totalConversations = array_sum(array_column($advisorStats, 'total_conversations'));
+        $totalResolved = array_sum(array_column($advisorStats, 'resolved_conversations'));
+        $totalActive = array_sum(array_column($advisorStats, 'active_conversations'));
+        $totalUnread = array_sum(array_column($advisorStats, 'conversations_with_unread'));
+        $totalMessages = array_sum(array_column($advisorStats, 'messages_sent'));
         
         $avgResolutionRate = $totalAdvisors > 0 
-            ? round(array_sum(array_column($advisors, 'resolution_rate')) / $totalAdvisors, 2)
+            ? round(array_sum(array_column($advisorStats, 'resolution_rate')) / $totalAdvisors, 2)
             : 0;
 
         // Encontrar al mejor asesor (mayor número de conversaciones resueltas)
-        $topAdvisor = !empty($advisors) ? $advisors[0] : null;
+        $topAdvisor = !empty($advisorStats) ? $advisorStats[0] : null;
 
         return [
             'total_advisors' => $totalAdvisors,
@@ -350,7 +346,7 @@ class StatisticsController extends Controller
             'total_messages_sent' => $totalMessages,
             'avg_resolution_rate' => $avgResolutionRate,
             'top_performer' => $topAdvisor,
-            'advisors' => $advisors,
+            'advisors' => $advisorStats,
         ];
     }
 

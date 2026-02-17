@@ -209,11 +209,11 @@ class StatisticsExport
         $row++;
 
         $deliveryLabels = [
-            'pending' => 'Pendiente de envío',
-            'sent' => 'Procesando envío',
-            'delivered' => 'Entregado al destinatario',
-            'read' => 'Leído por el destinatario',
-            'failed' => 'Fallido',
+            'pending' => 'En cola (Pendiente)',
+            'sent' => 'Enviado a WhatsApp',
+            'delivered' => 'Entregado en dispositivo',
+            'read' => 'Leído por usuario',
+            'failed' => 'Error de envío',
         ];
         foreach ($this->statistics['messages']['delivery_status'] as $status => $count) {
             $this->styleDataRow($sheet, $row, $dataRow % 2 == 0);

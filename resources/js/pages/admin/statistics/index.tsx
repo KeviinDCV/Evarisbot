@@ -151,11 +151,11 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
     // Preparar datos para gráficos
     const deliveryStatusLabels: Record<string, string> = {
-        pending: 'Pendiente de envío',
-        sent: 'Procesando',
+        pending: 'En cola',
+        sent: 'Enviado',
         delivered: 'Entregado',
         read: 'Leído',
-        failed: 'Fallido',
+        failed: 'Error',
     };
 
     const messagesStatusData = Object.entries(statistics.messages.delivery_status).map(([name, value]) => ({
@@ -355,20 +355,24 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 <div className="space-y-1">
-                                    <StatRow icon={MessageSquare} label="Total de mensajes" value={statistics.messages.total} index={0} />
-                                    <StatRow icon={Send} label="Enviados por asesores/sistema" value={statistics.messages.sent_by_system} index={1} />
-                                    <StatRow icon={MessageSquare} label="Recibidos de clientes" value={statistics.messages.received_from_users} index={2} />
+                                    <StatRow icon={MessageSquare} label="Total de Conversaciones (Chats)" value={statistics.conversations.total} index={0} />
+                                    <StatRow icon={MessageSquare} label="Total de Mensajes Intercambiados" value={statistics.messages.total} index={1} />
+                                    <StatRow icon={Send} label="Enviados por asesores/sistema" value={statistics.messages.sent_by_system} index={2} />
+                                    <StatRow icon={MessageSquare} label="Recibidos de clientes" value={statistics.messages.received_from_users} index={3} />
                                 </div>
                                 <div className="mt-2 pt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
                                     <h3 className="font-semibold mb-1.5 settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        Estado de entrega (solo mensajes enviados)
+                                        Calidad de Entrega (Mensajes salientes)
                                     </h3>
+                                    <p className="text-[10px] text-muted-foreground mb-2">
+                                        Detalle del estado final de los mensajes enviados a los usuarios:
+                                    </p>
                                     <div className="space-y-1">
-                                        <StatRow icon={Clock} label="Pendiente de envío" value={statistics.messages.delivery_status.pending} index={0} />
-                                        <StatRow icon={Send} label="Procesando envío" value={statistics.messages.delivery_status.sent} index={1} />
-                                        <StatRow icon={CheckCircle2} label="Entregado al destinatario" value={statistics.messages.delivery_status.delivered} index={2} />
-                                        <StatRow icon={CheckCircle2} label="Leído por el destinatario" value={statistics.messages.delivery_status.read} index={3} />
-                                        <StatRow icon={XCircle} label="Fallido" value={statistics.messages.delivery_status.failed} index={4} />
+                                        <StatRow icon={Clock} label="En cola (Saliendo del sistema)" value={statistics.messages.delivery_status.pending} index={0} />
+                                        <StatRow icon={Send} label="Enviado (Recibido por WhatsApp)" value={statistics.messages.delivery_status.sent} index={1} />
+                                        <StatRow icon={CheckCircle2} label="Entregado (Llegó al celular)" value={statistics.messages.delivery_status.delivered} index={2} />
+                                        <StatRow icon={CheckCircle2} label="Leído (Usuario abrió el chat)" value={statistics.messages.delivery_status.read} index={3} />
+                                        <StatRow icon={XCircle} label="No enviado (Error técnico)" value={statistics.messages.delivery_status.failed} index={4} />
                                     </div>
                                 </div>
                             </div>
@@ -393,7 +397,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         <StatRow icon={CheckCircle2} label="Confirmaron asistencia" value={statistics.appointments.confirmed} index={0} />
                                         <StatRow icon={XCircle} label="Cancelaron la cita" value={statistics.appointments.cancelled} index={1} />
                                         <StatRow icon={Clock} label="Sin respuesta aún" value={statistics.appointments.pending} index={2} />
-                                        <StatRow icon={AlertCircle} label="Error al enviar" value={statistics.appointments.failed} index={3} />
+                                        {/* @ts-ignore */}
+                                        <StatRow icon={Send} label="Enviado (Sin confirmación)" value={statistics.appointments.by_status.sent || 0} index={3} />
+                                        <StatRow icon={AlertCircle} label="Error al enviar" value={statistics.appointments.failed} index={4} />
                                     </div>
                                 </div>
                             </div>
