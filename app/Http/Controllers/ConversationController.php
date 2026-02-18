@@ -74,6 +74,8 @@ class ConversationController extends Controller
         }
 
         // Filtrar por estado (disponible para todos los usuarios)
+        $filteringByTag = $request->has('tag') && is_numeric($request->tag);
+
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
                 // Filtrar conversaciones sin leer (con mensajes pendientes por revisar)
@@ -81,8 +83,9 @@ class ConversationController extends Controller
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif ($user->isAdvisor()) {
-            // Si el asesor no tiene filtro de estado explícito, mostrar active+pending (NO resolved)
+        } elseif ($user->isAdvisor() && !$filteringByTag) {
+            // Sin filtro de estado explícito y sin etiqueta: mostrar active+pending (NO resolved)
+            // Si hay filtro de etiqueta, mostrar todos los estados para que las resueltas aparezcan
             $query->whereIn('status', ['active', 'pending']);
         }
 
@@ -233,14 +236,17 @@ class ConversationController extends Controller
         }
 
         // Filtrar por estado (disponible para todos los usuarios)
+        $filteringByTag = $request->has('tag') && is_numeric($request->tag);
+
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
                 $query->where('unread_count', '>', 0);
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif ($user->isAdvisor()) {
-            // Si el asesor no tiene filtro de estado explícito, mostrar active+pending (NO resolved)
+        } elseif ($user->isAdvisor() && !$filteringByTag) {
+            // Sin filtro de estado explícito y sin etiqueta: mostrar active+pending (NO resolved)
+            // Si hay filtro de etiqueta, mostrar todos los estados para que las resueltas aparezcan
             $query->whereIn('status', ['active', 'pending']);
         }
 

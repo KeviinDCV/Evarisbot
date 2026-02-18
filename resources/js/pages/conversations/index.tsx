@@ -641,9 +641,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                 }
                 return conv; // No está en primera página, mantener
             }).filter(conv => {
-                // Para asesores: siempre ocultar conversaciones resueltas/cerradas
-                // Para admins: solo ocultar si el servidor las quitó explícitamente
-                if (!isAdmin && (conv.status === 'resolved' || conv.status === 'closed')) {
+                // Para asesores: ocultar conversaciones resueltas/cerradas
+                // EXCEPTO si hay un filtro de etiqueta activo (el asesor las busca explícitamente)
+                if (!isAdmin && !filters.tag && (conv.status === 'resolved' || conv.status === 'closed')) {
                     return false;
                 }
                 return true;
