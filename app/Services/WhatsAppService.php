@@ -852,24 +852,26 @@ class WhatsAppService
 
                 // Verificar si la cita ya fue confirmada o cancelada previamente
                 // Esta verificación se hace CON el bloqueo, así que es atómica
-                if (in_array($lockedAppointment->reminder_status, ['confirmed', 'cancelled'])) {
-                    Log::info('Appointment already has final status, ignoring new response', [
-                        'appointment_id' => $lockedAppointment->id,
-                        'current_status' => $lockedAppointment->reminder_status,
-                        'phone' => $from,
-                        'attempted_action' => $messageText
-                    ]);
-                    // No enviar respuesta automática, ya respondió previamente
-                    return;
-                }
-
                 $responseMessage = null;
 
                 // Formatear hora para respuestas
                 $horaFormateada = $this->formatHoraForResponse($lockedAppointment->cithor);
 
+                // Verificar si la cita ya fue confirmada o cancelada previamente
+                if (in_array($lockedAppointment->reminder_status, ['confirmed', 'cancelled'])) {
+                    $statusStr = $lockedAppointment->reminder_status === 'confirmed' ? 'CONFIRMADA' : 'CANCELADA';
+                    
+                    $responseMessage = "⚠️ *Estado: {$statusStr}*\n\nEsta cita ya se encuentra registrada como *{$statusStr}*.\n\nEl sistema ya ha procesado su respuesta anteriormente. Si necesita realizar cambios adicionales, por favor contacte con un asesor.\n\n_HUV - Evaristo García_";
+
+                    Log::info('Appointment already has final status, sending info message', [
+                        'appointment_id' => $lockedAppointment->id,
+                        'current_status' => $lockedAppointment->reminder_status,
+                        'phone' => $from,
+                        'attempted_action' => $messageText
+                    ]);
+                }
                 // Detectar tipo de respuesta
-                if (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
+                elseif (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
                     // Confirmación de asistencia
                     $lockedAppointment->update([
                         'reminder_status' => 'confirmed',
