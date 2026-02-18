@@ -621,7 +621,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             const updated = prev.map(conv => {
                 const freshConv = serverMap.get(conv.id);
                 if (freshConv) {
-                    // Verificar si realmente cambió algo
+                    // Verificar si realmente cambió algo relevante
                     if (freshConv.unread_count !== conv.unread_count ||
                         freshConv.status !== conv.status ||
                         freshConv.last_message_at !== conv.last_message_at ||
@@ -630,12 +630,24 @@ export default function ConversationsIndex({ conversations: initialConversations
                         freshConv.resolved_by !== conv.resolved_by ||
                         freshConv.is_pinned !== conv.is_pinned) {
                         hasChanges = true;
-                        return freshConv;
+                        // El servidor ya devuelve is_pinned/pinned_at por usuario — confiar en él
+                        return {
+                            ...freshConv,
+                            is_pinned: freshConv.is_pinned ?? false,
+                            pinned_at: freshConv.pinned_at ?? null,
+                        };
                     }
                     return conv; // Sin cambios, mantener referencia original
                 }
                 return conv; // No está en primera página, mantener
-            }).filter(conv => conv.status !== 'resolved' || serverMap.has(conv.id));
+            }).filter(conv => {
+                // Para asesores: siempre ocultar conversaciones resueltas/cerradas
+                // Para admins: solo ocultar si el servidor las quitó explícitamente
+                if (!isAdmin && (conv.status === 'resolved' || conv.status === 'closed')) {
+                    return false;
+                }
+                return true;
+            });
 
             // Detectar nuevas conversaciones que no existían
             const existingIds = new Set(prev.map(c => c.id));
@@ -648,10 +660,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                 return result;
             }
 
-            // Si hubo cambios de datos, verificar si necesitamos reordenar
-            // Solo reordenamos los primeros 50 (primera página) para no mover scroll
+            // Si hubo cambios de datos, reordenar: pinned primero, luego por last_message_at
             if (hasChanges) {
-                return updated;
+                return updated.sort((a, b) => {
+                    if (a.is_pinned && !b.is_pinned) return -1;
+                    if (!a.is_pinned && b.is_pinned) return 1;
+                    return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+                });
             }
 
             // Sin cambios reales, devolver la misma referencia para evitar re-render
@@ -815,6 +830,30 @@ export default function ConversationsIndex({ conversations: initialConversations
             clearInterval(conversationsInterval);
         };
     }, []);
+
+    // Escuchar evento en tiempo real cuando un chat es tomado por un asesor
+    // Así los demás asesores lo ven desaparecer de su bandeja inmediatamente sin esperar el polling
+    useEffect(() => {
+        const channel = (window as any).Echo?.channel('conversations');
+        if (!channel) return;
+
+        channel.listen('.conversation.assigned', (data: { conversation_id: number; assigned_to: number; status: string }) => {
+            if (!isAdmin) {
+                // Para asesores: quitar de la lista si fue asignado a otro asesor
+                setLocalConversations(prev =>
+                    prev.filter(c => {
+                        if (c.id !== data.conversation_id) return true;
+                        // Mantener si soy yo el asignado
+                        return data.assigned_to === auth.user.id;
+                    })
+                );
+            }
+        });
+
+        return () => {
+            channel.stopListening('.conversation.assigned');
+        };
+    }, [isAdmin, auth.user.id]);
 
     // Cerrar dropdowns de filtro cuando se hace clic fuera
     useEffect(() => {

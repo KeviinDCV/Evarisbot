@@ -54,8 +54,6 @@ class ConversationController extends Controller
     public function index(Request $request)
     {
         $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
-            ->orderBy('is_pinned', 'desc')
-            ->orderBy('pinned_at', 'desc')
             ->orderBy('last_message_at', 'desc');
 
         $user = auth()->user();
@@ -152,6 +150,22 @@ class ConversationController extends Controller
             $nextCursor = $lastConv->last_message_at?->toISOString();
         }
 
+        // Inyectar is_pinned / pinned_at por usuario
+        $convIds = $conversations->pluck('id');
+        $userPins = \DB::table('conversation_user_pins')
+            ->where('user_id', auth()->id())
+            ->whereIn('conversation_id', $convIds)
+            ->pluck('pinned_at', 'conversation_id');
+
+        $conversations = $conversations->map(function ($conv) use ($userPins) {
+            $conv->is_pinned = $userPins->has($conv->id);
+            $conv->pinned_at = $userPins->get($conv->id);
+            return $conv;
+        })->sortByDesc(function ($conv) {
+            // Pinned first, then by last_message_at
+            return [$conv->is_pinned ? 1 : 0, $conv->last_message_at?->timestamp ?? 0];
+        })->values();
+
         // Obtener todos los usuarios (asesores) disponibles para asignación
         $users = User::select('id', 'name', 'role')->get();
 
@@ -202,8 +216,6 @@ class ConversationController extends Controller
         }
 
         $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
-            ->orderBy('is_pinned', 'desc')
-            ->orderBy('pinned_at', 'desc')
             ->orderBy('last_message_at', 'desc');
 
         // Si es asesor, verificar si está de turno
@@ -271,6 +283,21 @@ class ConversationController extends Controller
             ->get();
         
         $hasMore = $conversations->count() === $perPage;
+
+        // Inyectar is_pinned / pinned_at por usuario
+        $convIds = $conversations->pluck('id');
+        $userPins = \DB::table('conversation_user_pins')
+            ->where('user_id', auth()->id())
+            ->whereIn('conversation_id', $convIds)
+            ->pluck('pinned_at', 'conversation_id');
+
+        $conversations = $conversations->map(function ($conv) use ($userPins) {
+            $conv->is_pinned = $userPins->has($conv->id);
+            $conv->pinned_at = $userPins->get($conv->id);
+            return $conv;
+        })->sortByDesc(function ($conv) {
+            return [$conv->is_pinned ? 1 : 0, $conv->last_message_at?->timestamp ?? 0];
+        })->values();
         
         // Cargar la conversación seleccionada con todos sus mensajes
         $conversation->load(['messages.sender', 'assignedUser', 'resolvedByUser', 'tags']);
@@ -430,11 +457,18 @@ class ConversationController extends Controller
         // Auto-asignar al asesor que responde si el chat no tiene asignación
         // Esto implementa el "pool compartido" donde el primero en responder toma el chat
         $updateData = ['last_message_at' => now()];
-        if (is_null($conversation->assigned_to)) {
+        $wasUnassigned = is_null($conversation->assigned_to);
+        if ($wasUnassigned) {
             $updateData['assigned_to'] = auth()->id();
             $updateData['status'] = 'active';
         }
         $conversation->update($updateData);
+
+        // Si el chat acaba de ser tomado, notificar a todos los demás asesores
+        // para que lo eliminen de su bandeja inmediatamente (sin esperar polling)
+        if ($wasUnassigned) {
+            broadcast(new \App\Events\ConversationAssigned($conversation->fresh()))->toOthers();
+        }
 
         // Enviar mensaje usando WhatsApp Business API
         if ($whatsappService->isConfigured()) {
@@ -764,6 +798,11 @@ class ConversationController extends Controller
             'status' => $userId ? 'active' : $conversation->status,
         ]);
 
+        // Notificar a todos los demás en tiempo real sobre el cambio de asignación
+        if ($userId) {
+            broadcast(new \App\Events\ConversationAssigned($conversation->fresh()))->toOthers();
+        }
+
         $message = $userId ? 'Conversación asignada exitosamente.' : 'Asignación removida exitosamente.';
         return back()->with('success', $message);
     }
@@ -830,19 +869,34 @@ class ConversationController extends Controller
     }
 
     /**
-     * Fijar o desfijar una conversación
+     * Fijar o desfijar una conversación (por usuario)
      */
     public function togglePin(Conversation $conversation)
     {
-        $isPinned = !$conversation->is_pinned;
+        $userId = auth()->id();
 
-        $conversation->update([
-            'is_pinned' => $isPinned,
-            'pinned_at' => $isPinned ? now() : null,
-        ]);
+        $exists = \DB::table('conversation_user_pins')
+            ->where('user_id', $userId)
+            ->where('conversation_id', $conversation->id)
+            ->exists();
+
+        if ($exists) {
+            \DB::table('conversation_user_pins')
+                ->where('user_id', $userId)
+                ->where('conversation_id', $conversation->id)
+                ->delete();
+            $isPinned = false;
+        } else {
+            \DB::table('conversation_user_pins')->insert([
+                'user_id'         => $userId,
+                'conversation_id' => $conversation->id,
+                'pinned_at'       => now(),
+            ]);
+            $isPinned = true;
+        }
 
         return response()->json([
-            'success' => true,
+            'success'  => true,
             'is_pinned' => $isPinned,
         ]);
     }
