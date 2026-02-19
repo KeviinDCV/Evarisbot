@@ -25,9 +25,12 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
     // Actualizar el contador de conversaciones no leídas cada 5 segundos
     useEffect(() => {
+        const controller = new AbortController();
+
         const updateUnreadCount = async () => {
             try {
                 const response = await fetch('/admin/chat/unread-count', {
+                    signal: controller.signal,
                     headers: {
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
@@ -39,8 +42,11 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                     setUnreadConversationsCount(data.count || 0);
                 }
             } catch (error) {
-                // Silenciar errores de red
-                console.error('Error al actualizar contador de conversaciones:', error);
+                // Silenciar errores de red o cancelaciones
+                if (error instanceof Error && error.name !== 'AbortError') {
+                    // Solo loguear si NO es error de cancelación y NO es error de red simple
+                    // console.error('Error silencioso:', error);
+                }
             }
         };
 
@@ -50,14 +56,20 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
         // Actualizar cada 5 segundos
         const interval = setInterval(updateUnreadCount, 5000);
 
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            controller.abort();
+        };
     }, []);
 
     // Actualizar el contador de chat interno no leído
     useEffect(() => {
+        const controller = new AbortController();
+
         const updateInternalUnread = async () => {
             try {
                 const response = await fetch('/admin/internal-chat/unread-count', {
+                    signal: controller.signal,
                     headers: {
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
@@ -68,13 +80,20 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                     setUnreadInternalChatCount(data.count || 0);
                 }
             } catch (error) {
-                // Silenciar
+                // Silenciar errores de red o cancelaciones
+                if (error instanceof Error && error.name !== 'AbortError') {
+                    // Solo loguear si NO es error de cancelación y NO es error de red simple
+                    // console.error('Error silencioso:', error);
+                }
             }
         };
 
         updateInternalUnread();
         const interval = setInterval(updateInternalUnread, 8000);
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            controller.abort();
+        };
     }, []);
 
     const menuItems = [
@@ -187,8 +206,8 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                     key={item.href}
                                     href={item.href}
                                     className={`flex items-center px-4 py-3 transition-all rounded-lg group ${isActive
-                                            ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md font-semibold'
-                                            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md font-semibold'
+                                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                                         }`}
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
