@@ -463,7 +463,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     </h2>
                                 </div>
                                 {statistics.advisors.advisors.length > 0 ? (
-                                    <div className="space-y-1">
+                                    <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
                                         {statistics.advisors.advisors.map((advisor, index) => (
                                             <div
                                                 key={advisor.id}

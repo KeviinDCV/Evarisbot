@@ -192,12 +192,12 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 }}
                             >
                                 {/* Header */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <h3 className="font-bold settings-title" style={{ fontSize: 'var(--text-lg)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '8px' }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <h3 className="font-bold settings-title truncate" style={{ fontSize: 'var(--text-lg)' }}>
                                             {user.name}
                                         </h3>
-                                        <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                                        <p className="settings-subtitle truncate" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                                             {user.email}
                                         </p>
                                     </div>
@@ -218,8 +218,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
                                         <div
                                             className={`w-2.5 h-2.5 rounded-full ${user.is_online
-                                                    ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
-                                                    : 'bg-gray-400'
+                                                ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
+                                                : 'bg-gray-400'
                                                 }`}
                                         />
                                         <span className={user.is_online ? 'user-status-online' : 'user-status-offline'} style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>

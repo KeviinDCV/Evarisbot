@@ -356,7 +356,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                     {/* Progreso activo */}
                     {isProcessing && activeProgress && (
-                        <div className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] mb-6">
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 mb-6 transition-all duration-300">
                             <div className="flex items-center justify-between mb-3">
                                 <div className="flex items-center gap-2">
                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
@@ -368,6 +368,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     variant="destructive"
                                     size="sm"
                                     onClick={() => handleCancel(activeProgress.id)}
+                                    className="rounded-xl"
                                 >
                                     <StopCircle className="w-4 h-4 mr-1" />
                                     Cancelar
@@ -414,7 +415,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             {/* Columna izquierda: Template y destinatarios */}
                             <div className="space-y-[var(--space-lg)]">
                                 {/* Seleccionar Template */}
-                                <div className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                                <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                     <h2 className="font-semibold flex items-center gap-2 mb-4 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
                                         <MessageSquareText className="w-5 h-5" />
                                         Seleccionar Plantilla
@@ -430,7 +431,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 value={sendName}
                                                 onChange={(e) => setSendName(e.target.value)}
                                                 placeholder="Ej: Aviso contrato policía - Feb 2026"
-                                                className="w-full settings-input rounded-none transition-all duration-200"
+                                                className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                                 style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                             />
                                         </div>
@@ -445,7 +446,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         <select
                                                             value={selectedTemplate?.id || ''}
                                                             onChange={(e) => handleSelectTemplate(e.target.value)}
-                                                            className="w-full settings-input rounded-none transition-all duration-200 appearance-none pr-10 cursor-pointer"
+                                                            className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 appearance-none pr-10 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/30"
                                                             style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                                         >
                                                             <option value="">— Seleccione una plantilla —</option>
@@ -529,14 +530,14 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                             onChange={(e) => setNewParamValue(e.target.value)}
                                                             onKeyDown={(e) => e.key === 'Enter' && addParam()}
                                                             placeholder={`Valor para {{${templateParams.length + 1}}}`}
-                                                            className="flex-1 settings-input rounded-none transition-all duration-200"
+                                                            className="flex-1 settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                                             style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                                         />
-                                                        <Button 
-                                                            size="sm" 
-                                                            variant="outline" 
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
                                                             onClick={addParam}
-                                                            className="settings-btn-secondary"
+                                                            className="settings-btn-secondary rounded-xl"
                                                         >
                                                             <Plus className="w-4 h-4" />
                                                         </Button>
@@ -548,7 +549,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
 
                                 {/* Subir archivo */}
-                                <div className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                                <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                     <h2 className="font-semibold flex items-center gap-2 mb-4 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
                                         <Upload className="w-5 h-5" />
                                         Cargar destinatarios
@@ -558,11 +559,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         onDrop={handleDrop}
                                         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                                         onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-                                        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors space-y-3 ${
-                                            isDragging
+                                        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors space-y-3 ${isDragging
                                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
                                                 : 'border-gray-300 hover:border-gray-400 dark:border-gray-600'
-                                        }`}
+                                            }`}
                                         onClick={() => document.getElementById('bulk-file-input')?.click()}
                                     >
                                         <input
@@ -602,7 +602,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
 
                                 {/* Agregar manual */}
-                                <div className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                                <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                     <h2 className="font-semibold flex items-center gap-2 mb-4 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
                                         <Phone className="w-5 h-5" />
                                         Agregar número
@@ -615,7 +615,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             onChange={(e) => setManualPhone(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && addManualRecipient()}
                                             placeholder="3001234567"
-                                            className="flex-1 settings-input rounded-none transition-all duration-200"
+                                            className="flex-1 settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                             style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                         />
                                         <input
@@ -624,13 +624,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             onChange={(e) => setManualName(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && addManualRecipient()}
                                             placeholder="Nombre (opc)"
-                                            className="flex-1 settings-input rounded-none transition-all duration-200"
+                                            className="flex-1 settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                             style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                         />
-                                        <Button 
-                                            onClick={addManualRecipient} 
+                                        <Button
+                                            onClick={addManualRecipient}
                                             variant="outline"
-                                            className="settings-btn-secondary"
+                                            className="settings-btn-secondary rounded-xl"
                                         >
                                             <Plus className="w-4 h-4" />
                                         </Button>
@@ -640,13 +640,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                             {/* Columna derecha: Vista previa de destinatarios */}
                             <div className="space-y-[var(--space-lg)]">
-                                <div className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] h-full flex flex-col">
+                                <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 h-full flex flex-col transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                     <div className="flex items-center justify-between mb-4">
                                         <h2 className="font-semibold settings-title" style={{ fontSize: 'var(--text-lg)' }}>
                                             Destinatarios ({recipients.length})
                                         </h2>
                                         {recipients.length > 0 && (
-                                            <Button variant="ghost" size="sm" onClick={clearRecipients} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                            <Button variant="ghost" size="sm" onClick={clearRecipients} className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl">
                                                 <Trash2 className="w-4 h-4 mr-1" />
                                                 Limpiar
                                             </Button>
@@ -659,11 +659,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             <p className="text-sm">No hay destinatarios aún</p>
                                         </div>
                                     ) : (
-                                        <div className="flex-1 max-h-[500px] overflow-y-auto mb-4 border rounded bg-background/50">
+                                        <div className="flex-1 max-h-[500px] overflow-y-auto mb-4 border border-gray-200 dark:border-gray-800 rounded-xl bg-background/50">
                                             {recipients.map((r, index) => (
                                                 <div
                                                     key={index}
-                                                    className="flex items-center justify-between py-2 px-3 border-b last:border-0 hover:bg-muted/50 text-sm"
+                                                    className="flex items-center justify-between py-2 px-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-muted/50 text-sm"
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <span className="text-xs text-muted-foreground w-6 text-right">
@@ -691,7 +691,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             <Button
                                                 onClick={handleStartSend}
                                                 disabled={isSending || !selectedTemplate}
-                                                className="w-full font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
+                                                className="w-full font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
                                                 style={{
                                                     backgroundColor: 'var(--primary-base)',
                                                     boxShadow: 'var(--shadow-md)',
@@ -735,7 +735,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     )}
 
                     {/* Historial de envíos - Estilo Card Gradient */}
-                    <div className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                         <h2 className="font-semibold mb-4 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
                             <Clock className="w-5 h-5" />
                             Historial de envíos

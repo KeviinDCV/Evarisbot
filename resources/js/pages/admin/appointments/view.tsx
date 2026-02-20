@@ -73,7 +73,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
         setSortField(field);
         setSortDirection(newDirection);
-        
+
         router.get('/admin/appointments/view', {
             filter,
             search: searchTerm || undefined,
@@ -120,7 +120,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         } else {
             setDateTo(value);
         }
-        
+
         router.get('/admin/appointments/view', {
             filter,
             search: searchTerm || undefined,
@@ -154,14 +154,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
     const getStatusBadge = (appointment: Appointment) => {
         if (!appointment.reminder_sent) {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium">
                     <Clock className="w-3 h-3" />
                     Pendiente
                 </span>
             );
         }
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
                 <CalendarCheck className="w-3 h-3" />
                 Enviado
             </span>
@@ -171,7 +171,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
     const getDeliveryStatusBadge = (appointment: Appointment) => {
         if (!appointment.reminder_sent) {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none text-xs font-medium settings-subtitle">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-medium settings-subtitle">
                     —
                 </span>
             );
@@ -179,16 +179,16 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
 
         if (appointment.reminder_status === 'failed') {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
                     <CalendarX className="w-3 h-3" />
                     Error
                 </span>
             );
         }
 
-        if (['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status)) {
+        if (appointment.reminder_status && ['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status)) {
             return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
                     <CalendarCheck className="w-3 h-3" />
                     Recibido
                 </span>
@@ -196,7 +196,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         }
 
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
                 <Clock className="w-3 h-3" />
                 En camino
             </span>
@@ -206,7 +206,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
     return (
         <AdminLayout>
             <Head title="Ver Todas las Citas" />
-            
+
             <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
                 <div className="max-w-7xl mx-auto">
                     {/* Header */}
@@ -214,7 +214,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
                             <Button
                                 onClick={() => router.get('/admin/appointments')}
-                                className="font-semibold text-white transition-all duration-200 border-0"
+                                className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
                                 style={{
                                     backgroundColor: 'var(--primary-base)',
                                     boxShadow: 'var(--shadow-md)',
@@ -246,7 +246,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     padding: '0.5rem 1rem',
                                     fontSize: 'var(--text-sm)',
                                     fontWeight: '600',
-                                    borderRadius: '0',
+                                    borderRadius: '0.75rem',
                                     boxShadow: 'var(--shadow-md)',
                                     transition: 'all 0.2s',
                                     display: 'inline-flex',
@@ -286,290 +286,290 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         </p>
                     </div>
 
-                {/* Filtros */}
-                <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
-                    <div className="mb-4">
-                        <h2 className="text-lg font-semibold settings-title mb-3 flex items-center gap-2">
-                            <Filter className="w-5 h-5" />
-                            Filtros
-                        </h2>
-                        <div className="flex flex-wrap gap-2">
-                            {filterButtons.map(({ key, label, icon: Icon, count }) => (
-                                <button
-                                    key={key}
-                                    onClick={() => handleFilterChange(key)}
-                                    className={`
-                                        flex items-center gap-2 px-4 py-2 rounded-none font-medium text-sm transition-all duration-200
-                                        ${filter === key
-                                            ? 'chat-message-sent text-white shadow-[0_2px_8px_rgba(46,63,132,0.25)]'
-                                            : 'filter-btn-inactive'
-                                        }
-                                    `}
-                                >
-                                    <Icon className="w-4 h-4" />
-                                    <span>{label}</span>
-                                    <span 
+                    {/* Filtros */}
+                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6">
+                        <div className="mb-4">
+                            <h2 className="text-lg font-semibold settings-title mb-3 flex items-center gap-2">
+                                <Filter className="w-5 h-5" />
+                                Filtros
+                            </h2>
+                            <div className="flex flex-wrap gap-2">
+                                {filterButtons.map(({ key, label, icon: Icon, count }) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => handleFilterChange(key)}
                                         className={`
-                                            px-2 py-0.5 rounded-none text-xs
+                                        flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200
+                                        ${filter === key
+                                                ? 'chat-message-sent text-white shadow-[0_2px_8px_rgba(46,63,132,0.25)]'
+                                                : 'filter-btn-inactive'
+                                            }
+                                    `}
+                                    >
+                                        <Icon className="w-4 h-4" />
+                                        <span>{label}</span>
+                                        <span
+                                            className={`
+                                            px-2 py-0.5 rounded-xl text-xs
                                             ${filter === key ? 'bg-white/20 text-white' : 'filter-badge-inactive'}
                                         `}
-                                    >
-                                        {count.toLocaleString()}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Filtro por Fecha */}
-                    <div className="mb-4">
-                        <h3 className="text-sm font-semibold settings-title mb-2 flex items-center gap-2">
-                            <Calendar className="w-4 h-4" />
-                            Filtrar por Fecha de Cita
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div>
-                                <label htmlFor="date-from" className="block text-xs font-medium settings-label mb-1">Desde</label>
-                                <input
-                                    id="date-from"
-                                    name="date-from"
-                                    type="date"
-                                    value={dateFrom}
-                                    onChange={(e) => handleDateChange('from', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label htmlFor="date-to" className="block text-xs font-medium settings-label mb-1">Hasta</label>
-                                <input
-                                    id="date-to"
-                                    name="date-to"
-                                    type="date"
-                                    value={dateTo}
-                                    onChange={(e) => handleDateChange('to', e.target.value)}
-                                    className="w-full px-3 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
-                                />
-                            </div>
-                            <div className="flex items-end">
-                                <button
-                                    onClick={handleClearDates}
-                                    disabled={!dateFrom && !dateTo}
-                                    className="w-full px-4 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-[#6b7494] dark:text-[hsl(231,15%,60%)] bg-white dark:bg-[hsl(231,25%,14%)] hover:bg-[#f8f9fc] dark:hover:bg-[hsl(231,25%,18%)] dark:hover:text-[hsl(231,55%,70%)] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
-                                >
-                                    Limpiar Fechas
-                                </button>
-                            </div>
-                        </div>
-                        {(dateFrom || dateTo) && (
-                            <p className="mt-2 text-xs text-[#2e3f84] dark:text-[hsl(231,55%,70%)] flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                Filtrando citas {dateFrom && `desde ${dateFrom}`} {dateFrom && dateTo && '-'} {dateTo && `hasta ${dateTo}`}
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Buscador */}
-                    <div className="relative">
-                        <label htmlFor="view-search" className="sr-only">Buscar citas</label>
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494] dark:text-[hsl(231,15%,60%)]" />
-                        <input
-                            id="view-search"
-                            name="view-search"
-                            type="text"
-                            placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
-                            value={searchTerm}
-                            onChange={(e) => handleSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
-                        />
-                    </div>
-                </div>
-
-                {/* Tabla */}
-                <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
-                    <div className="mb-4">
-                        <h2 className="text-lg font-semibold settings-title">
-                            Resultados ({appointments.total})
-                        </h2>
-                        <p className="text-sm settings-subtitle">
-                            Mostrando {appointments.from} - {appointments.to} de {appointments.total} citas
-                        </p>
-                    </div>
-
-                    {/* Tabla con scroll horizontal */}
-                    <div className="overflow-x-auto rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
-                                <tr>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('id')}>
-                                        <div className="flex items-center gap-2">
-                                            #
-                                            {sortField === 'id' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('nom_paciente')}>
-                                        <div className="flex items-center gap-2">
-                                            Paciente
-                                            {sortField === 'nom_paciente' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('citide')}>
-                                        <div className="flex items-center gap-2">
-                                            Cédula
-                                            {sortField === 'citide' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('pactel')}>
-                                        <div className="flex items-center gap-2">
-                                            Teléfono
-                                            {sortField === 'pactel' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('citfc')}>
-                                        <div className="flex items-center gap-2">
-                                            Fecha Cita
-                                            {sortField === 'citfc' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('cithor')}>
-                                        <div className="flex items-center gap-2">
-                                            Hora
-                                            {sortField === 'cithor' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('mednom')}>
-                                        <div className="flex items-center gap-2">
-                                            Médico
-                                            {sortField === 'mednom' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('espnom')}>
-                                        <div className="flex items-center gap-2">
-                                            Especialidad
-                                            {sortField === 'espnom' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('reminder_status')}>
-                                        <div className="flex items-center gap-2">
-                                            Recordatorio
-                                            {sortField === 'reminder_status' ? (
-                                                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                            ) : (
-                                                <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody className="table-body-light divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
-                                {appointments.data.length > 0 ? (
-                                    appointments.data.map((appointment, index) => (
-                                        <tr 
-                                            key={appointment.id} 
-                                            className="table-row-hover transition-colors duration-150"
                                         >
-                                            <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                {appointments.from + index}
-                                            </td>
-                                            <td className="px-4 py-3 settings-title font-medium whitespace-nowrap">
-                                                {appointment.nom_paciente || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 settings-title font-semibold whitespace-nowrap">
-                                                {appointment.citide || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                {appointment.pactel || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                {appointment.citfc || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                {appointment.cithor || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                {appointment.mednom || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                {appointment.espnom || '-'}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                                {getStatusBadge(appointment)}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                                {getDeliveryStatusBadge(appointment)}
+                                            {count.toLocaleString()}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Filtro por Fecha */}
+                        <div className="mb-4">
+                            <h3 className="text-sm font-semibold settings-title mb-2 flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                Filtrar por Fecha de Cita
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div>
+                                    <label htmlFor="date-from" className="block text-xs font-medium settings-label mb-1">Desde</label>
+                                    <input
+                                        id="date-from"
+                                        name="date-from"
+                                        type="date"
+                                        value={dateFrom}
+                                        onChange={(e) => handleDateChange('from', e.target.value)}
+                                        className="w-full px-3 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
+                                    />
+                                </div>
+                                <div>
+                                    <label htmlFor="date-to" className="block text-xs font-medium settings-label mb-1">Hasta</label>
+                                    <input
+                                        id="date-to"
+                                        name="date-to"
+                                        type="date"
+                                        value={dateTo}
+                                        onChange={(e) => handleDateChange('to', e.target.value)}
+                                        className="w-full px-3 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
+                                    />
+                                </div>
+                                <div className="flex items-end">
+                                    <button
+                                        onClick={handleClearDates}
+                                        disabled={!dateFrom && !dateTo}
+                                        className="w-full px-4 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-[#6b7494] dark:text-[hsl(231,15%,60%)] bg-white dark:bg-[hsl(231,25%,14%)] hover:bg-[#f8f9fc] dark:hover:bg-[hsl(231,25%,18%)] dark:hover:text-[hsl(231,55%,70%)] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
+                                    >
+                                        Limpiar Fechas
+                                    </button>
+                                </div>
+                            </div>
+                            {(dateFrom || dateTo) && (
+                                <p className="mt-2 text-xs text-[#2e3f84] dark:text-[hsl(231,55%,70%)] flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    Filtrando citas {dateFrom && `desde ${dateFrom}`} {dateFrom && dateTo && '-'} {dateTo && `hasta ${dateTo}`}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Buscador */}
+                        <div className="relative">
+                            <label htmlFor="view-search" className="sr-only">Buscar citas</label>
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494] dark:text-[hsl(231,15%,60%)]" />
+                            <input
+                                id="view-search"
+                                name="view-search"
+                                type="text"
+                                placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
+                                value={searchTerm}
+                                onChange={(e) => handleSearch(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Tabla */}
+                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                        <div className="mb-4">
+                            <h2 className="text-lg font-semibold settings-title">
+                                Resultados ({appointments.total})
+                            </h2>
+                            <p className="text-sm settings-subtitle">
+                                Mostrando {appointments.from} - {appointments.to} de {appointments.total} citas
+                            </p>
+                        </div>
+
+                        {/* Tabla con scroll horizontal */}
+                        <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('id')}>
+                                            <div className="flex items-center gap-2">
+                                                #
+                                                {sortField === 'id' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('nom_paciente')}>
+                                            <div className="flex items-center gap-2">
+                                                Paciente
+                                                {sortField === 'nom_paciente' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('citide')}>
+                                            <div className="flex items-center gap-2">
+                                                Cédula
+                                                {sortField === 'citide' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('pactel')}>
+                                            <div className="flex items-center gap-2">
+                                                Teléfono
+                                                {sortField === 'pactel' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('citfc')}>
+                                            <div className="flex items-center gap-2">
+                                                Fecha Cita
+                                                {sortField === 'citfc' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('cithor')}>
+                                            <div className="flex items-center gap-2">
+                                                Hora
+                                                {sortField === 'cithor' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('mednom')}>
+                                            <div className="flex items-center gap-2">
+                                                Médico
+                                                {sortField === 'mednom' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('espnom')}>
+                                            <div className="flex items-center gap-2">
+                                                Especialidad
+                                                {sortField === 'espnom' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-[#263470] transition-colors" onClick={() => handleSort('reminder_status')}>
+                                            <div className="flex items-center gap-2">
+                                                Recordatorio
+                                                {sortField === 'reminder_status' ? (
+                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                                                ) : (
+                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
+                                                )}
+                                            </div>
+                                        </th>
+                                        <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="table-body-light divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
+                                    {appointments.data.length > 0 ? (
+                                        appointments.data.map((appointment, index) => (
+                                            <tr
+                                                key={appointment.id}
+                                                className="table-row-hover transition-colors duration-150"
+                                            >
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
+                                                    {appointments.from + index}
+                                                </td>
+                                                <td className="px-4 py-3 settings-title font-medium whitespace-nowrap">
+                                                    {appointment.nom_paciente || '-'}
+                                                </td>
+                                                <td className="px-4 py-3 settings-title font-semibold whitespace-nowrap">
+                                                    {appointment.citide || '-'}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
+                                                    {appointment.pactel || '-'}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
+                                                    {appointment.citfc || '-'}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
+                                                    {appointment.cithor || '-'}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
+                                                    {appointment.mednom || '-'}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
+                                                    {appointment.espnom || '-'}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    {getStatusBadge(appointment)}
+                                                </td>
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    {getDeliveryStatusBadge(appointment)}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={10} className="px-4 py-8 text-center settings-subtitle">
+                                                No se encontraron citas con los filtros seleccionados
                                             </td>
                                         </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={10} className="px-4 py-8 text-center settings-subtitle">
-                                            No se encontraron citas con los filtros seleccionados
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Paginación */}
-                    {appointments.last_page > 1 && (
-                        <div className="mt-4 flex items-center justify-between">
-                            <p className="text-sm settings-subtitle">
-                                Página {appointments.current_page} de {appointments.last_page}
-                            </p>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
-                                    disabled={!appointments.prev_page_url}
-                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                    Anterior
-                                </button>
-                                <button
-                                    onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
-                                    disabled={!appointments.next_page_url}
-                                    className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
-                                >
-                                    Siguiente
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
-                            </div>
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
-                    )}
-                </div>
+
+                        {/* Paginación */}
+                        {appointments.last_page > 1 && (
+                            <div className="mt-4 flex items-center justify-between">
+                                <p className="text-sm settings-subtitle">
+                                    Página {appointments.current_page} de {appointments.last_page}
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
+                                        disabled={!appointments.prev_page_url}
+                                        className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                        Anterior
+                                    </button>
+                                    <button
+                                        onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
+                                        disabled={!appointments.next_page_url}
+                                        className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                    >
+                                        Siguiente
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </AdminLayout>

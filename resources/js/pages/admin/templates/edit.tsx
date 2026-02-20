@@ -45,15 +45,15 @@ interface EditTemplateProps {
 
 export default function EditTemplate({ template, users }: EditTemplateProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
-    
+
     // Archivos existentes (ya guardados en el servidor)
     const [existingFiles, setExistingFiles] = useState<ExistingMediaFile[]>(
         template.media_files || []
     );
-    
+
     // Nuevos archivos seleccionados
     const [newFiles, setNewFiles] = useState<NewMediaFile[]>([]);
-    
+
     const form = useForm({
         name: template.name,
         subject: template.subject || '',
@@ -91,20 +91,20 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
         if (!files) return;
 
         const newMediaFiles: NewMediaFile[] = [];
-        
+
         Array.from(files).forEach(file => {
             const type = getFileType(file);
             let preview: string | null = null;
-            
+
             if (type === 'image') {
                 preview = URL.createObjectURL(file);
             }
-            
+
             newMediaFiles.push({ file, preview, type });
         });
 
         setNewFiles(prev => [...prev, ...newMediaFiles]);
-        
+
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -131,7 +131,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const formData = new FormData();
         formData.append('_method', 'PUT');
         formData.append('name', form.data.name);
@@ -139,14 +139,14 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
         formData.append('content', form.data.content);
         formData.append('is_active', form.data.is_active ? '1' : '0');
         formData.append('is_global', form.data.is_global ? '1' : '0');
-        
+
         form.data.assigned_users.forEach(userId => {
             formData.append('assigned_users[]', userId.toString());
         });
-        
+
         // Enviar archivos existentes que se mantienen
         formData.append('existing_media_files', JSON.stringify(existingFiles));
-        
+
         // Agregar nuevos archivos
         newFiles.forEach((mediaFile, index) => {
             formData.append(`media_files[${index}]`, mediaFile.file);
@@ -170,7 +170,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                     <div className="mb-6 md:mb-8">
                         <Link
                             href="/admin/templates"
-                            className="inline-flex items-center text-muted-foreground mb-3 md:mb-4 px-3 py-2 rounded-none transition-all duration-200 hover:bg-accent hover:text-primary"
+                            className="inline-flex items-center text-muted-foreground mb-3 md:mb-4 px-3 py-2 rounded-xl transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/5 hover:text-primary"
                         >
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             <span className="hidden sm:inline">Volver a plantillas</span>
@@ -182,288 +182,288 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
 
                     {/* Form: Centered box with natural max-width */}
                     <div className="max-w-2xl mx-auto">
-                        <form onSubmit={handleSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] p-4 sm:p-6 lg:p-8 space-y-5 md:space-y-6">
-                        {/* Nombre */}
-                        <div className="space-y-2">
-                            <Label htmlFor="name" className="text-sm font-medium text-primary">
-                                Nombre de la Plantilla
-                            </Label>
-                            <Input
-                                id="name"
-                                type="text"
-                                value={form.data.name}
-                                onChange={(e) => form.setData('name', e.target.value)}
-                                placeholder="Ej: Bienvenida Nuevos Clientes"
-                                className="settings-input rounded-none transition-all duration-200"
-                                required
-                            />
-                            <InputError message={form.errors.name} />
-                        </div>
-
-                        {/* Asunto */}
-                        <div className="space-y-2">
-                            <Label htmlFor="subject" className="text-sm font-medium text-primary">
-                                Asunto (Opcional)
-                            </Label>
-                            <Input
-                                id="subject"
-                                type="text"
-                                value={form.data.subject}
-                                onChange={(e) => form.setData('subject', e.target.value)}
-                                placeholder="Breve descripción"
-                                className="settings-input rounded-none transition-all duration-200"
-                            />
-                            <InputError message={form.errors.subject} />
-                        </div>
-
-                        {/* Archivos Adjuntos (Múltiples) */}
-                        <div className="space-y-2">
-                            <Label className="text-sm font-medium text-primary">
-                                Archivos adjuntos
-                            </Label>
-                            <p className="text-xs text-muted-foreground mb-2">
-                                Puedes adjuntar múltiples imágenes, videos o documentos. Formatos soportados: JPG, PNG, GIF, WebP (se convierte a PNG), MP4, MOV, PDF, DOC. Máximo 20MB por archivo.
-                            </p>
-                            
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.3gp,.pdf,.doc,.docx"
-                                onChange={handleFileSelect}
-                                multiple
-                                className="hidden"
-                            />
-                            
-                            {/* Archivos existentes */}
-                            {existingFiles.length > 0 && (
-                                <div className="space-y-2 mb-3">
-                                    <p className="text-xs font-medium text-muted-foreground">Archivos actuales:</p>
-                                    {existingFiles.map((mediaFile, index) => (
-                                        <div 
-                                            key={`existing-${index}`} 
-                                            className="p-3 rounded-none input-gradient"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                {mediaFile.type === 'image' ? (
-                                                    <img src={mediaFile.url} alt="Preview" className="w-12 h-12 object-cover rounded-none" />
-                                                ) : (
-                                                    <div className="w-12 h-12 chat-message-sent rounded-none flex items-center justify-center text-white">
-                                                        {getFileIcon(mediaFile.type)}
-                                                    </div>
-                                                )}
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-primary truncate">{mediaFile.filename}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {getFileTypeLabel(mediaFile.type)}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRemoveExistingFile(index)}
-                                                    className="p-2 rounded-none transition-all text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            
-                            {/* Nuevos archivos seleccionados */}
-                            {newFiles.length > 0 && (
-                                <div className="space-y-2 mb-3">
-                                    <p className="text-xs font-medium text-muted-foreground">Nuevos archivos:</p>
-                                    {newFiles.map((mediaFile, index) => (
-                                        <div 
-                                            key={`new-${index}`} 
-                                            className="p-3 rounded-none border-l-4 border-green-500 bg-green-50 dark:bg-green-950/30"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                {mediaFile.preview ? (
-                                                    <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-none" />
-                                                ) : (
-                                                    <div className="w-12 h-12 chat-message-sent rounded-none flex items-center justify-center text-white">
-                                                        {getFileIcon(mediaFile.type)}
-                                                    </div>
-                                                )}
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-primary truncate">{mediaFile.file.name}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {getFileTypeLabel(mediaFile.type)} • {(mediaFile.file.size / 1024 / 1024).toFixed(2)} MB • <span className="text-green-600 dark:text-green-400">Nuevo</span>
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRemoveNewFile(index)}
-                                                    className="p-2 rounded-none transition-all text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            
-                            {/* Botón para agregar archivos */}
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full p-4 border-2 border-dashed border-border rounded-none hover:border-primary transition-all duration-200 flex flex-col items-center gap-2 text-muted-foreground bg-accent/30 hover:bg-accent"
-                            >
-                                {totalFiles === 0 ? (
-                                    <>
-                                        <Paperclip className="w-8 h-8" />
-                                        <span className="text-sm">Haz clic para seleccionar archivos</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus className="w-6 h-6" />
-                                        <span className="text-sm">Agregar más archivos</span>
-                                    </>
-                                )}
-                            </button>
-                            
-                            {totalFiles > 0 && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                    {totalFiles} archivo{totalFiles !== 1 ? 's' : ''} en total
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Tipo de Plantilla */}
-                        <div className="space-y-3">
-                            <Label className="text-sm font-medium text-primary">
-                                Tipo de Plantilla
-                            </Label>
+                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                            {/* Nombre */}
                             <div className="space-y-2">
-                                <label 
-                                    className="flex items-center space-x-3 p-3 border border-border rounded-lg cursor-pointer transition-colors card-gradient hover:bg-accent"
-                                >
-                                    <input
-                                        type="radio"
-                                        name="template_type"
-                                        checked={form.data.is_global}
-                                        onChange={() => {
-                                            form.setData('is_global', true);
-                                            form.setData('assigned_users', []);
-                                        }}
-                                        className="w-4 h-4 text-primary"
-                                    />
-                                    <Globe className="w-5 h-5 text-primary" />
-                                    <div>
-                                        <p className="font-medium text-primary">Plantilla Global</p>
-                                        <p className="text-sm text-muted-foreground">Disponible para todos los asesores y administradores</p>
-                                    </div>
-                                </label>
-                                <label 
-                                    className="flex items-center space-x-3 p-3 border border-border rounded-lg cursor-pointer transition-colors card-gradient hover:bg-accent"
-                                >
-                                    <input
-                                        type="radio"
-                                        name="template_type"
-                                        checked={!form.data.is_global}
-                                        onChange={() => form.setData('is_global', false)}
-                                        className="w-4 h-4 text-primary"
-                                    />
-                                    <Users className="w-5 h-5 text-primary" />
-                                    <div>
-                                        <p className="font-medium text-primary">Plantilla Asignada</p>
-                                        <p className="text-sm text-muted-foreground">Disponible solo para los usuarios seleccionados</p>
-                                    </div>
-                                </label>
+                                <Label htmlFor="name" className="text-sm font-medium text-primary">
+                                    Nombre de la Plantilla
+                                </Label>
+                                <Input
+                                    id="name"
+                                    type="text"
+                                    value={form.data.name}
+                                    onChange={(e) => form.setData('name', e.target.value)}
+                                    placeholder="Ej: Bienvenida Nuevos Clientes"
+                                    className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    required
+                                />
+                                <InputError message={form.errors.name} />
                             </div>
-                        </div>
 
-                        {/* Asignar Usuarios (solo si no es global) */}
-                        {!form.data.is_global && (
+                            {/* Asunto */}
+                            <div className="space-y-2">
+                                <Label htmlFor="subject" className="text-sm font-medium text-primary">
+                                    Asunto (Opcional)
+                                </Label>
+                                <Input
+                                    id="subject"
+                                    type="text"
+                                    value={form.data.subject}
+                                    onChange={(e) => form.setData('subject', e.target.value)}
+                                    placeholder="Breve descripción"
+                                    className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
+                                />
+                                <InputError message={form.errors.subject} />
+                            </div>
+
+                            {/* Archivos Adjuntos (Múltiples) */}
+                            <div className="space-y-2">
+                                <Label className="text-sm font-medium text-primary">
+                                    Archivos adjuntos
+                                </Label>
+                                <p className="text-xs text-muted-foreground mb-2">
+                                    Puedes adjuntar múltiples imágenes, videos o documentos. Formatos soportados: JPG, PNG, GIF, WebP (se convierte a PNG), MP4, MOV, PDF, DOC. Máximo 20MB por archivo.
+                                </p>
+
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi,.3gp,.pdf,.doc,.docx"
+                                    onChange={handleFileSelect}
+                                    multiple
+                                    className="hidden"
+                                />
+
+                                {/* Archivos existentes */}
+                                {existingFiles.length > 0 && (
+                                    <div className="space-y-2 mb-3">
+                                        <p className="text-xs font-medium text-muted-foreground">Archivos actuales:</p>
+                                        {existingFiles.map((mediaFile, index) => (
+                                            <div
+                                                key={`existing-${index}`}
+                                                className="p-3 rounded-xl bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {mediaFile.type === 'image' ? (
+                                                        <img src={mediaFile.url} alt="Preview" className="w-12 h-12 object-cover rounded-lg" />
+                                                    ) : (
+                                                        <div className="w-12 h-12 chat-message-sent rounded-lg flex items-center justify-center text-white">
+                                                            {getFileIcon(mediaFile.type)}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-primary truncate">{mediaFile.filename}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {getFileTypeLabel(mediaFile.type)}
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveExistingFile(index)}
+                                                        className="p-2 rounded-xl transition-all text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Nuevos archivos seleccionados */}
+                                {newFiles.length > 0 && (
+                                    <div className="space-y-2 mb-3">
+                                        <p className="text-xs font-medium text-muted-foreground">Nuevos archivos:</p>
+                                        {newFiles.map((mediaFile, index) => (
+                                            <div
+                                                key={`new-${index}`}
+                                                className="p-3 rounded-xl border border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-950/30"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {mediaFile.preview ? (
+                                                        <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-lg" />
+                                                    ) : (
+                                                        <div className="w-12 h-12 chat-message-sent rounded-lg flex items-center justify-center text-white">
+                                                            {getFileIcon(mediaFile.type)}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium text-primary truncate">{mediaFile.file.name}</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {getFileTypeLabel(mediaFile.type)} • {(mediaFile.file.size / 1024 / 1024).toFixed(2)} MB • <span className="text-green-600 dark:text-green-400">Nuevo</span>
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveNewFile(index)}
+                                                        className="p-2 rounded-xl transition-all text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Botón para agregar archivos */}
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl hover:border-primary transition-all duration-200 flex flex-col items-center gap-2 text-muted-foreground hover:bg-[#2e3f84]/5 dark:hover:bg-[hsl(231,55%,55%)]/5"
+                                >
+                                    {totalFiles === 0 ? (
+                                        <>
+                                            <Paperclip className="w-8 h-8" />
+                                            <span className="text-sm">Haz clic para seleccionar archivos</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="w-6 h-6" />
+                                            <span className="text-sm">Agregar más archivos</span>
+                                        </>
+                                    )}
+                                </button>
+
+                                {totalFiles > 0 && (
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                        {totalFiles} archivo{totalFiles !== 1 ? 's' : ''} en total
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Tipo de Plantilla */}
                             <div className="space-y-3">
                                 <Label className="text-sm font-medium text-primary">
-                                    <UserCheck className="inline w-4 h-4 mr-2" />
-                                    Asignar a Usuarios
+                                    Tipo de Plantilla
                                 </Label>
-                                <div 
-                                    className="max-h-40 overflow-y-auto border border-border rounded-lg p-3 space-y-2 card-gradient"
-                                >
-                                    {users?.map((user) => (
-                                        <label 
-                                            key={user.id} 
-                                            className="flex items-center space-x-3 cursor-pointer p-2 rounded transition-colors hover:bg-accent"
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={form.data.assigned_users.includes(user.id)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        form.setData('assigned_users', [...form.data.assigned_users, user.id]);
-                                                    } else {
-                                                        form.setData('assigned_users', form.data.assigned_users.filter(id => id !== user.id));
-                                                    }
-                                                }}
-                                                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                                            />
-                                            <div>
-                                                <p className="font-medium text-sm text-primary">{user.name}</p>
-                                                <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
-                                            </div>
-                                        </label>
-                                    ))}
+                                <div className="space-y-2">
+                                    <label
+                                        className="flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer transition-colors bg-white/50 dark:bg-black/20 hover:bg-black/5 dark:hover:bg-white/5"
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="template_type"
+                                            checked={form.data.is_global}
+                                            onChange={() => {
+                                                form.setData('is_global', true);
+                                                form.setData('assigned_users', []);
+                                            }}
+                                            className="w-4 h-4 text-primary"
+                                        />
+                                        <Globe className="w-5 h-5 text-primary" />
+                                        <div>
+                                            <p className="font-medium text-primary">Plantilla Global</p>
+                                            <p className="text-sm text-muted-foreground">Disponible para todos los asesores y administradores</p>
+                                        </div>
+                                    </label>
+                                    <label
+                                        className="flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer transition-colors bg-white/50 dark:bg-black/20 hover:bg-black/5 dark:hover:bg-white/5"
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="template_type"
+                                            checked={!form.data.is_global}
+                                            onChange={() => form.setData('is_global', false)}
+                                            className="w-4 h-4 text-primary"
+                                        />
+                                        <Users className="w-5 h-5 text-primary" />
+                                        <div>
+                                            <p className="font-medium text-primary">Plantilla Asignada</p>
+                                            <p className="text-sm text-muted-foreground">Disponible solo para los usuarios seleccionados</p>
+                                        </div>
+                                    </label>
                                 </div>
-                                {form.data.assigned_users.length === 0 && !form.data.is_global && (
-                                    <p className="text-sm text-amber-600 dark:text-amber-400">Debes seleccionar al menos un usuario</p>
-                                )}
                             </div>
-                        )}
 
-                        {/* Contenido */}
-                        <div className="space-y-2">
-                            <Label htmlFor="content" className="text-sm font-medium text-primary">
-                                Contenido del Mensaje
-                            </Label>
-                            <Textarea
-                                id="content"
-                                value={form.data.content}
-                                onChange={(e) => form.setData('content', e.target.value)}
-                                placeholder="Escribe el mensaje aquí..."
-                                rows={8}
-                                className="settings-input rounded-none transition-all duration-200"
-                                required
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Caracteres: {form.data.content.length} / 4096
-                            </p>
-                            <InputError message={form.errors.content} />
-                        </div>
+                            {/* Asignar Usuarios (solo si no es global) */}
+                            {!form.data.is_global && (
+                                <div className="space-y-3">
+                                    <Label className="text-sm font-medium text-primary">
+                                        <UserCheck className="inline w-4 h-4 mr-2" />
+                                        Asignar a Usuarios
+                                    </Label>
+                                    <div
+                                        className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-800 rounded-xl p-3 space-y-2 bg-white/50 dark:bg-black/20 template-users-list p-1"
+                                    >
+                                        {users?.map((user) => (
+                                            <label
+                                                key={user.id}
+                                                className="flex items-center space-x-3 cursor-pointer p-2 rounded transition-colors hover:bg-accent"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={form.data.assigned_users.includes(user.id)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            form.setData('assigned_users', [...form.data.assigned_users, user.id]);
+                                                        } else {
+                                                            form.setData('assigned_users', form.data.assigned_users.filter(id => id !== user.id));
+                                                        }
+                                                    }}
+                                                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                                                />
+                                                <div>
+                                                    <p className="font-medium text-sm text-primary">{user.name}</p>
+                                                    <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                    {form.data.assigned_users.length === 0 && !form.data.is_global && (
+                                        <p className="text-sm text-amber-600 dark:text-amber-400">Debes seleccionar al menos un usuario</p>
+                                    )}
+                                </div>
+                            )}
 
-                        {/* Activar Plantilla */}
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="checkbox"
-                                id="is_active"
-                                checked={form.data.is_active}
-                                onChange={(e) => form.setData('is_active', e.target.checked)}
-                                className="w-4 h-4 rounded accent-primary"
-                            />
-                            <Label htmlFor="is_active" className="text-sm font-medium text-primary cursor-pointer">
-                                Plantilla activa
-                            </Label>
-                        </div>
+                            {/* Contenido */}
+                            <div className="space-y-2">
+                                <Label htmlFor="content" className="text-sm font-medium text-primary">
+                                    Contenido del Mensaje
+                                </Label>
+                                <Textarea
+                                    id="content"
+                                    value={form.data.content}
+                                    onChange={(e) => form.setData('content', e.target.value)}
+                                    placeholder="Escribe el mensaje aquí..."
+                                    rows={8}
+                                    className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    required
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Caracteres: {form.data.content.length} / 4096
+                                </p>
+                                <InputError message={form.errors.content} />
+                            </div>
 
-                        {/* Buttons: Stack on mobile, row on tablet+ */}
-                        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-[#e2e4ed] dark:border-[hsl(231,20%,20%)] mt-8">
+                            {/* Activar Plantilla */}
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="is_active"
+                                    checked={form.data.is_active}
+                                    onChange={(e) => form.setData('is_active', e.target.checked)}
+                                    className="w-4 h-4 rounded accent-primary"
+                                />
+                                <Label htmlFor="is_active" className="text-sm font-medium text-primary cursor-pointer">
+                                    Plantilla activa
+                                </Label>
+                            </div>
+
+                            {/* Buttons: Stack on mobile, row on tablet+ */}
+                            <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-200 dark:border-gray-800 mt-8">
                                 <Button
                                     type="submit"
                                     disabled={form.processing}
-                                    className="w-full sm:w-auto sm:flex-1 settings-btn-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                                    className="w-full sm:flex-1 h-11 settings-btn-primary rounded-xl font-medium disabled:opacity-50 transition-all"
                                 >
                                     {form.processing ? 'Guardando...' : 'Guardar Cambios'}
                                 </Button>
-                                <Link href="/admin/templates" className="w-full sm:w-auto sm:flex-1">
+                                <Link href="/admin/templates" className="w-full sm:flex-1">
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        className="w-full settings-btn-secondary"
+                                        className="w-full h-11 settings-btn-secondary rounded-xl font-medium transition-all"
                                     >
                                         Cancelar
                                     </Button>

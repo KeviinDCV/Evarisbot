@@ -46,7 +46,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
-    
+
     const [search, setSearch] = useState(filters.search);
     const [statusFilter, setStatusFilter] = useState(filters.status);
     const [typeFilter, setTypeFilter] = useState(filters.type);
@@ -113,8 +113,8 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                             </div>
                             {isAdmin && (
                                 <Link href="/admin/templates/create">
-                                    <Button 
-                                        className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
+                                    <Button
+                                        className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
                                         style={{
                                             backgroundColor: 'var(--primary-base)',
                                             boxShadow: 'var(--shadow-md)',
@@ -142,7 +142,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                         </div>
 
                         {/* Filtros */}
-                        <div className="card-gradient rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 md:p-5 flex flex-wrap gap-4 items-end transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                             <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
                                 <label htmlFor="template-search" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                     {t('common.search')}
@@ -157,7 +157,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                         onChange={(e) => setSearch(e.target.value)}
                                         onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
                                         placeholder={t('templates.searchPlaceholder')}
-                                        className="pl-10 settings-input rounded-none transition-all duration-200"
+                                        className="pl-10 settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                         style={{
                                             height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
@@ -175,7 +175,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                     name="template-status"
                                     value={statusFilter}
                                     onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="w-full settings-input rounded-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-primary/20"
+                                    className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/30"
                                     style={{
                                         height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                         fontSize: 'var(--text-sm)',
@@ -202,7 +202,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                     name="template-type"
                                     value={typeFilter}
                                     onChange={(e) => setTypeFilter(e.target.value)}
-                                    className="w-full settings-input rounded-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-primary/20"
+                                    className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/30"
                                     style={{
                                         height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                         fontSize: 'var(--text-sm)',
@@ -243,7 +243,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                         {templates.map((template) => (
                             <div
                                 key={template.id}
-                                className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300"
+                                className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 hover:-translate-y-1"
                                 style={{
                                     display: 'flex',
                                     flexDirection: 'column',
@@ -287,7 +287,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                 </p>
 
                                 {/* Stats */}
-                                <div className="rounded-none p-3 user-stats-box">
+                                <div className="rounded-xl p-3 user-stats-box bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800">
                                     <div>
                                         <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.stats.sends')}</p>
                                         <p className="font-bold settings-title" style={{ fontSize: 'var(--text-base)' }}>
@@ -331,7 +331,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    className="settings-btn-secondary hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] transition-all duration-200"
+                                                    className="settings-btn-secondary hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] transition-all duration-200 rounded-xl"
                                                     style={{ padding: 'var(--space-xs) var(--space-sm)' }}
                                                 >
                                                     <Edit className="w-4 h-4" />
@@ -341,7 +341,7 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={() => deleteTemplate(template.id)}
-                                                className="hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 transition-all duration-200"
+                                                className="hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 transition-all duration-200 rounded-xl"
                                                 style={{ padding: 'var(--space-xs) var(--space-sm)', color: '#dc2626' }}
                                             >
                                                 <Trash2 className="w-4 h-4" />
@@ -355,20 +355,20 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
 
                     {/* Empty State */}
                     {templates.length === 0 && (
-                        <div className="card-gradient rounded-none p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                        <div className="card-gradient rounded-2xl p-12 text-center border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5">
                             <MessageSquare className="w-16 h-16 mx-auto mb-4 settings-subtitle" />
                             <h3 className="font-bold mb-2 settings-title" style={{ fontSize: 'var(--text-xl)' }}>
                                 {t('templates.noTemplates')}
                             </h3>
                             <p className="mb-6 settings-subtitle" style={{ fontSize: 'var(--text-sm)' }}>
-                                {isAdmin 
+                                {isAdmin
                                     ? t('templates.noTemplatesSubtitle')
                                     : t('templates.noTemplatesViewer')
                                 }
                             </p>
                             {isAdmin && (
                                 <Link href="/admin/templates/create">
-                                    <Button style={{ backgroundColor: 'var(--primary-base)', color: 'white' }}>
+                                    <Button style={{ backgroundColor: 'var(--primary-base)', color: 'white' }} className="rounded-xl">
                                         <Plus className="w-4 h-4 mr-2" />
                                         {t('templates.newTemplate')}
                                     </Button>

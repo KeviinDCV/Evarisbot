@@ -598,9 +598,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     {/* Mensaje Flash de Éxito/Error */}
                     {showFlashMessage && (flash?.success || flash?.error) && (
                         <div
-                            className={`mb-6 p-4 rounded-none flex items-start gap-3 transition-all duration-300 ${flash?.success
-                                    ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300'
-                                    : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                            className={`mb-6 p-4 rounded-2xl flex items-start gap-3 transition-all duration-300 ${flash?.success
+                                ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300'
+                                : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                                 }`}
                             style={{
                                 boxShadow: flash?.success
@@ -618,7 +618,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
                             <button
                                 onClick={() => setShowFlashMessage(false)}
-                                className="p-1 hover:bg-black/5 rounded-none transition-colors"
+                                className="p-1 hover:bg-black/5 rounded-xl transition-colors"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -627,7 +627,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
                     {/* Control de Recordatorios */}
                     {(remindersStats || localStats) && (
-                        <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 mb-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
                                     <h2 className="text-lg font-semibold settings-title mb-1 flex items-center gap-2">
@@ -703,7 +703,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Button
                                             onClick={handleStartReminders}
                                             disabled={isLoading || isProcessing}
-                                            className="font-semibold text-white transition-all duration-200 border-0"
+                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
                                             style={{
                                                 backgroundColor: 'var(--primary-base)',
                                                 boxShadow: 'var(--shadow-md)',
@@ -733,7 +733,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Button
                                             onClick={handleStartRemindersDayBefore}
                                             disabled={isLoading || isProcessing}
-                                            className="font-semibold text-white transition-all duration-200 border-0"
+                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
                                             style={{
                                                 backgroundColor: 'var(--primary-base)',
                                                 boxShadow: 'var(--shadow-md)',
@@ -788,7 +788,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             <Button
                                                 onClick={handleStopReminders}
                                                 disabled={isLoading}
-                                                className="font-semibold text-white transition-all duration-200 border-0"
+                                                className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
                                                 style={{
                                                     backgroundColor: '#EF4444',
                                                     boxShadow: 'var(--shadow-md)',
@@ -816,7 +816,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <Button
                                             onClick={handleResumeReminders}
                                             disabled={isLoading}
-                                            className="font-semibold text-white transition-all duration-200 border-0"
+                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
                                             style={{
                                                 backgroundColor: '#10B981',
                                                 boxShadow: 'var(--shadow-md)',
@@ -842,7 +842,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 </div>
                             </div>
                             {localStats.pending > 2000 && (
-                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-none">
+                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl">
                                     <p className="text-sm text-amber-800 dark:text-amber-300">
                                         <AlertCircle className="w-4 h-4 inline mr-1" />
                                         <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana.
@@ -851,7 +851,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 </div>
                             )}
                             {localStats.pending_tomorrow > 2000 && (
-                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-none">
+                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl">
                                     <p className="text-sm text-amber-800 dark:text-amber-300">
                                         <AlertCircle className="w-4 h-4 inline mr-1" />
                                         <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio.
@@ -866,9 +866,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     {(remindersStats || localStats) && (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             {/* Enviados */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-none flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
                                         <Send className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
@@ -881,9 +881,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
 
                             {/* Pendientes */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-none flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
                                         <Clock className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
@@ -896,9 +896,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
 
                             {/* Fallidos */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)] p-6">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-none flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
                                         <XCircle className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
@@ -913,7 +913,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                     )}
 
                     {/* Upload Section */}
-                    <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6"
+                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
                     >
                         <form onSubmit={submit}>
                             <div className="mb-6">
@@ -928,7 +928,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     onDragOver={handleDragOver}
                                     onDragLeave={handleDragLeave}
                                     className={`
-                                    border-2 border-dashed rounded-none p-8 text-center cursor-pointer
+                                    border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
                                     upload-dropzone
                                     ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(231,20%,25%)]'}
                                     hover:border-primary hover:upload-dropzone-active
@@ -964,9 +964,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             </div>
                                         </label>
                                     ) : (
-                                        <div className="flex items-center justify-between p-4 card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]">
+                                        <div className="flex items-center justify-between p-4 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-none flex items-center justify-center chat-message-sent shadow-[0_2px_6px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.15)]">
+                                                <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_6px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.15)]">
                                                     <FileSpreadsheet className="w-6 h-6 text-white" />
                                                 </div>
                                                 <div className="text-left">
@@ -979,7 +979,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             <button
                                                 type="button"
                                                 onClick={removeFile}
-                                                className="p-2 hover:bg-gradient-to-b hover:from-red-50 hover:to-red-100 rounded-none transition-all duration-200"
+                                                className="p-2 hover:bg-gradient-to-b hover:from-red-50 hover:to-red-100 rounded-xl transition-all duration-200"
                                                 disabled={processing}
                                             >
                                                 <X className="w-5 h-5 text-red-500" />
@@ -989,7 +989,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 </div>
 
                                 {errors.file && (
-                                    <div className="mt-4 flex items-start gap-2 p-4 bg-gradient-to-b from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-900/10 rounded-none shadow-[0_1px_2px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
+                                    <div className="mt-4 flex items-start gap-2 p-4 bg-gradient-to-b from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-900/10 rounded-2xl shadow-[0_1px_2px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
                                         <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
                                         <p className="text-sm text-red-600 dark:text-red-400">{errors.file}</p>
                                     </div>
@@ -1002,7 +1002,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     <button
                                         type="submit"
                                         disabled={processing}
-                                        className="px-6 py-3 text-white rounded-none font-medium chat-message-sent shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_12px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.2),0_6px_16px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                        className="px-6 py-3 text-white rounded-xl font-medium chat-message-sent shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_12px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.2),0_6px_16px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                                     >
                                         {processing ? 'Subiendo...' : 'Subir archivo'}
                                     </button>
@@ -1013,7 +1013,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
                     {/* Uploaded File Info */}
                     {uploadedFile && (
-                        <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6"
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
                         >
                             <div className="flex items-start gap-4">
                                 <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-b from-emerald-400 to-emerald-500 shadow-[0_2px_8px_rgba(16,185,129,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]">
@@ -1036,7 +1036,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
                     {/* Tabla de Citas */}
                     {initialAppointments.length > 0 && (
-                        <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 mb-6">
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6">
                             {/* Header con búsqueda */}
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
@@ -1060,14 +1060,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             placeholder="Buscar por paciente, teléfono, médico..."
                                             value={searchTerm}
                                             onChange={(e) => handleSearch(e.target.value)}
-                                            className="pl-10 pr-4 py-2 rounded-none settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 w-full md:w-80 text-sm settings-title"
+                                            className="pl-10 pr-4 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 w-full md:w-80 text-sm settings-title"
                                         />
                                     </div>
 
                                     {/* Botón para abrir página dedicada */}
                                     <Button
                                         onClick={() => router.visit('/admin/appointments/view')}
-                                        className="font-semibold text-white transition-all duration-200 border-0 flex items-center gap-2"
+                                        className="font-semibold text-white transition-all duration-200 border-0 flex items-center gap-2 rounded-xl"
                                         style={{
                                             backgroundColor: 'var(--primary-base)',
                                             boxShadow: 'var(--shadow-md)',
@@ -1092,7 +1092,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
 
                             {/* Tabla con scroll horizontal */}
-                            <div className="overflow-x-auto rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
+                            <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
                                 <table className="w-full text-sm">
                                     <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
                                         <tr>
@@ -1149,21 +1149,21 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap">
                                                     {!appointment.reminder_sent ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none text-xs font-medium settings-subtitle">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-medium settings-subtitle">
                                                             —
                                                         </span>
                                                     ) : appointment.reminder_status === 'failed' ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-failed text-xs font-medium">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl status-badge-failed text-xs font-medium">
                                                             <XCircle className="w-3 h-3" />
                                                             Error
                                                         </span>
-                                                    ) : ['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status) ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-delivered text-xs font-medium">
+                                                    ) : appointment.reminder_status && ['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status) ? (
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl status-badge-delivered text-xs font-medium">
                                                             <CheckCircle2 className="w-3 h-3" />
                                                             Recibido
                                                         </span>
                                                     ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-sent text-xs font-medium">
+                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl status-badge-sent text-xs font-medium">
                                                             <Clock className="w-3 h-3" />
                                                             En camino
                                                         </span>
@@ -1185,7 +1185,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                             disabled={currentPage === 1}
-                                            className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
                                         >
                                             <ChevronLeft className="w-4 h-4" />
                                             Anterior
@@ -1193,7 +1193,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
-                                            className="px-3 py-2 rounded-none border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
                                         >
                                             Siguiente
                                             <ChevronRight className="w-4 h-4" />
@@ -1206,7 +1206,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
                     {/* Instructions */}
                     {initialAppointments.length === 0 && (
-                        <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6"
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10"
                         >
                             <h3 className="font-semibold settings-title mb-4">
                                 Formato del archivo excel
@@ -1214,31 +1214,31 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             <div className="space-y-3 text-sm settings-subtitle">
                                 <p className="settings-title font-medium">El archivo debe contener las siguientes columnas:</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Citead</strong> - Código admisión
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Nom_paciente</strong> - Nombre paciente
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Pactel</strong> - Teléfono
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Citfc</strong> - Fecha cita
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Cithor</strong> - Hora cita
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Mednom</strong> - Nombre médico
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Espnom</strong> - Especialidad
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Citdoc</strong> - Documento
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-none settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Citobsobs</strong> - Observaciones
                                     </div>
                                 </div>

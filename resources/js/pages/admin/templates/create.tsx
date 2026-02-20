@@ -19,10 +19,10 @@ export default function CreateTemplate() {
     const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [selectedFiles, setSelectedFiles] = useState<MediaFile[]>([]);
-    
+
     // Obtener usuarios del servidor (pasados como props)
     const { users } = usePage().props as any;
-    
+
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         content: '',
@@ -42,20 +42,20 @@ export default function CreateTemplate() {
         if (!files) return;
 
         const newFiles: MediaFile[] = [];
-        
+
         Array.from(files).forEach(file => {
             const type = getFileType(file);
             let preview: string | null = null;
-            
+
             if (type === 'image') {
                 preview = URL.createObjectURL(file);
             }
-            
+
             newFiles.push({ file, preview, type });
         });
 
         setSelectedFiles(prev => [...prev, ...newFiles]);
-        
+
         // Limpiar input para permitir seleccionar el mismo archivo de nuevo
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
@@ -92,17 +92,17 @@ export default function CreateTemplate() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const formData = new FormData();
         formData.append('name', data.name);
         formData.append('content', data.content);
         formData.append('is_active', data.is_active ? '1' : '0');
         formData.append('is_global', data.is_global ? '1' : '0');
-        
+
         data.assigned_users.forEach(userId => {
             formData.append('assigned_users[]', userId.toString());
         });
-        
+
         // Agregar múltiples archivos
         selectedFiles.forEach((mediaFile, index) => {
             formData.append(`media_files[${index}]`, mediaFile.file);
@@ -123,7 +123,7 @@ export default function CreateTemplate() {
                     <div className="mb-6 md:mb-8">
                         <Link
                             href="/admin/templates"
-                            className="inline-flex items-center mb-3 md:mb-4 px-3 py-2 rounded-none transition-all duration-200 settings-subtitle settings-back-link"
+                            className="inline-flex items-center mb-3 md:mb-4 px-3 py-2 rounded-xl transition-all duration-200 settings-subtitle settings-back-link hover:bg-black/5 dark:hover:bg-white/5"
                         >
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             <span className="hidden sm:inline">{t('templates.backToTemplates')}</span>
@@ -135,7 +135,7 @@ export default function CreateTemplate() {
 
                     {/* Form */}
                     <div className="max-w-2xl mx-auto">
-                        <form onSubmit={handleSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] p-4 sm:p-6 lg:p-8 space-y-5 md:space-y-6">
+                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                             {/* Nombre */}
                             <div className="space-y-2">
                                 <Label htmlFor="name" className="text-sm font-medium settings-label">
@@ -147,7 +147,7 @@ export default function CreateTemplate() {
                                     value={data.name}
                                     onChange={(e) => setData('name', e.target.value)}
                                     placeholder={t('templates.templateNamePlaceholder')}
-                                    className="settings-input rounded-none transition-all duration-200"
+                                    className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                     required
                                 />
                                 <InputError message={errors.name} />
@@ -164,7 +164,7 @@ export default function CreateTemplate() {
                                     onChange={(e) => setData('content', e.target.value)}
                                     placeholder={t('templates.contentPlaceholder')}
                                     rows={8}
-                                    className="settings-input rounded-none transition-all duration-200"
+                                    className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                     required
                                 />
                                 <p className="text-sm settings-subtitle">
@@ -181,7 +181,7 @@ export default function CreateTemplate() {
                                 <p className="text-xs settings-subtitle mb-2">
                                     Puedes adjuntar múltiples imágenes, videos o documentos. Formatos soportados: JPG, PNG, GIF, WebP (se convierte a PNG), MP4, MOV, PDF, DOC. Máximo 20MB por archivo.
                                 </p>
-                                
+
                                 <input
                                     ref={fileInputRef}
                                     type="file"
@@ -190,20 +190,20 @@ export default function CreateTemplate() {
                                     multiple
                                     className="hidden"
                                 />
-                                
+
                                 {/* Lista de archivos seleccionados */}
                                 {selectedFiles.length > 0 && (
                                     <div className="space-y-2 mb-3">
                                         {selectedFiles.map((mediaFile, index) => (
-                                            <div 
-                                                key={index} 
-                                                className="p-3 rounded-none user-stats-box"
+                                            <div
+                                                key={index}
+                                                className="p-3 rounded-xl user-stats-box bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.preview ? (
-                                                        <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-none" />
+                                                        <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-lg" />
                                                     ) : (
-                                                        <div className="w-12 h-12 chat-message-sent rounded-none flex items-center justify-center text-white">
+                                                        <div className="w-12 h-12 chat-message-sent rounded-lg flex items-center justify-center text-white">
                                                             {getFileIcon(mediaFile.type)}
                                                         </div>
                                                     )}
@@ -216,7 +216,7 @@ export default function CreateTemplate() {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleRemoveFile(index)}
-                                                        className="p-2 rounded-none transition-all settings-subtitle hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                        className="p-2 rounded-xl transition-all settings-subtitle hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
                                                     >
                                                         <X className="w-4 h-4" />
                                                     </button>
@@ -225,12 +225,12 @@ export default function CreateTemplate() {
                                         ))}
                                     </div>
                                 )}
-                                
+
                                 {/* Botón para agregar más archivos */}
                                 <button
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="w-full p-4 border-2 border-dashed border-[#e2e4ed] dark:border-[hsl(231,20%,25%)] rounded-none hover:border-[#2e3f84] dark:hover:border-[hsl(231,55%,55%)] transition-all duration-200 flex flex-col items-center gap-2 settings-subtitle template-upload-btn"
+                                    className="w-full p-4 border-2 border-dashed border-[#e2e4ed] dark:border-[hsl(231,20%,25%)] rounded-2xl hover:border-[#2e3f84] dark:hover:border-[hsl(231,55%,55%)] hover:bg-[#2e3f84]/5 dark:hover:bg-[hsl(231,55%,55%)]/5 transition-all duration-200 flex flex-col items-center gap-2 settings-subtitle template-upload-btn"
                                 >
                                     {selectedFiles.length === 0 ? (
                                         <>
@@ -244,7 +244,7 @@ export default function CreateTemplate() {
                                         </>
                                     )}
                                 </button>
-                                
+
                                 {selectedFiles.length > 0 && (
                                     <p className="text-xs settings-subtitle mt-2">
                                         {selectedFiles.length} archivo{selectedFiles.length !== 1 ? 's' : ''} seleccionado{selectedFiles.length !== 1 ? 's' : ''}
@@ -259,7 +259,7 @@ export default function CreateTemplate() {
                                     Tipo de Plantilla
                                 </Label>
                                 <div className="space-y-2">
-                                    <label className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer transition-colors template-radio-option">
+                                    <label className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-xl cursor-pointer transition-colors template-radio-option">
                                         <input
                                             type="radio"
                                             name="template_type"
@@ -276,7 +276,7 @@ export default function CreateTemplate() {
                                             <p className="text-sm settings-subtitle">Disponible para todos los asesores y administradores</p>
                                         </div>
                                     </label>
-                                    <label className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg cursor-pointer transition-colors template-radio-option">
+                                    <label className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-xl cursor-pointer transition-colors template-radio-option">
                                         <input
                                             type="radio"
                                             name="template_type"
@@ -300,10 +300,10 @@ export default function CreateTemplate() {
                                         <UserCheck className="inline w-4 h-4 mr-2" />
                                         Asignar a Usuarios
                                     </Label>
-                                    <div className="max-h-40 overflow-y-auto border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-lg p-3 space-y-2 template-users-list">
+                                    <div className="max-h-40 overflow-y-auto border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-xl p-3 space-y-2 template-users-list p-1">
                                         {users?.map((user: any) => (
-                                            <label 
-                                                key={user.id} 
+                                            <label
+                                                key={user.id}
                                                 className="flex items-center space-x-3 cursor-pointer p-2 rounded transition-colors template-user-item"
                                             >
                                                 <input
@@ -346,19 +346,19 @@ export default function CreateTemplate() {
                             </div>
 
                             {/* Botones */}
-                            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-[#e2e4ed] dark:border-[hsl(231,20%,20%)] mt-8">
+                            <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-200 dark:border-gray-800 mt-8">
                                 <Button
                                     type="submit"
                                     disabled={processing}
-                                    className="w-full sm:w-auto sm:flex-1 settings-btn-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                                    className="w-full sm:flex-1 h-11 settings-btn-primary rounded-xl font-medium disabled:opacity-50 transition-all"
                                 >
                                     {processing ? t('templates.creating') : t('templates.createButton')}
                                 </Button>
-                                <Link href="/admin/templates" className="w-full sm:w-auto sm:flex-1">
+                                <Link href="/admin/templates" className="w-full sm:flex-1">
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        className="w-full settings-btn-secondary"
+                                        className="w-full h-11 settings-btn-secondary rounded-xl font-medium transition-all"
                                     >
                                         {t('common.cancel')}
                                     </Button>
