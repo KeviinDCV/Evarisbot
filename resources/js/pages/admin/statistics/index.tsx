@@ -423,21 +423,6 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 </div>
                             </div>
 
-                            {/* Plantillas */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <FileText className="w-3.5 h-3.5 settings-title" />
-                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        {t('statistics.templates.title')}
-                                    </h2>
-                                </div>
-                                <div className="space-y-1">
-                                    <StatRow icon={FileText} label={t('statistics.templates.total')} value={statistics.templates.total} index={0} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.templates.successfulSends')} value={statistics.templates.successful_sends} index={1} />
-                                    <StatRow icon={XCircle} label={t('statistics.templates.failedSends')} value={statistics.templates.failed_sends} index={2} />
-                                    <StatRow icon={Send} label={t('statistics.templates.totalSends')} value={statistics.templates.total_sends} index={3} />
-                                </div>
-                            </div>
 
                             {/* Usuarios */}
                             <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
@@ -642,41 +627,6 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 </ResponsiveContainer>
                             </div>
 
-                            {/* Plantillas */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
-                                    <FileText className="w-4 h-4" />
-                                    {t('statistics.templates.title')}
-                                </h2>
-                                <ResponsiveContainer width="100%" height={200}>
-                                    <BarChart data={[
-                                        { name: t('statistics.templates.successfulSends'), value: statistics.templates.successful_sends },
-                                        { name: t('statistics.templates.failedSends'), value: statistics.templates.failed_sends },
-                                    ]}>
-                                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                        <XAxis
-                                            dataKey="name"
-                                            tick={{ fontSize: 9 }}
-                                            className="fill-muted-foreground"
-                                            angle={-15}
-                                            textAnchor="end"
-                                            height={60}
-                                        />
-                                        <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: '0',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                fontSize: '12px',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        />
-                                        <Bar dataKey="value" fill={COLORS.primary} radius={[6, 6, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
 
                             {/* Usuarios */}
                             <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
