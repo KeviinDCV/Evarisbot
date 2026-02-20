@@ -799,11 +799,22 @@ class WhatsAppService
             // Buscar cita con recordatorio enviado
             $phoneDigits = substr(preg_replace('/[^0-9]/', '', $from), -10);
             
+            // Primero, priorizar citas que AÚN NO han sido confirmadas o canceladas
             $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
                 ->where('reminder_sent', true)
+                ->whereNotIn('reminder_status', ['confirmed', 'cancelled'])
                 ->whereDate('citfc', '>=', now())
                 ->orderBy('citfc', 'asc')
                 ->first();
+
+            // Si no hay ninguna pendiente por responder, buscar la cita más recientemente actualizada
+            // (por si el usuario está interactuando nuevamente con una cita que ya respondió)
+            if (!$appointment) {
+                $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
+                    ->where('reminder_sent', true)
+                    ->orderBy('updated_at', 'desc')
+                    ->first();
+            }
 
             return $appointment;
 
@@ -859,9 +870,23 @@ class WhatsAppService
 
                 // Verificar si la cita ya fue confirmada o cancelada previamente
                 if (in_array($lockedAppointment->reminder_status, ['confirmed', 'cancelled'])) {
+                    // Verificamos si ya hemos enviado el mensaje de advertencia previamente
+                    if (str_contains($lockedAppointment->notes ?? '', '[Advertencia de estado final enviada]')) {
+                        Log::info('Final status warning already sent, ignoring new response', [
+                            'appointment_id' => $lockedAppointment->id,
+                            'phone' => $from
+                        ]);
+                        return;
+                    }
+
                     $statusStr = $lockedAppointment->reminder_status === 'confirmed' ? 'CONFIRMADA' : 'CANCELADA';
                     
                     $responseMessage = "⚠️ *Estado: {$statusStr}*\n\nEsta cita ya se encuentra registrada como *{$statusStr}*.\n\nEl sistema ya ha procesado su respuesta anteriormente. Si necesita realizar cambios adicionales, por favor contacte con un asesor.\n\n_HUV - Evaristo García_";
+
+                    // Actualizar las notas para no volver a enviar este mensaje
+                    $lockedAppointment->update([
+                        'notes' => ($lockedAppointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] [Advertencia de estado final enviada]"
+                    ]);
 
                     Log::info('Appointment already has final status, sending info message', [
                         'appointment_id' => $lockedAppointment->id,
