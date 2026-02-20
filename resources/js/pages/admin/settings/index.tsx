@@ -195,9 +195,9 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                         {/* WhatsApp Config */}
                         <div>
-                            <form onSubmit={handleWhatsAppSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6 h-full">
-                                <div className="mb-4">
-                                    <h2 className="text-lg md:text-xl font-semibold settings-title">{t('settings.whatsapp.apiTitle')}</h2>
+                            <form onSubmit={handleWhatsAppSubmit} className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 md:p-8 h-full transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                                <div className="mb-6">
+                                    <h2 className="text-xl md:text-2xl font-bold settings-title">{t('settings.whatsapp.apiTitle')}</h2>
                                     <p className="text-xs md:text-sm settings-subtitle mt-1">
                                         {t('settings.whatsapp.configureConnection')}
                                     </p>
@@ -210,7 +210,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             {t('settings.whatsapp.accessToken')}
                                         </Label>
                                         {settings.whatsapp.token && (
-                                            <div className="px-2 py-1 token-preview rounded-none">
+                                            <div className="px-3 py-1.5 token-preview rounded-lg bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
                                                 <p className="text-xs text-muted-foreground truncate font-mono">●●●●{settings.whatsapp.token.slice(-4)}</p>
                                             </div>
                                         )}
@@ -220,7 +220,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={whatsappForm.data.whatsapp_token}
                                             onChange={(e) => whatsappForm.setData('whatsapp_token', e.target.value)}
                                             placeholder={settings.whatsapp.token ? t('settings.whatsapp.updateToken') : t('settings.whatsapp.accessTokenPlaceholder')}
-                                            className="settings-input rounded-none font-mono text-xs md:text-sm"
+                                            className="settings-input rounded-xl border-gray-200 dark:border-gray-800 font-mono text-xs md:text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_token} />
                                     </div>
@@ -236,7 +236,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={whatsappForm.data.whatsapp_phone_id}
                                             onChange={(e) => whatsappForm.setData('whatsapp_phone_id', e.target.value)}
                                             placeholder={t('settings.whatsapp.phoneIdPlaceholder')}
-                                            className="settings-input rounded-none text-xs md:text-sm"
+                                            className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-xs md:text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_phone_id} />
                                     </div>
@@ -252,7 +252,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={whatsappForm.data.whatsapp_business_account_id}
                                             onChange={(e) => whatsappForm.setData('whatsapp_business_account_id', e.target.value)}
                                             placeholder={t('settings.whatsapp.businessAccountIdPlaceholder')}
-                                            className="settings-input rounded-none text-xs md:text-sm"
+                                            className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-xs md:text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_business_account_id} />
                                     </div>
@@ -263,7 +263,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             {t('settings.whatsapp.verifyToken')}
                                         </Label>
                                         {settings.whatsapp.verify_token && (
-                                            <div className="px-2 py-1 token-preview rounded-none">
+                                            <div className="px-3 py-1.5 token-preview rounded-lg bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
                                                 <p className="text-xs text-muted-foreground truncate">●●●●{settings.whatsapp.verify_token.slice(-4)}</p>
                                             </div>
                                         )}
@@ -273,7 +273,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={whatsappForm.data.whatsapp_verify_token}
                                             onChange={(e) => whatsappForm.setData('whatsapp_verify_token', e.target.value)}
                                             placeholder={settings.whatsapp.verify_token ? t('settings.whatsapp.update') : t('settings.whatsapp.verifyTokenPlaceholder')}
-                                            className="settings-input rounded-none text-xs md:text-sm"
+                                            className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-xs md:text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
                                         />
                                         <InputError message={whatsappForm.errors.whatsapp_verify_token} />
                                     </div>
@@ -283,9 +283,9 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 {connectionStatus.type && (
                                     <div className="mt-4 md:col-span-2">
                                         <div
-                                            className={`flex items-center gap-2 p-3 rounded-none ${connectionStatus.type === 'success'
-                                                ? 'bg-gradient-to-b from-green-50 to-green-100/50 text-green-700 shadow-[0_1px_2px_rgba(34,197,94,0.15),0_2px_4px_rgba(34,197,94,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
-                                                : 'bg-gradient-to-b from-red-50 to-red-100/50 text-red-700 shadow-[0_1px_2px_rgba(239,68,68,0.15),0_2px_4px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.6)]'
+                                            className={`flex items-center gap-2 p-3.5 rounded-xl border ${connectionStatus.type === 'success'
+                                                ? 'bg-gradient-to-br from-green-50 to-green-100/50 border-green-200 text-green-700 shadow-sm'
+                                                : 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200 text-red-700 shadow-sm'
                                                 }`}
                                         >
                                             {connectionStatus.type === 'success' ? (
@@ -299,11 +299,11 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 )}
 
                                 {/* Botones */}
-                                <div className="flex flex-col sm:flex-row gap-2 md:gap-3 pt-4 mt-4 border-t border-border md:col-span-2">
+                                <div className="flex flex-col sm:flex-row gap-3 md:gap-4 pt-6 mt-6 border-t border-gray-200 dark:border-gray-800 md:col-span-2">
                                     <Button
                                         type="submit"
                                         disabled={whatsappForm.processing}
-                                        className="w-full sm:flex-1 settings-btn-primary text-sm disabled:opacity-50"
+                                        className="w-full sm:flex-1 settings-btn-primary rounded-xl text-sm font-medium h-11 transition-all disabled:opacity-50"
                                     >
                                         {whatsappForm.processing ? t('common.saving') : t('common.save')}
                                     </Button>
@@ -315,7 +315,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                 variant="outline"
                                                 onClick={testConnection}
                                                 disabled={testingConnection}
-                                                className="w-full sm:flex-1 settings-btn-secondary text-sm"
+                                                className="w-full sm:flex-1 settings-btn-secondary rounded-xl text-sm font-medium h-11 transition-all"
                                             >
                                                 {testingConnection ? (
                                                     <>
@@ -332,7 +332,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                 variant="outline"
                                                 onClick={getBusinessProfile}
                                                 disabled={loadingProfile}
-                                                className="w-full sm:flex-1 settings-btn-secondary text-sm disabled:opacity-50"
+                                                className="w-full sm:flex-1 settings-btn-secondary rounded-xl text-sm font-medium h-11 transition-all disabled:opacity-50"
                                             >
                                                 {loadingProfile ? (
                                                     <>
@@ -349,8 +349,11 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                                 {/* Business Profile Info */}
                                 {businessProfile && (
-                                    <div className="mt-4 p-4 card-gradient rounded-none md:col-span-2">
-                                        <h3 className="text-sm font-semibold dark:text-[hsl(231,15%,92%)] mb-3" style={{ color: '#2e3f84' }}>WhatsApp business profile</h3>
+                                    <div className="mt-6 p-5 card-gradient rounded-xl border border-white/40 dark:border-white/10 md:col-span-2 shadow-sm">
+                                        <h3 className="text-sm font-bold dark:text-[hsl(231,15%,92%)] mb-4 flex items-center gap-2" style={{ color: '#2e3f84' }}>
+                                            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                            WhatsApp Business Profile
+                                        </h3>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                                             <div>
                                                 <span className="dark:text-[hsl(231,15%,60%)] font-medium" style={{ color: '#6b7494' }}>Business name:</span>
@@ -385,9 +388,9 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         </div>
 
                         {/* Groq Transcription Config */}
-                        <div className="mt-6">
-                            <form onSubmit={handleGroqSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] p-4 md:p-6">
-                                <div className="mb-4">
+                        <div className="mt-6 md:mt-8">
+                            <form onSubmit={handleGroqSubmit} className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 md:p-8 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                                <div className="mb-6">
                                     <h2 className="text-lg md:text-xl font-semibold dark:text-[hsl(231,15%,92%)]" style={{ color: '#2e3f84' }}>🎙️ Transcripción de Audio (Groq)</h2>
                                     <p className="text-xs md:text-sm dark:text-[hsl(231,15%,60%)] mt-1" style={{ color: '#6b7494' }}>
                                         Configura Groq para transcribir automáticamente los audios que envían los clientes.
@@ -416,7 +419,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             API Key de Groq
                                         </Label>
                                         {settings.groq.api_key && (
-                                            <div className="px-2 py-1 token-preview rounded-none">
+                                            <div className="px-3 py-1.5 token-preview rounded-lg bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
                                                 <p className="text-xs text-muted-foreground truncate font-mono">●●●●{settings.groq.api_key.slice(-4)}</p>
                                             </div>
                                         )}
@@ -426,7 +429,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             value={groqForm.data.groq_api_key}
                                             onChange={(e) => groqForm.setData('groq_api_key', e.target.value)}
                                             placeholder={settings.groq.api_key ? 'Actualizar API Key...' : 'gsk_xxxxx...'}
-                                            className="settings-input rounded-none font-mono text-xs md:text-sm"
+                                            className="settings-input rounded-xl border-gray-200 dark:border-gray-800 font-mono text-xs md:text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
                                         />
                                         <InputError message={groqForm.errors.groq_api_key} />
                                         <p className="text-xs dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
@@ -437,7 +440,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                     <Button
                                         type="submit"
                                         disabled={groqForm.processing || !groqForm.data.groq_api_key}
-                                        className="settings-btn-primary text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                        className="w-full sm:w-auto mt-4 px-6 h-11 settings-btn-primary rounded-xl text-sm font-medium disabled:opacity-50 transition-all"
                                     >
                                         {groqForm.processing ? (
                                             <>
@@ -453,12 +456,14 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         </div>
 
                         {/* Asesores de Turno */}
-                        <div className="mt-6">
-                            <div className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.95)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_2px_6px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.03)] p-4 md:p-6">
-                                <div className="mb-4">
-                                    <div className="flex items-center gap-2">
-                                        <Users className="w-5 h-5 settings-title" />
-                                        <h2 className="text-lg md:text-xl font-semibold settings-title">Asesores de turno</h2>
+                        <div className="mt-6 md:mt-8 mb-10">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_2px_6px_rgba(0,0,0,0.15)] p-4 md:p-8 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                                <div className="mb-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 rounded-xl bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/10 dark:text-white">
+                                            <Users className="w-6 h-6" />
+                                        </div>
+                                        <h2 className="text-xl md:text-2xl font-bold settings-title">Asesores de turno</h2>
                                     </div>
                                     <p className="text-xs md:text-sm settings-subtitle mt-1">
                                         Selecciona los asesores que recibirán todas las conversaciones. Útil para rotación semanal de turnos.
@@ -479,19 +484,17 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                     key={advisor.id}
                                                     type="button"
                                                     onClick={() => toggleAdvisor(advisor.id)}
-                                                    className={`w-full flex items-center justify-between p-3 rounded-none transition-all duration-200 ${
-                                                        selectedAdvisors.includes(advisor.id)
-                                                            ? 'advisor-item-selected'
-                                                            : 'advisor-item'
-                                                    }`}
+                                                    className={`w-full flex items-center justify-between p-3.5 mb-2 rounded-xl border transition-all duration-200 ${selectedAdvisors.includes(advisor.id)
+                                                            ? 'bg-[#2e3f84]/5 border-[#2e3f84]/20 shadow-sm'
+                                                            : 'bg-transparent border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-gray-200 dark:hover:border-gray-700'
+                                                        }`}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <div 
-                                                            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${
-                                                                selectedAdvisors.includes(advisor.id)
+                                                        <div
+                                                            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${selectedAdvisors.includes(advisor.id)
                                                                     ? 'advisor-avatar-selected'
                                                                     : 'advisor-avatar'
-                                                            }`}
+                                                                }`}
                                                         >
                                                             {advisor.name.charAt(0).toUpperCase()}
                                                         </div>
@@ -500,12 +503,11 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                             <p className="text-xs advisor-email">{advisor.email}</p>
                                                         </div>
                                                     </div>
-                                                    <div 
-                                                        className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                                            selectedAdvisors.includes(advisor.id)
+                                                    <div
+                                                        className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedAdvisors.includes(advisor.id)
                                                                 ? 'advisor-check-selected'
                                                                 : 'advisor-check'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         {selectedAdvisors.includes(advisor.id) && (
                                                             <Check className="w-4 h-4" />
@@ -515,15 +517,15 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             ))}
                                         </div>
 
-                                        <div className="flex items-center justify-between pt-4 mt-4 border-t border-border dark:border-[hsl(231,20%,20%)]">
-                                            <p className="text-xs settings-subtitle">
+                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 mt-6 border-t border-gray-200 dark:border-gray-800">
+                                            <p className="text-sm font-medium text-muted-foreground bg-gray-100 dark:bg-gray-800/50 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
                                                 {selectedAdvisors.length} de {advisors.length} asesor{advisors.length !== 1 ? 'es' : ''} seleccionado{selectedAdvisors.length !== 1 ? 's' : ''}
                                             </p>
                                             <Button
                                                 type="button"
                                                 onClick={saveOnDutyAdvisors}
                                                 disabled={savingAdvisors}
-                                                className="settings-btn-primary text-sm disabled:opacity-50 disabled:hover:translate-y-0"
+                                                className="w-full sm:w-auto min-w-[160px] h-11 settings-btn-primary rounded-xl text-sm font-medium disabled:opacity-50 transition-all"
                                             >
                                                 {savingAdvisors ? (
                                                     <>
@@ -531,7 +533,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                         Guardando...
                                                     </>
                                                 ) : (
-                                                        'Guardar cambios'
+                                                    'Guardar cambios'
                                                 )}
                                             </Button>
                                         </div>

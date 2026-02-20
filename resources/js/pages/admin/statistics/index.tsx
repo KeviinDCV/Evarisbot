@@ -101,8 +101,8 @@ const COLORS = {
 };
 
 const StatRow = ({ icon: Icon, label, value, index }: { icon: any; label: string; value: number; index?: number }) => (
-    <div 
-        className={`flex items-center justify-between py-1.5 px-2 rounded-none transition-colors stat-row-hover ${index !== undefined && index % 2 === 0 ? 'stat-row-alt' : ''}`}
+    <div
+        className={`flex items-center justify-between py-1.5 px-3 rounded-lg transition-colors stat-row-hover ${index !== undefined && index % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : ''}`}
     >
         <div className="flex items-center gap-2">
             <Icon className="w-3 h-3 settings-title" />
@@ -143,9 +143,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
             ...(startDate && { start_date: startDate }),
             ...(endDate && { end_date: endDate }),
         });
-        
+
         window.location.href = `/admin/statistics/export?${params.toString()}`;
-        
+
         setTimeout(() => setIsExporting(false), 2000);
     };
 
@@ -204,7 +204,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
                             <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
                                 {/* Switch para gráficos */}
-                                <div className="flex items-center gap-3 card-gradient rounded-none p-2 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                                <div className="flex items-center gap-3 card-gradient rounded-xl p-2 shadow-sm border border-white/40 dark:border-white/10">
                                     <Table2 className={`w-4 h-4 transition-colors`} style={{ color: !showCharts ? '#2e3f84' : '#6b7494' }} />
                                     <label htmlFor="show-charts-toggle" className="relative inline-flex items-center cursor-pointer">
                                         <input
@@ -222,7 +222,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 <Button
                                     onClick={handleExport}
                                     disabled={isExporting}
-                                    className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
+                                    className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
                                     style={{
                                         backgroundColor: 'var(--primary-base)',
                                         boxShadow: 'var(--shadow-md)',
@@ -250,7 +250,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
 
                         {/* Filtros */}
                         <form onSubmit={handleFilterSubmit}>
-                            <div className="card-gradient rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 md:p-6 flex flex-wrap gap-4 items-end transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
                                     <label htmlFor="stats-period" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                         {t('statistics.filters.period')}
@@ -260,7 +260,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         name="stats-period"
                                         value={period}
                                         onChange={(e) => setPeriod(e.target.value)}
-                                        className="settings-input w-full rounded-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-primary/20"
+                                        className="settings-input w-full rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/30"
                                         style={{
                                             height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
@@ -289,7 +289,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         type="date"
                                         value={startDate}
                                         onChange={(e) => setStartDate(e.target.value)}
-                                        className="settings-input rounded-none transition-all duration-200"
+                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                         style={{
                                             height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
@@ -306,7 +306,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         type="date"
                                         value={endDate}
                                         onChange={(e) => setEndDate(e.target.value)}
-                                        className="settings-input rounded-none transition-all duration-200"
+                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                         style={{
                                             height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
@@ -316,7 +316,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 <div style={{ flex: '0 1 auto' }}>
                                     <Button
                                         type="submit"
-                                        className="font-semibold text-white transition-all duration-200 border-0"
+                                        className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
                                         style={{
                                             backgroundColor: 'var(--primary-base)',
                                             boxShadow: 'var(--shadow-md)',
@@ -347,7 +347,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                         /* Vista de Estadísticas - Bento Grid */
                         <div className="grid grid-cols-2 gap-4">
                             {/* Mensajes */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
                                     <MessageSquare className="w-3.5 h-3.5 settings-title" />
                                     <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
@@ -378,7 +378,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Citas */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
                                     <Calendar className="w-3.5 h-3.5 settings-title" />
                                     <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
@@ -405,7 +405,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Conversaciones */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
                                     <MessageSquare className="w-3.5 h-3.5 settings-title" />
                                     <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
@@ -424,7 +424,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Plantillas */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
                                     <FileText className="w-3.5 h-3.5 settings-title" />
                                     <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
@@ -440,7 +440,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Usuarios */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
                                     <Users className="w-3.5 h-3.5 settings-title" />
                                     <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
@@ -455,7 +455,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Asesores */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-3">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
                                     <Users className="w-3.5 h-3.5 settings-title" />
                                     <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
@@ -465,15 +465,15 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 {statistics.advisors.advisors.length > 0 ? (
                                     <div className="space-y-1">
                                         {statistics.advisors.advisors.map((advisor, index) => (
-                                            <div 
+                                            <div
                                                 key={advisor.id}
-                                                className={`py-1.5 px-2 rounded-none transition-colors stat-row-hover ${index % 2 === 0 ? 'stat-row-alt' : ''}`}
+                                                className={`py-1.5 px-3 mb-1 rounded-lg transition-colors stat-row-hover ${index % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : ''}`}
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-semibold settings-title truncate" style={{ fontSize: 'var(--text-xs)' }}>
                                                         {advisor.name}
                                                     </span>
-                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ 
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{
                                                         backgroundColor: advisor.resolution_rate >= 70 ? '#dcfce7' : advisor.resolution_rate >= 40 ? '#fef9c3' : '#fee2e2',
                                                         color: advisor.resolution_rate >= 70 ? '#166534' : advisor.resolution_rate >= 40 ? '#854d0e' : '#991b1b',
                                                     }}>
@@ -505,7 +505,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                         /* Vista de Gráficos - Bento Grid */
                         <div className="grid grid-cols-2 gap-4 auto-rows-fr">
                             {/* Estadísticas Generales - Ocupa 2 columnas */}
-                            <div className="col-span-2 card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="col-span-2 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-base)' }}>
                                     <BarChart3 className="w-4 h-4" />
                                     Estadísticas Generales
@@ -513,8 +513,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 <ResponsiveContainer width="100%" height={180}>
                                     <BarChart data={mainStatsData}>
                                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                        <XAxis 
-                                            dataKey="name" 
+                                        <XAxis
+                                            dataKey="name"
                                             tick={{ fontSize: 10 }}
                                             className="fill-muted-foreground"
                                             angle={-45}
@@ -522,9 +522,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                             height={80}
                                         />
                                         <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" />
-                                        <Tooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: 'var(--card)', 
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'var(--card)',
                                                 border: '1px solid var(--border)',
                                                 borderRadius: '0',
                                                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -538,7 +538,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Mensajes por Estado */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <MessageSquare className="w-4 h-4" />
                                     {t('statistics.messages.byStatus')}
@@ -559,9 +559,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                                 <Cell key={`cell-${index}`} fill={Object.values(COLORS)[index % Object.values(COLORS).length]} />
                                             ))}
                                         </Pie>
-                                        <Tooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: 'var(--card)', 
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'var(--card)',
                                                 border: '1px solid var(--border)',
                                                 borderRadius: '0',
                                                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -574,7 +574,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Citas por Estado */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <Calendar className="w-4 h-4" />
                                     {t('statistics.appointments.title')}
@@ -595,9 +595,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                                 <Cell key={`cell-${index}`} fill={entry.color} />
                                             ))}
                                         </Pie>
-                                        <Tooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: 'var(--card)', 
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'var(--card)',
                                                 border: '1px solid var(--border)',
                                                 borderRadius: '0',
                                                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -610,7 +610,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Conversaciones */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <MessageSquare className="w-4 h-4" />
                                     {t('statistics.conversations.title')}
@@ -618,8 +618,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                 <ResponsiveContainer width="100%" height={200}>
                                     <BarChart data={conversationsStatusData}>
                                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                        <XAxis 
-                                            dataKey="name" 
+                                        <XAxis
+                                            dataKey="name"
                                             tick={{ fontSize: 9 }}
                                             className="fill-muted-foreground"
                                             angle={-15}
@@ -627,9 +627,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                             height={60}
                                         />
                                         <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" />
-                                        <Tooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: 'var(--card)', 
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'var(--card)',
                                                 border: '1px solid var(--border)',
                                                 borderRadius: '0',
                                                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -643,7 +643,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Plantillas */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <FileText className="w-4 h-4" />
                                     {t('statistics.templates.title')}
@@ -654,8 +654,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                         { name: t('statistics.templates.failedSends'), value: statistics.templates.failed_sends },
                                     ]}>
                                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                        <XAxis 
-                                            dataKey="name" 
+                                        <XAxis
+                                            dataKey="name"
                                             tick={{ fontSize: 9 }}
                                             className="fill-muted-foreground"
                                             angle={-15}
@@ -663,9 +663,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                             height={60}
                                         />
                                         <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" />
-                                        <Tooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: 'var(--card)', 
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'var(--card)',
                                                 border: '1px solid var(--border)',
                                                 borderRadius: '0',
                                                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -679,7 +679,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Usuarios */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <Users className="w-4 h-4" />
                                     {t('statistics.users.title')}
@@ -702,9 +702,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                             <Cell fill={COLORS.primaryLight} />
                                             <Cell fill={COLORS.success} />
                                         </Pie>
-                                        <Tooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: 'var(--card)', 
+                                        <Tooltip
+                                            contentStyle={{
+                                                backgroundColor: 'var(--card)',
                                                 border: '1px solid var(--border)',
                                                 borderRadius: '0',
                                                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -717,33 +717,33 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Asesores - Top Performers */}
-                            <div className="card-gradient rounded-none shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] p-4">
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
                                     <Users className="w-4 h-4" />
                                     Rendimiento de Asesores
                                 </h2>
                                 {statistics.advisors.advisors.length > 0 ? (
                                     <ResponsiveContainer width="100%" height={200}>
-                                        <BarChart 
-                                            data={statistics.advisors.advisors.slice(0, 5)} 
+                                        <BarChart
+                                            data={statistics.advisors.advisors.slice(0, 5)}
                                             layout="horizontal"
                                         >
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                            <XAxis 
+                                            <XAxis
                                                 type="number"
                                                 tick={{ fontSize: 9 }}
                                                 className="fill-muted-foreground"
                                             />
-                                            <YAxis 
+                                            <YAxis
                                                 type="category"
-                                                dataKey="name" 
+                                                dataKey="name"
                                                 tick={{ fontSize: 9 }}
                                                 className="fill-muted-foreground"
                                                 width={80}
                                             />
-                                            <Tooltip 
-                                                contentStyle={{ 
-                                                    backgroundColor: 'var(--card)', 
+                                            <Tooltip
+                                                contentStyle={{
+                                                    backgroundColor: 'var(--card)',
                                                     border: '1px solid var(--border)',
                                                     borderRadius: '0',
                                                     boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
@@ -752,17 +752,17 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                                 }}
                                                 formatter={(value: any, name: string) => [
                                                     value,
-                                                    name === 'resolved_conversations' ? 'Resueltas' : 
-                                                    name === 'active_conversations' ? 'Activas' : 
-                                                    name === 'messages_sent' ? 'Mensajes' : name
+                                                    name === 'resolved_conversations' ? 'Resueltas' :
+                                                        name === 'active_conversations' ? 'Activas' :
+                                                            name === 'messages_sent' ? 'Mensajes' : name
                                                 ]}
                                             />
-                                            <Legend 
+                                            <Legend
                                                 wrapperStyle={{ fontSize: '11px' }}
-                                                formatter={(value) => 
-                                                    value === 'resolved_conversations' ? 'Resueltas' : 
-                                                    value === 'active_conversations' ? 'Activas' : 
-                                                    value === 'messages_sent' ? 'Mensajes' : value
+                                                formatter={(value) =>
+                                                    value === 'resolved_conversations' ? 'Resueltas' :
+                                                        value === 'active_conversations' ? 'Activas' :
+                                                            value === 'messages_sent' ? 'Mensajes' : value
                                                 }
                                             />
                                             <Bar dataKey="resolved_conversations" fill={COLORS.success} radius={[0, 4, 4, 0]} />

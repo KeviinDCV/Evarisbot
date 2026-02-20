@@ -39,7 +39,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
     const filteredUsers = users.filter(user => {
         const matchesSearch = user.name.toLowerCase().includes(search.toLowerCase()) ||
-                             user.email.toLowerCase().includes(search.toLowerCase());
+            user.email.toLowerCase().includes(search.toLowerCase());
         const matchesRole = roleFilter === 'all' || user.role === roleFilter;
         return matchesSearch && matchesRole;
     });
@@ -58,20 +58,20 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
     const formatLastActivity = (lastActivity: string | null) => {
         if (!lastActivity) return t('users.neverConnected');
-        
+
         const date = new Date(lastActivity);
         const now = new Date();
         const diffMs = now.getTime() - date.getTime();
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
-        
+
         if (diffMins < 1) return t('users.justNow');
         if (diffMins < 60) return t('users.minutesAgo', { count: diffMins });
         if (diffHours < 24) return t('users.hoursAgo', { count: diffHours });
         if (diffDays === 1) return t('users.yesterday');
         if (diffDays < 7) return t('users.daysAgo', { count: diffDays });
-        
+
         return date.toLocaleDateString('es-ES', {
             day: '2-digit',
             month: 'short',
@@ -99,8 +99,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 </p>
                             </div>
                             <Link href="/admin/users/create">
-                                <Button 
-                                    className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
+                                <Button
+                                    className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
                                     style={{
                                         backgroundColor: 'var(--primary-base)',
                                         boxShadow: 'var(--shadow-md)',
@@ -127,7 +127,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </div>
 
                         {/* Filtros */}
-                        <div className="card-gradient rounded-none p-4 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),0_4px_12px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] flex flex-wrap gap-4 items-end">
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 md:p-6 flex flex-wrap gap-4 items-end transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                             <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
                                 <label htmlFor="user-search" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                     {t('common.search')}
@@ -141,7 +141,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
                                         placeholder={t('users.searchPlaceholder')}
-                                        className="pl-10 settings-input rounded-none transition-all duration-200"
+                                        className="pl-10 settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                         style={{
                                             height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                             fontSize: 'var(--text-sm)',
@@ -159,7 +159,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     name="role-filter"
                                     value={roleFilter}
                                     onChange={(e) => setRoleFilter(e.target.value)}
-                                    className="w-full settings-input rounded-none transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-primary/20"
+                                    className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/30"
                                     style={{
                                         height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
                                         fontSize: 'var(--text-sm)',
@@ -184,7 +184,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         {filteredUsers.map((user) => (
                             <div
                                 key={user.id}
-                                className="card-gradient rounded-none p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300"
+                                className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 md:p-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 hover:-translate-y-1"
                                 style={{
                                     display: 'flex',
                                     flexDirection: 'column',
@@ -213,17 +213,14 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 </div>
 
                                 {/* Status & Stats */}
-                                <div 
-                                    className="rounded-none p-3 user-stats-box"
-                                >
+                                <div className="rounded-xl bg-gray-50/50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-800 p-4 mt-2">
                                     {/* Online Status */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
-                                        <div 
-                                            className={`w-2.5 h-2.5 rounded-full ${
-                                                user.is_online 
-                                                    ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' 
+                                        <div
+                                            className={`w-2.5 h-2.5 rounded-full ${user.is_online
+                                                    ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
                                                     : 'bg-gray-400'
-                                            }`}
+                                                }`}
                                         />
                                         <span className={user.is_online ? 'user-status-online' : 'user-status-offline'} style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>
                                             {user.is_online ? t('users.online') : t('users.offline')}
@@ -234,7 +231,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             </span>
                                         )}
                                     </div>
-                                    
+
                                     {/* Registered Date */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
                                         <Calendar className="w-4 h-4 settings-subtitle" />
@@ -254,7 +251,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="w-full settings-btn-secondary hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                            className="w-full settings-btn-secondary rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] transition-all duration-200"
                                             style={{ padding: 'var(--space-xs) var(--space-sm)' }}
                                         >
                                             <Edit className="w-4 h-4 mr-2" />
@@ -265,7 +262,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         size="sm"
                                         variant="outline"
                                         onClick={() => setUserToDelete(user)}
-                                        className="hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 hover:shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_8px_rgba(239,68,68,0.25)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                        className="rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 hover:shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_8px_rgba(239,68,68,0.25)] transition-all duration-200 border-gray-200 dark:border-gray-800"
                                         style={{ padding: 'var(--space-xs) var(--space-sm)', color: '#dc2626' }}
                                     >
                                         <Trash2 className="w-4 h-4" />
@@ -277,7 +274,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                     {/* Empty State */}
                     {filteredUsers.length === 0 && (
-                        <div className="card-gradient rounded-none p-12 text-center shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)]">
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-12 text-center mt-6">
                             <UserCircle className="w-16 h-16 mx-auto mb-4 settings-subtitle" />
                             <h3 className="font-bold mb-2 settings-title" style={{ fontSize: 'var(--text-xl)' }}>
                                 {t('users.noUsers')}
@@ -291,7 +288,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                 {/* Modal de Confirmación */}
                 <Dialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
-                    <DialogContent className="card-gradient shadow-[0_4px_8px_rgba(46,63,132,0.1),0_8px_16px_rgba(46,63,132,0.15),0_16px_32px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                    <DialogContent className="card-gradient rounded-2xl sm:rounded-2xl border border-white/40 dark:border-white/10 shadow-2xl">
                         <DialogHeader>
                             <DialogTitle className="settings-title">{t('users.deleteConfirm')}</DialogTitle>
                             <DialogDescription className="settings-subtitle">
@@ -301,13 +298,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </DialogHeader>
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button variant="outline" className="settings-btn-secondary">
+                                <Button variant="outline" className="settings-btn-secondary rounded-xl font-medium">
                                     {t('common.cancel')}
                                 </Button>
                             </DialogClose>
                             <Button
                                 onClick={handleDelete}
-                                className="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-[0_1px_2px_rgba(239,68,68,0.25),0_2px_4px_rgba(239,68,68,0.3),0_4px_12px_rgba(239,68,68,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] hover:shadow-[0_2px_4px_rgba(239,68,68,0.3),0_4px_8px_rgba(239,68,68,0.35),0_8px_20px_rgba(239,68,68,0.4),inset_0_1px_0_rgba(255,255,255,0.25)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.25),inset_0_0_8px_rgba(0,0,0,0.15)] active:translate-y-0 transition-all duration-200"
+                                className="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md rounded-xl font-medium transition-all duration-200 border-0"
                             >
                                 {t('common.delete')}
                             </Button>

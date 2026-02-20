@@ -52,7 +52,7 @@ export default function EditUser({ user }: EditUserProps) {
                     <div className="mb-6 md:mb-8">
                         <Link
                             href="/admin/users"
-                            className="inline-flex items-center mb-3 md:mb-4 px-3 py-2 rounded-none transition-all duration-200 settings-subtitle settings-back-link"
+                            className="inline-flex items-center mb-3 md:mb-4 px-3 py-2 rounded-xl transition-all duration-200 settings-subtitle settings-back-link hover:bg-black/5 dark:hover:bg-white/5"
                         >
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             <span className="hidden sm:inline">{t('users.backToUsers')}</span>
@@ -64,109 +64,109 @@ export default function EditUser({ user }: EditUserProps) {
 
                     {/* Form: Centered box with natural max-width */}
                     <div className="max-w-2xl mx-auto">
-                        <form onSubmit={handleSubmit} className="card-gradient rounded-none shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_6px_rgba(46,63,132,0.06),0_6px_16px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.9)] p-4 sm:p-6 lg:p-8 space-y-5 md:space-y-6">
-                        {/* Nombre */}
-                        <div className="space-y-2">
-                            <Label htmlFor="name" className="text-sm font-medium settings-label">
-                                {t('users.fullName')}
-                            </Label>
-                            <Input
-                                id="name"
-                                type="text"
-                                value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
-                                placeholder={t('users.fullNamePlaceholder')}
-                                className="settings-input rounded-none transition-all duration-200"
-                                required
-                            />
-                            <InputError message={errors.name} />
-                        </div>
-
-                        {/* Email */}
-                        <div className="space-y-2">
-                            <Label htmlFor="email" className="text-sm font-medium settings-label">
-                                {t('auth.email')}
-                            </Label>
-                            <Input
-                                id="email"
-                                type="email"
-                                value={data.email}
-                                onChange={(e) => setData('email', e.target.value)}
-                                placeholder={t('users.emailPlaceholder')}
-                                className="settings-input rounded-none transition-all duration-200"
-                                required
-                            />
-                            <InputError message={errors.email} />
-                        </div>
-
-                        {/* Rol */}
-                        <div className="space-y-2">
-                            <Label htmlFor="role" className="text-sm font-medium settings-label">
-                                {t('users.role')}
-                            </Label>
-                            <Select
-                                value={data.role}
-                                onValueChange={(value) => setData('role', value as 'admin' | 'advisor')}
-                            >
-                                <SelectTrigger className="settings-input rounded-none transition-all duration-200">
-                                    <SelectValue placeholder={t('users.selectRole')} />
-                                </SelectTrigger>
-                                <SelectContent className="card-gradient shadow-[0_2px_4px_rgba(46,63,132,0.08),0_4px_8px_rgba(46,63,132,0.12),0_8px_20px_rgba(46,63,132,0.16),inset_0_1px_0_rgba(255,255,255,0.9)] dark:shadow-[0_2px_4px_rgba(0,0,0,0.2),0_4px_8px_rgba(0,0,0,0.25),0_8px_20px_rgba(0,0,0,0.3)] border-0 rounded-none">
-                                    <SelectItem value="advisor" className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] focus:bg-background cursor-pointer rounded-none transition-all duration-150">{t('users.roles.advisor')}</SelectItem>
-                                    <SelectItem value="admin" className="hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] focus:bg-background cursor-pointer rounded-none transition-all duration-150">{t('users.roles.admin')}</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.role} />
-                        </div>
-
-                        {/* Contraseña (Opcional) */}
-                        <div className="space-y-2">
-                            <Label htmlFor="password" className="text-sm font-medium settings-label">
-                                {t('users.newPassword')}
-                            </Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                value={data.password}
-                                onChange={(e) => setData('password', e.target.value)}
-                                placeholder={t('users.newPasswordPlaceholder')}
-                                className="settings-input rounded-none transition-all duration-200"
-                            />
-                            <InputError message={errors.password} />
-                        </div>
-
-                        {/* Confirmar Contraseña */}
-                        {data.password && (
+                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                            {/* Nombre */}
                             <div className="space-y-2">
-                                <Label htmlFor="password_confirmation" className="text-sm font-medium settings-label">
-                                    {t('users.confirmNewPassword')}
+                                <Label htmlFor="name" className="text-sm font-medium settings-label">
+                                    {t('users.fullName')}
                                 </Label>
                                 <Input
-                                    id="password_confirmation"
-                                    type="password"
-                                    value={data.password_confirmation}
-                                    onChange={(e) => setData('password_confirmation', e.target.value)}
-                                    placeholder={t('users.confirmNewPasswordPlaceholder')}
-                                    className="settings-input rounded-none transition-all duration-200"
+                                    id="name"
+                                    type="text"
+                                    value={data.name}
+                                    onChange={(e) => setData('name', e.target.value)}
+                                    placeholder={t('users.fullNamePlaceholder')}
+                                    className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    required
                                 />
-                                <InputError message={errors.password_confirmation} />
+                                <InputError message={errors.name} />
                             </div>
-                        )}
 
-                        {/* Buttons: Stack on mobile, row on tablet+ */}
-                        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-border dark:border-[hsl(231,20%,20%)] mt-8">
+                            {/* Email */}
+                            <div className="space-y-2">
+                                <Label htmlFor="email" className="text-sm font-medium settings-label">
+                                    {t('auth.email')}
+                                </Label>
+                                <Input
+                                    id="email"
+                                    type="email"
+                                    value={data.email}
+                                    onChange={(e) => setData('email', e.target.value)}
+                                    placeholder={t('users.emailPlaceholder')}
+                                    className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    required
+                                />
+                                <InputError message={errors.email} />
+                            </div>
+
+                            {/* Rol */}
+                            <div className="space-y-2">
+                                <Label htmlFor="role" className="text-sm font-medium settings-label">
+                                    {t('users.role')}
+                                </Label>
+                                <Select
+                                    value={data.role}
+                                    onValueChange={(value) => setData('role', value as 'admin' | 'advisor')}
+                                >
+                                    <SelectTrigger className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30">
+                                        <SelectValue placeholder={t('users.selectRole')} />
+                                    </SelectTrigger>
+                                    <SelectContent className="card-gradient shadow-lg rounded-xl border border-white/40 dark:border-white/10 p-1">
+                                        <SelectItem value="advisor" className="hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer rounded-lg transition-all duration-150">{t('users.roles.advisor')}</SelectItem>
+                                        <SelectItem value="admin" className="hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer rounded-lg transition-all duration-150">{t('users.roles.admin')}</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <InputError message={errors.role} />
+                            </div>
+
+                            {/* Contraseña (Opcional) */}
+                            <div className="space-y-2">
+                                <Label htmlFor="password" className="text-sm font-medium settings-label">
+                                    {t('users.newPassword')}
+                                </Label>
+                                <Input
+                                    id="password"
+                                    type="password"
+                                    value={data.password}
+                                    onChange={(e) => setData('password', e.target.value)}
+                                    placeholder={t('users.newPasswordPlaceholder')}
+                                    className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
+                                />
+                                <InputError message={errors.password} />
+                            </div>
+
+                            {/* Confirmar Contraseña */}
+                            {data.password && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="password_confirmation" className="text-sm font-medium settings-label">
+                                        {t('users.confirmNewPassword')}
+                                    </Label>
+                                    <Input
+                                        id="password_confirmation"
+                                        type="password"
+                                        value={data.password_confirmation}
+                                        onChange={(e) => setData('password_confirmation', e.target.value)}
+                                        placeholder={t('users.confirmNewPasswordPlaceholder')}
+                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    />
+                                    <InputError message={errors.password_confirmation} />
+                                </div>
+                            )}
+
+                            {/* Buttons: Stack on mobile, row on tablet+ */}
+                            <div className="flex flex-col sm:flex-row gap-4 pt-6 mt-8 border-t border-gray-200 dark:border-gray-800">
                                 <Button
                                     type="submit"
                                     disabled={processing}
-                                    className="w-full sm:w-auto sm:flex-1 settings-btn-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                                    className="w-full sm:flex-1 h-11 settings-btn-primary rounded-xl font-medium disabled:opacity-50 transition-all"
                                 >
                                     {processing ? t('common.saving') : t('users.saveChanges')}
                                 </Button>
-                                <Link href="/admin/users" className="w-full sm:w-auto sm:flex-1">
+                                <Link href="/admin/users" className="w-full sm:flex-1">
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        className="w-full settings-btn-secondary"
+                                        className="w-full h-11 settings-btn-secondary rounded-xl font-medium transition-all"
                                     >
                                         {t('common.cancel')}
                                     </Button>
