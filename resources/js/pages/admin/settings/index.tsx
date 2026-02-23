@@ -432,10 +432,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             className="settings-input rounded-xl border-gray-200 dark:border-gray-800 font-mono text-xs md:text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
                                         />
                                         <InputError message={groqForm.errors.groq_api_key} />
-                                        <p className="text-xs dark:text-[hsl(231,15%,60%)]" style={{ color: '#6b7494' }}>
-                                            Obtén tu API Key gratis en <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: '#2e3f84' }}>console.groq.com/keys</a>
-                                        </p>
                                     </div>
+
 
                                     <Button
                                         type="submit"
@@ -485,15 +483,15 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                     type="button"
                                                     onClick={() => toggleAdvisor(advisor.id)}
                                                     className={`w-full flex items-center justify-between p-3.5 mb-2 rounded-xl border transition-all duration-200 ${selectedAdvisors.includes(advisor.id)
-                                                            ? 'bg-[#2e3f84]/5 border-[#2e3f84]/20 shadow-sm'
-                                                            : 'bg-transparent border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-gray-200 dark:hover:border-gray-700'
+                                                        ? 'bg-[#2e3f84]/5 border-[#2e3f84]/20 shadow-sm'
+                                                        : 'bg-transparent border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-gray-200 dark:hover:border-gray-700'
                                                         }`}
                                                 >
                                                     <div className="flex items-center gap-3">
                                                         <div
                                                             className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium ${selectedAdvisors.includes(advisor.id)
-                                                                    ? 'advisor-avatar-selected'
-                                                                    : 'advisor-avatar'
+                                                                ? 'advisor-avatar-selected'
+                                                                : 'advisor-avatar'
                                                                 }`}
                                                         >
                                                             {advisor.name.charAt(0).toUpperCase()}
@@ -505,8 +503,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                     </div>
                                                     <div
                                                         className={`w-6 h-6 rounded-full flex items-center justify-center ${selectedAdvisors.includes(advisor.id)
-                                                                ? 'advisor-check-selected'
-                                                                : 'advisor-check'
+                                                            ? 'advisor-check-selected'
+                                                            : 'advisor-check'
                                                             }`}
                                                     >
                                                         {selectedAdvisors.includes(advisor.id) && (
