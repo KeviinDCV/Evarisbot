@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Template;
 use App\Models\User;
+use App\Services\SpellCheckService;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -348,7 +349,7 @@ class ConversationController extends Controller
     /**
      * Enviar un mensaje en la conversación
      */
-    public function sendMessage(Request $request, Conversation $conversation, WhatsAppService $whatsappService)
+    public function sendMessage(Request $request, Conversation $conversation, WhatsAppService $whatsappService, SpellCheckService $spellCheckService)
     {
         // Aumentar límites de PHP para uploads grandes
         @ini_set('upload_max_filesize', '20M');
@@ -374,6 +375,13 @@ class ConversationController extends Controller
 
         // Detectar comando /saludo para enviar plantilla de saludo
         $content = trim($validated['content'] ?? '');
+
+        // Corregir ortografía del texto con IA (silencioso ante fallos)
+        // Solo corregir mensajes de texto puro (no comandos, no plantillas con media)
+        if (!empty($content) && !str_starts_with($content, '/') && empty($validated['template_media_files']) && !$request->hasFile('media_file')) {
+            $validated['content'] = $spellCheckService->correct($content);
+            $content = $validated['content'];
+        }
         if (strtolower($content) === '/saludo') {
             return $this->sendGreetingCommand($conversation, $whatsappService);
         }

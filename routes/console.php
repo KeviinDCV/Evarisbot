@@ -27,12 +27,13 @@ Schedule::command('appointments:auto-send')
     ->onOneServer()
     ->runInBackground();
 
-// Procesar cola de recordatorios cada minuto (para cPanel)
-// Esto procesa cualquier job que haya quedado pendiente en la cola
-Schedule::command('reminders:process-queue --limit=50')
-    ->everyMinute()
-    ->withoutOverlapping()
-    ->runInBackground();
+// Procesar cola de recordatorios cada minuto (SOLO para cPanel sin queue:work permanente)
+// DESACTIVADO cuando se usa `php artisan queue:work` ya que compite por el lock
+// y causa que los jobs se atasquen sin enviar realmente.
+// Schedule::command('reminders:process-queue --limit=50')
+//     ->everyMinute()
+//     ->withoutOverlapping()
+//     ->runInBackground();
 
 // ============================================================================
 // OPTIMIZACIÓN DE MEMORIA - Tareas Automáticas
