@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { type PropsWithChildren, type ReactNode, useState, useEffect } from 'react';
-import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText, Calendar, BarChart3, Send, MessagesSquare } from 'lucide-react';
+import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText, Calendar, BarChart3, Send, MessagesSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -20,8 +20,24 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     const currentUrl = usePage().url;
     const getInitials = useInitials();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    // Desktop collapse state (persisted)
+    const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('sidebar_collapsed') === 'true';
+        }
+        return false;
+    });
+
     const [unreadConversationsCount, setUnreadConversationsCount] = useState(initialUnreadCount);
     const [unreadInternalChatCount, setUnreadInternalChatCount] = useState(0);
+
+    const toggleDesktopSidebar = (state: boolean) => {
+        setIsDesktopCollapsed(state);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('sidebar_collapsed', String(state));
+        }
+    };
 
     // Actualizar el contador de conversaciones no leídas cada 5 segundos
     useEffect(() => {
@@ -154,10 +170,22 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             {/* Mobile Menu Button - Floating Action Button */}
             <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white rounded-none shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] active:translate-y-0 transition-all duration-200"
+                className="lg:hidden fixed top-4 left-4 z-50 p-3 bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35)] hover:-translate-y-0.5 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] active:translate-y-0 transition-all duration-200"
+                style={{ borderRadius: 'var(--radius)' }}
             >
                 {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
+
+            {/* Desktop Show Button (Visible only when collapsed) */}
+            {isDesktopCollapsed && (
+                <button
+                    onClick={() => toggleDesktopSidebar(false)}
+                    className="hidden lg:flex fixed top-1/2 left-0 -translate-y-1/2 z-50 bg-sidebar border border-sidebar-border border-l-0 shadow-[4px_0px_10px_rgba(0,0,0,0.1)] rounded-r-xl w-5 hover:w-8 h-20 items-center justify-center transition-all duration-300 group cursor-pointer"
+                    title="Mostrar menú"
+                >
+                    <ChevronRight className="w-5 h-5 text-sidebar-foreground opacity-50 group-hover:opacity-100 transition-opacity" />
+                </button>
+            )}
 
             {/* Mobile Overlay */}
             {isMobileMenuOpen && (
@@ -170,16 +198,17 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             {/* Sidebar - Modern Design */}
             <aside className={`
                 w-64 bg-sidebar flex flex-col justify-between flex-shrink-0 z-20 shadow-xl relative
-                transition-transform duration-300 ease-in-out
+                transition-all duration-300 ease-in-out
                 
                 ${/* Mobile: Overlay sidebar */''}
                 fixed lg:relative top-0 left-0 h-full
                 
-                ${/* Mobile transform */''}
                 ${isMobileMenuOpen
                     ? 'translate-x-0'
                     : '-translate-x-full lg:translate-x-0'
                 }
+                
+                ${isDesktopCollapsed ? 'lg:-ml-64' : 'lg:ml-0'}
             `}>
                 <div>
                     {/* Header with logo */}
@@ -192,6 +221,14 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                             className="lg:hidden ml-auto p-2 hover:bg-sidebar-accent rounded-lg transition-colors"
                         >
                             <X className="w-5 h-5 text-sidebar-foreground" />
+                        </button>
+                        {/* Collapse button on desktop */}
+                        <button
+                            onClick={() => toggleDesktopSidebar(true)}
+                            className="hidden lg:flex ml-auto p-2 hover:bg-sidebar-accent rounded-lg transition-colors text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                            title="Ocultar menú"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
                         </button>
                     </div>
 
