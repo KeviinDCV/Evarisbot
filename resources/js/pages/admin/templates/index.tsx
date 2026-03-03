@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, MessageSquare, Image, FileText, Power, PowerOff, Edit, Trash2, Paperclip } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import TemplateCreateModal from './components/TemplateCreateModal';
+import TemplateEditModal from './components/TemplateEditModal';
 
 interface MediaFile {
     url: string;
@@ -19,6 +21,8 @@ interface Template {
     content: string;
     is_active: boolean;
     message_type: 'text' | 'image' | 'document';
+    is_global: boolean;
+    assigned_users?: number[];
     media_url: string | null;
     media_filename: string | null;
     media_files?: MediaFile[];
@@ -40,9 +44,10 @@ interface Filters {
 interface TemplatesIndexProps {
     templates: Template[];
     filters: Filters;
+    users: any[];
 }
 
-export default function TemplatesIndex({ templates, filters }: TemplatesIndexProps) {
+export default function TemplatesIndex({ templates, filters, users }: TemplatesIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -50,6 +55,10 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
     const [search, setSearch] = useState(filters.search);
     const [statusFilter, setStatusFilter] = useState(filters.status);
     const [typeFilter, setTypeFilter] = useState(filters.type);
+
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [templateToEdit, setTemplateToEdit] = useState<Template | null>(null);
 
     const handleFilter = () => {
         router.get('/admin/templates', {
@@ -112,32 +121,31 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                 </p>
                             </div>
                             {isAdmin && (
-                                <Link href="/admin/templates/create">
-                                    <Button
-                                        className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
-                                        style={{
-                                            backgroundColor: 'var(--primary-base)',
-                                            boxShadow: 'var(--shadow-md)',
-                                            backgroundImage: 'var(--gradient-shine)',
-                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                            padding: '0 var(--space-lg)',
-                                            fontSize: 'var(--text-sm)',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                            e.currentTarget.style.transform = 'translateY(-2px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                        }}
-                                    >
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        {t('templates.newTemplate')}
-                                    </Button>
-                                </Link>
+                                <Button
+                                    onClick={() => setIsCreateModalOpen(true)}
+                                    className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
+                                    style={{
+                                        backgroundColor: 'var(--primary-base)',
+                                        boxShadow: 'var(--shadow-md)',
+                                        backgroundImage: 'var(--gradient-shine)',
+                                        height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
+                                        padding: '0 var(--space-lg)',
+                                        fontSize: 'var(--text-sm)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
+                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'var(--primary-base)';
+                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                    }}
+                                >
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    {t('templates.newTemplate')}
+                                </Button>
                             )}
                         </div>
 
@@ -331,17 +339,19 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                                 {isAdmin && (
                                                     <td className="p-4 align-top text-right">
                                                         <div className="flex items-center justify-end gap-2">
-                                                            <Link href={`/admin/templates/${template.id}/edit`}>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant="outline"
-                                                                    className="settings-btn-secondary rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] transition-all duration-200"
-                                                                    style={{ padding: 'var(--space-xs) 0.5rem' }}
-                                                                    title={t('common.edit')}
-                                                                >
-                                                                    <Edit className="w-4 h-4" />
-                                                                </Button>
-                                                            </Link>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    setTemplateToEdit(template);
+                                                                    setIsEditModalOpen(true);
+                                                                }}
+                                                                className="settings-btn-secondary rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] transition-all duration-200"
+                                                                style={{ padding: 'var(--space-xs) 0.5rem' }}
+                                                                title={t('common.edit')}
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </Button>
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
@@ -377,17 +387,28 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                                 }
                             </p>
                             {isAdmin && (
-                                <Link href="/admin/templates/create">
-                                    <Button style={{ backgroundColor: 'var(--primary-base)', color: 'white' }} className="rounded-xl">
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        {t('templates.newTemplate')}
-                                    </Button>
-                                </Link>
+                                <Button onClick={() => setIsCreateModalOpen(true)} style={{ backgroundColor: 'var(--primary-base)', color: 'white' }} className="rounded-xl">
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    {t('templates.newTemplate')}
+                                </Button>
                             )}
                         </div>
                     )}
                 </div>
             </div>
+
+            <TemplateCreateModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                users={users}
+            />
+
+            <TemplateEditModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                template={templateToEdit}
+                users={users}
+            />
         </AdminLayout>
     );
 }

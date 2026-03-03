@@ -97,7 +97,7 @@ class TemplateController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Template::with(['creator', 'updater'])
+        $query = Template::with(['creator', 'updater', 'assignedUsers'])
             ->orderBy('created_at', 'desc');
 
         // Filtrar por estado activo/inactivo
@@ -123,6 +123,8 @@ class TemplateController extends Controller
                 'subject' => $template->subject,
                 'content' => $template->content,
                 'is_active' => $template->is_active,
+                'is_global' => $template->is_global,
+                'assigned_users' => $template->assignedUsers->pluck('id')->toArray(),
                 'message_type' => $template->message_type,
                 'media_url' => $template->media_url,
                 'media_filename' => $template->media_filename,
@@ -135,6 +137,8 @@ class TemplateController extends Controller
             ];
         });
 
+        $users = User::select('id', 'name', 'role')->get();
+
         return Inertia::render('admin/templates/index', [
             'templates' => $templates,
             'filters' => [
@@ -142,6 +146,7 @@ class TemplateController extends Controller
                 'type' => $request->type ?? 'all',
                 'search' => $request->search ?? '',
             ],
+            'users' => $users,
         ]);
     }
 
