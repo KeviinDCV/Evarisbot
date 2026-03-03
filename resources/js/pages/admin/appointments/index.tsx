@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, Phone } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -1091,83 +1091,118 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 </div>
                             </div>
 
-                            {/* Tabla con scroll horizontal */}
+                            {/* Tabla agilizada sin tanto scroll horizontal */}
                             <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gradient-to-b from-[#2e3f84] to-[#263470] text-white">
+                                <table className="w-full text-left border-collapse">
+                                    <thead className="bg-black/5 dark:bg-white/5 border-b border-border dark:border-[hsl(231,20%,20%)]">
                                         <tr>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">#</th>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Paciente</th>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Teléfono</th>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Fecha Cita</th>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Hora</th>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Médico</th>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Especialidad</th>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Recordatorio</th>
-                                            <th className="px-4 py-3 text-left font-semibold whitespace-nowrap">Estado</th>
+                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                #
+                                            </th>
+                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                Paciente
+                                            </th>
+                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                Detalles de Cita
+                                            </th>
+                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                Profesional
+                                            </th>
+                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                Estado Envío
+                                            </th>
                                         </tr>
                                     </thead>
-                                    <tbody className="table-body-light divide-y divide-[#e5e7f0] dark:divide-[hsl(231,20%,22%)]">
+                                    <tbody className="divide-y divide-border dark:divide-[hsl(231,20%,20%)]">
                                         {paginatedAppointments.map((appointment, index) => (
                                             <tr
                                                 key={appointment.id}
-                                                className="table-row-hover transition-colors duration-150"
+                                                className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors duration-200"
                                             >
-                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
+                                                {/* Índice */}
+                                                <td className="px-4 py-4 whitespace-nowrap align-top settings-subtitle font-medium" style={{ fontSize: 'var(--text-sm)' }}>
                                                     {(currentPage - 1) * itemsPerPage + index + 1}
                                                 </td>
-                                                <td className="px-4 py-3 settings-title font-medium whitespace-nowrap">
-                                                    {appointment.nom_paciente || '-'}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                    {appointment.pactel || '-'}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                    {appointment.citfc || '-'}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                    {appointment.cithor || '-'}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                    {appointment.mednom || '-'}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap settings-subtitle">
-                                                    {appointment.espnom || '-'}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    {appointment.reminder_sent ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-sent text-xs font-medium">
-                                                            <CheckCircle2 className="w-3 h-3" />
-                                                            Enviado
+
+                                                {/* Paciente y Teléfono */}
+                                                <td className="px-4 py-4 align-top w-[25%] min-w-[200px]">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold settings-title truncate" style={{ fontSize: 'var(--text-md)' }}>
+                                                            {appointment.nom_paciente || '-'}
                                                         </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-none status-badge-pending text-xs font-medium">
-                                                            <Clock className="w-3 h-3" />
-                                                            Pendiente
+                                                        <span className="settings-subtitle flex items-center gap-1.5 mt-1" style={{ fontSize: 'var(--text-sm)' }}>
+                                                            {appointment.pactel ? (
+                                                                <>
+                                                                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                                                        <Phone className="w-3 h-3 text-primary" />
+                                                                    </div>
+                                                                    {appointment.pactel}
+                                                                </>
+                                                            ) : '-'}
                                                         </span>
-                                                    )}
+                                                    </div>
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    {!appointment.reminder_sent ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-medium settings-subtitle">
-                                                            —
+
+                                                {/* Fecha y Hora */}
+                                                <td className="px-4 py-4 whitespace-nowrap align-top">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <div className="inline-flex items-center gap-1.5 settings-title font-medium bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-md w-fit" style={{ fontSize: 'var(--text-sm)' }}>
+                                                            <CalendarCheck className="w-4 h-4 text-primary" />
+                                                            {appointment.citfc || '-'}
+                                                        </div>
+                                                        <div className="inline-flex items-center gap-1.5 settings-subtitle pl-1" style={{ fontSize: 'var(--text-sm)' }}>
+                                                            <Clock className="w-3.5 h-3.5" />
+                                                            {appointment.cithor || '-'}
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Médico y Especialidad */}
+                                                <td className="px-4 py-4 align-top w-[30%] min-w-[220px]">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold settings-title line-clamp-2 leading-tight" style={{ fontSize: 'var(--text-sm)' }}>
+                                                            Dr(a). {appointment.mednom || '-'}
                                                         </span>
-                                                    ) : appointment.reminder_status === 'failed' ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl status-badge-failed text-xs font-medium">
-                                                            <XCircle className="w-3 h-3" />
-                                                            Error
+                                                        <span className="settings-subtitle mt-1 inline-flex items-center gap-1.5" style={{ fontSize: 'var(--text-xs)' }}>
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
+                                                            {appointment.espnom || '-'}
                                                         </span>
-                                                    ) : appointment.reminder_status && ['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status) ? (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl status-badge-delivered text-xs font-medium">
-                                                            <CheckCircle2 className="w-3 h-3" />
-                                                            Recibido
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl status-badge-sent text-xs font-medium">
-                                                            <Clock className="w-3 h-3" />
-                                                            En camino
-                                                        </span>
-                                                    )}
+                                                    </div>
+                                                </td>
+
+                                                {/* Estado Integrado */}
+                                                <td className="px-4 py-4 whitespace-nowrap align-top">
+                                                    <div className="flex flex-col gap-2">
+                                                        {appointment.reminder_sent ? (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-semibold w-fit">
+                                                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                                                Enviado
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold w-fit">
+                                                                <Clock className="w-3.5 h-3.5" />
+                                                                Pendiente
+                                                            </span>
+                                                        )}
+
+                                                        {appointment.reminder_sent && (
+                                                            <>
+                                                                {appointment.reminder_status === 'failed' ? (
+                                                                    <span className="inline-flex items-center gap-1 text-red-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
+                                                                        <XCircle className="w-3 h-3" /> Error
+                                                                    </span>
+                                                                ) : appointment.reminder_status && ['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status) ? (
+                                                                    <span className="inline-flex items-center gap-1 text-emerald-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
+                                                                        <CheckCircle2 className="w-3 h-3" /> Recibido
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 text-blue-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
+                                                                        <Clock className="w-3 h-3" /> En camino
+                                                                    </span>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
