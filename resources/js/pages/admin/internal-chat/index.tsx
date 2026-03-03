@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head } from '@inertiajs/react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     Send,
     Paperclip,
@@ -20,6 +20,10 @@ import {
     Trash2,
     Pencil,
     LogOut,
+    Expand,
+    ZoomIn,
+    ZoomOut,
+    RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
@@ -95,6 +99,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     // Rename modal
     const [showRenameModal, setShowRenameModal] = useState(false);
     const [renameValue, setRenameValue] = useState('');
+
+    // Media viewer (fullscreen)
+    const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'image' | 'video'; caption?: string } | null>(null);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
+    const [isDraggingImage, setIsDraggingImage] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const imageRef = useRef<HTMLImageElement>(null);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -266,6 +278,34 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             axios.post(`/admin/internal-chat/${activeChat.id}/read`).catch(() => {});
         }
     }, [activeChat?.id]);
+
+    // Close media viewer with Escape key
+    useEffect(() => {
+        if (!mediaViewer) return;
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setMediaViewer(null);
+                setZoomLevel(1);
+                setImagePosition({ x: 0, y: 0 });
+            }
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [mediaViewer]);
+
+    // Handle scroll wheel zoom in media viewer
+    useEffect(() => {
+        if (!mediaViewer || mediaViewer.type !== 'image') return;
+        const handleWheel = (e: WheelEvent) => {
+            e.preventDefault();
+            setZoomLevel(prev => {
+                const delta = e.deltaY > 0 ? -0.15 : 0.15;
+                return Math.min(4, Math.max(0.5, prev + delta));
+            });
+        };
+        window.addEventListener('wheel', handleWheel, { passive: false });
+        return () => window.removeEventListener('wheel', handleWheel);
+    }, [mediaViewer]);
 
     // --- Handlers ---
 
@@ -696,24 +736,53 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 {/* Image */}
                                                 {msg.type === 'image' && msg.file_url && (
                                                     <div className="mb-2">
-                                                        <img
-                                                            src={msg.file_url}
-                                                            alt="Imagen"
-                                                            className="max-w-full max-h-96 rounded-xl object-cover"
-                                                            loading="lazy"
-                                                        />
+                                                        <div
+                                                            className="relative cursor-pointer group"
+                                                            onClick={() => {
+                                                                setMediaViewer({
+                                                                    url: msg.file_url!,
+                                                                    type: 'image',
+                                                                    caption: msg.body && msg.body !== 'Imagen' ? msg.body : undefined
+                                                                });
+                                                                setZoomLevel(1);
+                                                                setImagePosition({ x: 0, y: 0 });
+                                                            }}
+                                                        >
+                                                            <img
+                                                                src={msg.file_url}
+                                                                alt="Imagen"
+                                                                className="max-w-full max-h-96 rounded-xl object-cover"
+                                                                loading="lazy"
+                                                            />
+                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
+                                                                <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 )}
 
                                                 {/* Video */}
                                                 {msg.type === 'video' && msg.file_url && (
                                                     <div className="mb-2">
-                                                        <video
-                                                            src={msg.file_url}
-                                                            controls
-                                                            className="max-w-full max-h-96 rounded-xl"
-                                                            preload="metadata"
-                                                        />
+                                                        <div
+                                                            className="relative cursor-pointer group"
+                                                            onClick={() => {
+                                                                setMediaViewer({
+                                                                    url: msg.file_url!,
+                                                                    type: 'video',
+                                                                    caption: msg.body && msg.body !== 'Video' ? msg.body : undefined
+                                                                });
+                                                            }}
+                                                        >
+                                                            <video
+                                                                src={msg.file_url}
+                                                                className="max-w-full max-h-96 rounded-xl"
+                                                                preload="metadata"
+                                                            />
+                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
+                                                                <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 )}
 
@@ -1035,6 +1104,168 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Visor de medios fullscreen - estilo WhatsApp Web */}
+            {mediaViewer && (
+                <div
+                    className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
+                    onClick={() => {
+                        setMediaViewer(null);
+                        setZoomLevel(1);
+                        setImagePosition({ x: 0, y: 0 });
+                    }}
+                >
+                    {/* Header con controles */}
+                    <div
+                        className="flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/50 to-transparent"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-4">
+                            {mediaViewer.caption && (
+                                <p className="text-white text-sm max-w-md truncate">
+                                    {mediaViewer.caption}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {/* Controles de zoom solo para imágenes */}
+                            {mediaViewer.type === 'image' && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            setZoomLevel(1);
+                                            setImagePosition({ x: 0, y: 0 });
+                                        }}
+                                        className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                        title="Restablecer zoom"
+                                    >
+                                        <RotateCcw className="w-5 h-5" />
+                                    </button>
+                                    <button
+                                        onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))}
+                                        className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                        title="Alejar"
+                                    >
+                                        <ZoomOut className="w-5 h-5" />
+                                    </button>
+                                    <span className="text-white/70 text-sm min-w-[50px] text-center">
+                                        {Math.round(zoomLevel * 100)}%
+                                    </span>
+                                    <button
+                                        onClick={() => setZoomLevel(Math.min(4, zoomLevel + 0.25))}
+                                        className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                        title="Acercar"
+                                    >
+                                        <ZoomIn className="w-5 h-5" />
+                                    </button>
+                                </>
+                            )}
+
+                            {/* Botón descargar */}
+                            <a
+                                href={mediaViewer.url}
+                                download
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                title="Descargar"
+                            >
+                                <Download className="w-5 h-5" />
+                            </a>
+
+                            {/* Botón cerrar */}
+                            <button
+                                onClick={() => {
+                                    setMediaViewer(null);
+                                    setZoomLevel(1);
+                                    setImagePosition({ x: 0, y: 0 });
+                                }}
+                                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors ml-2"
+                                title="Cerrar (Esc)"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Contenido del visor */}
+                    <div
+                        className="flex-1 flex items-center justify-center overflow-hidden p-4"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isDraggingImage) {
+                                setMediaViewer(null);
+                                setZoomLevel(1);
+                                setImagePosition({ x: 0, y: 0 });
+                            }
+                        }}
+                        onMouseMove={(e) => {
+                            if (isDraggingImage && zoomLevel > 1) {
+                                const dx = e.clientX - dragStart.x;
+                                const dy = e.clientY - dragStart.y;
+                                setImagePosition(prev => ({
+                                    x: prev.x + dx,
+                                    y: prev.y + dy
+                                }));
+                                setDragStart({ x: e.clientX, y: e.clientY });
+                            }
+                        }}
+                        onMouseUp={() => setIsDraggingImage(false)}
+                        onMouseLeave={() => setIsDraggingImage(false)}
+                    >
+                        {mediaViewer.type === 'image' ? (
+                            <img
+                                ref={imageRef}
+                                src={mediaViewer.url}
+                                alt={mediaViewer.caption || 'Imagen'}
+                                className={`max-w-full max-h-full object-contain select-none ${zoomLevel > 1 ? 'cursor-grab' : 'cursor-zoom-in'
+                                    } ${isDraggingImage ? 'cursor-grabbing' : ''}`}
+                                style={{
+                                    transform: `scale(${zoomLevel}) translate(${imagePosition.x / zoomLevel}px, ${imagePosition.y / zoomLevel}px)`,
+                                    transformOrigin: 'center center',
+                                    transition: isDraggingImage ? 'none' : 'transform 0.1s ease-out'
+                                }}
+                                onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (zoomLevel > 1) {
+                                        setIsDraggingImage(true);
+                                        setDragStart({ x: e.clientX, y: e.clientY });
+                                    } else {
+                                        // Si no hay zoom, hacer zoom in
+                                        setZoomLevel(2);
+                                    }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                draggable={false}
+                            />
+                        ) : (
+                            <video
+                                src={mediaViewer.url}
+                                controls
+                                autoPlay
+                                className="max-w-full max-h-full"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                Tu navegador no soporta la reproducción de video.
+                            </video>
+                        )}
+                    </div>
+
+                    {/* Footer con caption completo si es largo */}
+                    {mediaViewer.caption && mediaViewer.caption.length > 50 && (
+                        <div
+                            className="px-4 py-3 bg-gradient-to-t from-black/50 to-transparent"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <p className="text-white text-sm text-center max-w-2xl mx-auto">
+                                {mediaViewer.caption}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
         </AdminLayout>
     );
 }

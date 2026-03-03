@@ -8,7 +8,7 @@ import { store } from '@/routes/login';
 import { Form, Head } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Infinity } from 'lucide-react';
 
 interface LoginProps {
     status?: string;
@@ -18,6 +18,7 @@ interface LoginProps {
 export default function Login({ status, canResetPassword }: LoginProps) {
     const { t } = useTranslation();
     const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
 
     return (
         <AuthLayout
@@ -131,6 +132,40 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                 <InputError message={errors.password} />
                             </div>
 
+                            {/* Nunca cerrar sesión */}
+                            {rememberMe && (
+                                <input type="hidden" name="remember" value="1" />
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setRememberMe(!rememberMe)}
+                                className="flex items-center gap-2.5 group w-fit"
+                                tabIndex={3}
+                            >
+                                {/* Custom checkbox */}
+                                <span
+                                    className="relative flex-shrink-0 w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center"
+                                    style={{
+                                        borderColor: rememberMe ? 'var(--primary-base)' : 'var(--border-muted, #c7cde0)',
+                                        backgroundColor: rememberMe ? 'var(--primary-base)' : 'var(--layer-base)',
+                                        boxShadow: rememberMe ? 'var(--shadow-sm)' : 'none',
+                                    }}
+                                >
+                                    {rememberMe && (
+                                        <svg viewBox="0 0 12 9" fill="none" className="w-3 h-3">
+                                            <path d="M1 4L4.5 7.5L11 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    )}
+                                </span>
+                                <span
+                                    className="flex items-center gap-1.5 text-sm font-medium select-none transition-colors duration-200"
+                                    style={{ color: rememberMe ? 'var(--primary-base)' : 'var(--muted-foreground, #6b7280)' }}
+                                >
+                                    <Infinity className="w-3.5 h-3.5 flex-shrink-0" />
+                                    Nunca cerrar sesión
+                                </span>
+                            </button>
+
                             <Button
                                 type="submit"
                                 className="w-full rounded-none font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
@@ -166,7 +201,7 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     e.currentTarget.style.transform = 'translateY(-2px)';
                                     e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
                                 }}
-                                tabIndex={3}
+                                tabIndex={4}
                                 disabled={processing}
                             >
                                 {processing && <Spinner className="mr-2" />}

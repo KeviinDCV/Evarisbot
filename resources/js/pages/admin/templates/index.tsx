@@ -239,119 +239,129 @@ export default function TemplatesIndex({ templates, filters }: TemplatesIndexPro
                     </div>
 
                     {/* Lista de Plantillas */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 'var(--space-lg)' }}>
-                        {templates.map((template) => (
-                            <div
-                                key={template.id}
-                                className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 hover:-translate-y-1"
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 'var(--space-md)',
-                                }}
-                            >
-                                {/* Header */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <h3 className="font-bold settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                                            {template.name}
-                                        </h3>
-                                        {template.subject && (
-                                            <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)', marginTop: 'var(--space-xs)' }}>
-                                                {template.subject}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                                        {(template.media_files?.length ?? 0) > 0 ? (
-                                            <>
-                                                <Paperclip className="w-4 h-4 settings-title" />
-                                                <span className="settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    {template.media_files?.length} archivo{(template.media_files?.length ?? 0) !== 1 ? 's' : ''}
-                                                </span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span className="settings-title">{getTypeIcon(template.message_type)}</span>
-                                                <span className="settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    {getTypeLabel(template.message_type)}
-                                                </span>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Content Preview */}
-                                <p className="text-foreground line-clamp-3" style={{ fontSize: 'var(--text-sm)' }}>
-                                    {template.content}
-                                </p>
-
-                                {/* Stats */}
-                                <div className="rounded-xl p-3 user-stats-box bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800">
-                                    <div>
-                                        <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.stats.sends')}</p>
-                                        <p className="font-bold settings-title" style={{ fontSize: 'var(--text-base)' }}>
-                                            {template.usage_stats.total_sends}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Status & Actions */}
-                                <div className="border-t border-border dark:border-[hsl(231,20%,20%)]" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 'var(--space-sm)' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-md)' }}>
-                                        {isAdmin ? (
-                                            <button
-                                                onClick={() => toggleStatus(template.id)}
-                                                className="transition-all duration-200"
-                                                style={{ padding: 'var(--space-xs)' }}
-                                            >
-                                                {template.is_active ? (
-                                                    <Power className="w-5 h-5 text-green-600 dark:text-green-400" />
-                                                ) : (
-                                                    <PowerOff className="w-5 h-5" style={{ color: '#6b7494' }} />
+                    {templates.length > 0 && (
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 overflow-hidden transition-all duration-300 mt-6">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-border dark:border-[hsl(231,20%,20%)] bg-black/5 dark:bg-white/5">
+                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                {t('templates.name')}
+                                            </th>
+                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                {t('templates.type')}
+                                            </th>
+                                            <th className="p-4 font-semibold settings-title whitespace-nowrap hidden md:table-cell" style={{ fontSize: 'var(--text-sm)' }}>
+                                                {t('templates.content')}
+                                            </th>
+                                            <th className="p-4 font-semibold settings-title text-center whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                {t('templates.stats.sends')}
+                                            </th>
+                                            <th className="p-4 font-semibold settings-title text-center whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                {t('common.status')}
+                                            </th>
+                                            {isAdmin && (
+                                                <th className="p-4 font-semibold settings-title text-right whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                    {t('common.actions')}
+                                                </th>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {templates.map((template) => (
+                                            <tr key={template.id} className="border-b border-border dark:border-[hsl(231,20%,20%)] last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors duration-200">
+                                                <td className="p-4 min-w-[200px] align-top">
+                                                    <div className="min-w-0">
+                                                        <h3 className="font-bold settings-title truncate" style={{ fontSize: 'var(--text-md)' }}>
+                                                            {template.name}
+                                                        </h3>
+                                                        {template.subject && (
+                                                            <p className="settings-subtitle truncate" style={{ fontSize: 'var(--text-sm)' }}>
+                                                                {template.subject}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 align-top whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary dark:text-[hsl(231,55%,70%)] flex items-center justify-center flex-shrink-0">
+                                                            {getTypeIcon(template.message_type)}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="settings-title font-medium" style={{ fontSize: 'var(--text-sm)' }}>
+                                                                {getTypeLabel(template.message_type)}
+                                                            </span>
+                                                            {(template.media_files?.length ?? 0) > 0 && (
+                                                                <span className="settings-subtitle flex items-center gap-1" style={{ fontSize: 'var(--text-xs)' }}>
+                                                                    <Paperclip className="w-3 h-3" />
+                                                                    {template.media_files?.length} adjunto{(template.media_files?.length ?? 0) !== 1 ? 's' : ''}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 align-top hidden md:table-cell w-full max-w-md">
+                                                    <p className="settings-subtitle line-clamp-2" style={{ fontSize: 'var(--text-sm)', lineHeight: '1.4' }}>
+                                                        {template.content}
+                                                    </p>
+                                                </td>
+                                                <td className="p-4 align-top text-center border-l border-r border-border/50 dark:border-[hsl(231,20%,20%)]/50">
+                                                    <div className="font-bold settings-title text-primary dark:text-white" style={{ fontSize: 'var(--text-lg)' }}>
+                                                        {template.usage_stats.total_sends}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 align-top text-center py-5">
+                                                    <div className="flex flex-col items-center gap-1.5">
+                                                        {isAdmin ? (
+                                                            <button
+                                                                onClick={() => toggleStatus(template.id)}
+                                                                className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-inner ${template.is_active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+                                                                title={template.is_active ? 'Desactivar' : 'Activar'}
+                                                            >
+                                                                <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${template.is_active ? 'translate-x-4' : 'translate-x-0'}`} />
+                                                            </button>
+                                                        ) : (
+                                                            <div className={`w-2.5 h-2.5 rounded-full ${template.is_active ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]' : 'bg-gray-400'}`} />
+                                                        )}
+                                                        <span className={template.is_active ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-500 dark:text-gray-400 font-medium'} style={{ fontSize: 'var(--text-xs)' }}>
+                                                            {template.is_active ? t('templates.statusLabels.active') : t('templates.statusLabels.inactive')}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                {isAdmin && (
+                                                    <td className="p-4 align-top text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <Link href={`/admin/templates/${template.id}/edit`}>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="settings-btn-secondary rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] transition-all duration-200"
+                                                                    style={{ padding: 'var(--space-xs) 0.5rem' }}
+                                                                    title={t('common.edit')}
+                                                                >
+                                                                    <Edit className="w-4 h-4" />
+                                                                </Button>
+                                                            </Link>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => deleteTemplate(template.id)}
+                                                                className="rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 hover:shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_8px_rgba(239,68,68,0.25)] transition-all duration-200 border-gray-200 dark:border-gray-800"
+                                                                style={{ padding: 'var(--space-xs) 0.5rem', color: '#dc2626' }}
+                                                                title={t('common.delete')}
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
                                                 )}
-                                            </button>
-                                        ) : (
-                                            <div style={{ padding: 'var(--space-xs)' }}>
-                                                {template.is_active ? (
-                                                    <Power className="w-5 h-5 text-green-600 dark:text-green-400" />
-                                                ) : (
-                                                    <PowerOff className="w-5 h-5" style={{ color: '#6b7494' }} />
-                                                )}
-                                            </div>
-                                        )}
-                                        <span className={template.is_active ? 'user-status-online' : 'user-status-offline'} style={{ fontSize: 'var(--text-xs)' }}>
-                                            {template.is_active ? t('templates.statusLabels.active') : t('templates.statusLabels.inactive')}
-                                        </span>
-                                    </div>
-
-                                    {isAdmin && (
-                                        <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
-                                            <Link href={`/admin/templates/${template.id}/edit`}>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="settings-btn-secondary hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] transition-all duration-200 rounded-xl"
-                                                    style={{ padding: 'var(--space-xs) var(--space-sm)' }}
-                                                >
-                                                    <Edit className="w-4 h-4" />
-                                                </Button>
-                                            </Link>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => deleteTemplate(template.id)}
-                                                className="hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 transition-all duration-200 rounded-xl"
-                                                style={{ padding: 'var(--space-xs) var(--space-sm)', color: '#dc2626' }}
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    )}
 
                     {/* Empty State */}
                     {templates.length === 0 && (

@@ -180,97 +180,122 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     </div>
 
                     {/* Lista de Usuarios */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-md)' }}>
-                        {filteredUsers.map((user) => (
-                            <div
-                                key={user.id}
-                                className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 md:p-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 hover:-translate-y-1"
-                                style={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: 'var(--space-md)',
-                                }}
-                            >
-                                {/* Header */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '8px' }}>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <h3 className="font-bold settings-title truncate" style={{ fontSize: 'var(--text-lg)' }}>
-                                            {user.name}
-                                        </h3>
-                                        <p className="settings-subtitle truncate" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                            {user.email}
-                                        </p>
-                                    </div>
-                                    <Badge
-                                        className={
-                                            user.role === 'admin'
-                                                ? 'chat-message-sent text-white shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] flex-shrink-0 ml-2'
-                                                : 'status-badge shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_3px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)] flex-shrink-0 ml-2'
-                                        }
-                                    >
-                                        {getRoleLabel(user.role)}
-                                    </Badge>
-                                </div>
-
-                                {/* Status & Stats */}
-                                <div className="rounded-xl bg-gray-50/50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-800 p-4 mt-2">
-                                    {/* Online Status */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
-                                        <div
-                                            className={`w-2.5 h-2.5 rounded-full ${user.is_online
-                                                ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
-                                                : 'bg-gray-400'
-                                                }`}
-                                        />
-                                        <span className={user.is_online ? 'user-status-online' : 'user-status-offline'} style={{ fontSize: 'var(--text-sm)', fontWeight: 500 }}>
-                                            {user.is_online ? t('users.online') : t('users.offline')}
-                                        </span>
-                                        {!user.is_online && user.last_activity_at && (
-                                            <span className="user-last-activity" style={{ fontSize: 'var(--text-xs)' }}>
-                                                • {formatLastActivity(user.last_activity_at)}
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Registered Date */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                                        <Calendar className="w-4 h-4 settings-subtitle" />
-                                        <span className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                                            {t('users.registeredOn')} {new Date(user.created_at).toLocaleDateString('es-ES', {
-                                                day: '2-digit',
-                                                month: 'short',
-                                                year: 'numeric'
-                                            })}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Actions */}
-                                <div className="border-t border-border dark:border-[hsl(231,20%,20%)]" style={{ display: 'flex', gap: 'var(--space-xs)', paddingTop: 'var(--space-sm)' }}>
-                                    <Link href={`/admin/users/${user.id}/edit`} style={{ flex: 1 }}>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="w-full settings-btn-secondary rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] transition-all duration-200"
-                                            style={{ padding: 'var(--space-xs) var(--space-sm)' }}
-                                        >
-                                            <Edit className="w-4 h-4 mr-2" />
-                                            {t('common.edit')}
-                                        </Button>
-                                    </Link>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => setUserToDelete(user)}
-                                        className="rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 hover:shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_8px_rgba(239,68,68,0.25)] transition-all duration-200 border-gray-200 dark:border-gray-800"
-                                        style={{ padding: 'var(--space-xs) var(--space-sm)', color: '#dc2626' }}
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
+                    {filteredUsers.length > 0 && (
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 overflow-hidden transition-all duration-300 mt-6">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-border dark:border-[hsl(231,20%,20%)] bg-black/5 dark:bg-white/5">
+                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                Usuario
+                                            </th>
+                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                {t('users.role')}
+                                            </th>
+                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                Estado
+                                            </th>
+                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                Registro
+                                            </th>
+                                            <th className="p-4 font-semibold settings-title text-right whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
+                                                Acciones
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredUsers.map((user) => (
+                                            <tr key={user.id} className="border-b border-border dark:border-[hsl(231,20%,20%)] last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors duration-200">
+                                                <td className="p-4 min-w-[200px]">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium bg-primary text-white flex-shrink-0 shadow-md">
+                                                            {user.name.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <h3 className="font-bold settings-title truncate" style={{ fontSize: 'var(--text-md)' }}>
+                                                                {user.name}
+                                                            </h3>
+                                                            <p className="settings-subtitle truncate" style={{ fontSize: 'var(--text-sm)' }}>
+                                                                {user.email}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <Badge
+                                                        className={
+                                                            user.role === 'admin'
+                                                                ? 'chat-message-sent text-white shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] whitespace-nowrap block w-fit'
+                                                                : 'status-badge shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_3px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)] whitespace-nowrap block w-fit'
+                                                        }
+                                                    >
+                                                        {getRoleLabel(user.role)}
+                                                    </Badge>
+                                                </td>
+                                                <td className="p-4 whitespace-nowrap">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div
+                                                                className={`w-2 h-2 rounded-full flex-shrink-0 ${user.is_online
+                                                                    ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
+                                                                    : 'bg-gray-400'
+                                                                    }`}
+                                                            />
+                                                            <span className={user.is_online ? 'user-status-online font-medium' : 'user-status-offline'} style={{ fontSize: 'var(--text-sm)' }}>
+                                                                {user.is_online ? t('users.online') : t('users.offline')}
+                                                            </span>
+                                                        </div>
+                                                        {!user.is_online && user.last_activity_at && (
+                                                            <span className="user-last-activity text-muted-foreground" style={{ fontSize: 'var(--text-xs)' }}>
+                                                                {formatLastActivity(user.last_activity_at)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Calendar className="w-4 h-4 settings-subtitle flex-shrink-0" />
+                                                        <span className="settings-subtitle" style={{ fontSize: 'var(--text-sm)' }}>
+                                                            {new Date(user.created_at).toLocaleDateString('es-ES', {
+                                                                day: '2-digit',
+                                                                month: 'short',
+                                                                year: 'numeric'
+                                                            })}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <Link href={`/admin/users/${user.id}/edit`}>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="settings-btn-secondary rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] transition-all duration-200"
+                                                                style={{ padding: 'var(--space-xs) 0.5rem' }}
+                                                                title={t('common.edit')}
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </Button>
+                                                        </Link>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => setUserToDelete(user)}
+                                                            className="rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 hover:shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_8px_rgba(239,68,68,0.25)] transition-all duration-200 border-gray-200 dark:border-gray-800"
+                                                            style={{ padding: 'var(--space-xs) 0.5rem', color: '#dc2626' }}
+                                                            title={t('common.delete')}
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        ))}
-                    </div>
+                        </div>
+                    )}
 
                     {/* Empty State */}
                     {filteredUsers.length === 0 && (
