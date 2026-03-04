@@ -8,6 +8,36 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// Comando rápido para resetear el flujo de bienvenida de una conversación (testing)
+Artisan::command('flow:reset {phone?}', function (?string $phone = null) {
+    if ($phone) {
+        // Normalizar: quitar + y espacios
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        $conversations = \App\Models\Conversation::where('phone_number', 'LIKE', '%' . substr($phone, -10) . '%')->get();
+    } else {
+        // Si no se pasa teléfono, resetear la última conversación activa con flujo
+        $conversations = \App\Models\Conversation::whereNotNull('welcome_flow_step')
+            ->orWhere('welcome_flow_completed', false)
+            ->orderByDesc('last_message_at')
+            ->take(1)
+            ->get();
+    }
+
+    if ($conversations->isEmpty()) {
+        $this->error('No se encontró ninguna conversación.');
+        return;
+    }
+
+    foreach ($conversations as $conv) {
+        $conv->update([
+            'welcome_flow_step' => null,
+            'welcome_flow_completed' => false,
+            'welcome_flow_data' => null,
+        ]);
+        $this->info("✅ Flujo reseteado para: {$conv->phone_number} (ID: {$conv->id})");
+    }
+})->purpose('Resetear flujo de bienvenida de una conversación para testing');
+
 // Programar envío automático de recordatorios de citas
 // Se ejecuta todos los días a las 9:00 AM
 Schedule::command('appointments:send-reminders')

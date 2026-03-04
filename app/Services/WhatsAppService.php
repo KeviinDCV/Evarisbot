@@ -810,6 +810,21 @@ class WhatsAppService
         try {
             $nextStepKey = null;
 
+            // Si recibimos texto y el paso espera botones/lista, intentar hacer match
+            // Esto permite responder con texto cuando el interactivo se envió como fallback de texto
+            if ($userText && !$buttonId && in_array($currentStep->message_type, ['interactive_buttons', 'interactive_list'])) {
+                $matchedId = $this->matchTextToStepOption($currentStep, $userText);
+                if ($matchedId) {
+                    $buttonId = $matchedId;
+                    Log::info('Welcome flow: text matched to option', [
+                        'conversation_id' => $conversation->id,
+                        'step' => $currentStepKey,
+                        'text' => $userText,
+                        'matched_id' => $matchedId,
+                    ]);
+                }
+            }
+
             // Determinar siguiente paso según tipo de interacción
             if ($buttonId && $currentStep->next_steps) {
                 $nextStepKey = $currentStep->next_steps[$buttonId] ?? null;
@@ -847,7 +862,7 @@ class WhatsAppService
                     'next_step' => $nextStepKey,
                 ]);
             } else {
-                // Si el paso actual espera botones/lista pero recibimos texto, enviar fallback
+                // Si el paso actual espera botones/lista pero recibimos texto sin match, enviar fallback
                 if (in_array($currentStep->message_type, ['interactive_buttons', 'interactive_list']) && $userText && !$buttonId) {
                     $fallback = $currentStep->fallback_message ?? 'Por favor, selecciona una de las opciones disponibles.';
                     $result = $this->sendTextMessage($phoneNumber, $fallback);
@@ -935,12 +950,62 @@ class WhatsAppService
                 }
 
                 $nextStep = $welcomeFlow->getStepByKey($nextStepKey);
-                if ($nextStep) {
-                    $sent = $this->sendFlowStep($nextStep, $phoneNumber, $conversation);
+                if (!$nextStep) {
+                    Log::error('Welcome flow: next step not found', [
+                        'conversation_id' => $conversation->id,
+                        'current_step' => $currentStepKey,
+                        'next_step_key' => $nextStepKey,
+                    ]);
+                    return false;
+                }
 
+                $sent = $this->sendFlowStep($nextStep, $phoneNumber, $conversation);
+
+                // Si falló el envío (ej: WhatsApp API rechazó lista interactiva),
+                // intentar enviar como texto plano para no perder el flujo
+                if (!$sent && in_array($nextStep->message_type, ['interactive_list', 'interactive_buttons'])) {
+                    Log::warning('Welcome flow: interactive message failed, retrying as text', [
+                        'conversation_id' => $conversation->id,
+                        'step_key' => $nextStep->step_key,
+                        'message_type' => $nextStep->message_type,
+                    ]);
+
+                    $fallbackText = $nextStep->message;
+                    // Agregar opciones como texto si es lista
+                    if ($nextStep->message_type === 'interactive_list' && !empty($nextStep->options['sections'])) {
+                        foreach ($nextStep->options['sections'] as $section) {
+                            foreach ($section['rows'] ?? [] as $row) {
+                                $fallbackText .= "\n• " . $row['title'];
+                            }
+                        }
+                        $fallbackText .= "\n\n_Escribe el nombre de la opción que deseas._";
+                    } elseif ($nextStep->message_type === 'interactive_buttons' && !empty($nextStep->buttons)) {
+                        foreach ($nextStep->buttons as $btn) {
+                            $fallbackText .= "\n• " . $btn['title'];
+                        }
+                        $fallbackText .= "\n\n_Escribe la opción que deseas._";
+                    }
+
+                    $textResult = $this->sendTextMessage($phoneNumber, $fallbackText);
+                    if ($textResult['success'] ?? false) {
+                        Message::create([
+                            'conversation_id' => $conversation->id,
+                            'content' => $fallbackText,
+                            'message_type' => 'text',
+                            'is_from_user' => false,
+                            'whatsapp_message_id' => $textResult['message_id'] ?? null,
+                            'status' => 'sent',
+                            'sent_by' => null,
+                        ]);
+                        $conversation->update(['welcome_flow_step' => $nextStep->step_key]);
+                        $sent = true;
+                    }
+                }
+
+                if ($sent) {
                     // Si el paso enviado es de tipo 'text' (mensaje terminal sin interacción),
                     // verificar si debe resetear el flujo para reiniciar desde 0
-                    if ($sent && $nextStep->message_type === 'text' && $nextStep->next_step_on_text === '__reset__') {
+                    if ($nextStep->message_type === 'text' && $nextStep->next_step_on_text === '__reset__') {
                         $conversation->update([
                             'welcome_flow_completed' => false,
                             'welcome_flow_step' => null,
@@ -952,9 +1017,9 @@ class WhatsAppService
                             'step_key' => $nextStep->step_key,
                         ]);
                     }
-
-                    return $sent;
                 }
+
+                return $sent;
             }
 
             // Si no hay siguiente paso, marcar como completado
@@ -982,6 +1047,43 @@ class WhatsAppService
     public function processWelcomeFlowResponse(string $buttonId, string $phoneNumber, Conversation $conversation): bool
     {
         return $this->processWelcomeFlowInteraction($phoneNumber, $conversation, $buttonId);
+    }
+
+    /**
+     * Intentar hacer match de texto libre del usuario con las opciones de un paso interactivo.
+     * Permite que el usuario responda con texto cuando el mensaje interactivo se envió como fallback de texto.
+     */
+    private function matchTextToStepOption(\App\Models\WelcomeFlowStep $step, string $userText): ?string
+    {
+        $normalizedText = mb_strtolower(trim($userText));
+        // Quitar emojis del texto del usuario para comparación limpia
+        $cleanText = trim(preg_replace('/[\x{1F000}-\x{1FFFF}\x{2600}-\x{27FF}\x{FE00}-\x{FE0F}]/u', '', $normalizedText));
+
+        // Buscar en botones
+        if ($step->message_type === 'interactive_buttons' && !empty($step->buttons)) {
+            foreach ($step->buttons as $button) {
+                $title = mb_strtolower(trim($button['title'] ?? ''));
+                $cleanTitle = trim(preg_replace('/[\x{1F000}-\x{1FFFF}\x{2600}-\x{27FF}\x{FE00}-\x{FE0F}]/u', '', $title));
+
+                if ($cleanTitle === $cleanText || $title === $normalizedText) {
+                    return $button['id'];
+                }
+            }
+        }
+
+        // Buscar en opciones de lista
+        if ($step->message_type === 'interactive_list' && !empty($step->options['sections'])) {
+            foreach ($step->options['sections'] as $section) {
+                foreach ($section['rows'] ?? [] as $row) {
+                    $title = mb_strtolower(trim($row['title'] ?? ''));
+                    if ($title === $normalizedText || $title === $cleanText) {
+                        return $row['id'];
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1285,6 +1387,8 @@ class WhatsAppService
                     'is_new' => $isNewConversation ?? false,
                 ]);
                 $this->sendWelcomeFlow($from, $conversation);
+                // No continuar procesando: el mensaje inicial del usuario no es una respuesta al flujo
+                return $message;
             }
 
             // 2. Si la conversación está en medio de un flujo de bienvenida, procesar la interacción
