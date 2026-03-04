@@ -139,6 +139,10 @@ class TemplateController extends Controller
 
         $users = User::select('id', 'name', 'role')->get();
 
+        $welcomeFlows = \App\Models\WelcomeFlow::with(['creator', 'updater', 'steps'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return Inertia::render('admin/templates/index', [
             'templates' => $templates,
             'filters' => [
@@ -147,6 +151,7 @@ class TemplateController extends Controller
                 'search' => $request->search ?? '',
             ],
             'users' => $users,
+            'welcomeFlows' => $welcomeFlows,
         ]);
     }
 

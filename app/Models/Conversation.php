@@ -22,6 +22,9 @@ class Conversation extends Model
         'notes',
         'is_pinned',
         'pinned_at',
+        'welcome_flow_step',
+        'welcome_flow_completed',
+        'welcome_flow_data',
     ];
 
     protected $casts = [
@@ -29,6 +32,8 @@ class Conversation extends Model
         'resolved_at' => 'datetime',
         'pinned_at' => 'datetime',
         'is_pinned' => 'boolean',
+        'welcome_flow_completed' => 'boolean',
+        'welcome_flow_data' => 'array',
     ];
 
     /**

@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import TemplateCreateModal from './components/TemplateCreateModal';
 import TemplateEditModal from './components/TemplateEditModal';
+import WelcomeFlowSection from './components/WelcomeFlowSection';
 
 interface MediaFile {
     url: string;
@@ -45,9 +46,10 @@ interface TemplatesIndexProps {
     templates: Template[];
     filters: Filters;
     users: any[];
+    welcomeFlows?: any[];
 }
 
-export default function TemplatesIndex({ templates, filters, users }: TemplatesIndexProps) {
+export default function TemplatesIndex({ templates, filters, users, welcomeFlows = [] }: TemplatesIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -148,6 +150,11 @@ export default function TemplatesIndex({ templates, filters, users }: TemplatesI
                                 </Button>
                             )}
                         </div>
+
+                        {/* Sección Menú de Bienvenida - Solo visible para admin */}
+                        {isAdmin && (
+                            <WelcomeFlowSection welcomeFlows={welcomeFlows} />
+                        )}
 
                         {/* Filtros */}
                         <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 md:p-5 flex flex-wrap gap-4 items-end transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">

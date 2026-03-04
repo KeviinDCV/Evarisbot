@@ -505,6 +505,454 @@ class WhatsAppService
     }
 
     /**
+     * Enviar mensaje interactivo con botones de respuesta rápida
+     * WhatsApp permite máximo 3 botones con un título de hasta 20 caracteres
+     */
+    public function sendInteractiveButtonMessage(string $to, string $bodyText, array $buttons): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            // Construir los botones en formato WhatsApp API
+            $whatsappButtons = array_map(function ($button) {
+                return [
+                    'type' => 'reply',
+                    'reply' => [
+                        'id' => $button['id'],
+                        'title' => mb_substr($button['title'], 0, 20), // WhatsApp límite 20 chars
+                    ],
+                ];
+            }, $buttons);
+
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'recipient_type' => 'individual',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'interactive',
+                'interactive' => [
+                    'type' => 'button',
+                    'body' => [
+                        'text' => $bodyText,
+                    ],
+                    'action' => [
+                        'buttons' => $whatsappButtons,
+                    ],
+                ],
+            ];
+
+            Log::info('Sending interactive button message', [
+                'to' => $to,
+                'buttons_count' => count($buttons),
+            ]);
+
+            $response = Http::withToken($this->token)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'message_id' => $response->json()['messages'][0]['id'] ?? null,
+                ];
+            }
+
+            Log::error('WhatsApp API error sending interactive buttons', [
+                'status' => $response->status(),
+                'response' => $response->json(),
+                'to' => $to,
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $response->json()['error']['message'] ?? 'Error desconocido',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp send interactive buttons exception', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Enviar mensaje interactivo con lista desplegable
+     * WhatsApp permite hasta 10 secciones con hasta 10 opciones cada una
+     */
+    public function sendInteractiveListMessage(string $to, string $bodyText, string $buttonText, array $sections): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            // Construir secciones en formato WhatsApp API
+            $whatsappSections = array_map(function ($section) {
+                return [
+                    'title' => mb_substr($section['title'] ?? '', 0, 24),
+                    'rows' => array_map(function ($row) {
+                        return [
+                            'id' => $row['id'],
+                            'title' => mb_substr($row['title'], 0, 24),
+                            'description' => mb_substr($row['description'] ?? '', 0, 72),
+                        ];
+                    }, $section['rows'] ?? []),
+                ];
+            }, $sections);
+
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'recipient_type' => 'individual',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'interactive',
+                'interactive' => [
+                    'type' => 'list',
+                    'body' => [
+                        'text' => $bodyText,
+                    ],
+                    'action' => [
+                        'button' => mb_substr($buttonText, 0, 20),
+                        'sections' => $whatsappSections,
+                    ],
+                ],
+            ];
+
+            Log::info('Sending interactive list message', [
+                'to' => $to,
+                'sections_count' => count($sections),
+            ]);
+
+            $response = Http::withToken($this->token)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'message_id' => $response->json()['messages'][0]['id'] ?? null,
+                ];
+            }
+
+            Log::error('WhatsApp API error sending interactive list', [
+                'status' => $response->status(),
+                'response' => $response->json(),
+                'to' => $to,
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $response->json()['error']['message'] ?? 'Error desconocido',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp send interactive list exception', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Enviar el flujo de bienvenida (primer paso) a un contacto nuevo
+     */
+    public function sendWelcomeFlow(string $phoneNumber, Conversation $conversation): bool
+    {
+        $welcomeFlow = \App\Models\WelcomeFlow::getActive();
+        
+        if (!$welcomeFlow) {
+            return false;
+        }
+
+        // Buscar el paso de entrada (entry point)
+        $entryStep = $welcomeFlow->getEntryStep();
+        
+        if (!$entryStep) {
+            // Fallback: usar el mensaje del flujo principal (compatibilidad)
+            $buttons = $welcomeFlow->buttons ?? [];
+            $message = $welcomeFlow->message;
+
+            if (empty($buttons)) {
+                $result = $this->sendTextMessage($phoneNumber, $message);
+            } else {
+                $result = $this->sendInteractiveButtonMessage($phoneNumber, $message, $buttons);
+            }
+
+            if ($result['success'] ?? false) {
+                Message::create([
+                    'conversation_id' => $conversation->id,
+                    'content' => $message,
+                    'message_type' => 'text',
+                    'is_from_user' => false,
+                    'whatsapp_message_id' => $result['message_id'] ?? null,
+                    'status' => 'sent',
+                    'sent_by' => null,
+                ]);
+                return true;
+            }
+            return false;
+        }
+
+        // Enviar el paso de entrada
+        return $this->sendFlowStep($entryStep, $phoneNumber, $conversation);
+    }
+
+    /**
+     * Enviar un paso específico del flujo
+     */
+    private function sendFlowStep(\App\Models\WelcomeFlowStep $step, string $phoneNumber, Conversation $conversation): bool
+    {
+        try {
+            $message = $step->message;
+            $result = null;
+
+            switch ($step->message_type) {
+                case 'interactive_buttons':
+                    $buttons = $step->buttons ?? [];
+                    if (!empty($buttons)) {
+                        $result = $this->sendInteractiveButtonMessage($phoneNumber, $message, $buttons);
+                    } else {
+                        $result = $this->sendTextMessage($phoneNumber, $message);
+                    }
+                    break;
+
+                case 'interactive_list':
+                    $options = $step->options ?? [];
+                    if (!empty($options)) {
+                        $buttonText = $options['button_text'] ?? 'Seleccionar';
+                        $sections = $options['sections'] ?? [];
+                        $result = $this->sendInteractiveListMessage($phoneNumber, $message, $buttonText, $sections);
+                    } else {
+                        $result = $this->sendTextMessage($phoneNumber, $message);
+                    }
+                    break;
+
+                case 'text':
+                case 'wait_response':
+                    $result = $this->sendTextMessage($phoneNumber, $message);
+                    break;
+            }
+
+            if ($result && ($result['success'] ?? false)) {
+                // Guardar mensaje en la conversación
+                Message::create([
+                    'conversation_id' => $conversation->id,
+                    'content' => $message,
+                    'message_type' => 'text',
+                    'is_from_user' => false,
+                    'whatsapp_message_id' => $result['message_id'] ?? null,
+                    'status' => 'sent',
+                    'sent_by' => null,
+                ]);
+
+                // Actualizar el estado de la conversación
+                $conversation->update([
+                    'welcome_flow_step' => $step->step_key,
+                ]);
+
+                Log::info('Welcome flow step sent', [
+                    'conversation_id' => $conversation->id,
+                    'step_key' => $step->step_key,
+                    'phone' => $phoneNumber,
+                ]);
+
+                return true;
+            } else {
+                Log::error('Failed to send flow step', [
+                    'step_key' => $step->step_key,
+                    'phone' => $phoneNumber,
+                    'error' => $result['error'] ?? 'Unknown',
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Send flow step exception', [
+                'error' => $e->getMessage(),
+                'step_key' => $step->step_key,
+            ]);
+        }
+
+        return false;
+    }
+
+    /**
+     * Procesar interacción del usuario con el flujo de bienvenida (botón o texto)
+     * Devuelve true si se procesó como parte del flujo
+     */
+    public function processWelcomeFlowInteraction(
+        string $phoneNumber, 
+        Conversation $conversation, 
+        ?string $buttonId = null,
+        ?string $userText = null
+    ): bool {
+        // Si ya completó el flujo, no procesar
+        if ($conversation->welcome_flow_completed) {
+            return false;
+        }
+
+        // Si no está en ningún paso del flujo, no procesar
+        $currentStepKey = $conversation->welcome_flow_step;
+        if (!$currentStepKey) {
+            return false;
+        }
+
+        $welcomeFlow = \App\Models\WelcomeFlow::getActive();
+        if (!$welcomeFlow) {
+            return false;
+        }
+
+        $currentStep = $welcomeFlow->getStepByKey($currentStepKey);
+        if (!$currentStep) {
+            return false;
+        }
+
+        try {
+            $nextStepKey = null;
+
+            // Determinar siguiente paso según tipo de interacción
+            if ($buttonId && $currentStep->next_steps) {
+                $nextStepKey = $currentStep->next_steps[$buttonId] ?? null;
+
+                // Guardar la selección del usuario
+                $flowData = $conversation->welcome_flow_data ?? [];
+                $flowData[$currentStepKey] = [
+                    'button_id' => $buttonId,
+                    'timestamp' => now()->toISOString(),
+                ];
+                $conversation->update(['welcome_flow_data' => $flowData]);
+
+                Log::info('Welcome flow button pressed', [
+                    'conversation_id' => $conversation->id,
+                    'step' => $currentStepKey,
+                    'button_id' => $buttonId,
+                    'next_step' => $nextStepKey,
+                ]);
+
+            } elseif ($userText && $currentStep->message_type === 'wait_response') {
+                $nextStepKey = $currentStep->next_step_on_text;
+
+                // Guardar la respuesta de texto del usuario
+                $flowData = $conversation->welcome_flow_data ?? [];
+                $flowData[$currentStepKey] = [
+                    'text' => $userText,
+                    'timestamp' => now()->toISOString(),
+                ];
+                $conversation->update(['welcome_flow_data' => $flowData]);
+
+                Log::info('Welcome flow text response', [
+                    'conversation_id' => $conversation->id,
+                    'step' => $currentStepKey,
+                    'text' => mb_substr($userText, 0, 50),
+                    'next_step' => $nextStepKey,
+                ]);
+            } else {
+                // Si el paso actual espera botones/lista pero recibimos texto, enviar fallback
+                if (in_array($currentStep->message_type, ['interactive_buttons', 'interactive_list']) && $userText && !$buttonId) {
+                    $fallback = $currentStep->fallback_message ?? 'Por favor, selecciona una de las opciones disponibles.';
+                    $result = $this->sendTextMessage($phoneNumber, $fallback);
+                    if ($result['success'] ?? false) {
+                        Message::create([
+                            'conversation_id' => $conversation->id,
+                            'content' => $fallback,
+                            'message_type' => 'text',
+                            'is_from_user' => false,
+                            'whatsapp_message_id' => $result['message_id'] ?? null,
+                            'status' => 'sent',
+                            'sent_by' => null,
+                        ]);
+                    }
+                    return true; // Procesado como parte del flujo
+                }
+                return false;
+            }
+
+            // Si hay un siguiente paso, enviarlo
+            if ($nextStepKey) {
+                if ($nextStepKey === '__complete__') {
+                    // Flujo completado
+                    $conversation->update([
+                        'welcome_flow_completed' => true,
+                        'welcome_flow_step' => null,
+                    ]);
+
+                    Log::info('Welcome flow completed', [
+                        'conversation_id' => $conversation->id,
+                        'flow_data' => $conversation->welcome_flow_data,
+                    ]);
+
+                    return true;
+                }
+
+                if ($nextStepKey === '__complete_assign_advisor__') {
+                    // Flujo completado + asignar a asesor de turno aleatorio
+                    $conversation->update([
+                        'welcome_flow_completed' => true,
+                        'welcome_flow_step' => null,
+                    ]);
+
+                    // Buscar asesores de turno activos
+                    $onDutyAdvisors = \App\Models\User::where('role', 'advisor')
+                        ->where('is_on_duty', true)
+                        ->pluck('id')
+                        ->toArray();
+
+                    if (!empty($onDutyAdvisors)) {
+                        // Asignar aleatoriamente a un asesor de turno
+                        $assignedAdvisorId = $onDutyAdvisors[array_rand($onDutyAdvisors)];
+                        $conversation->update(['assigned_to' => $assignedAdvisorId]);
+
+                        $advisor = \App\Models\User::find($assignedAdvisorId);
+                        Log::info('Welcome flow: assigned to on-duty advisor', [
+                            'conversation_id' => $conversation->id,
+                            'advisor_id' => $assignedAdvisorId,
+                            'advisor_name' => $advisor?->name,
+                        ]);
+                    } else {
+                        // Sin asesores de turno, dejar sin asignar
+                        // El admin lo asignará manualmente
+                        Log::info('Welcome flow: no on-duty advisors, leaving unassigned', [
+                            'conversation_id' => $conversation->id,
+                        ]);
+                    }
+
+                    return true;
+                }
+
+                $nextStep = $welcomeFlow->getStepByKey($nextStepKey);
+                if ($nextStep) {
+                    return $this->sendFlowStep($nextStep, $phoneNumber, $conversation);
+                }
+            }
+
+            // Si no hay siguiente paso, marcar como completado
+            $conversation->update([
+                'welcome_flow_completed' => true,
+                'welcome_flow_step' => null,
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error('Process welcome flow interaction exception', [
+                'error' => $e->getMessage(),
+                'conversation_id' => $conversation->id,
+                'step' => $currentStepKey,
+            ]);
+        }
+
+        return false;
+    }
+
+    /**
+     * Procesar respuesta de botón del flujo de bienvenida (compatibilidad)
+     */
+    public function processWelcomeFlowResponse(string $buttonId, string $phoneNumber, Conversation $conversation): bool
+    {
+        return $this->processWelcomeFlowInteraction($phoneNumber, $conversation, $buttonId);
+    }
+
+    /**
      * Verificar si WhatsApp está configurado
      */
     public function isConfigured(): bool
@@ -617,11 +1065,15 @@ class WhatsAppService
                     ['phone_number' => $normalizedPhone],
                     $conversationData
                 );
+
+                // Detectar si es una conversación completamente nueva (primer contacto)
+                $isNewConversation = $conversation->wasRecentlyCreated;
                 
                 Log::info('Created or found conversation by phone', [
                     'conversation_id' => $conversation->id,
                     'phone' => $from,
-                    'normalized_phone' => $normalizedPhone
+                    'normalized_phone' => $normalizedPhone,
+                    'is_new' => $isNewConversation,
                 ]);
             }
 
@@ -632,16 +1084,20 @@ class WhatsAppService
 
             // Si la conversación estaba resuelta, reactivarla cuando llega un mensaje nuevo
             // Quitar asignación para que entre al pool compartido de asesores de turno
+            // Y resetear el flujo de bienvenida para recopilar datos nuevamente
             if ($conversation->status === 'resolved') {
                 $conversation->update([
                     'status' => 'active',
                     'assigned_to' => null,
                     'last_message_at' => now(),
+                    'welcome_flow_completed' => false,
+                    'welcome_flow_step' => null,
+                    'welcome_flow_data' => null,
                     'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
                               'Conversación reactivada automáticamente por mensaje entrante el ' . now()->format('Y-m-d H:i:s')
                 ]);
                 
-                Log::info('Conversation reactivated from resolved', [
+                Log::info('Conversation reactivated from resolved (flow reset)', [
                     'conversation_id' => $conversation->id,
                     'phone_number' => $conversation->phone_number,
                 ]);
@@ -655,10 +1111,23 @@ class WhatsAppService
             if (isset($messageData['text'])) {
                 $content = $messageData['text']['body'];
                 $messageType = 'text';
+            } elseif (isset($messageData['interactive'])) {
+                // Mensaje de respuesta interactiva (botones de reply)
+                $interactiveType = $messageData['interactive']['type'] ?? '';
+                if ($interactiveType === 'button_reply') {
+                    $content = $messageData['interactive']['button_reply']['title'] ?? 'Botón presionado';
+                    $buttonReplyId = $messageData['interactive']['button_reply']['id'] ?? null;
+                } elseif ($interactiveType === 'list_reply') {
+                    $content = $messageData['interactive']['list_reply']['title'] ?? 'Opción seleccionada';
+                    $buttonReplyId = $messageData['interactive']['list_reply']['id'] ?? null;
+                } else {
+                    $content = 'Respuesta interactiva';
+                }
+                $messageType = 'text';
             } elseif (isset($messageData['button'])) {
-                // Mensaje de respuesta de botón
+                // Mensaje de respuesta de botón (legacy / template buttons)
                 $content = $messageData['button']['text'] ?? $messageData['button']['payload'] ?? 'Botón presionado';
-                $messageType = 'text'; // Los botones se tratan como texto
+                $messageType = 'text';
             } elseif (isset($messageData['image'])) {
                 $content = $messageData['image']['caption'] ?? 'Imagen';
                 $messageType = 'image';
@@ -761,6 +1230,40 @@ class WhatsAppService
             // DESPUÉS de guardar el mensaje del usuario, procesar respuesta automática de appointment
             if ($appointment) {
                 $this->sendAppointmentAutoResponse($from, $messageData, $appointment, $conversation);
+            }
+
+            // --- Flujo de bienvenida ---
+            // Refrescar la conversación para tener datos actualizados
+            $conversation->refresh();
+
+            // 1. Iniciar el flujo si:
+            //    - Es una conversación nueva O
+            //    - La conversación nunca ha completado ni empezado el flujo
+            $shouldStartFlow = false;
+            if (isset($isNewConversation) && $isNewConversation) {
+                $shouldStartFlow = true;
+            } elseif (!$conversation->welcome_flow_completed && !$conversation->welcome_flow_step) {
+                $shouldStartFlow = true;
+            }
+
+            if ($shouldStartFlow) {
+                Log::info('Starting welcome flow', [
+                    'conversation_id' => $conversation->id,
+                    'phone' => $from,
+                    'is_new' => $isNewConversation ?? false,
+                ]);
+                $this->sendWelcomeFlow($from, $conversation);
+            }
+
+            // 2. Si la conversación está en medio de un flujo de bienvenida, procesar la interacción
+            if (!$conversation->welcome_flow_completed && $conversation->welcome_flow_step) {
+                if (isset($buttonReplyId) && $buttonReplyId) {
+                    // Respuesta por botón interactivo o lista
+                    $this->processWelcomeFlowInteraction($from, $conversation, $buttonReplyId);
+                } elseif ($messageType === 'text' && $content) {
+                    // Respuesta de texto libre (ej: número de documento)
+                    $this->processWelcomeFlowInteraction($from, $conversation, null, $content);
+                }
             }
 
             return $message;

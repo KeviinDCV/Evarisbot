@@ -70,6 +70,49 @@ class InternalChatController extends Controller
     }
 
     /**
+     * API: obtener lista de chats como JSON puro (para polling sin Inertia)
+     */
+    public function chatList()
+    {
+        $userId = auth()->id();
+
+        $chats = InternalChat::whereHas('participants', function ($q) use ($userId) {
+            $q->where('users.id', $userId);
+        })
+            ->with(['latestMessage.user', 'participants'])
+            ->get()
+            ->map(function ($chat) use ($userId) {
+                return [
+                    'id' => $chat->id,
+                    'name' => $chat->displayNameFor($userId),
+                    'type' => $chat->type,
+                    'unread' => $chat->unreadCountFor($userId),
+                    'participants' => $chat->participants->map(fn($u) => [
+                        'id' => $u->id,
+                        'name' => $u->name,
+                        'role' => $u->role,
+                        'is_online' => $u->isOnline(),
+                    ]),
+                    'latest_message' => $chat->latestMessage ? [
+                        'body' => $chat->latestMessage->body,
+                        'type' => $chat->latestMessage->type,
+                        'user_name' => $chat->latestMessage->user->name,
+                        'created_at' => $chat->latestMessage->created_at->diffForHumans(),
+                    ] : null,
+                    'latest_message_raw' => $chat->latestMessage?->created_at?->toISOString(),
+                ];
+            })
+            ->sortBy([
+                fn($a, $b) => ($b['unread'] > 0 ? 1 : 0) <=> ($a['unread'] > 0 ? 1 : 0),
+                fn($a, $b) => ($b['latest_message_raw'] ?? '') <=> ($a['latest_message_raw'] ?? ''),
+            ])
+            ->map(function ($c) { unset($c['latest_message_raw']); return $c; })
+            ->values();
+
+        return response()->json(['chats' => $chats]);
+    }
+
+    /**
      * Obtener mensajes de un chat
      */
     public function messages(InternalChat $chat)
@@ -104,7 +147,7 @@ class InternalChatController extends Controller
                 ],
                 'is_mine' => $m->user_id === $userId,
                 'created_at' => $m->created_at->format('H:i'),
-                'created_at_full' => $m->created_at->format('Y-m-d H:i'),
+                'created_at_full' => $m->created_at->toISOString(),
             ]);
 
         $chatData = [
@@ -272,7 +315,7 @@ class InternalChatController extends Controller
                 ],
                 'is_mine' => true,
                 'created_at' => $message->created_at->format('H:i'),
-                'created_at_full' => $message->created_at->format('Y-m-d H:i'),
+                'created_at_full' => $message->created_at->toISOString(),
             ],
         ]);
     }
@@ -340,7 +383,7 @@ class InternalChatController extends Controller
                 ],
                 'is_mine' => $m->user_id === $userId,
                 'created_at' => $m->created_at->format('H:i'),
-                'created_at_full' => $m->created_at->format('Y-m-d H:i'),
+                'created_at_full' => $m->created_at->toISOString(),
             ]);
 
         // Actualizar last_read_at
@@ -406,5 +449,32 @@ class InternalChatController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Obtener quién ha leído el chat (read receipts)
+     * Devuelve por cada participante (excepto el propio usuario) su last_read_at,
+     * para que el frontend pueda mostrar "Visto por X" en el último mensaje leído.
+     */
+    public function readReceipts(InternalChat $chat)
+    {
+        $userId = auth()->id();
+
+        if (!$chat->hasParticipant($userId)) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+
+        $receipts = InternalChatParticipant::where('internal_chat_id', $chat->id)
+            ->where('user_id', '!=', $userId)
+            ->whereNotNull('last_read_at')
+            ->with('user')
+            ->get()
+            ->map(fn($p) => [
+                'user_id'      => $p->user_id,
+                'user_name'    => $p->user->name,
+                'last_read_at' => $p->last_read_at->toISOString(),
+            ]);
+
+        return response()->json(['receipts' => $receipts]);
     }
 }

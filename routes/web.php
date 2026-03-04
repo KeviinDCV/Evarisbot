@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\StatisticsController;
 use App\Http\Controllers\Admin\TemplateController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\WelcomeFlowController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -55,6 +56,12 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::get('templates/{template}/send-form', [TemplateController::class, 'sendForm'])->name('templates.send-form');
     Route::post('templates/{template}/send', [TemplateController::class, 'sendMassive'])->name('templates.send');
     
+    // Flujos de bienvenida (menú automático)
+    Route::post('welcome-flows', [WelcomeFlowController::class, 'store'])->name('welcome-flows.store');
+    Route::put('welcome-flows/{welcomeFlow}', [WelcomeFlowController::class, 'update'])->name('welcome-flows.update');
+    Route::delete('welcome-flows/{welcomeFlow}', [WelcomeFlowController::class, 'destroy'])->name('welcome-flows.destroy');
+    Route::post('welcome-flows/{welcomeFlow}/toggle', [WelcomeFlowController::class, 'toggle'])->name('welcome-flows.toggle');
+    
     // Gestión de Citas
     Route::controller(\App\Http\Controllers\AppointmentController::class)->prefix('appointments')->name('appointments.')->group(function () {
         Route::get('/', 'index')->name('index');
@@ -101,15 +108,13 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
 Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
     // Chat Interno - Accesible para todos los usuarios
     Route::controller(\App\Http\Controllers\Admin\InternalChatController::class)->prefix('internal-chat')->name('internal-chat.')->group(function () {
-        Route::get('/', 'index')->name('index');
-        Route::get('/unread-count', 'unreadCount')->name('unread-count');
+        Route::get('/', 'index')->name('index');          Route::get('/list', 'chatList')->name('list');        Route::get('/unread-count', 'unreadCount')->name('unread-count');
         Route::post('/create', 'create')->name('create');
         Route::get('/{chat}/messages', 'messages')->name('messages');
         Route::post('/{chat}/send', 'send')->name('send');
         Route::post('/{chat}/read', 'markRead')->name('read');
         Route::get('/{chat}/poll', 'poll')->name('poll');
-        Route::put('/{chat}/rename', 'rename')->name('rename');
-        Route::delete('/{chat}', 'destroy')->name('destroy');
+        Route::put('/{chat}/rename', 'rename')->name('rename');          Route::get('/{chat}/read-receipts', 'readReceipts')->name('read-receipts');        Route::delete('/{chat}', 'destroy')->name('destroy');
     });
 
     // Conversaciones (WhatsApp) - Accesible para Admin y Asesores

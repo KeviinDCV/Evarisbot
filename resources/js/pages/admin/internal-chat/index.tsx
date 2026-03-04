@@ -72,6 +72,12 @@ interface MessageItem {
     created_at_full: string;
 }
 
+interface ReadReceipt {
+    user_id: number;
+    user_name: string;
+    last_read_at: string; // ISO string
+}
+
 interface Props {
     auth: { user: { id: number; name: string; role?: string } };
     chats: ChatItem[];
@@ -89,6 +95,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const [isUploading, setIsUploading] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
 
+    // Read receipts: who has read the chat
+    const [readReceipts, setReadReceipts] = useState<ReadReceipt[]>([]);
+    const readReceiptsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
     // Group creation modal
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [groupName, setGroupName] = useState('');
@@ -99,6 +109,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     // Rename modal
     const [showRenameModal, setShowRenameModal] = useState(false);
     const [renameValue, setRenameValue] = useState('');
+
+    // Participants modal
+    const [showParticipantsModal, setShowParticipantsModal] = useState(false);
 
     // Media viewer (fullscreen)
     const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'image' | 'video'; caption?: string } | null>(null);
@@ -177,12 +190,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     useEffect(() => {
         const pollChats = async () => {
             try {
-                const res = await axios.get('/admin/internal-chat', {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-                });
+                const res = await axios.get('/admin/internal-chat/list');
 
-                if (res.data?.props?.chats) {
-                    const newChats: ChatItem[] = res.data.props.chats;
+                if (res.data?.chats) {
+                    const newChats: ChatItem[] = res.data.chats;
                     // Build a fingerprint to avoid unnecessary re-renders
                     const fingerprint = JSON.stringify(newChats.map(c => ({
                         id: c.id, u: c.unread, lm: c.latest_message?.body, lmt: c.latest_message?.created_at
@@ -279,19 +290,55 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         }
     }, [activeChat?.id]);
 
-    // Close media viewer with Escape key
+    // Poll read receipts every 4 seconds while a chat is active
     useEffect(() => {
-        if (!mediaViewer) return;
+        if (!activeChat) {
+            setReadReceipts([]);
+            return;
+        }
+
+        const fetchReceipts = async () => {
+            try {
+                const res = await axios.get(`/admin/internal-chat/${activeChat.id}/read-receipts`);
+                if (res.data?.receipts) {
+                    setReadReceipts(res.data.receipts);
+                }
+            } catch {
+                // silently ignore
+            }
+        };
+
+        fetchReceipts();
+        const id = setInterval(fetchReceipts, 4000);
+        readReceiptsIntervalRef.current = id;
+        return () => clearInterval(id);
+    }, [activeChat?.id]);
+
+    // Close media viewer or active chat with Escape key
+    useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                setMediaViewer(null);
-                setZoomLevel(1);
-                setImagePosition({ x: 0, y: 0 });
+                if (mediaViewer) {
+                    setMediaViewer(null);
+                    setZoomLevel(1);
+                    setImagePosition({ x: 0, y: 0 });
+                } else if (showParticipantsModal) {
+                    setShowParticipantsModal(false);
+                } else if (showRenameModal) {
+                    setShowRenameModal(false);
+                } else if (showCreateGroup) {
+                    setShowCreateGroup(false);
+                } else if (activeChat) {
+                    setActiveChat(null);
+                    setMessages([]);
+                    setReadReceipts([]);
+                    lastMessageIdRef.current = 0;
+                }
             }
         };
         window.addEventListener('keydown', handleEsc);
         return () => window.removeEventListener('keydown', handleEsc);
-    }, [mediaViewer]);
+    }, [mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, activeChat]);
 
     // Handle scroll wheel zoom in media viewer
     useEffect(() => {
@@ -349,6 +396,27 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 const realMsg = sendRes.data.message;
                 lastMessageIdRef.current = realMsg.id;
                 setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
+
+                // Optimistically update sidebar to reflect the sent message
+                setChats(prev => {
+                    const updated = prev.map(c => {
+                        if (c.id !== activeChat.id) return c;
+                        return {
+                            ...c,
+                            latest_message: {
+                                body: realMsg.body || (realMsg.type === 'image' ? 'Foto' : realMsg.type === 'video' ? 'Video' : realMsg.type === 'audio' ? 'Audio' : 'Archivo'),
+                                type: realMsg.type,
+                                user_name: auth.user.name,
+                                created_at: 'ahora',
+                            },
+                            unread: 0,
+                        };
+                    });
+                    // Move active chat to the top
+                    const active = updated.find(c => c.id === activeChat.id);
+                    const rest = updated.filter(c => c.id !== activeChat.id);
+                    return active ? [active, ...rest] : updated;
+                });
             }
         } catch (error) {
             console.error(error);
@@ -361,6 +429,20 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !activeChat) return;
+        await sendFileDirectly(file);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
+    // Send a file directly (used by paste and file input)
+    const sendFileDirectly = async (file: File) => {
+        if (!activeChat) return;
 
         const formData = new FormData();
         formData.append('file', file);
@@ -372,7 +454,6 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         else type = 'document';
         formData.append('type', type);
 
-        // Optimistic: show uploading placeholder
         const tempId = Date.now();
         const optimisticMsg: MessageItem = {
             id: tempId,
@@ -396,25 +477,45 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            // Replace optimistic with real message
             if (sendRes.data?.message) {
                 const realMsg = sendRes.data.message;
                 lastMessageIdRef.current = realMsg.id;
                 setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
+
+                const typeLabel = realMsg.type === 'image' ? '📷 Foto' : realMsg.type === 'video' ? '🎥 Video' : realMsg.type === 'audio' ? '🎵 Audio' : '📎 Archivo';
+                setChats(prev => {
+                    const updated = prev.map(c => {
+                        if (c.id !== activeChat.id) return c;
+                        return { ...c, latest_message: { body: realMsg.body || typeLabel, type: realMsg.type, user_name: auth.user.name, created_at: 'ahora' }, unread: 0 };
+                    });
+                    const active = updated.find(c => c.id === activeChat.id);
+                    const rest = updated.filter(c => c.id !== activeChat.id);
+                    return active ? [active, ...rest] : updated;
+                });
             }
         } catch (error) {
-            console.error("Upload error", error);
+            console.error('Upload error', error);
             setMessages(prev => prev.filter(m => m.id !== tempId));
         } finally {
             setIsUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
         }
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
+    // Handle paste images from clipboard (Ctrl+V)
+    const handlePaste = (e: React.ClipboardEvent) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    e.preventDefault();
+                    sendFileDirectly(file);
+                    break;
+                }
+            }
         }
     };
 
@@ -432,13 +533,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
             if (res.data?.success) {
                 // Refresh chat list
-                const listRes = await axios.get('/admin/internal-chat', {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
-                });
-                if (listRes.data?.props?.chats) {
-                    setChats(listRes.data.props.chats);
+                const listRes = await axios.get('/admin/internal-chat/list');
+                if (listRes.data?.chats) {
+                    setChats(listRes.data.chats);
                     // Select the new/existing chat
-                    const newChat = listRes.data.props.chats.find((c: ChatItem) => c.id === res.data.chat_id);
+                    const newChat = listRes.data.chats.find((c: ChatItem) => c.id === res.data.chat_id);
                     if (newChat) setActiveChat(newChat);
                 }
                 setShowCreateGroup(false);
@@ -620,9 +719,18 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             <span>{getInitials(activeChat.name)}</span>
                                         )}
                                     </div>
-                                    <div className="min-w-0 flex-1">
-                                        <h3 className="font-semibold text-sm md:text-base text-foreground truncate">
-                                            {activeChat.name}
+                                    <div className="min-w-0 flex-1 overflow-hidden">
+                                        <h3 className="font-semibold text-sm md:text-base text-foreground overflow-hidden">
+                                            {activeChat.name.length > 28 ? (
+                                                <span
+                                                    className="chat-name-marquee"
+                                                    style={{ '--marquee-offset': `-${Math.min(activeChat.name.length * 7, 300)}px` } as React.CSSProperties}
+                                                >
+                                                    {activeChat.name}
+                                                </span>
+                                            ) : (
+                                                <span className="truncate block">{activeChat.name}</span>
+                                            )}
                                         </h3>
                                         <p className="text-xs text-muted-foreground truncate">
                                             {activeChat.type === 'group'
@@ -660,9 +768,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         {activeChat.type === 'group' && (
                                             <DropdownMenuItem
                                                 className="cursor-pointer"
-                                                onClick={() => {
-                                                    // Show participants
-                                                }}
+                                                onClick={() => setShowParticipantsModal(true)}
                                             >
                                                 <Users className="w-4 h-4 mr-2" />
                                                 Ver participantes ({activeChat.participants.length})
@@ -715,10 +821,31 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 </div>
                             ) : (
                                 <div className="space-y-3 md:space-y-4">
-                                    {messages.map((msg) => (
+                                    {messages.map((msg, idx) => {
+                                        // Build a map: for each reader, find the index of the last message they've read
+                                        // A reader has read msg if their last_read_at >= msg.created_at_full
+                                        const readersHere: ReadReceipt[] = [];
+                                        for (const r of readReceipts) {
+                                            const readAt = new Date(r.last_read_at).getTime();
+                                            const msgAt = new Date(msg.created_at_full).getTime();
+                                            // Reader must have read at least this message
+                                            if (readAt < msgAt) continue;
+                                            // Check if the next message is ALSO read by this reader
+                                            const nextMsg = messages[idx + 1];
+                                            if (nextMsg) {
+                                                const nextMsgAt = new Date(nextMsg.created_at_full).getTime();
+                                                if (readAt >= nextMsgAt) continue; // reader read further, skip this msg
+                                            }
+                                            readersHere.push(r);
+                                        }
+
+                                        return (
                                         <div
                                             key={msg.id}
-                                            className={`flex ${msg.is_mine ? 'justify-end' : 'justify-start'}`}
+                                            className={`flex flex-col ${msg.is_mine ? 'items-end' : 'items-start'}`}
+                                        >
+                                        <div
+                                            className={`flex w-full ${msg.is_mine ? 'justify-end' : 'justify-start'}`}
                                         >
                                             <div
                                                 className={`max-w-[85%] md:max-w-[70%] px-3 md:px-4 py-2 ${msg.is_mine
@@ -726,10 +853,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     : 'rounded-[18px_18px_18px_4px] card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
                                                 }`}
                                             >
-                                                {/* Sender name */}
-                                                {!msg.is_mine && msg.user && (
-                                                    <p className="text-xs text-primary dark:text-primary opacity-70 mb-1 font-normal">
-                                                        {msg.user.name}
+                                                {/* Sender name (in groups show for all; in direct only for others) */}
+                                                {msg.user && (activeChat?.type === 'group' || !msg.is_mine) && (
+                                                    <p className={`text-xs mb-1 font-normal ${msg.is_mine ? 'text-white/70' : 'text-primary dark:text-primary opacity-70'}`}>
+                                                        {msg.is_mine ? 'Tú' : msg.user.name}
                                                     </p>
                                                 )}
 
@@ -829,7 +956,18 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                        {/* Read receipts */}
+                                        {readersHere.length > 0 && (
+                                            <div className={`flex items-center gap-1 mt-0.5 px-1 ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
+                                                <Check className="w-3 h-3 text-primary opacity-60 flex-shrink-0" />
+                                                <span className="text-[10px] text-muted-foreground leading-none">
+                                                    Visto por {readersHere.map(r => r.user_name).join(', ')}
+                                                </span>
+                                            </div>
+                                        )}
+                                        </div>
+                                        );
+                                    })}
                                     <div ref={messagesEndRef} />
                                 </div>
                             )}
@@ -865,6 +1003,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         placeholder="Escribe un mensaje..."
                                         className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 card-gradient focus:ring-2 focus:ring-primary shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-3xl transition-shadow duration-200"
                                         onKeyDown={handleKeyDown}
+                                        onPaste={handlePaste}
                                     />
                                 </div>
 
@@ -888,7 +1027,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
             {/* Modal: Crear nuevo chat o grupo */}
             <Dialog open={showCreateGroup} onOpenChange={setShowCreateGroup}>
-                <DialogContent className="sm:max-w-md card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
+                <DialogContent className="sm:max-w-md card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)] max-h-[95vh] overflow-y-auto custom-scrollbar-light">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Users className="w-6 h-6" />
@@ -935,7 +1074,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                         {/* Selected users chips */}
                         {selectedUserIds.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto custom-scrollbar-light p-1">
                                 {selectedUserIds.map(uid => {
                                     const user = availableUsers.find(u => u.id === uid);
                                     if (!user) return null;
@@ -1034,6 +1173,41 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 {selectedUserIds.length > 1 ? 'Crear grupo' : 'Iniciar chat'}
                             </Button>
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal: Ver participantes */}
+            <Dialog open={showParticipantsModal} onOpenChange={setShowParticipantsModal}>
+                <DialogContent className="sm:max-w-sm card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
+                            <Users className="w-5 h-5" />
+                            Participantes ({activeChat?.participants.length ?? 0})
+                        </DialogTitle>
+                        <DialogDescription className="sr-only">Lista de participantes del grupo</DialogDescription>
+                    </DialogHeader>
+                    <div className="mt-2 space-y-1 max-h-[60vh] overflow-y-auto custom-scrollbar-light pr-1">
+                        {(activeChat?.participants ?? []).map(p => (
+                            <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-accent transition-colors">
+                                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                                    {p.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-foreground truncate">
+                                        {p.name}
+                                        {p.id === auth.user.id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(tú)</span>}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {p.role === 'admin' ? 'Administrador' : p.role === 'advisor' ? 'Asesor' : p.role}
+                                        {p.is_online && <span className="ml-1.5 text-green-500">● En línea</span>}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-end pt-2">
+                        <Button variant="outline" onClick={() => setShowParticipantsModal(false)} className="rounded-lg">Cerrar</Button>
                     </div>
                 </DialogContent>
             </Dialog>

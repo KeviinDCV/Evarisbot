@@ -1283,3 +1283,18 @@ tr.table-row-hover:hover {
     background-color: rgba(120, 53, 15, 0.3); /* amber-900/30 */
     color: rgb(251 191 36); /* amber-400 */
 }
+
+/* Chat header: marquee for long group names */
+@keyframes marquee-scroll {
+    0%   { transform: translateX(0); }
+    15%  { transform: translateX(0); }
+    75%  { transform: translateX(var(--marquee-offset)); }
+    90%  { transform: translateX(var(--marquee-offset)); }
+    100% { transform: translateX(0); }
+}
+
+.chat-name-marquee {
+    display: block;
+    white-space: nowrap;
+    animation: marquee-scroll 8s ease-in-out infinite;
+}
