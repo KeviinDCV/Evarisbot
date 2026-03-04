@@ -155,6 +155,40 @@ Route::controller(\App\Http\Controllers\WhatsAppWebhookController::class)->prefi
     Route::post('/whatsapp', 'handle')->name('webhook.whatsapp.handle');
 });
 
+// Descarga segura de archivos de media (requiere autenticación)
+Route::get('/media/download', function (\Illuminate\Http\Request $request) {
+    $path = $request->query('path');
+    $name = $request->query('name');
+
+    if (!$path) {
+        abort(404);
+    }
+
+    // Sanitizar: solo permitir archivos dentro de whatsapp_media/
+    $path = ltrim($path, '/');
+    // Si viene como /storage/whatsapp_media/..., quitar el prefijo /storage/
+    $path = preg_replace('#^storage/#', '', $path);
+
+    if (!str_starts_with($path, 'whatsapp_media/') || str_contains($path, '..')) {
+        abort(403);
+    }
+
+    if (!\Storage::disk('public')->exists($path)) {
+        abort(404);
+    }
+
+    $fullPath = \Storage::disk('public')->path($path);
+    $mimeType = mime_content_type($fullPath) ?: 'application/octet-stream';
+
+    // Usar el nombre original si se proporcionó, si no usar el nombre del archivo
+    $downloadName = $name ?: basename($path);
+
+    return response()->file($fullPath, [
+        'Content-Type' => $mimeType,
+        'Content-Disposition' => 'attachment; filename="' . $downloadName . '"',
+    ]);
+})->middleware(['auth', 'verified'])->name('media.download');
+
 // Webhook de Twilio - DESHABILITADO (solo usamos WhatsApp Business API de Meta)
 // Route::controller(\App\Http\Controllers\TwilioWebhookController::class)->prefix('webhook')->group(function () {
 //     Route::post('/twilio', 'handleIncoming')->name('webhook.twilio.incoming');

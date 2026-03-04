@@ -353,7 +353,72 @@ class WhatsAppService
     /**
      * Descargar media desde WhatsApp API usando media ID
      */
-    public function downloadMedia(string $mediaId): ?string
+    /**
+     * Mapa de MIME types comunes a extensiones de archivo
+     */
+    private const MIME_EXTENSIONS = [
+        // Documentos Office
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+        'application/vnd.ms-excel' => 'xls',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        'application/msword' => 'doc',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
+        'application/vnd.ms-powerpoint' => 'ppt',
+        // PDF
+        'application/pdf' => 'pdf',
+        // Imágenes
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+        'image/svg+xml' => 'svg',
+        // Audio
+        'audio/ogg' => 'ogg',
+        'audio/mpeg' => 'mp3',
+        'audio/mp4' => 'm4a',
+        'audio/amr' => 'amr',
+        'audio/aac' => 'aac',
+        // Video
+        'video/mp4' => 'mp4',
+        'video/3gpp' => '3gp',
+        // Texto
+        'text/plain' => 'txt',
+        'text/csv' => 'csv',
+        // Comprimidos
+        'application/zip' => 'zip',
+        'application/x-rar-compressed' => 'rar',
+        'application/x-7z-compressed' => '7z',
+    ];
+
+    /**
+     * Obtener extensión a partir del MIME type
+     */
+    private function getExtensionFromMime(?string $mimeType): string
+    {
+        if (!$mimeType) {
+            return 'bin';
+        }
+
+        // Quitar parámetros del mime type (ej: "audio/ogg; codecs=opus" → "audio/ogg")
+        $cleanMime = strtolower(trim(explode(';', $mimeType)[0]));
+
+        if (isset(self::MIME_EXTENSIONS[$cleanMime])) {
+            return self::MIME_EXTENSIONS[$cleanMime];
+        }
+
+        // Fallback: usar la parte después del / si es simple (ej: image/png → png)
+        $parts = explode('/', $cleanMime);
+        $sub = $parts[1] ?? 'bin';
+
+        // Si la sub-parte es corta (5 chars o menos), probablemente es una extensión válida
+        if (strlen($sub) <= 5 && preg_match('/^[a-z0-9]+$/', $sub)) {
+            return $sub;
+        }
+
+        return 'bin';
+    }
+
+    public function downloadMedia(string $mediaId, ?string $originalFilename = null): ?string
     {
         try {
             // Paso 1: Obtener URL del media
@@ -369,6 +434,7 @@ class WhatsAppService
             }
 
             $mediaUrl = $response->json()['url'] ?? null;
+            $apiMimeType = $response->json()['mime_type'] ?? null;
             
             if (!$mediaUrl) {
                 Log::error('Media URL not found in response', ['response' => $response->json()]);
@@ -385,19 +451,37 @@ class WhatsAppService
                 return null;
             }
 
-            // Paso 3: Guardar archivo en storage
-            $mimeType = $fileResponse->header('Content-Type');
-            $extension = explode('/', $mimeType)[1] ?? 'jpg';
-            $filename = 'whatsapp_media/' . uniqid() . '.' . $extension;
+            // Paso 3: Determinar extensión correcta
+            $mimeType = $apiMimeType ?? $fileResponse->header('Content-Type');
             
-            \Storage::disk('public')->put($filename, $fileResponse->body());
+            // Si tenemos un archivo original con extensión, usarla
+            if ($originalFilename && pathinfo($originalFilename, PATHINFO_EXTENSION)) {
+                $extension = pathinfo($originalFilename, PATHINFO_EXTENSION);
+            } else {
+                $extension = $this->getExtensionFromMime($mimeType);
+            }
+
+            // Paso 4: Generar nombre de archivo preservando el nombre original si es posible
+            if ($originalFilename) {
+                // Sanitizar nombre: quitar caracteres especiales, mantener legible
+                $safeName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', pathinfo($originalFilename, PATHINFO_FILENAME));
+                $safeName = substr($safeName, 0, 100); // limitar longitud
+                $storageName = 'whatsapp_media/' . uniqid() . '_' . $safeName . '.' . $extension;
+            } else {
+                $storageName = 'whatsapp_media/' . uniqid() . '.' . $extension;
+            }
+            
+            \Storage::disk('public')->put($storageName, $fileResponse->body());
 
             // Usar ruta relativa para compatibilidad con IP local y ngrok
-            $localUrl = '/storage/' . $filename;
+            $localUrl = '/storage/' . $storageName;
             
             Log::info('Media downloaded successfully', [
                 'media_id' => $mediaId,
                 'local_url' => $localUrl,
+                'original_filename' => $originalFilename,
+                'mime_type' => $mimeType,
+                'extension' => $extension,
             ]);
 
             return $localUrl;
@@ -589,18 +673,39 @@ class WhatsAppService
 
         try {
             // Construir secciones en formato WhatsApp API
-            $whatsappSections = array_map(function ($section) {
-                return [
-                    'title' => mb_substr($section['title'] ?? '', 0, 24),
-                    'rows' => array_map(function ($row) {
-                        return [
-                            'id' => $row['id'],
-                            'title' => mb_substr($row['title'], 0, 24),
-                            'description' => mb_substr($row['description'] ?? '', 0, 72),
-                        ];
-                    }, $section['rows'] ?? []),
-                ];
-            }, $sections);
+            // Nota: WhatsApp limita a 10 filas TOTALES entre todas las secciones
+            $totalRows = 0;
+            $whatsappSections = [];
+
+            foreach ($sections as $section) {
+                $rows = [];
+                foreach ($section['rows'] ?? [] as $row) {
+                    if ($totalRows >= 10) break;
+                    $rowData = [
+                        'id' => $row['id'],
+                        'title' => mb_substr($row['title'], 0, 24),
+                    ];
+                    // Solo incluir description si tiene contenido (WhatsApp rechaza strings vacíos)
+                    if (!empty($row['description'])) {
+                        $rowData['description'] = mb_substr($row['description'], 0, 72);
+                    }
+                    $rows[] = $rowData;
+                    $totalRows++;
+                }
+
+                if (!empty($rows)) {
+                    $sectionData = ['rows' => $rows];
+                    // Solo incluir title si hay múltiples secciones
+                    if (count($sections) > 1 && !empty($section['title'])) {
+                        $sectionData['title'] = mb_substr($section['title'], 0, 24);
+                    }
+                    $whatsappSections[] = $sectionData;
+                }
+            }
+
+            if (empty($whatsappSections)) {
+                return ['success' => false, 'error' => 'No hay filas para enviar en la lista'];
+            }
 
             $payload = [
                 'messaging_product' => 'whatsapp',
@@ -621,7 +726,8 @@ class WhatsAppService
 
             Log::info('Sending interactive list message', [
                 'to' => $to,
-                'sections_count' => count($sections),
+                'sections_count' => count($whatsappSections),
+                'total_rows' => $totalRows,
             ]);
 
             $response = Http::withToken($this->token)
@@ -638,6 +744,8 @@ class WhatsAppService
                 'status' => $response->status(),
                 'response' => $response->json(),
                 'to' => $to,
+                'payload_sections' => count($whatsappSections),
+                'payload_rows' => $totalRows,
             ]);
 
             return [
@@ -1285,9 +1393,9 @@ class WhatsAppService
                 $messageType = 'document';
                 $mediaId = $messageData['document']['id'] ?? null;
                 
-                // Descargar el documento desde WhatsApp
+                // Descargar el documento desde WhatsApp (preservar nombre original)
                 if ($mediaId) {
-                    $mediaUrl = $this->downloadMedia($mediaId);
+                    $mediaUrl = $this->downloadMedia($mediaId, $content);
                 }
             } elseif (isset($messageData['audio'])) {
                 $content = 'Audio';
