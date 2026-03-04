@@ -884,6 +884,21 @@ class WhatsAppService
                     return true;
                 }
 
+                if ($nextStepKey === '__reset__') {
+                    // Flujo rechazado: resetear para que al escribir de nuevo inicie desde 0
+                    $conversation->update([
+                        'welcome_flow_completed' => false,
+                        'welcome_flow_step' => null,
+                        'welcome_flow_data' => null,
+                    ]);
+
+                    Log::info('Welcome flow reset (rejected by user)', [
+                        'conversation_id' => $conversation->id,
+                    ]);
+
+                    return true;
+                }
+
                 if ($nextStepKey === '__complete_assign_advisor__') {
                     // Flujo completado + asignar a asesor de turno aleatorio
                     $conversation->update([
@@ -921,7 +936,24 @@ class WhatsAppService
 
                 $nextStep = $welcomeFlow->getStepByKey($nextStepKey);
                 if ($nextStep) {
-                    return $this->sendFlowStep($nextStep, $phoneNumber, $conversation);
+                    $sent = $this->sendFlowStep($nextStep, $phoneNumber, $conversation);
+
+                    // Si el paso enviado es de tipo 'text' (mensaje terminal sin interacción),
+                    // verificar si debe resetear el flujo para reiniciar desde 0
+                    if ($sent && $nextStep->message_type === 'text' && $nextStep->next_step_on_text === '__reset__') {
+                        $conversation->update([
+                            'welcome_flow_completed' => false,
+                            'welcome_flow_step' => null,
+                            'welcome_flow_data' => null,
+                        ]);
+
+                        Log::info('Welcome flow auto-reset after terminal step', [
+                            'conversation_id' => $conversation->id,
+                            'step_key' => $nextStep->step_key,
+                        ]);
+                    }
+
+                    return $sent;
                 }
             }
 

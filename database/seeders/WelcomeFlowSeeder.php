@@ -46,15 +46,16 @@ class WelcomeFlowSeeder extends Seeder
         ]);
 
         // =============================================
-        // PASO 1B: Rechazo de política (fin del flujo)
+        // PASO 1B: Rechazo de política (resetea el flujo)
+        // Al escribir nuevamente, el flujo inicia desde 0
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'rejected',
             'order' => 2,
-            'message' => "Entendemos tu decisión. Sin la aceptación de la política de tratamiento de datos no podemos continuar con el servicio.\n\nSi cambias de opinión, puedes escribirnos nuevamente.\n\n_HUV - Evaristo García_ 💙",
+            'message' => "Entendemos tu decisión. Sin la aceptación de la política de tratamiento de datos no podemos continuar con el servicio.\n\nSi cambias de opinión o necesitas algo, vuelve a escribirnos y con gusto te atenderemos. 😊\n\n_HUV - Evaristo García_ 💙",
             'message_type' => 'text',
-            'next_step_on_text' => '__complete__',
+            'next_step_on_text' => '__reset__',
             'is_entry_point' => false,
         ]);
 
