@@ -1731,7 +1731,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                     {/* Panel unificado de filtros */}
                                     {showFiltersPanel && (
-                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-xl shadow-xl border border-border py-1 z-[100] w-64 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-xl shadow-xl border border-border py-1 z-[100] w-64 max-h-[70vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 data-[side=bottom]:slide-in-from-top-2 duration-200">
                                             {/* Sección: Estado */}
                                             <div>
                                                 <button
@@ -2221,7 +2221,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </button>
 
                                     {showBulkAssignMenu && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-card rounded-xl shadow-xl border border-border py-2 z-50">
+                                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-card rounded-xl shadow-xl border border-border py-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                                             <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
                                                 Asignar a
                                             </div>
@@ -2320,20 +2320,26 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                         // Lógica de posicionamiento inteligente para evitar desbordamiento
                         const windowHeight = window.innerHeight;
+                        const windowWidth = window.innerWidth;
                         const spaceBelow = windowHeight - contextMenu.y;
-                        const minSpaceResult = 400; // Espacio mínimo deseado
+                        const minSpaceResult = 450; // Aumento margen requerido hacia abajo
 
-                        // Si hay poco espacio abajo (menos de 400px), mostrar hacia arriba
-                        const showUpwards = spaceBelow < minSpaceResult;
+                        // Si hay poco espacio abajo, mostrar hacia arriba
+                        const showUpwards = spaceBelow < minSpaceResult && contextMenu.y > minSpaceResult;
+
+                        // Ajustar si se sale a la derecha
+                        const menuWidth = 240;
+                        const spaceRight = windowWidth - contextMenu.x;
+                        const adjustedX = spaceRight < menuWidth ? windowWidth - menuWidth - 20 : contextMenu.x;
 
                         return (
                             <div
-                                className="fixed card-gradient rounded-xl shadow-xl border border-border py-2 z-50 min-w-[240px] overflow-y-auto"
+                                className="fixed card-gradient rounded-xl shadow-xl border border-border py-2 z-50 min-w-[240px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200"
                                 style={{
-                                    left: `${contextMenu.x}px`,
+                                    left: `${adjustedX}px`,
                                     top: showUpwards ? 'auto' : `${contextMenu.y}px`,
                                     bottom: showUpwards ? `${windowHeight - contextMenu.y}px` : 'auto',
-                                    maxHeight: 'calc(100vh - 100px)' // Altura máxima adaptativa
+                                    maxHeight: 'min(calc(100vh - 40px), 480px)' // Altura máxima adaptativa y no tan grande
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                             >
@@ -3084,7 +3090,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                     {/* Dropdown de plantillas */}
                                     {showTemplates && filteredTemplates.length > 0 && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto z-50">
+                                        <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto custom-scrollbar z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                                             {filteredTemplates.map((template, index) => (
                                                 <div
                                                     key={template.id}
