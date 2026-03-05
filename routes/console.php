@@ -15,9 +15,11 @@ Artisan::command('flow:reset {phone?}', function (?string $phone = null) {
         $phone = preg_replace('/[^0-9]/', '', $phone);
         $conversations = \App\Models\Conversation::where('phone_number', 'LIKE', '%' . substr($phone, -10) . '%')->get();
     } else {
-        // Si no se pasa teléfono, resetear la última conversación activa con flujo
-        $conversations = \App\Models\Conversation::whereNotNull('welcome_flow_step')
-            ->orWhere('welcome_flow_completed', false)
+        // Sin teléfono: resetear la última conversación que tenga flujo (completado o en progreso)
+        $conversations = \App\Models\Conversation::where(function ($q) {
+                $q->whereNotNull('welcome_flow_step')
+                  ->orWhere('welcome_flow_completed', true);
+            })
             ->orderByDesc('last_message_at')
             ->take(1)
             ->get();
@@ -25,6 +27,8 @@ Artisan::command('flow:reset {phone?}', function (?string $phone = null) {
 
     if ($conversations->isEmpty()) {
         $this->error('No se encontró ninguna conversación.');
+        $this->line('Uso: php artisan flow:reset [teléfono]');
+        $this->line('Ejemplo: php artisan flow:reset 573045782893');
         return;
     }
 
@@ -35,6 +39,7 @@ Artisan::command('flow:reset {phone?}', function (?string $phone = null) {
             'welcome_flow_data' => null,
         ]);
         $this->info("✅ Flujo reseteado para: {$conv->phone_number} (ID: {$conv->id})");
+        $this->line("   Ahora al escribir de nuevo, el flujo iniciará desde 0.");
     }
 })->purpose('Resetear flujo de bienvenida de una conversación para testing');
 
