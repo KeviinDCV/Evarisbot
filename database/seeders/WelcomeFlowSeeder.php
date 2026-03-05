@@ -76,9 +76,22 @@ class WelcomeFlowSeeder extends Seeder
             'next_steps' => [
                 'doc_cc' => 'document_number',
                 'doc_ti' => 'document_number',
-                'doc_other' => 'document_number',
+                'doc_other' => 'document_type_other',
             ],
             'fallback_message' => 'Por favor, selecciona el tipo de documento usando los botones disponibles.',
+            'is_entry_point' => false,
+        ]);
+
+        // =============================================
+        // PASO 2B: Tipo de documento "Otro" - ¿Cuál?
+        // =============================================
+        WelcomeFlowStep::create([
+            'welcome_flow_id' => $flow->id,
+            'step_key' => 'document_type_other',
+            'order' => 4,
+            'message' => "¿Cuál es el tipo de documento? Escríbelo por favor:",
+            'message_type' => 'wait_response',
+            'next_step_on_text' => 'document_number',
             'is_entry_point' => false,
         ]);
 
@@ -88,7 +101,7 @@ class WelcomeFlowSeeder extends Seeder
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'document_number',
-            'order' => 4,
+            'order' => 5,
             'message' => "Por favor ingresa el número de documento de identificación *sin puntos, comas o cualquier otro carácter*:",
             'message_type' => 'wait_response',
             'next_step_on_text' => 'eps_selection',
@@ -134,9 +147,22 @@ class WelcomeFlowSeeder extends Seeder
                 'eps_comfenalco' => 'regimen',
                 'eps_famisanar' => 'regimen',
                 'eps_sos' => 'regimen',
-                'eps_otro' => 'regimen',
+                'eps_otro' => 'eps_other',
             ],
             'fallback_message' => 'Por favor, selecciona tu EPS de la lista disponible.',
+            'is_entry_point' => false,
+        ]);
+
+        // =============================================
+        // PASO 4B: EPS "Otro" - ¿Cuál?
+        // =============================================
+        WelcomeFlowStep::create([
+            'welcome_flow_id' => $flow->id,
+            'step_key' => 'eps_other',
+            'order' => 7,
+            'message' => "¿Cuál es tu EPS? Escríbela por favor:",
+            'message_type' => 'wait_response',
+            'next_step_on_text' => 'regimen',
             'is_entry_point' => false,
         ]);
 
@@ -146,7 +172,7 @@ class WelcomeFlowSeeder extends Seeder
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'regimen',
-            'order' => 6,
+            'order' => 8,
             'message' => "Régimen\n\nElige la Opción:",
             'message_type' => 'interactive_buttons',
             'buttons' => [
