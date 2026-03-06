@@ -113,6 +113,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     // Participants modal
     const [showParticipantsModal, setShowParticipantsModal] = useState(false);
 
+    // Mentions
+    const [showMentions, setShowMentions] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState('');
+    const [mentionIndex, setMentionIndex] = useState(0);
+    const [mentionStartPos, setMentionStartPos] = useState<number | null>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
     // Media viewer (fullscreen)
     const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'image' | 'video'; caption?: string } | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
@@ -143,6 +150,18 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             u.name.toLowerCase().includes(userSearchQuery.toLowerCase())
         );
     }, [availableUsers, userSearchQuery]);
+
+    // Users available for @mention in the active chat
+    const mentionUsers = useMemo(() => {
+        if (!activeChat || !showMentions) return [];
+        const participants = activeChat.type === 'group'
+            ? activeChat.participants.filter(p => p.id !== auth.user.id)
+            : availableUsers.filter(u => u.id !== auth.user.id);
+        if (!mentionQuery) return participants.slice(0, 8);
+        return participants
+            .filter(u => u.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+            .slice(0, 8);
+    }, [activeChat, showMentions, mentionQuery, availableUsers, auth.user.id]);
 
     // --- Helpers ---
 
@@ -433,7 +452,74 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    // Insert a mention into the textarea replacing the @query
+    const insertMention = (user: UserInfo) => {
+        if (mentionStartPos === null) return;
+        const before = inputText.slice(0, mentionStartPos);
+        const after = inputText.slice(mentionStartPos + mentionQuery.length + 1); // +1 for @
+        const newText = `${before}@${user.name} ${after}`;
+        setInputText(newText);
+        setShowMentions(false);
+        setMentionQuery('');
+        setMentionStartPos(null);
+        setMentionIndex(0);
+        // Focus back on textarea
+        setTimeout(() => textareaRef.current?.focus(), 0);
+    };
+
+    // Handle input change to detect @mentions
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value;
+        setInputText(value);
+
+        const cursorPos = e.target.selectionStart ?? value.length;
+        // Find the last @ before cursor that starts a mention
+        const textBeforeCursor = value.slice(0, cursorPos);
+        const lastAt = textBeforeCursor.lastIndexOf('@');
+
+        if (lastAt >= 0) {
+            // Check there's no space before @ (except at start) — actually allow it if at start or after space/newline
+            const charBefore = lastAt > 0 ? textBeforeCursor[lastAt - 1] : ' ';
+            if (charBefore === ' ' || charBefore === '\n' || lastAt === 0) {
+                const query = textBeforeCursor.slice(lastAt + 1);
+                // Only show if query doesn't contain newlines and is short
+                if (!query.includes('\n') && query.length <= 30) {
+                    setMentionStartPos(lastAt);
+                    setMentionQuery(query);
+                    setShowMentions(true);
+                    setMentionIndex(0);
+                    return;
+                }
+            }
+        }
+        setShowMentions(false);
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        // Handle mention dropdown navigation
+        if (showMentions && mentionUsers.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setMentionIndex(prev => (prev + 1) % mentionUsers.length);
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setMentionIndex(prev => (prev - 1 + mentionUsers.length) % mentionUsers.length);
+                return;
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                insertMention(mentionUsers[mentionIndex]);
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                setShowMentions(false);
+                return;
+            }
+        }
+
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSendMessage();
@@ -943,10 +1029,43 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     </div>
                                                 )}
 
-                                                {/* Text Content */}
+                                                {/* Text Content (with @mention highlighting) */}
                                                 {msg.body && (
                                                     <p className="text-sm whitespace-pre-wrap break-words">
-                                                        {msg.body}
+                                                        {(() => {
+                                                            const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
+                                                            const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);
+                                                            // Build regex matching @Name for all known users
+                                                            if (names.length === 0) return msg.body;
+                                                            const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                                                            const regex = new RegExp(`(@(?:${escaped.join('|')}))`, 'g');
+                                                            const parts = msg.body.split(regex);
+                                                            return parts.map((part: string, pi: number) => {
+                                                                if (part.startsWith('@')) {
+                                                                    const name = part.slice(1);
+                                                                    const mentioned = allParticipants.find(u => u.name === name);
+                                                                    if (mentioned) {
+                                                                        const isMe = mentioned.id === auth.user.id;
+                                                                        return (
+                                                                            <span
+                                                                                key={pi}
+                                                                                className={cn(
+                                                                                    'font-semibold rounded px-0.5',
+                                                                                    msg.is_mine
+                                                                                        ? 'text-white underline decoration-white/50'
+                                                                                        : isMe
+                                                                                            ? 'text-primary bg-primary/10'
+                                                                                            : 'text-primary'
+                                                                                )}
+                                                                            >
+                                                                                @{name}
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                }
+                                                                return part;
+                                                            });
+                                                        })()}
                                                     </p>
                                                 )}
 
@@ -997,10 +1116,37 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                 {/* Text input */}
                                 <div className="relative flex-1">
+                                    {/* @Mentions dropdown */}
+                                    {showMentions && mentionUsers.length > 0 && (
+                                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-card border border-border rounded-xl shadow-lg z-50 max-h-52 overflow-y-auto">
+                                            {mentionUsers.map((user, i) => (
+                                                <button
+                                                    key={user.id}
+                                                    type="button"
+                                                    className={cn(
+                                                        'w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors',
+                                                        i === mentionIndex ? 'bg-primary/10 text-primary' : 'hover:bg-accent'
+                                                    )}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        insertMention(user);
+                                                    }}
+                                                    onMouseEnter={() => setMentionIndex(i)}
+                                                >
+                                                    <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                                                        {getInitials(user.name)}
+                                                    </div>
+                                                    <span className="font-medium truncate">{user.name}</span>
+                                                    <span className="text-xs text-muted-foreground ml-auto capitalize">{user.role}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     <Textarea
+                                        ref={textareaRef}
                                         value={inputText}
-                                        onChange={e => setInputText(e.target.value)}
-                                        placeholder="Escribe un mensaje..."
+                                        onChange={handleInputChange}
+                                        placeholder="Escribe un mensaje... (@para mencionar)"
                                         className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 card-gradient focus:ring-2 focus:ring-primary shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-3xl transition-shadow duration-200"
                                         onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}

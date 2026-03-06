@@ -1490,6 +1490,8 @@ class WhatsAppService
             // DESPUÉS de guardar el mensaje del usuario, procesar respuesta automática de appointment
             if ($appointment) {
                 $this->sendAppointmentAutoResponse($from, $messageData, $appointment, $conversation);
+                // Si fue respuesta a un recordatorio de cita, NO iniciar el flujo de bienvenida
+                return $message;
             }
 
             // --- Flujo de bienvenida ---

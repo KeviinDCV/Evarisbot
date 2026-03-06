@@ -2882,7 +2882,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 ) : message.message_type === 'document' && message.media_url ? (
                                                     <div className="space-y-2">
                                                         <a
-                                                            href={`/media/download?path=${encodeURIComponent(message.media_url)}&name=${encodeURIComponent(message.content || 'documento')}`}
+                                                            href={message.media_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
                                                             className="flex items-center gap-2 text-sm hover:underline"
                                                         >
                                                             <Paperclip className="w-4 h-4" />

@@ -17,6 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Confiar en proxies (cPanel/CloudFlare) para detectar HTTPS correctamente
+        $middleware->trustProxies(at: '*');
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         // Excluir webhook de WhatsApp y envío de mensajes de chat de la protección CSRF
