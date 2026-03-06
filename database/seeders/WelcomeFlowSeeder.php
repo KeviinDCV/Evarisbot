@@ -104,17 +104,56 @@ class WelcomeFlowSeeder extends Seeder
             'order' => 5,
             'message' => "Por favor ingresa el número de documento de identificación *sin puntos, comas o cualquier otro carácter*:",
             'message_type' => 'wait_response',
+            'next_step_on_text' => 'full_name',
+            'is_entry_point' => false,
+        ]);
+
+        // =============================================
+        // PASO 4: Nombre completo
+        // =============================================
+        WelcomeFlowStep::create([
+            'welcome_flow_id' => $flow->id,
+            'step_key' => 'full_name',
+            'order' => 6,
+            'message' => "Ingresa tu *nombre completo*:",
+            'message_type' => 'wait_response',
+            'next_step_on_text' => 'phone_number',
+            'is_entry_point' => false,
+        ]);
+
+        // =============================================
+        // PASO 5: Número de contacto telefónico
+        // =============================================
+        WelcomeFlowStep::create([
+            'welcome_flow_id' => $flow->id,
+            'step_key' => 'phone_number',
+            'order' => 7,
+            'message' => "Ingresa tu *número de contacto telefónico*:",
+            'message_type' => 'wait_response',
+            'next_step_on_text' => 'email',
+            'is_entry_point' => false,
+        ]);
+
+        // =============================================
+        // PASO 6: Correo electrónico
+        // =============================================
+        WelcomeFlowStep::create([
+            'welcome_flow_id' => $flow->id,
+            'step_key' => 'email',
+            'order' => 8,
+            'message' => "Ingresa tu *correo electrónico*:",
+            'message_type' => 'wait_response',
             'next_step_on_text' => 'eps_selection',
             'is_entry_point' => false,
         ]);
 
         // =============================================
-        // PASO 4: Selección de EPS (lista interactiva)
+        // PASO 7: Selección de EPS (lista interactiva)
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'eps_selection',
-            'order' => 5,
+            'order' => 9,
             'message' => "Elige la Opción de EPS:",
             'message_type' => 'interactive_list',
             'options' => [
@@ -154,12 +193,12 @@ class WelcomeFlowSeeder extends Seeder
         ]);
 
         // =============================================
-        // PASO 4B: EPS "Otro" - ¿Cuál?
+        // PASO 7B: EPS "Otro" - ¿Cuál?
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'eps_other',
-            'order' => 7,
+            'order' => 10,
             'message' => "¿Cuál es tu EPS? Escríbela por favor:",
             'message_type' => 'wait_response',
             'next_step_on_text' => 'regimen',
@@ -167,12 +206,12 @@ class WelcomeFlowSeeder extends Seeder
         ]);
 
         // =============================================
-        // PASO 5: Régimen
+        // PASO 8: Régimen
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'regimen',
-            'order' => 8,
+            'order' => 11,
             'message' => "Régimen\n\nElige la Opción:",
             'message_type' => 'interactive_buttons',
             'buttons' => [
@@ -188,12 +227,12 @@ class WelcomeFlowSeeder extends Seeder
         ]);
 
         // =============================================
-        // PASO 6: Menú de servicios (lista interactiva - 4 opciones)
+        // PASO 9: Menú de servicios (lista interactiva - 4 opciones)
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'service_menu',
-            'order' => 7,
+            'order' => 12,
             'message' => "¿En qué podemos ayudarte? Selecciona una opción:",
             'message_type' => 'interactive_list',
             'options' => [
@@ -221,25 +260,66 @@ class WelcomeFlowSeeder extends Seeder
         ]);
 
         // =============================================
-        // PASO 7A: Agendamiento de cita - Info y requisitos
+        // PASO 10A: Agendamiento de cita - Info requisitos
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'agendamiento_info',
-            'order' => 8,
-            'message' => "📅 *AGENDAMIENTO DE CITA*\n\nPara agendar o reprogramar cita por favor suministre la siguiente información:\n\n📄 Documento de identidad del paciente\n📋 Autorización Vigente\n📝 Orden Médica\n🏥 Historia Clínica\n👤 Nombre de quien solicita y parentesco\n\n⚠️ *ENVIAR EN UN SOLO PDF TODA LA INFORMACIÓN COMPLETA*\n\nPuede enviar sus documentos a continuación:",
+            'order' => 13,
+            'message' => "📅 *AGENDAMIENTO DE CITA*\n\nPara agendar o reprogramar cita por favor suministre la siguiente información:\n\n📄 Documento de identidad del paciente\n📋 Autorización Vigente\n📝 Orden Médica\n🏥 Historia Clínica\n👤 Nombre de quien solicita y parentesco\n\n⚠️ *ENVIAR EN UN SOLO PDF TODA LA INFORMACIÓN COMPLETA*",
             'message_type' => 'text',
-            'next_step_on_text' => '__complete__',
+            'next_step_on_text' => 'agendamiento_submenu',
             'is_entry_point' => false,
         ]);
 
         // =============================================
-        // PASO 7B: Cancelación de cita - Info y requisitos
+        // PASO 10A-2: Sub-menú de agendamiento (8 opciones)
+        // =============================================
+        WelcomeFlowStep::create([
+            'welcome_flow_id' => $flow->id,
+            'step_key' => 'agendamiento_submenu',
+            'order' => 14,
+            'message' => "Por favor seleccione la opción asociada al servicio:",
+            'message_type' => 'interactive_list',
+            'options' => [
+                'button_text' => 'Ver servicios',
+                'sections' => [
+                    [
+                        'title' => 'Servicios de agendamiento',
+                        'rows' => [
+                            ['id' => 'agenda_especializada', 'title' => 'Medicina especializada'],
+                            ['id' => 'agenda_anestesia', 'title' => 'Cita de anestesia'],
+                            ['id' => 'agenda_colposcopia', 'title' => 'Colposcopia/conización'],
+                            ['id' => 'agenda_cistoscopia', 'title' => 'Cistoscopia/urodinamia'],
+                            ['id' => 'agenda_cirugia', 'title' => 'Programación de cirugía'],
+                            ['id' => 'agenda_particular', 'title' => 'Cita particular'],
+                            ['id' => 'agenda_recordatorio', 'title' => 'Recordatorios de citas'],
+                            ['id' => 'agenda_cancelacion', 'title' => 'Cancelación de servicios'],
+                        ],
+                    ],
+                ],
+            ],
+            'next_steps' => [
+                'agenda_especializada' => '__complete_assign_advisor__',
+                'agenda_anestesia' => '__complete_assign_advisor__',
+                'agenda_colposcopia' => '__complete_assign_advisor__',
+                'agenda_cistoscopia' => '__complete_assign_advisor__',
+                'agenda_cirugia' => '__complete_assign_advisor__',
+                'agenda_particular' => '__complete_assign_advisor__',
+                'agenda_recordatorio' => '__complete_assign_advisor__',
+                'agenda_cancelacion' => '__complete_assign_advisor__',
+            ],
+            'fallback_message' => 'Por favor, selecciona una opción del menú de servicios.',
+            'is_entry_point' => false,
+        ]);
+
+        // =============================================
+        // PASO 9B: Cancelación de cita - Info y requisitos
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'cancelacion_info',
-            'order' => 9,
+            'order' => 15,
             'message' => "❌ *CANCELACIÓN DE CITA*\n\nPara la cancelación de cita por favor suministre la siguiente información:\n\n📄 Documento de identidad del paciente\n🏥 Especialidad de la cita a cancelar\n👤 Nombre Completo de quien cancela la cita\n📝 Motivo de cancelación\n👨‍👩‍👧 Parentesco\n\nPuede enviar la información a continuación:",
             'message_type' => 'text',
             'next_step_on_text' => '__complete__',
@@ -247,12 +327,12 @@ class WelcomeFlowSeeder extends Seeder
         ]);
 
         // =============================================
-        // PASO 7C: Información - Submenú
+        // PASO 9C: Información - Submenú
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'informacion_menu',
-            'order' => 10,
+            'order' => 16,
             'message' => "ℹ️ *INFORMACIÓN*\n\nSelecciona el tipo de información que necesitas:",
             'message_type' => 'interactive_list',
             'options' => [
@@ -278,12 +358,12 @@ class WelcomeFlowSeeder extends Seeder
         ]);
 
         // =============================================
-        // PASO 7D: Hablar con un asesor - Pedir cédula
+        // PASO 9D: Hablar con un asesor - Pedir cédula
         // =============================================
         WelcomeFlowStep::create([
             'welcome_flow_id' => $flow->id,
             'step_key' => 'asesor_cedula',
-            'order' => 11,
+            'order' => 17,
             'message' => "👤 *HABLAR CON UN ASESOR*\n\nPor favor digita tu número de cédula para conectarte con un asesor:",
             'message_type' => 'wait_response',
             'next_step_on_text' => '__complete_assign_advisor__',

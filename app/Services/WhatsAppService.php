@@ -865,6 +865,24 @@ class WhatsAppService
                     'phone' => $phoneNumber,
                 ]);
 
+                // Auto-encadenar: si es un paso tipo 'text' (informativo) con next_step_on_text,
+                // enviar el siguiente paso inmediatamente (ej: agendamiento_info → agendamiento_submenu)
+                if ($step->message_type === 'text' && $step->next_step_on_text && !in_array($step->next_step_on_text, ['__complete__', '__complete_assign_advisor__', '__reset__'])) {
+                    $welcomeFlow = \App\Models\WelcomeFlow::getActive();
+                    if ($welcomeFlow) {
+                        $autoNextStep = $welcomeFlow->getStepByKey($step->next_step_on_text);
+                        if ($autoNextStep) {
+                            Log::info('Welcome flow: auto-chaining text step to next', [
+                                'from' => $step->step_key,
+                                'to' => $step->next_step_on_text,
+                            ]);
+                            // Pequeña pausa para que el mensaje anterior llegue primero
+                            usleep(500000); // 500ms
+                            return $this->sendFlowStep($autoNextStep, $phoneNumber, $conversation);
+                        }
+                    }
+                }
+
                 return true;
             } else {
                 Log::error('Failed to send flow step', [
@@ -952,7 +970,7 @@ class WhatsAppService
                     'next_step' => $nextStepKey,
                 ]);
 
-            } elseif ($userText && $currentStep->message_type === 'wait_response') {
+            } elseif ($userText && in_array($currentStep->message_type, ['wait_response', 'text'])) {
                 $nextStepKey = $currentStep->next_step_on_text;
 
                 // Guardar la respuesta de texto del usuario
