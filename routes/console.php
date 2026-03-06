@@ -62,6 +62,14 @@ Schedule::command('appointments:auto-send')
     ->onOneServer()
     ->runInBackground();
 
+// Verificar timeouts del flujo de bienvenida cada minuto
+// 5 min → recordatorio, 10 min → cierre de sesión
+Schedule::command('flow:check-timeouts')
+    ->everyMinute()
+    ->timezone('America/Bogota')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Procesar cola de recordatorios cada minuto (SOLO para cPanel sin queue:work permanente)
 // DESACTIVADO cuando se usa `php artisan queue:work` ya que compite por el lock
 // y causa que los jobs se atasquen sin enviar realmente.

@@ -988,7 +988,7 @@ class WhatsAppService
                     'next_step' => $nextStepKey,
                 ]);
             } else {
-                // Si el paso actual espera botones/lista pero recibimos texto sin match, enviar fallback
+                // Si el paso actual espera botones/lista pero recibimos texto sin match, enviar fallback y re-enviar el paso
                 if (in_array($currentStep->message_type, ['interactive_buttons', 'interactive_list']) && $userText && !$buttonId) {
                     $fallback = $currentStep->fallback_message ?? 'Por favor, selecciona una de las opciones disponibles.';
                     $result = $this->sendTextMessage($phoneNumber, $fallback);
@@ -1003,6 +1003,9 @@ class WhatsAppService
                             'sent_by' => null,
                         ]);
                     }
+                    // Re-enviar el paso interactivo para que el usuario vea las opciones
+                    usleep(300000); // 300ms para que llegue en orden
+                    $this->sendFlowStep($currentStep, $phoneNumber, $conversation);
                     return true; // Procesado como parte del flujo
                 }
                 return false;
@@ -1521,12 +1524,50 @@ class WhatsAppService
 
             // 2. Si la conversación está en medio de un flujo de bienvenida, procesar la interacción
             if (!$conversation->welcome_flow_completed && $conversation->welcome_flow_step) {
+                // Resetear flag de recordatorio de timeout (el usuario respondió)
+                $flowData = $conversation->welcome_flow_data ?? [];
+                if (!empty($flowData['_timeout_reminder_sent'])) {
+                    unset($flowData['_timeout_reminder_sent']);
+                    $conversation->update(['welcome_flow_data' => $flowData]);
+                }
+
                 if (isset($buttonReplyId) && $buttonReplyId) {
                     // Respuesta por botón interactivo o lista
                     $this->processWelcomeFlowInteraction($from, $conversation, $buttonReplyId);
                 } elseif ($messageType === 'text' && $content) {
                     // Respuesta de texto libre (ej: número de documento)
                     $this->processWelcomeFlowInteraction($from, $conversation, null, $content);
+                } else {
+                    // El usuario envió algo que no es texto ni botón (imagen, audio, sticker, documento, etc.)
+                    // Enviar advertencia y re-enviar el paso actual
+                    $welcomeFlow = \App\Models\WelcomeFlow::getActive();
+                    $currentStep = $welcomeFlow?->getStepByKey($conversation->welcome_flow_step);
+                    
+                    $hint = '⚠️ En este momento estamos recopilando tus datos. Por favor responde con ';
+                    if ($currentStep && in_array($currentStep->message_type, ['interactive_buttons', 'interactive_list'])) {
+                        $hint .= 'una de las *opciones disponibles*.';
+                    } else {
+                        $hint .= '*texto* para continuar.';
+                    }
+
+                    $result = $this->sendTextMessage($from, $hint);
+                    if ($result['success'] ?? false) {
+                        Message::create([
+                            'conversation_id' => $conversation->id,
+                            'content' => $hint,
+                            'message_type' => 'text',
+                            'is_from_user' => false,
+                            'whatsapp_message_id' => $result['message_id'] ?? null,
+                            'status' => 'sent',
+                            'sent_by' => null,
+                        ]);
+                    }
+
+                    // Re-enviar el paso actual (botones/lista) para que el usuario vea las opciones
+                    if ($currentStep && in_array($currentStep->message_type, ['interactive_buttons', 'interactive_list'])) {
+                        usleep(300000);
+                        $this->sendFlowStep($currentStep, $from, $conversation);
+                    }
                 }
             }
 
