@@ -253,7 +253,7 @@ class WelcomeFlowSeeder extends Seeder
                 'svc_agendamiento' => 'agendamiento_info',
                 'svc_cancelacion' => 'cancelacion_info',
                 'svc_informacion' => 'informacion_menu',
-                'svc_asesor' => 'asesor_cedula',
+                'svc_asesor' => '__complete_assign_advisor__',
             ],
             'fallback_message' => 'Por favor, selecciona una opción del menú disponible.',
             'is_entry_point' => false,

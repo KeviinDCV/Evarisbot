@@ -783,8 +783,13 @@ class ConversationController extends Controller
 
         Conversation::whereIn('id', $validated['ids'])->update($updateData);
 
-        // Si se resuelven, marcar todos los mensajes de usuario como leídos
+        // Si se resuelven, enviar despedida y marcar mensajes como leídos
         if ($status === 'resolved') {
+            $conversations = Conversation::whereIn('id', $validated['ids'])->get();
+            foreach ($conversations as $conv) {
+                $this->sendFarewellMessage($conv);
+            }
+
             Message::whereIn('conversation_id', $validated['ids'])
                 ->where('is_from_user', true)
                 ->where('status', '!=', 'read')
@@ -849,6 +854,8 @@ class ConversationController extends Controller
         // Si se resuelve, marcar todos los mensajes como leídos
         if ($validated['status'] === 'resolved') {
             $conversation->markAsRead();
+            // Enviar mensaje de despedida automático por WhatsApp
+            $this->sendFarewellMessage($conversation);
         }
 
         $resolverName = auth()->user()->name;
@@ -867,6 +874,9 @@ class ConversationController extends Controller
      */
     public function hide(Conversation $conversation)
     {
+        // Enviar mensaje de despedida automático por WhatsApp
+        $this->sendFarewellMessage($conversation);
+
         // Marcar como resuelta y marcar mensajes como leídos
         $conversation->update([
             'status' => 'resolved',
@@ -913,6 +923,38 @@ class ConversationController extends Controller
             'success'  => true,
             'is_pinned' => $isPinned,
         ]);
+    }
+
+    /**
+     * Enviar mensaje de despedida automático al marcar conversación como resuelta
+     */
+    protected function sendFarewellMessage(Conversation $conversation): void
+    {
+        $user = auth()->user();
+        if (!$user || !$conversation->phone_number) {
+            return;
+        }
+
+        $advisorName = explode(' ', trim($user->name))[0];
+        $farewellText = "Gracias por comunicarse con nosotros.\n" .
+            "Recuerde que fue atendido(a) por {$advisorName} del Hospital Universitario del Valle.\n" .
+            "Si necesita algo más, no dude en escribirnos. ¡Que tenga un excelente día! 😊";
+
+        $whatsappService = app(WhatsAppService::class);
+
+        if ($whatsappService->isConfigured()) {
+            $result = $whatsappService->sendTextMessage($conversation->phone_number, $farewellText);
+
+            // Guardar mensaje de despedida en BD
+            $conversation->messages()->create([
+                'content' => $farewellText,
+                'message_type' => 'text',
+                'is_from_user' => false,
+                'sent_by' => $user->id,
+                'status' => ($result['success'] ?? false) ? 'sent' : 'failed',
+                'whatsapp_message_id' => $result['message_id'] ?? null,
+            ]);
+        }
     }
 
     /**

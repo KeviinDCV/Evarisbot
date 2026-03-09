@@ -1020,8 +1020,46 @@ class WhatsAppService
                         'welcome_flow_step' => null,
                     ]);
 
+                    // Enviar mensaje según el contexto del paso actual
+                    if ($currentStepKey === 'cancelacion_info') {
+                        // Cancelación: el usuario envió datos, asignar a asesor
+                        $this->sendTextMessage($phoneNumber, '📋 Hemos recibido su solicitud de cancelación. Un asesor revisará su caso y le confirmará a la brevedad.');
+
+                        // Asignar a asesor de turno
+                        $onDutyAdvisors = \App\Models\User::where('role', 'advisor')
+                            ->where('is_on_duty', true)
+                            ->get();
+
+                        if ($onDutyAdvisors->isNotEmpty()) {
+                            $advisor = $onDutyAdvisors->random();
+                            $conversation->update([
+                                'assigned_to' => $advisor->id,
+                                'status' => 'active',
+                                'last_message_at' => now(),
+                            ]);
+                        }
+                    } elseif ($currentStepKey === 'informacion_menu') {
+                        // Opciones de información: funcionalidad en desarrollo
+                        $this->sendTextMessage($phoneNumber, 'ℹ️ Esta funcionalidad se encuentra en desarrollo. Por ahora, un asesor le atenderá para resolver su consulta.');
+
+                        // Asignar a asesor de turno para que lo atiendan
+                        $onDutyAdvisors = \App\Models\User::where('role', 'advisor')
+                            ->where('is_on_duty', true)
+                            ->get();
+
+                        if ($onDutyAdvisors->isNotEmpty()) {
+                            $advisor = $onDutyAdvisors->random();
+                            $conversation->update([
+                                'assigned_to' => $advisor->id,
+                                'status' => 'active',
+                                'last_message_at' => now(),
+                            ]);
+                        }
+                    }
+
                     Log::info('Welcome flow completed', [
                         'conversation_id' => $conversation->id,
+                        'from_step' => $currentStepKey,
                         'flow_data' => $conversation->welcome_flow_data,
                     ]);
 
@@ -1053,23 +1091,56 @@ class WhatsAppService
                     // Buscar asesores de turno activos
                     $onDutyAdvisors = \App\Models\User::where('role', 'advisor')
                         ->where('is_on_duty', true)
-                        ->pluck('id')
-                        ->toArray();
+                        ->get();
 
-                    if (!empty($onDutyAdvisors)) {
+                    if ($onDutyAdvisors->isNotEmpty()) {
                         // Asignar aleatoriamente a un asesor de turno
-                        $assignedAdvisorId = $onDutyAdvisors[array_rand($onDutyAdvisors)];
-                        $conversation->update(['assigned_to' => $assignedAdvisorId]);
+                        $advisor = $onDutyAdvisors->random();
+                        $conversation->update([
+                            'assigned_to' => $advisor->id,
+                            'status' => 'active',
+                        ]);
 
-                        $advisor = \App\Models\User::find($assignedAdvisorId);
                         Log::info('Welcome flow: assigned to on-duty advisor', [
                             'conversation_id' => $conversation->id,
-                            'advisor_id' => $assignedAdvisorId,
-                            'advisor_name' => $advisor?->name,
+                            'advisor_id' => $advisor->id,
+                            'advisor_name' => $advisor->name,
                         ]);
+
+                        // Enviar mensaje de "conectando con asesor"
+                        $this->sendTextMessage($phoneNumber, '✅ Enseguida le contactamos con un asesor. Por favor espere un momento.');
+
+                        // Enviar la plantilla de saludo automáticamente (como /saludo)
+                        $advisorName = explode(' ', trim($advisor->name))[0];
+                        $greetingText = "Buen día.\n" .
+                            "Le saludamos de Hospital Universitario del Valle.\n" .
+                            "A partir de este momento será atendido(a) por {$advisorName}, quien estará a cargo de la asignación y seguimiento de su cita.\n" .
+                            "Quedamos atentos a cualquier consulta adicional.";
+
+                        // Guardar el mensaje de saludo en la BD
+                        $greetingMessage = $conversation->messages()->create([
+                            'content' => $greetingText,
+                            'message_type' => 'text',
+                            'is_from_user' => false,
+                            'sent_by' => $advisor->id,
+                            'status' => 'pending',
+                        ]);
+
+                        // Enviar plantilla de saludo por WhatsApp
+                        if ($this->isConfigured()) {
+                            $result = $this->sendGreetingTemplate($phoneNumber, $advisorName);
+                            $greetingMessage->update([
+                                'status' => ($result && $result['success']) ? 'sent' : 'failed',
+                                'whatsapp_message_id' => $result['message_id'] ?? null,
+                            ]);
+                        }
+
+                        // Actualizar last_message_at
+                        $conversation->update(['last_message_at' => now()]);
                     } else {
-                        // Sin asesores de turno, dejar sin asignar
-                        // El admin lo asignará manualmente
+                        // Sin asesores de turno: avisar al usuario
+                        $this->sendTextMessage($phoneNumber, '⏳ Presentamos alto flujo de mensajes en este momento. Su solicitud ha sido registrada y será atendida lo antes posible. Agradecemos su paciencia.');
+
                         Log::info('Welcome flow: no on-duty advisors, leaving unassigned', [
                             'conversation_id' => $conversation->id,
                         ]);
@@ -1347,15 +1418,28 @@ class WhatsAppService
 
             // Si la conversación estaba resuelta, reactivarla cuando llega un mensaje nuevo
             // Quitar asignación para que entre al pool compartido de asesores de turno
-            // Y resetear el flujo de bienvenida para recopilar datos nuevamente
             if ($conversation->status === 'resolved') {
+                // Conservar datos de perfil del usuario, pero borrar historial clínico/navegación de menú
+                $flowData = $conversation->welcome_flow_data ?? [];
+                $profileData = [];
+                $preserveKeys = [
+                    'welcome', 'document_type', 'document_type_other', 'document_number', 
+                    'full_name', 'phone_number', 'email', 'eps_selection', 'eps_other', 'regimen'
+                ];
+                
+                foreach ($preserveKeys as $key) {
+                    if (isset($flowData[$key])) {
+                        $profileData[$key] = $flowData[$key];
+                    }
+                }
+
                 $conversation->update([
                     'status' => 'active',
                     'assigned_to' => null,
                     'last_message_at' => now(),
                     'welcome_flow_completed' => false,
                     'welcome_flow_step' => null,
-                    'welcome_flow_data' => null,
+                    'welcome_flow_data' => !empty($profileData) ? $profileData : null,
                     'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
                               'Conversación reactivada automáticamente por mensaje entrante el ' . now()->format('Y-m-d H:i:s')
                 ]);
@@ -1363,6 +1447,7 @@ class WhatsAppService
                 Log::info('Conversation reactivated from resolved (flow reset)', [
                     'conversation_id' => $conversation->id,
                     'phone_number' => $conversation->phone_number,
+                    'preserved_profile' => !empty($profileData),
                 ]);
             }
 
@@ -1504,14 +1589,49 @@ class WhatsAppService
             // 1. Iniciar el flujo si:
             //    - Es una conversación nueva O
             //    - La conversación nunca ha completado ni empezado el flujo
+            //    - Y NO tiene un asesor ya asignado (si ya tiene asesor, no mostrar el menú)
             $shouldStartFlow = false;
-            if (isset($isNewConversation) && $isNewConversation) {
-                $shouldStartFlow = true;
-            } elseif (!$conversation->welcome_flow_completed && !$conversation->welcome_flow_step) {
-                $shouldStartFlow = true;
+            if (!$conversation->assigned_to) {
+                if (isset($isNewConversation) && $isNewConversation) {
+                    $shouldStartFlow = true;
+                } elseif (!$conversation->welcome_flow_completed && !$conversation->welcome_flow_step) {
+                    $shouldStartFlow = true;
+                }
             }
 
             if ($shouldStartFlow) {
+                // Verificar si ya conocemos al usuario (tiene nombre y cédula guardados de un flujo anterior)
+                $flowData = $conversation->welcome_flow_data ?? [];
+                $hasProfile = !empty($flowData['full_name']['text']) && !empty($flowData['document_number']['text']);
+
+                if ($hasProfile) {
+                    $fullName = $flowData['full_name']['text'];
+                    
+                    Log::info('Restarting welcome flow for known user', [
+                        'conversation_id' => $conversation->id,
+                        'phone' => $from,
+                        'name' => $fullName,
+                    ]);
+
+                    // Mensaje de bienvenida de regreso
+                    $this->sendTextMessage($from, "¡Hola de nuevo, *$fullName*! 👋\nBienvenido(a) a nuestro canal digital del *Hospital Universitario del Valle*.");
+                    
+                    // Saltar directamente al menú de servicios (service_menu)
+                    $welcomeFlow = \App\Models\WelcomeFlow::getActive();
+                    $serviceStep = $welcomeFlow?->getStepByKey('service_menu');
+                    
+                    if ($serviceStep) {
+                        $conversation->update([
+                            'welcome_flow_step' => 'service_menu',
+                            'welcome_flow_completed' => false,
+                        ]);
+                        // Se agrega retraso pequeño para que los mensajes lleguen en orden
+                        usleep(500000); 
+                        $this->sendFlowStep($serviceStep, $from, $conversation);
+                        return $message;
+                    }
+                }
+
                 Log::info('Starting welcome flow', [
                     'conversation_id' => $conversation->id,
                     'phone' => $from,

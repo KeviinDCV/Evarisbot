@@ -43,6 +43,7 @@ import {
     ChevronDown,
     ChevronUp,
     Pin,
+    ClipboardList,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -117,6 +118,7 @@ interface Conversation {
     } | null;
     messages?: Message[];
     tags?: TagItem[];
+    welcome_flow_data?: Record<string, { text?: string; button_id?: string; timestamp?: string }> | null;
 }
 
 interface TagItem {
@@ -197,6 +199,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [bulkAssignSearchQuery, setBulkAssignSearchQuery] = useState('');
     const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'image' | 'video'; caption?: string } | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
+    const [showPatientData, setShowPatientData] = useState(false);
     const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -1031,6 +1034,74 @@ export default function ConversationsIndex({ conversations: initialConversations
             resolved: t('conversations.statusLabels.resolved'),
         };
         return labels[status] || status;
+    };
+
+    // Mapeo de button_id del flujo de bienvenida a etiquetas legibles
+    const flowDataLabels: Record<string, string> = {
+        // Tipo de documento
+        doc_cc: 'Cédula de ciudadanía',
+        doc_ti: 'Tarjeta de identidad',
+        doc_other: 'Otro documento',
+        // EPS
+        eps_nueva_eps: 'Nueva EPS',
+        eps_coosalud: 'Coosalud',
+        eps_mutual_ser: 'Mutual Ser',
+        eps_emssanar: 'Emssanar',
+        eps_salud_total: 'Salud Total',
+        eps_sanitas: 'Sanitas',
+        eps_sura: 'Sura',
+        eps_famisanar: 'Famisanar',
+        eps_compensar: 'Compensar',
+        eps_otro: 'Otra EPS',
+        // Régimen
+        regimen_subsidiado: 'Subsidiado',
+        regimen_contributivo: 'Contributivo',
+        // Servicio
+        svc_agendamiento: 'Agendamiento de cita',
+        svc_cancelacion: 'Cancelación de cita',
+        svc_informacion: 'Información',
+        svc_asesor: 'Hablar con asesor',
+        // Agendamiento
+        agenda_especializada: 'Medicina especializada',
+        agenda_general: 'Medicina general',
+        agenda_odontologia: 'Odontología',
+        agenda_laboratorio: 'Laboratorio',
+        agenda_imagenes: 'Imágenes diagnósticas',
+        agenda_procedimientos: 'Procedimientos',
+        agenda_otra: 'Otra especialidad',
+        agenda_cancelacion: 'Cancelar cita existente',
+        // Información
+        info_recordatorio: 'Recordatorio de cita',
+        info_resultados: 'Resultados médicos',
+        info_general: 'Información general',
+        // Privacidad
+        accept_privacy: 'Aceptó',
+        reject_privacy: 'Rechazó',
+    };
+
+    const getFlowDataLabel = (key: string, value: { text?: string; button_id?: string }) => {
+        if (value.text) return value.text;
+        if (value.button_id) return flowDataLabels[value.button_id] || value.button_id;
+        return '-';
+    };
+
+    const flowFieldNames: Record<string, string> = {
+        welcome: 'Política de privacidad',
+        document_type: 'Tipo de documento',
+        document_type_other: 'Tipo de documento (otro)',
+        document_number: 'Número de documento',
+        full_name: 'Nombre completo',
+        phone_number: 'Teléfono',
+        email: 'Correo electrónico',
+        eps_selection: 'EPS',
+        eps_other: 'EPS (otra)',
+        regimen: 'Régimen',
+        service_menu: 'Servicio solicitado',
+        agendamiento_info: 'Info agendamiento',
+        agendamiento_submenu: 'Tipo de cita',
+        cancelacion_info: 'Info cancelación',
+        informacion_menu: 'Tipo de información',
+        asesor_cedula: 'Cédula (asesor)',
     };
 
     // Colores determinísticos por usuario para badges de "resuelto por"
@@ -2723,6 +2794,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 
+                                {/* Botón Datos del Paciente */}
+                                {selectedConversation.welcome_flow_data && Object.keys(selectedConversation.welcome_flow_data).filter(k => !k.startsWith('_')).length > 0 && (
+                                    <Button
+                                        variant={showPatientData ? 'default' : 'ghost'}
+                                        size="sm"
+                                        onClick={() => setShowPatientData(!showPatientData)}
+                                        className={showPatientData ? 'bg-primary text-white' : 'hover:bg-accent text-primary dark:text-primary'}
+                                        title="Datos del paciente"
+                                    >
+                                        <ClipboardList className="w-5 h-5" />
+                                    </Button>
+                                )}
+
                                 {/* Botón Cerrar Chat */}
                                 <Button
                                     variant="ghost"
@@ -2735,6 +2819,31 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Panel de datos del paciente */}
+                        {showPatientData && selectedConversation.welcome_flow_data && (
+                            <div className="border-b border-border bg-blue-50/50 dark:bg-blue-950/20 px-4 py-3">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <ClipboardList className="w-4 h-4 text-primary" />
+                                    <span className="text-sm font-semibold text-primary">Datos del paciente</span>
+                                </div>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-1.5">
+                                    {Object.entries(selectedConversation.welcome_flow_data)
+                                        .filter(([key]) => !key.startsWith('_'))
+                                        .map(([key, value]) => (
+                                            <div key={key} className="min-w-0">
+                                                <span className="text-[11px] text-muted-foreground uppercase tracking-wide">
+                                                    {flowFieldNames[key] || key}
+                                                </span>
+                                                <p className="text-sm text-foreground font-medium truncate" title={getFlowDataLabel(key, value)}>
+                                                    {getFlowDataLabel(key, value)}
+                                                </p>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
+                            </div>
+                        )}
 
                         {/* Banner de conversación resuelta */}
                         {selectedConversation.status === 'resolved' && selectedConversation.resolved_by_user && (() => {
