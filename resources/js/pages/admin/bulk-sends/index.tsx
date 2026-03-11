@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 interface Recipient {
     phone: string;
     name: string;
+    params?: Record<string, string>;
 }
 
 interface BulkSendRecord {
@@ -67,6 +68,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [newParamValue, setNewParamValue] = useState('');
     const [selectedTemplate, setSelectedTemplate] = useState<WhatsappTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [extraColumns, setExtraColumns] = useState<string[]>([]);
 
     const handleSelectTemplate = (templateId: string) => {
         const template = whatsappTemplates.find(t => t.id === Number(templateId));
@@ -142,6 +144,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
         try {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutos
+
             const response = await fetch('/admin/bulk-sends/upload', {
                 method: 'POST',
                 headers: {
@@ -149,20 +154,47 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     'Accept': 'application/json',
                 },
                 body: formData,
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
+
+            // Si el servidor devuelve error HTTP sin JSON (ej: 413 nginx, 500 HTML)
+            if (!response.ok) {
+                const text = await response.text();
+                try {
+                    const data = JSON.parse(text);
+                    if (data.errors) {
+                        const firstError = Object.values(data.errors).flat()[0] as string;
+                        setError(firstError || 'Error de validación');
+                    } else {
+                        setError(data.message || `Error del servidor (${response.status})`);
+                    }
+                } catch {
+                    setError(`Error del servidor (${response.status}): ${text.substring(0, 200)}`);
+                }
+                return;
+            }
 
             const data = await response.json();
 
             if (data.success) {
                 setRecipients(data.recipients);
                 setUploadedFileName(data.filename);
+                if (data.extra_columns?.length > 0) {
+                    setExtraColumns(data.extra_columns);
+                }
                 setSuccess(`Se cargaron ${data.total} números del archivo ${data.filename}`);
                 setTimeout(() => setSuccess(''), 5000);
             } else {
                 setError(data.message || 'Error al procesar el archivo');
             }
-        } catch (err) {
-            setError('Error al subir el archivo');
+        } catch (err: any) {
+            if (err?.name === 'AbortError') {
+                setError('El archivo es muy grande y tardó demasiado en procesarse. Intente con un archivo más pequeño.');
+            } else {
+                setError('Error al subir el archivo. Verifique que el formato sea correcto.');
+            }
         } finally {
             setIsUploading(false);
         }
@@ -251,7 +283,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     template_name: templateName,
                     template_params: templateParams.length > 0 ? templateParams : null,
                     name: sendName || null,
-                    recipients: recipients,
+                    recipients: recipients.map(r => ({
+                        phone: r.phone,
+                        name: r.name,
+                        params: r.params || null,
+                    })),
                 }),
             });
 
@@ -267,6 +303,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setSendName('');
                 setSelectedTemplate(null);
                 setShowPreview(false);
+                setExtraColumns([]);
                 setTimeout(() => setSuccess(''), 5000);
             } else {
                 setError(data.message || 'Error al iniciar el envío');
@@ -587,17 +624,24 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         Arrastra un archivo Excel aquí
                                                     </p>
                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                        .xlsx, .xls, .csv · Columnas: teléfono, nombre
+                                                        .xlsx, .xls, .csv · Columnas: teléfono, nombre, y parámetros extra (fecha, hora, etc.)
                                                     </p>
                                                 </div>
                                             </>
                                         )}
                                     </div>
                                     {uploadedFileName && (
-                                        <p className="text-sm text-green-600 flex items-center gap-1 mt-3 font-medium">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                            Archivo cargado: {uploadedFileName}
-                                        </p>
+                                        <div className="mt-3 space-y-1">
+                                            <p className="text-sm text-green-600 flex items-center gap-1 font-medium">
+                                                <CheckCircle2 className="w-4 h-4" />
+                                                Archivo cargado: {uploadedFileName}
+                                            </p>
+                                            {extraColumns.length > 0 && (
+                                                <p className="text-xs text-blue-600 font-medium">
+                                                    Columnas extra detectadas: {extraColumns.join(', ')} — se enviarán como parámetros por destinatario
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
 
@@ -672,6 +716,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         <span className="font-mono font-medium">{r.phone}</span>
                                                         {r.name && (
                                                             <span className="text-muted-foreground">— {r.name}</span>
+                                                        )}
+                                                        {r.params && Object.keys(r.params).length > 0 && (
+                                                            <span className="text-xs text-blue-500 ml-1">
+                                                                ({Object.values(r.params).join(', ')})
+                                                            </span>
                                                         )}
                                                     </div>
                                                     <button

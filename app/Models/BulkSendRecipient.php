@@ -11,6 +11,7 @@ class BulkSendRecipient extends Model
         'bulk_send_id',
         'phone_number',
         'contact_name',
+        'params',
         'status',
         'error',
         'sent_at',
@@ -18,6 +19,7 @@ class BulkSendRecipient extends Model
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'params' => 'array',
     ];
 
     /**

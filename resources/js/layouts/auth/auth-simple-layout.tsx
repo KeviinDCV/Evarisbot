@@ -112,6 +112,13 @@ export default function AuthSimpleLayout({
                         </div>
                     </div>
                 </div>
+
+                {/* Footer: Innovación y Desarrollo */}
+                <div className="mt-8 text-center" style={{ color: 'var(--primary-base)', opacity: 0.7 }}>
+                    <p className="text-sm font-medium tracking-wide">
+                        Innovación y Desarrollo
+                    </p>
+                </div>
             </div>
         </div>
     );

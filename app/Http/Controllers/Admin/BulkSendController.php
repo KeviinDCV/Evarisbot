@@ -9,6 +9,7 @@ use App\Models\BulkSendRecipient;
 use App\Models\WhatsappTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -92,69 +93,161 @@ class BulkSendController extends Controller
     public function upload(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // Max 10MB
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+        ], [
+            'file.mimes' => 'El archivo debe ser de tipo: xlsx, xls o csv.',
+            'file.required' => 'Debe seleccionar un archivo.',
         ]);
 
         try {
+            set_time_limit(600);
+            ini_set('memory_limit', '-1');
+
             $file = $request->file('file');
-            $spreadsheet = IOFactory::load($file->getRealPath());
-            $worksheet = $spreadsheet->getActiveSheet();
-            $rows = $worksheet->toArray();
+            $filePath = $file->getRealPath();
+            $extension = strtolower($file->getClientOriginalExtension());
+
+            Log::info('Inicio de carga de archivo para envío masivo', [
+                'filename' => $file->getClientOriginalName(),
+                'size_mb' => round($file->getSize() / 1024 / 1024, 2),
+                'extension' => $extension,
+            ]);
+
+            $rows = [];
+
+            if ($extension === 'csv') {
+                // CSV: leer directamente con fgetcsv (ultra rápido, sin memoria)
+                $handle = fopen($filePath, 'r');
+                if ($handle === false) {
+                    throw new \Exception('No se pudo abrir el archivo CSV');
+                }
+                while (($row = fgetcsv($handle, 0, ',', '"')) !== false) {
+                    $rows[] = $row;
+                }
+                fclose($handle);
+            } else {
+                // Excel: leer con formato para que fechas/horas se conviertan correctamente
+                $readerType = $extension === 'xls' ? 'Xls' : 'Xlsx';
+                $reader = IOFactory::createReader($readerType);
+                // NO usar setReadDataOnly(true) — destruye el formato de fechas/horas
+                $spreadsheet = $reader->load($filePath);
+                $worksheet = $spreadsheet->getActiveSheet();
+                $highestRow = $worksheet->getHighestRow();
+                $highestCol = $worksheet->getHighestColumn();
+                $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestCol);
+
+                for ($row = 1; $row <= $highestRow; $row++) {
+                    $rowData = [];
+                    for ($col = 1; $col <= $highestColIndex; $col++) {
+                        $cell = $worksheet->getCellByColumnAndRow($col, $row);
+                        $value = $cell->getValue();
+
+                        // Si es numérico y tiene formato de fecha/hora, convertir
+                        if (is_numeric($value) && $value > 0) {
+                            $format = $cell->getStyle()->getNumberFormat()->getFormatCode();
+                            if (\PhpOffice\PhpSpreadsheet\Shared\Date::isDateTimeFormatCode($format)) {
+                                try {
+                                    $dateObj = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($value);
+                                    // Si tiene parte decimal es fecha+hora o solo hora
+                                    if (fmod((float)$value, 1) > 0 && (float)$value < 1) {
+                                        // Solo hora (valor < 1)
+                                        $rowData[] = $dateObj->format('g:i A');
+                                    } elseif (fmod((float)$value, 1) > 0) {
+                                        // Fecha + hora
+                                        $rowData[] = $dateObj->format('d/m/Y g:i A');
+                                    } else {
+                                        // Solo fecha
+                                        $rowData[] = $dateObj->format('d/m/Y');
+                                    }
+                                    continue;
+                                } catch (\Exception $e) {
+                                    // Si falla la conversión, usar valor tal cual
+                                }
+                            }
+                        }
+
+                        $rowData[] = (string) ($value ?? '');
+                    }
+                    $rows[] = $rowData;
+                }
+
+                $spreadsheet->disconnectWorksheets();
+                unset($spreadsheet, $reader, $worksheet);
+            }
+
+            if (count($rows) < 2) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El archivo está vacío o solo tiene encabezados.',
+                ], 422);
+            }
 
             // Detectar encabezados
-            $headers = array_map('strtolower', array_map('trim', $rows[0] ?? []));
+            $rawHeaders = array_map('trim', $rows[0] ?? []);
+            $headers = array_map('strtolower', $rawHeaders);
             $phoneCol = null;
             $nameCol = null;
+            $extraCols = [];
+
+            $phoneAliases = ['telefono', 'teléfono', 'phone', 'celular', 'cel', 'numero', 'número', 'pactel', 'phone_number'];
+            $nameAliases = ['nombre', 'name', 'contacto', 'paciente', 'nom_paciente', 'contact_name'];
 
             foreach ($headers as $i => $header) {
                 $header = strtolower(trim($header));
-                if (in_array($header, ['telefono', 'teléfono', 'phone', 'celular', 'cel', 'numero', 'número', 'pactel', 'phone_number'])) {
+                if (in_array($header, $phoneAliases)) {
                     $phoneCol = $i;
-                }
-                if (in_array($header, ['nombre', 'name', 'contacto', 'paciente', 'nom_paciente', 'contact_name'])) {
+                } elseif (in_array($header, $nameAliases)) {
                     $nameCol = $i;
+                } else if (!empty(trim($rawHeaders[$i] ?? ''))) {
+                    $extraCols[$i] = strtolower(trim($rawHeaders[$i]));
                 }
             }
 
-            // Si no detectó columnas, asumir primera columna es teléfono
             if ($phoneCol === null) {
                 $phoneCol = 0;
                 $nameCol = count($headers) > 1 ? 1 : null;
+                $extraCols = [];
             }
 
-            $recipients = [];
-            for ($i = 1; $i < count($rows); $i++) {
-                $phone = trim($rows[$i][$phoneCol] ?? '');
-                $name = $nameCol !== null ? trim($rows[$i][$nameCol] ?? '') : '';
-
-                if (!empty($phone)) {
-                    // Limpiar número
-                    $cleanPhone = preg_replace('/[^0-9+]/', '', $phone);
-                    if (strlen(preg_replace('/[^0-9]/', '', $cleanPhone)) >= 10) {
-                        $recipients[] = [
-                            'phone' => $cleanPhone,
-                            'name' => $name,
-                        ];
-                    }
-                }
-            }
-
-            // Eliminar duplicados por teléfono
-            $unique = [];
             $seen = [];
-            foreach ($recipients as $r) {
-                $normalized = preg_replace('/[^0-9]/', '', $r['phone']);
-                if (!isset($seen[$normalized])) {
-                    $seen[$normalized] = true;
-                    $unique[] = $r;
+            $unique = [];
+            for ($i = 1; $i < count($rows); $i++) {
+                $phone = trim((string) ($rows[$i][$phoneCol] ?? ''));
+                $name = $nameCol !== null ? trim((string) ($rows[$i][$nameCol] ?? '')) : '';
+
+                if (empty($phone)) continue;
+
+                $cleanPhone = preg_replace('/[^0-9+]/', '', $phone);
+                $digits = preg_replace('/[^0-9]/', '', $cleanPhone);
+                if (strlen($digits) < 10) continue;
+
+                if (isset($seen[$digits])) continue;
+                $seen[$digits] = true;
+
+                $recipient = [
+                    'phone' => $cleanPhone,
+                    'name' => $name,
+                ];
+
+                if (!empty($extraCols)) {
+                    $params = [];
+                    foreach ($extraCols as $colIdx => $colName) {
+                        $params[$colName] = trim((string) ($rows[$i][$colIdx] ?? ''));
+                    }
+                    $recipient['params'] = $params;
                 }
+
+                $unique[] = $recipient;
             }
+
+            unset($rows, $seen);
 
             return response()->json([
                 'success' => true,
                 'recipients' => $unique,
                 'total' => count($unique),
                 'filename' => $file->getClientOriginalName(),
+                'extra_columns' => array_values($extraCols),
             ]);
         } catch (\Exception $e) {
             Log::error('Error procesando archivo Excel para envío masivo', [
@@ -180,6 +273,7 @@ class BulkSendController extends Controller
             'recipients' => 'required|array|min:1',
             'recipients.*.phone' => 'required|string',
             'recipients.*.name' => 'nullable|string',
+            'recipients.*.params' => 'nullable|array',
         ]);
 
         // Verificar que no haya un envío en proceso
@@ -192,6 +286,9 @@ class BulkSendController extends Controller
         }
 
         try {
+            set_time_limit(600);
+            ini_set('memory_limit', '-1');
+
             $recipients = $request->input('recipients');
 
             // Buscar el idioma real del template
@@ -200,6 +297,9 @@ class BulkSendController extends Controller
             if ($template && $template->language) {
                 $templateLang = $template->language;
             }
+
+            // Reconectar para asegurar conexión fresca
+            DB::reconnect();
 
             // Crear el registro de envío masivo
             $bulkSend = BulkSend::create([
@@ -214,24 +314,34 @@ class BulkSendController extends Controller
                 'created_by' => auth()->id(),
             ]);
 
-            // Crear registros de destinatarios
-            $recipientRecords = [];
-            foreach ($recipients as $r) {
-                $recipientRecords[] = BulkSendRecipient::create([
-                    'bulk_send_id' => $bulkSend->id,
-                    'phone_number' => $r['phone'],
-                    'contact_name' => $r['name'] ?? null,
-                    'status' => 'pending',
-                ]);
+            // Insertar destinatarios en lotes de 200 para no sobrecargar MySQL
+            $chunks = array_chunk($recipients, 200);
+            foreach ($chunks as $chunk) {
+                $rows = [];
+                foreach ($chunk as $r) {
+                    $rows[] = [
+                        'bulk_send_id' => $bulkSend->id,
+                        'phone_number' => $r['phone'],
+                        'contact_name' => $r['name'] ?? null,
+                        'params' => isset($r['params']) ? json_encode($r['params']) : null,
+                        'status' => 'pending',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+                }
+                DB::reconnect();
+                BulkSendRecipient::insert($rows);
             }
 
-            // Crear jobs para el batch
-            $jobs = collect($recipientRecords)->map(function ($recipient) use ($bulkSend) {
-                return new SendBulkMessageJob($recipient->id, $bulkSend->id);
-            })->toArray();
+            // Obtener los IDs insertados
+            DB::reconnect();
+            $recipientIds = BulkSendRecipient::where('bulk_send_id', $bulkSend->id)
+                ->pluck('id')
+                ->toArray();
 
-            // Dispatch batch
-            $batch = Bus::batch($jobs)
+            // Crear el batch VACÍO primero (transacción pequeña)
+            DB::reconnect();
+            $batch = Bus::batch([])
                 ->name('Envío masivo: ' . ($bulkSend->name ?? $bulkSend->template_name))
                 ->allowFailures()
                 ->finally(function ($batch) use ($bulkSend) {
@@ -247,6 +357,17 @@ class BulkSendController extends Controller
                 ->dispatch();
 
             $bulkSend->update(['batch_id' => $batch->id]);
+
+            // Agregar jobs al batch en chunks pequeños (100 a la vez)
+            $idChunks = array_chunk($recipientIds, 100);
+            foreach ($idChunks as $idChunk) {
+                DB::reconnect();
+                $jobs = array_map(
+                    fn($recipientId) => new SendBulkMessageJob($recipientId, $bulkSend->id),
+                    $idChunk
+                );
+                $batch->add($jobs);
+            }
 
             Log::info('Envío masivo iniciado', [
                 'bulk_send_id' => $bulkSend->id,

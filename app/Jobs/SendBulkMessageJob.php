@@ -105,18 +105,28 @@ class SendBulkMessageJob implements ShouldQueue
 
             // Preparar componentes del template
             $components = [];
-            if (!empty($bulkSend->template_params)) {
-                $params = $bulkSend->template_params;
+
+            // Prioridad: params del recipient (dinámicos por Excel) > template_params (estáticos)
+            $paramValues = [];
+            if (!empty($recipient->params) && is_array($recipient->params)) {
+                // Params dinámicos: incluir nombre del recipient + extras del Excel
+                $paramValues[] = $recipient->contact_name ?? '';
+                foreach ($recipient->params as $value) {
+                    $paramValues[] = $value;
+                }
+            } elseif (!empty($bulkSend->template_params)) {
+                $paramValues = $bulkSend->template_params;
+            }
+
+            if (!empty($paramValues)) {
                 $bodyParams = [];
-                foreach ($params as $param) {
-                    $bodyParams[] = ['type' => 'text', 'text' => $param];
+                foreach ($paramValues as $param) {
+                    $bodyParams[] = ['type' => 'text', 'text' => (string) $param];
                 }
-                if (!empty($bodyParams)) {
-                    $components[] = [
-                        'type' => 'body',
-                        'parameters' => $bodyParams,
-                    ];
-                }
+                $components[] = [
+                    'type' => 'body',
+                    'parameters' => $bodyParams,
+                ];
             }
 
             // Enviar template via WhatsApp API
