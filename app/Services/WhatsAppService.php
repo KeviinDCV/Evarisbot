@@ -1735,12 +1735,14 @@ class WhatsAppService
                 ->orderBy('citfc', 'asc')
                 ->first();
 
-            // Si no hay ninguna pendiente por responder, buscar la cita más recientemente actualizada
-            // (por si el usuario está interactuando nuevamente con una cita que ya respondió)
+            // Si no hay ninguna pendiente por responder, buscar la cita más reciente
+            // SOLO si la fecha de la cita es cercana (máximo 2 días pasados)
+            // Esto evita que mensajes como "confirmar" meses después activen citas viejas
             if (!$appointment) {
                 $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
                     ->where('reminder_sent', true)
-                    ->orderBy('updated_at', 'desc')
+                    ->whereDate('citfc', '>=', now()->subDays(2))
+                    ->orderBy('citfc', 'asc')
                     ->first();
             }
 
