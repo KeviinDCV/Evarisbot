@@ -786,9 +786,9 @@ class ConversationController extends Controller
         // Si se resuelven, enviar despedida y marcar mensajes como leídos
         if ($status === 'resolved') {
             $conversations = Conversation::whereIn('id', $validated['ids'])->get();
-            foreach ($conversations as $conv) {
-                $this->sendFarewellMessage($conv);
-            }
+            // foreach ($conversations as $conv) {
+            //     $this->sendFarewellMessage($conv);
+            // }
 
             Message::whereIn('conversation_id', $validated['ids'])
                 ->where('is_from_user', true)
@@ -854,8 +854,8 @@ class ConversationController extends Controller
         // Si se resuelve, marcar todos los mensajes como leídos
         if ($validated['status'] === 'resolved') {
             $conversation->markAsRead();
-            // Enviar mensaje de despedida automático por WhatsApp
-            $this->sendFarewellMessage($conversation);
+            // Deshabilitado: ya no se envía plantilla de despedida al resolver
+            // $this->sendFarewellMessage($conversation);
         }
 
         $resolverName = auth()->user()->name;
@@ -875,7 +875,7 @@ class ConversationController extends Controller
     public function hide(Conversation $conversation)
     {
         // Enviar mensaje de despedida automático por WhatsApp
-        $this->sendFarewellMessage($conversation);
+        // $this->sendFarewellMessage($conversation);
 
         // Marcar como resuelta y marcar mensajes como leídos
         $conversation->update([
