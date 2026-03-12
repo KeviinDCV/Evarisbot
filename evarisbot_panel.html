@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evarisbot - Panel de Control</title>
+    <meta http-equiv="refresh" content="15">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container { max-width: 520px; width: 100%; }
+        .card {
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        }
+        .header { text-align: center; margin-bottom: 28px; }
+        .header h1 { font-size: 24px; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+        .header .subtitle { font-size: 13px; color: #94a3b8; }
+        .overall { text-align: center; padding: 14px; border-radius: 10px; margin-bottom: 24px; font-weight: 600; font-size: 15px; }
+        .overall-on { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; }
+        .overall-off { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
+        .services { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+        .service { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background: rgba(15, 23, 42, 0.5); border-radius: 10px; border: 1px solid rgba(148, 163, 184, 0.08); }
+        .service-name { font-weight: 600; font-size: 14px; }
+        .service-desc { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .status-on { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); }
+        .status-off { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .ngrok-url { padding: 12px 16px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 10px; margin-bottom: 24px; font-size: 13px; }
+        .ngrok-url label { color: #60a5fa; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .ngrok-url .url { color: #93c5fd; word-break: break-all; margin-top: 4px; }
+        .ngrok-url .url a { color: #93c5fd; text-decoration: none; }
+        .ngrok-url .url a:hover { text-decoration: underline; }
+        .actions { display: flex; gap: 10px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-decoration: none; text-align: center; display: inline-block; color: white; }
+        .btn:active { transform: scale(0.97); }
+        .btn-start { background: #16a34a; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); }
+        .btn-start:hover { background: #15803d; box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4); }
+        .btn-stop { background: #dc2626; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); }
+        .btn-stop:hover { background: #b91c1c; box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4); }
+        .btn-restart { background: #d97706; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
+        .btn-restart:hover { background: #b45309; box-shadow: 0 6px 20px rgba(245, 158, 11, 0.4); }
+        .alert { padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; font-weight: 500; }
+        .alert-success { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; }
+        .alert-error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
+        .footer { text-align: center; margin-top: 20px; font-size: 11px; color: #475569; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>{{OVERALL_EMOJI}} Evarisbot</h1>
+                <div class="subtitle">Panel de Control Remoto - {{HOSTNAME}} ({{IP}})</div>
+            </div>
+
+            {{MESSAGE_HTML}}
+
+            <div class="overall {{OVERALL_CLASS}}">{{OVERALL_TEXT}}</div>
+
+            <div class="services">
+                <div class="service">
+                    <div>
+                        <div class="service-name">Laravel Server</div>
+                        <div class="service-desc">Puerto 8000</div>
+                    </div>
+                    <span class="status-badge {{LARAVEL_CLASS}}">{{LARAVEL_TEXT}}</span>
+                </div>
+                <div class="service">
+                    <div>
+                        <div class="service-name">Ngrok Tunnel</div>
+                        <div class="service-desc">Tunel HTTPS</div>
+                    </div>
+                    <span class="status-badge {{NGROK_CLASS}}">{{NGROK_TEXT}}</span>
+                </div>
+                <div class="service">
+                    <div>
+                        <div class="service-name">Queue Worker</div>
+                        <div class="service-desc">Procesamiento de cola</div>
+                    </div>
+                    <span class="status-badge {{QUEUE_CLASS}}">{{QUEUE_TEXT}}</span>
+                </div>
+            </div>
+
+            <div class="ngrok-url">
+                <label>URL Publica (Ngrok)</label>
+                <div class="url">{{NGROK_URL_HTML}}</div>
+            </div>
+
+            <div class="actions">
+                <a href="/?action=start" class="btn btn-start">Iniciar</a>
+                <a href="/?action=restart" class="btn btn-restart">Reiniciar</a>
+                <a href="/?action=stop" class="btn btn-stop">Detener</a>
+            </div>
+        </div>
+        <div class="footer">
+            Ultima actualizacion: {{CURRENT_TIME}} - Auto-refresca cada 15s<br>
+            Innovacion y Desarrollo - HUV
+        </div>
+    </div>
+</body>
+</html>
