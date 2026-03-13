@@ -724,14 +724,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <button
                                         key={chat.id}
                                         onClick={() => handleChatSelect(chat)}
-                                        className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-xl ${isActive
-                                            ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]'
-                                            : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] shadow-[0_1px_2px_rgba(46,63,132,0.04)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_4px_8px_rgba(46,63,132,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.15)]'
+                                        className={`w-full p-3 mb-1.5 transition-all duration-200 flex items-start gap-3 text-left rounded-2xl select-none group border ${isActive
+                                                ? 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 shadow-sm'
+                                                : 'bg-white dark:bg-[#1f2336] border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-slate-100 dark:hover:border-slate-800'
                                             }`}
                                     >
                                         {/* Avatar */}
-                                        <div className="relative flex-shrink-0">
-                                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white text-sm md:text-base font-medium shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden ${chat.type === 'group' ? 'bg-gradient-to-b from-[#4e5fa4] to-[#3e4f94]' : 'chat-message-sent'
+                                        <div className="relative flex-shrink-0 mt-0.5">
+                                            <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-[15px] font-semibold tracking-wide shadow-sm ring-2 ring-white dark:ring-[#1f2336] overflow-hidden ${chat.type === 'group' ? 'bg-gradient-to-br from-[#10b981] to-[#059669]' : 'bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94]'
                                                 }`}>
                                                 {chat.type === 'group' ? (
                                                     <Users className="w-5 h-5" />
@@ -739,29 +739,30 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     <span>{getInitials(chat.name)}</span>
                                                 )}
                                             </div>
+                                            {chat.unread > 0 && (
+                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm ring-2 ring-white dark:ring-[#1f2336]">
+                                                    {chat.unread}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Info */}
-                                        <div className="flex-1 min-w-0 overflow-hidden">
-                                            <div className="flex items-center justify-between gap-2 mb-0.5">
-                                                <span className="font-semibold text-sm text-foreground truncate flex items-center gap-1.5">
-                                                    {chat.type === 'group' && <Users className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
-                                                    {chat.name}
-                                                </span>
-                                                <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                                        <div className="flex-1 min-w-0 pr-1">
+                                            <div className="flex items-center justify-between mb-0.5">
+                                                <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                                                    {chat.type === 'group' && <Users className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />}
+                                                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 truncate text-[15px] leading-tight">
+                                                        {chat.name}
+                                                    </h3>
+                                                </div>
+                                                <span className={`text-[11px] font-medium flex-shrink-0 ml-2 ${chat.unread > 0 ? 'text-green-600 dark:text-green-500' : 'text-slate-400 dark:text-slate-500'
+                                                    }`}>
                                                     {chat.latest_message?.created_at || ''}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <span className={`text-xs truncate flex-1 ${chat.unread > 0 ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
-                                                    {getLastMessagePreview(chat)}
-                                                </span>
-                                                {chat.unread > 0 && (
-                                                    <span className="flex-shrink-0 min-w-5 h-5 px-1.5 chat-message-sent text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-[0_1px_3px_rgba(46,63,132,0.3)]">
-                                                        {chat.unread}
-                                                    </span>
-                                                )}
-                                            </div>
+                                            <p className={`text-[13px] truncate ${chat.unread > 0 ? 'text-slate-800 dark:text-slate-200 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                {getLastMessagePreview(chat)}
+                                            </p>
                                         </div>
                                     </button>
                                 );
@@ -811,10 +812,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                 {/* Avatar e Info */}
                                 <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-                                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white text-sm md:text-base font-medium flex-shrink-0 overflow-hidden ${activeChat.type === 'group' ? 'bg-gradient-to-b from-[#4e5fa4] to-[#3e4f94]' : 'bg-primary'
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-[15px] font-semibold tracking-wide flex-shrink-0 overflow-hidden shadow-sm ${activeChat.type === 'group' ? 'bg-gradient-to-br from-[#10b981] to-[#059669]' : 'bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94]'
                                         }`}>
                                         {activeChat.type === 'group' ? (
-                                            <Users className="w-4 h-4" />
+                                            <Users className="w-5 h-5" />
                                         ) : (
                                             <span>{getInitials(activeChat.name)}</span>
                                         )}
@@ -948,14 +949,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     className={`flex w-full ${msg.is_mine ? 'justify-end' : 'justify-start'}`}
                                                 >
                                                     <div
-                                                        className={`max-w-[85%] md:max-w-[70%] px-3 md:px-4 py-2 ${msg.is_mine
-                                                            ? 'rounded-[18px_18px_4px_18px] chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
-                                                            : 'rounded-[18px_18px_18px_4px] card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                                                        className={`max-w-[85%] md:max-w-[75%] px-3 md:px-3.5 py-2 relative flex flex-col ${msg.is_mine
+                                                            ? 'rounded-2xl rounded-tr-sm bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] text-white shadow-[0_2px_5px_rgba(46,63,132,0.2)] ring-1 ring-[#3e4f94]/50'
+                                                            : 'rounded-2xl rounded-tl-sm bg-white dark:bg-[#1f2336] text-slate-800 dark:text-slate-100 shadow-sm ring-1 ring-black/5 dark:ring-white/10'
                                                             }`}
                                                     >
                                                         {/* Sender name (in groups show for all; in direct only for others) */}
                                                         {msg.user && (activeChat?.type === 'group' || !msg.is_mine) && (
-                                                            <p className={`text-xs mb-1 font-normal ${msg.is_mine ? 'text-white/70' : 'text-primary dark:text-primary opacity-70'}`}>
+                                                            <p className={`text-[11px] mb-0.5 font-bold ${msg.is_mine ? 'text-[#a5b4fc]' : 'text-blue-500 dark:text-blue-400'}`}>
                                                                 {msg.is_mine ? 'Tú' : msg.user.name}
                                                             </p>
                                                         )}
@@ -1045,7 +1046,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* Text Content (with @mention highlighting) */}
                                                         {msg.body && (
-                                                            <p className="text-sm whitespace-pre-wrap break-words">
+                                                            <p className="text-[15px] leading-snug whitespace-pre-wrap break-words pb-3.5">
                                                                 {(() => {
                                                                     const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
                                                                     const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);
@@ -1084,7 +1085,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                         )}
 
                                                         {/* Timestamp */}
-                                                        <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${msg.is_mine ? 'text-white opacity-70' : 'text-muted-foreground font-normal'}`}>
+                                                        <div className={`absolute bottom-1 right-2 flex items-center justify-end gap-1 text-[10.5px] font-medium leading-none ${msg.is_mine ? 'text-white/70' : 'text-slate-400 dark:text-slate-500'}`}>
                                                             <span>{msg.created_at}</span>
                                                         </div>
                                                     </div>
@@ -1092,8 +1093,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 {/* Read receipts */}
                                                 {readersHere.length > 0 && (
                                                     <div className={`flex items-center gap-1 mt-0.5 px-1 ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
-                                                        <Check className="w-3 h-3 text-primary opacity-60 flex-shrink-0" />
-                                                        <span className="text-[10px] text-muted-foreground leading-none">
+                                                        <Check className="w-3.5 h-3.5 text-blue-500 opacity-80 flex-shrink-0" />
+                                                        <span className="text-[10px] font-medium text-slate-500 leading-none">
                                                             Visto por {readersHere.map(r => r.user_name).join(', ')}
                                                         </span>
                                                     </div>

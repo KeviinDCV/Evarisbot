@@ -242,14 +242,14 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                 <Link
                                     key={item.href}
                                     href={item.href}
-                                    className={`flex items-center px-4 py-3 transition-all rounded-lg group ${isActive
-                                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-md font-semibold'
-                                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
+                                    className={`flex items-center px-4 py-3 transition-colors rounded-xl group relative ${isActive
+                                        ? 'bg-primary text-white font-medium shadow-md shadow-primary/20'
+                                        : 'text-sidebar-foreground/70 hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground font-medium'
                                         }`}
                                     onClick={() => setIsMobileMenuOpen(false)}
                                 >
-                                    <Icon className={`mr-3 w-[22px] h-[22px] ${!isActive ? 'group-hover:scale-110 transition-transform' : ''}`} />
-                                    <span className="text-sm flex-1">{item.title}</span>
+                                    <Icon className={`mr-3 w-5 h-5 transition-transform duration-200 ${!isActive ? 'group-hover:scale-110' : ''}`} />
+                                    <span className="text-[15px] flex-1">{item.title}</span>
                                     {/* Badge de notificación para Conversaciones */}
                                     {item.href === '/admin/chat' && unreadConversationsCount > 0 && (
                                         <span className="bg-destructive text-destructive-foreground text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
@@ -268,41 +268,41 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 </div>
 
                 {/* User Info & Logout - Footer */}
-                <div className="mb-4 px-4">
-                    <div className="px-4 py-4 bg-sidebar-accent/50 rounded-xl border border-sidebar-border backdrop-blur-sm">
-                        <div className="flex items-center mb-3">
-                            <Avatar className="h-10 w-10 mr-3 shadow-md border-2 border-sidebar-border">
+                <div className="mb-6 px-4">
+                    <div className="px-4 py-5 bg-sidebar-accent/50 rounded-2xl border border-sidebar-border shadow-sm backdrop-blur-sm">
+                        <div className="flex items-center mb-4 pb-4 border-b border-sidebar-border">
+                            <Avatar className="h-10 w-10 mr-3 ring-2 ring-sidebar shadow-sm">
                                 <AvatarImage src={auth.user?.avatar} alt={auth.user?.name} />
-                                <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
+                                <AvatarFallback className="bg-sidebar-primary/20 text-sidebar-primary-foreground text-sm font-bold">
                                     {getInitials(auth.user?.name)}
                                 </AvatarFallback>
                             </Avatar>
                             <div className="overflow-hidden flex-1">
-                                <p className="text-sidebar-foreground text-sm font-semibold truncate">{auth.user?.name}</p>
-                                <p className="text-sidebar-foreground/60 text-xs truncate">{auth.user?.role === 'admin' ? t('users.roles.admin') : t('users.roles.advisor')}</p>
+                                <p className="text-sidebar-foreground text-[14px] font-semibold truncate leading-tight mb-0.5">{auth.user?.name}</p>
+                                <p className="text-sidebar-foreground/70 text-[12px] truncate font-medium">{auth.user?.role === 'admin' ? t('users.roles.admin') : t('users.roles.advisor')}</p>
                             </div>
                         </div>
-                        <nav className="flex flex-col gap-1">
+                        <nav className="flex flex-col gap-0.5">
                             <Link
                                 href="/settings/profile"
-                                className="flex items-center py-1.5 text-sidebar-foreground/70 hover:text-sidebar-foreground text-xs transition-colors"
+                                className="flex items-center px-2 py-2 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground rounded-lg text-[13px] transition-colors font-medium"
                             >
-                                <User className="mr-2 w-[18px] h-[18px]" />
+                                <User className="mr-2 w-[16px] h-[16px]" />
                                 {t('navigation.profile')}
                             </Link>
-                            <div className="flex items-center py-1.5 text-sidebar-foreground/70 text-xs">
+                            <div className="flex items-center px-2 py-2 text-sidebar-foreground/70 hover:bg-sidebar-accent md:hover:bg-transparent rounded-lg text-[13px] transition-colors">
                                 <LanguageSelector variant="admin" />
                             </div>
-                            <div className="flex items-center py-1.5 text-sidebar-foreground/70 text-xs">
+                            <div className="flex items-center px-2 py-2 text-sidebar-foreground/70 hover:bg-sidebar-accent md:hover:bg-transparent rounded-lg text-[13px] transition-colors">
                                 <AppearanceToggleDropdown />
                             </div>
                             <Link
                                 href={logout()}
                                 method="post"
                                 as="button"
-                                className="flex items-center py-1.5 text-sidebar-foreground/70 hover:text-destructive text-xs mt-2 border-t border-sidebar-border pt-3 transition-colors"
+                                className="flex items-center px-2 py-2 text-sidebar-foreground/70 hover:bg-red-500/10 hover:text-red-400 rounded-lg text-[13px] transition-colors font-medium mt-1 w-full text-left"
                             >
-                                <LogOut className="mr-2 w-[18px] h-[18px]" />
+                                <LogOut className="mr-2 w-[16px] h-[16px]" />
                                 {t('common.logout')}
                             </Link>
                         </nav>
