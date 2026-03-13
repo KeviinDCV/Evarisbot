@@ -2136,57 +2136,55 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         onMouseDown={() => handleDragSelectStart(conversation.id)}
                                         onMouseEnter={() => handleDragSelectEnter(conversation.id)}
                                         onMouseUp={handleDragSelectEnd}
-                                        className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-xl select-none ${selectedConversations.includes(conversation.id)
-                                            ? 'bg-gradient-to-b from-[#bbf7d0] to-[#86efac] dark:from-[hsl(142,40%,25%)] dark:to-[hsl(142,35%,20%)] shadow-[0_1px_3px_rgba(34,197,94,0.15),0_4px_12px_rgba(34,197,94,0.2)] ring-2 ring-green-400 dark:ring-green-600'
-                                            : selectedConversation?.id === conversation.id
-                                                ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]'
-                                                : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] shadow-[0_1px_2px_rgba(46,63,132,0.04)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_4px_8px_rgba(46,63,132,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.15)]'
+                                        className={`w-full p-3 mb-1.5 transition-all duration-200 flex items-start gap-3 text-left rounded-2xl select-none group border ${selectedConversations.includes(conversation.id)
+                                                ? 'bg-green-50/80 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                                                : selectedConversation?.id === conversation.id
+                                                    ? 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 shadow-sm'
+                                                    : 'bg-white dark:bg-[#1f2336] border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-slate-100 dark:hover:border-slate-800'
                                             }`}
                                     >
                                         {/* Avatar / Checkbox en modo selección */}
-                                        <div className="relative flex-shrink-0">
+                                        <div className="relative flex-shrink-0 mt-0.5">
                                             {isSelectionMode ? (
-                                                <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center ${selectedConversations.includes(conversation.id)
-                                                    ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a]'
-                                                    : 'bg-gradient-to-b from-[#e5e7eb] to-[#d1d5db] dark:from-[hsl(231,25%,30%)] dark:to-[hsl(231,25%,25%)]'
-                                                    } shadow-[0_2px_4px_rgba(46,63,132,0.15)]`}>
+                                                <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${selectedConversations.includes(conversation.id)
+                                                        ? 'bg-green-500 text-white'
+                                                        : 'bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700'
+                                                    }`}>
                                                     {selectedConversations.includes(conversation.id) ? (
                                                         <CheckSquare className="w-5 h-5 text-white" />
                                                     ) : (
-                                                        <Square className="w-5 h-5 text-muted-foreground" />
+                                                        <Square className="w-5 h-5 text-slate-400" />
                                                     )}
                                                 </div>
                                             ) : (
-                                                <div className="w-10 h-10 md:w-12 md:h-12 rounded-full chat-message-sent flex items-center justify-center text-white text-sm md:text-base font-medium shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.1)]">
+                                                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] flex items-center justify-center text-white text-[15px] font-semibold tracking-wide shadow-sm ring-2 ring-white dark:ring-[#1f2336]">
                                                     {conversation.contact_name?.[0]?.toUpperCase() || '?'}
                                                 </div>
                                             )}
                                             {!isSelectionMode && conversation.unread_count > 0 && (
-                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 bg-gradient-to-b from-[#22c55e] to-[#16a34a] rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-[0_2px_4px_rgba(22,163,74,0.3),0_1px_2px_rgba(22,163,74,0.2)]">
+                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm ring-2 ring-white dark:ring-[#1f2336]">
                                                     {conversation.unread_count}
                                                 </div>
                                             )}
                                         </div>
 
                                         {/* Información */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div className="flex-1 min-w-0">
-                                                    <h3 className="font-semibold text-foreground truncate text-sm flex items-center gap-1">
+                                        <div className="flex-1 min-w-0 pr-1">
+                                            <div className="flex items-center justify-between mb-0.5">
+                                                <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                                                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 truncate text-[15px] leading-tight">
                                                         {conversation.contact_name || 'Sin nombre'}
-                                                        {conversation.is_pinned && (
-                                                            <Pin className="w-3 h-3 text-primary flex-shrink-0 rotate-45" />
-                                                        )}
                                                     </h3>
-                                                    <p className="text-xs text-muted-foreground truncate">
-                                                        {conversation.phone_number}
-                                                    </p>
+                                                    {conversation.is_pinned && (
+                                                        <Pin className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 rotate-45" />
+                                                    )}
                                                 </div>
-                                                <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                                                <span className={`text-[11px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-green-600 dark:text-green-500' : 'text-slate-400 dark:text-slate-500'
+                                                    }`}>
                                                     {formatTime(conversation.last_message_at)}
                                                 </span>
                                             </div>
-                                            <p className={`text-xs md:text-sm truncate flex items-center gap-1 ${conversation.unread_count > 0 ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+                                            <p className={`text-[13px] truncate flex items-center gap-1 ${conversation.unread_count > 0 ? 'text-slate-800 dark:text-slate-200 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>
                                                 {conversation.last_message && (
                                                     conversation.last_message.is_from_user ? (
                                                         <span title="Mensaje del cliente">
@@ -2202,24 +2200,24 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     {conversation.last_message?.content || t('conversations.noMessages')}
                                                 </span>
                                             </p>
-                                            <div className="flex items-center justify-between mt-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
-                                                    <span className="text-xs text-muted-foreground">{getStatusLabel(conversation.status)}</span>
+                                            <div className="flex items-center justify-between mt-1.5">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)} ring-2 ring-white dark:ring-[#1f2336]`}></span>
+                                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{getStatusLabel(conversation.status)}</span>
                                                 </div>
                                                 {/* Mostrar quién resolvió la conversación */}
                                                 {conversation.status === 'resolved' && conversation.resolved_by_user && (() => {
                                                     const colors = getUserBadgeColor(conversation.resolved_by_user!.id);
                                                     return (
-                                                        <span className={`text-[10px] ${colors.text} ${colors.bg} border ${colors.border} px-1.5 py-0.5 rounded-full truncate max-w-[130px] font-medium`} title={`Resuelto por ${conversation.resolved_by_user!.name}`}>
-                                                            <CheckCheck className="w-3 h-3 inline mr-0.5" />
+                                                        <span className={`text-[10px] ${colors.text} ${colors.bg} border ${colors.border} px-2 py-0.5 rounded-full truncate max-w-[130px] font-medium shadow-sm transition-all`} title={`Resuelto por ${conversation.resolved_by_user!.name}`}>
+                                                            <CheckCheck className="w-3 h-3 inline mr-1" />
                                                             {conversation.resolved_by_user!.name.split(' ')[0]}
                                                         </span>
                                                     );
                                                 })()}
                                                 {/* Mostrar asesor asignado (solo si no está resuelta) */}
                                                 {conversation.assigned_user && conversation.status !== 'resolved' && (
-                                                    <span className="text-[10px] text-muted-foreground bg-accent dark:bg-accent px-1.5 py-0.5 rounded truncate max-w-[80px]" title={conversation.assigned_user.name}>
+                                                    <span className="text-[10px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-full truncate max-w-[90px]" title={conversation.assigned_user.name}>
                                                         {conversation.assigned_user.name.split(' ')[0]}
                                                     </span>
                                                 )}
