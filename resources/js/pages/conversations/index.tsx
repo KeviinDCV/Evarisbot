@@ -2888,14 +2888,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'}`}
                                         >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] px-3 md:px-4 py-2 ${message.is_from_user
-                                                    ? 'rounded-[18px_18px_18px_4px] card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
-                                                    : 'rounded-[18px_18px_4px_18px] chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
+                                                className={`max-w-[85%] md:max-w-[70%] px-3 pt-2 pb-1.5 flex flex-col relative ${message.is_from_user
+                                                    ? 'rounded-2xl rounded-tl-sm bg-white dark:bg-[#1f2336] text-slate-800 dark:text-slate-200 shadow-sm border border-slate-100/50 dark:border-black/20'
+                                                    : 'rounded-2xl rounded-tr-sm bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] text-white shadow-md ring-1 ring-black/5 dark:ring-white/5'
                                                     }`}
                                             >
                                                 {/* Remitente (si es asesor) */}
                                                 {!message.is_from_user && message.sender && (
-                                                    <p className="text-xs opacity-70 mb-1">
+                                                    <p className="text-[11px] font-bold text-blue-200/90 tracking-wide mb-1 flex items-center gap-1">
                                                         {message.sender.name}
                                                     </p>
                                                 )}
@@ -3016,19 +3016,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         </a>
                                                     </div>
                                                 ) : message.message_type === 'contact' ? (
-                                                    <div className="flex items-start gap-2 text-sm">
-                                                        <User className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                                    <div className="flex items-start gap-2 text-[15px] leading-snug pr-4">
+                                                        <User className="w-5 h-5 flex-shrink-0 mt-0.5 opacity-80" />
                                                         <p className="whitespace-pre-wrap break-words">{message.content}</p>
                                                     </div>
                                                 ) : (
-                                                    <p className="text-sm whitespace-pre-wrap break-words">
+                                                    <p className="text-[15px] leading-snug whitespace-pre-wrap break-words inline-block relative pr-3">
                                                         {message.content}
                                                     </p>
                                                 )}
 
-                                                {/* Hora y Estado */}
-                                                <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${message.is_from_user ? 'text-muted-foreground' : 'text-white opacity-70'
-                                                    }`}>
+                                                {/* Hora y Estado - Alinear a la derecha abajo */}
+                                                <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10.5px] font-medium tracking-wide ${message.is_from_user ? 'text-slate-400 dark:text-slate-500' : 'text-blue-100/70'
+                                                    } self-end ml-4`}>
                                                     <span>{formatTime(message.created_at)}</span>
                                                     {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
                                                 </div>
@@ -3043,9 +3043,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             className="flex justify-end"
                                         >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] rounded-[18px_18px_4px_18px] px-3 md:px-4 py-2 ${message.status === 'error'
-                                                    ? 'bg-gradient-to-b from-red-400 to-red-500 text-white shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_12px_rgba(239,68,68,0.25)]'
-                                                    : 'chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)] opacity-80'
+                                                className={`max-w-[85%] md:max-w-[70%] px-3 pt-2 pb-1.5 flex flex-col relative rounded-2xl rounded-tr-sm text-white ${message.status === 'error'
+                                                    ? 'bg-gradient-to-br from-red-500 to-red-600 shadow-md ring-1 ring-red-700/50'
+                                                    : 'bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] shadow-md ring-1 ring-black/5 opacity-70'
                                                     }`}
                                             >
                                                 {/* Remitente */}
@@ -3061,12 +3061,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 </p>
 
                                                 {/* Estado del mensaje */}
-                                                <div className="flex items-center justify-end gap-1 mt-1 text-xs text-white opacity-70">
+                                                <div className="flex items-center justify-end gap-1 mt-0.5 text-[10.5px] font-medium tracking-wide text-blue-100/70 self-end ml-4">
                                                     <span>{formatTime(message.created_at)}</span>
                                                     {message.status === 'sending' ? (
-                                                        <Clock className="w-3 h-3 animate-pulse" />
+                                                        <Clock className="w-3 h-3 animate-pulse opacity-80" />
                                                     ) : (
-                                                        <span className="text-red-200 text-xs">Error al enviar</span>
+                                                        <span className="text-red-200">Error</span>
                                                     )}
                                                 </div>
                                             </div>
