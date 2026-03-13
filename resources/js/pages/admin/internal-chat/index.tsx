@@ -174,8 +174,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     }
 
     function scrollToBottom(force = false) {
+        const container = messagesContainerRef.current;
+        if (!container) return;
         if (force || isAtBottomRef.current) {
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            // Use instant scroll on force (chat open), smooth on new messages
+            container.scrollTo({
+                top: container.scrollHeight,
+                behavior: force ? 'instant' : 'smooth',
+            });
         }
     }
 
@@ -290,6 +296,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         if (activeChat) {
             // Reset tracking for new chat
             lastMessageIdRef.current = 0;
+            isAtBottomRef.current = true; // Reset scroll tracking
 
             axios.get(`/admin/internal-chat/${activeChat.id}/messages`)
                 .then(res => {
@@ -299,15 +306,25 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         lastMessageIdRef.current = msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
                         setActiveChatInfo(res.data.chat || null);
                     }
-                    // Force scroll to bottom on chat switch
-                    setTimeout(() => scrollToBottom(true), 100);
                 })
                 .catch(console.error);
 
             // Mark as read
-            axios.post(`/admin/internal-chat/${activeChat.id}/read`).catch(() => {});
+            axios.post(`/admin/internal-chat/${activeChat.id}/read`).catch(() => { });
         }
     }, [activeChat?.id]);
+
+    // Force scroll to bottom whenever messages change and there's an active chat
+    // This catches initial load, chat switch, and any other state update
+    useEffect(() => {
+        if (activeChat && messages.length > 0) {
+            // Use multiple attempts to handle images/media loading that change container height
+            const t1 = setTimeout(() => scrollToBottom(true), 100);
+            const t2 = setTimeout(() => scrollToBottom(true), 300);
+            const t3 = setTimeout(() => scrollToBottom(true), 600);
+            return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+        }
+    }, [activeChat?.id, messages.length]);
 
     // Poll read receipts every 4 seconds while a chat is active
     useEffect(() => {
@@ -707,17 +724,15 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <button
                                         key={chat.id}
                                         onClick={() => handleChatSelect(chat)}
-                                        className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-xl ${
-                                            isActive
-                                                ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]'
-                                                : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] shadow-[0_1px_2px_rgba(46,63,132,0.04)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_4px_8px_rgba(46,63,132,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.15)]'
-                                        }`}
+                                        className={`w-full p-3 md:p-4 mb-2 transition-all duration-200 flex items-start gap-3 text-left rounded-xl ${isActive
+                                            ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)] shadow-[0_1px_3px_rgba(46,63,132,0.08),0_4px_12px_rgba(46,63,132,0.12)]'
+                                            : 'bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] shadow-[0_1px_2px_rgba(46,63,132,0.04)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_4px_8px_rgba(46,63,132,0.08)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.15)]'
+                                            }`}
                                     >
                                         {/* Avatar */}
                                         <div className="relative flex-shrink-0">
-                                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white text-sm md:text-base font-medium shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden ${
-                                                chat.type === 'group' ? 'bg-gradient-to-b from-[#4e5fa4] to-[#3e4f94]' : 'chat-message-sent'
-                                            }`}>
+                                            <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-white text-sm md:text-base font-medium shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_8px_rgba(46,63,132,0.1),inset_0_1px_0_rgba(255,255,255,0.1)] overflow-hidden ${chat.type === 'group' ? 'bg-gradient-to-b from-[#4e5fa4] to-[#3e4f94]' : 'chat-message-sent'
+                                                }`}>
                                                 {chat.type === 'group' ? (
                                                     <Users className="w-5 h-5" />
                                                 ) : (
@@ -796,9 +811,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                 {/* Avatar e Info */}
                                 <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-                                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white text-sm md:text-base font-medium flex-shrink-0 overflow-hidden ${
-                                        activeChat.type === 'group' ? 'bg-gradient-to-b from-[#4e5fa4] to-[#3e4f94]' : 'bg-primary'
-                                    }`}>
+                                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white text-sm md:text-base font-medium flex-shrink-0 overflow-hidden ${activeChat.type === 'group' ? 'bg-gradient-to-b from-[#4e5fa4] to-[#3e4f94]' : 'bg-primary'
+                                        }`}>
                                         {activeChat.type === 'group' ? (
                                             <Users className="w-4 h-4" />
                                         ) : (
@@ -926,165 +940,165 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         }
 
                                         return (
-                                        <div
-                                            key={msg.id}
-                                            className={`flex flex-col ${msg.is_mine ? 'items-end' : 'items-start'}`}
-                                        >
-                                        <div
-                                            className={`flex w-full ${msg.is_mine ? 'justify-end' : 'justify-start'}`}
-                                        >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] px-3 md:px-4 py-2 ${msg.is_mine
-                                                    ? 'rounded-[18px_18px_4px_18px] chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
-                                                    : 'rounded-[18px_18px_18px_4px] card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
-                                                }`}
+                                                key={msg.id}
+                                                className={`flex flex-col ${msg.is_mine ? 'items-end' : 'items-start'}`}
                                             >
-                                                {/* Sender name (in groups show for all; in direct only for others) */}
-                                                {msg.user && (activeChat?.type === 'group' || !msg.is_mine) && (
-                                                    <p className={`text-xs mb-1 font-normal ${msg.is_mine ? 'text-white/70' : 'text-primary dark:text-primary opacity-70'}`}>
-                                                        {msg.is_mine ? 'Tú' : msg.user.name}
-                                                    </p>
-                                                )}
+                                                <div
+                                                    className={`flex w-full ${msg.is_mine ? 'justify-end' : 'justify-start'}`}
+                                                >
+                                                    <div
+                                                        className={`max-w-[85%] md:max-w-[70%] px-3 md:px-4 py-2 ${msg.is_mine
+                                                            ? 'rounded-[18px_18px_4px_18px] chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.15)]'
+                                                            : 'rounded-[18px_18px_18px_4px] card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                                                            }`}
+                                                    >
+                                                        {/* Sender name (in groups show for all; in direct only for others) */}
+                                                        {msg.user && (activeChat?.type === 'group' || !msg.is_mine) && (
+                                                            <p className={`text-xs mb-1 font-normal ${msg.is_mine ? 'text-white/70' : 'text-primary dark:text-primary opacity-70'}`}>
+                                                                {msg.is_mine ? 'Tú' : msg.user.name}
+                                                            </p>
+                                                        )}
 
-                                                {/* Image */}
-                                                {msg.type === 'image' && msg.file_url && (
-                                                    <div className="mb-2">
-                                                        <div
-                                                            className="relative cursor-pointer group"
-                                                            onClick={() => {
-                                                                setMediaViewer({
-                                                                    url: msg.file_url!,
-                                                                    type: 'image',
-                                                                    caption: msg.body && msg.body !== 'Imagen' ? msg.body : undefined
-                                                                });
-                                                                setZoomLevel(1);
-                                                                setImagePosition({ x: 0, y: 0 });
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={msg.file_url}
-                                                                alt="Imagen"
-                                                                className="max-w-full max-h-96 rounded-xl object-cover"
-                                                                loading="lazy"
-                                                            />
-                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
-                                                                <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+                                                        {/* Image */}
+                                                        {msg.type === 'image' && msg.file_url && (
+                                                            <div className="mb-2">
+                                                                <div
+                                                                    className="relative cursor-pointer group"
+                                                                    onClick={() => {
+                                                                        setMediaViewer({
+                                                                            url: msg.file_url!,
+                                                                            type: 'image',
+                                                                            caption: msg.body && msg.body !== 'Imagen' ? msg.body : undefined
+                                                                        });
+                                                                        setZoomLevel(1);
+                                                                        setImagePosition({ x: 0, y: 0 });
+                                                                    }}
+                                                                >
+                                                                    <img
+                                                                        src={msg.file_url}
+                                                                        alt="Imagen"
+                                                                        className="max-w-full max-h-96 rounded-xl object-cover"
+                                                                        loading="lazy"
+                                                                    />
+                                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
+                                                                        <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+                                                                    </div>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                        )}
 
-                                                {/* Video */}
-                                                {msg.type === 'video' && msg.file_url && (
-                                                    <div className="mb-2">
-                                                        <div
-                                                            className="relative cursor-pointer group"
-                                                            onClick={() => {
-                                                                setMediaViewer({
-                                                                    url: msg.file_url!,
-                                                                    type: 'video',
-                                                                    caption: msg.body && msg.body !== 'Video' ? msg.body : undefined
-                                                                });
-                                                            }}
-                                                        >
-                                                            <video
-                                                                src={msg.file_url}
-                                                                className="max-w-full max-h-96 rounded-xl"
-                                                                preload="metadata"
-                                                            />
-                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
-                                                                <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+                                                        {/* Video */}
+                                                        {msg.type === 'video' && msg.file_url && (
+                                                            <div className="mb-2">
+                                                                <div
+                                                                    className="relative cursor-pointer group"
+                                                                    onClick={() => {
+                                                                        setMediaViewer({
+                                                                            url: msg.file_url!,
+                                                                            type: 'video',
+                                                                            caption: msg.body && msg.body !== 'Video' ? msg.body : undefined
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    <video
+                                                                        src={msg.file_url}
+                                                                        className="max-w-full max-h-96 rounded-xl"
+                                                                        preload="metadata"
+                                                                    />
+                                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
+                                                                        <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+                                                                    </div>
+                                                                </div>
                                                             </div>
+                                                        )}
+
+                                                        {/* File / Document */}
+                                                        {(msg.type === 'document') && msg.file_url && (
+                                                            <div className="flex items-center gap-3 p-2 bg-accent/50 dark:bg-accent/30 rounded-lg mb-2">
+                                                                <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-full">
+                                                                    <FileText className="w-5 h-5 text-primary dark:text-primary" />
+                                                                </div>
+                                                                <div className="flex flex-col overflow-hidden flex-1">
+                                                                    <span className="text-xs font-semibold truncate">{msg.file_name || 'Archivo'}</span>
+                                                                    {msg.file_size_human && (
+                                                                        <span className="text-[10px] text-muted-foreground font-normal">{msg.file_size_human}</span>
+                                                                    )}
+                                                                </div>
+                                                                <a href={msg.file_url} download target="_blank" rel="noopener noreferrer">
+                                                                    <Download className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                                                                </a>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Audio */}
+                                                        {msg.type === 'audio' && msg.file_url && (
+                                                            <div className="mb-2">
+                                                                <audio
+                                                                    src={msg.file_url}
+                                                                    controls
+                                                                    className="max-w-full"
+                                                                    preload="metadata"
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Text Content (with @mention highlighting) */}
+                                                        {msg.body && (
+                                                            <p className="text-sm whitespace-pre-wrap break-words">
+                                                                {(() => {
+                                                                    const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
+                                                                    const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);
+                                                                    // Build regex matching @Name for all known users
+                                                                    if (names.length === 0) return msg.body;
+                                                                    const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                                                                    const regex = new RegExp(`(@(?:${escaped.join('|')}))`, 'g');
+                                                                    const parts = msg.body.split(regex);
+                                                                    return parts.map((part: string, pi: number) => {
+                                                                        if (part.startsWith('@')) {
+                                                                            const name = part.slice(1);
+                                                                            const mentioned = allParticipants.find(u => u.name === name);
+                                                                            if (mentioned) {
+                                                                                const isMe = mentioned.id === auth.user.id;
+                                                                                return (
+                                                                                    <span
+                                                                                        key={pi}
+                                                                                        className={cn(
+                                                                                            'font-semibold rounded px-0.5',
+                                                                                            msg.is_mine
+                                                                                                ? 'text-white underline decoration-white/50'
+                                                                                                : isMe
+                                                                                                    ? 'text-primary bg-primary/10'
+                                                                                                    : 'text-primary'
+                                                                                        )}
+                                                                                    >
+                                                                                        @{name}
+                                                                                    </span>
+                                                                                );
+                                                                            }
+                                                                        }
+                                                                        return part;
+                                                                    });
+                                                                })()}
+                                                            </p>
+                                                        )}
+
+                                                        {/* Timestamp */}
+                                                        <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${msg.is_mine ? 'text-white opacity-70' : 'text-muted-foreground font-normal'}`}>
+                                                            <span>{msg.created_at}</span>
                                                         </div>
                                                     </div>
-                                                )}
-
-                                                {/* File / Document */}
-                                                {(msg.type === 'document') && msg.file_url && (
-                                                    <div className="flex items-center gap-3 p-2 bg-accent/50 dark:bg-accent/30 rounded-lg mb-2">
-                                                        <div className="p-2 bg-primary/10 dark:bg-primary/20 rounded-full">
-                                                            <FileText className="w-5 h-5 text-primary dark:text-primary" />
-                                                        </div>
-                                                        <div className="flex flex-col overflow-hidden flex-1">
-                                                            <span className="text-xs font-semibold truncate">{msg.file_name || 'Archivo'}</span>
-                                                            {msg.file_size_human && (
-                                                                <span className="text-[10px] text-muted-foreground font-normal">{msg.file_size_human}</span>
-                                                            )}
-                                                        </div>
-                                                        <a href={msg.file_url} download target="_blank" rel="noopener noreferrer">
-                                                            <Download className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                                                        </a>
-                                                    </div>
-                                                )}
-
-                                                {/* Audio */}
-                                                {msg.type === 'audio' && msg.file_url && (
-                                                    <div className="mb-2">
-                                                        <audio
-                                                            src={msg.file_url}
-                                                            controls
-                                                            className="max-w-full"
-                                                            preload="metadata"
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                {/* Text Content (with @mention highlighting) */}
-                                                {msg.body && (
-                                                    <p className="text-sm whitespace-pre-wrap break-words">
-                                                        {(() => {
-                                                            const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
-                                                            const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);
-                                                            // Build regex matching @Name for all known users
-                                                            if (names.length === 0) return msg.body;
-                                                            const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-                                                            const regex = new RegExp(`(@(?:${escaped.join('|')}))`, 'g');
-                                                            const parts = msg.body.split(regex);
-                                                            return parts.map((part: string, pi: number) => {
-                                                                if (part.startsWith('@')) {
-                                                                    const name = part.slice(1);
-                                                                    const mentioned = allParticipants.find(u => u.name === name);
-                                                                    if (mentioned) {
-                                                                        const isMe = mentioned.id === auth.user.id;
-                                                                        return (
-                                                                            <span
-                                                                                key={pi}
-                                                                                className={cn(
-                                                                                    'font-semibold rounded px-0.5',
-                                                                                    msg.is_mine
-                                                                                        ? 'text-white underline decoration-white/50'
-                                                                                        : isMe
-                                                                                            ? 'text-primary bg-primary/10'
-                                                                                            : 'text-primary'
-                                                                                )}
-                                                                            >
-                                                                                @{name}
-                                                                            </span>
-                                                                        );
-                                                                    }
-                                                                }
-                                                                return part;
-                                                            });
-                                                        })()}
-                                                    </p>
-                                                )}
-
-                                                {/* Timestamp */}
-                                                <div className={`flex items-center justify-end gap-1 mt-1 text-xs ${msg.is_mine ? 'text-white opacity-70' : 'text-muted-foreground font-normal'}`}>
-                                                    <span>{msg.created_at}</span>
                                                 </div>
+                                                {/* Read receipts */}
+                                                {readersHere.length > 0 && (
+                                                    <div className={`flex items-center gap-1 mt-0.5 px-1 ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
+                                                        <Check className="w-3 h-3 text-primary opacity-60 flex-shrink-0" />
+                                                        <span className="text-[10px] text-muted-foreground leading-none">
+                                                            Visto por {readersHere.map(r => r.user_name).join(', ')}
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </div>
-                                        {/* Read receipts */}
-                                        {readersHere.length > 0 && (
-                                            <div className={`flex items-center gap-1 mt-0.5 px-1 ${msg.is_mine ? 'justify-end' : 'justify-start'}`}>
-                                                <Check className="w-3 h-3 text-primary opacity-60 flex-shrink-0" />
-                                                <span className="text-[10px] text-muted-foreground leading-none">
-                                                    Visto por {readersHere.map(r => r.user_name).join(', ')}
-                                                </span>
-                                            </div>
-                                        )}
-                                        </div>
                                         );
                                     })}
                                     <div ref={messagesEndRef} />
@@ -1094,7 +1108,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                         {/* Input Area */}
                         <form onSubmit={handleSendMessage} className="p-3 md:p-4 bg-card border-t border-border">
-                            <div className="flex items-end gap-2 md:gap-3">
+                            <div className="flex items-end gap-2 md:gap-3 relative">
                                 {/* Hidden file input */}
                                 <input
                                     type="file"
@@ -1103,66 +1117,70 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     onChange={handleFileUpload}
                                 />
 
-                                {/* Attach button */}
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="flex hover:bg-accent"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <Paperclip className="w-5 h-5 text-primary dark:text-primary" />
-                                </Button>
+                                <div className="relative flex-1 flex items-end bg-card dark:bg-card/50 ring-1 ring-border shadow-sm rounded-3xl focus-within:ring-2 focus-within:ring-primary/50 focus-within:shadow-md transition-all duration-200 overflow-visible">
+                                    {/* Attach button - Integrado dentro de la burbuja */}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="flex-shrink-0 h-[44px] w-12 p-0 rounded-l-3xl rounded-r-none hover:bg-transparent hover:text-primary self-end text-muted-foreground transition-colors flex items-center justify-center"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        title="Adjuntar archivo"
+                                        disabled={isUploading}
+                                    >
+                                        <Paperclip className="w-[22px] h-[22px]" />
+                                    </Button>
 
-                                {/* Text input */}
-                                <div className="relative flex-1">
-                                    {/* @Mentions dropdown */}
-                                    {showMentions && mentionUsers.length > 0 && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-card border border-border rounded-xl shadow-lg z-50 max-h-52 overflow-y-auto">
-                                            {mentionUsers.map((user, i) => (
-                                                <button
-                                                    key={user.id}
-                                                    type="button"
-                                                    className={cn(
-                                                        'w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors',
-                                                        i === mentionIndex ? 'bg-primary/10 text-primary' : 'hover:bg-accent'
-                                                    )}
-                                                    onMouseDown={(e) => {
-                                                        e.preventDefault();
-                                                        insertMention(user);
-                                                    }}
-                                                    onMouseEnter={() => setMentionIndex(i)}
-                                                >
-                                                    <div className="w-7 h-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                                                        {getInitials(user.name)}
-                                                    </div>
-                                                    <span className="font-medium truncate">{user.name}</span>
-                                                    <span className="text-xs text-muted-foreground ml-auto capitalize">{user.role}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                    <Textarea
-                                        ref={textareaRef}
-                                        value={inputText}
-                                        onChange={handleInputChange}
-                                        placeholder="Escribe un mensaje... (@para mencionar)"
-                                        className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 card-gradient focus:ring-2 focus:ring-primary shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-3xl transition-shadow duration-200"
-                                        onKeyDown={handleKeyDown}
-                                        onPaste={handlePaste}
-                                    />
+                                    {/* Text input */}
+                                    <div className="relative flex-1">
+                                        {/* @Mentions dropdown */}
+                                        {showMentions && mentionUsers.length > 0 && (
+                                            <div className="absolute bottom-full left-0 right-0 mb-3 bg-card border border-border/80 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                {mentionUsers.map((user, i) => (
+                                                    <button
+                                                        key={user.id}
+                                                        type="button"
+                                                        className={cn(
+                                                            'w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors',
+                                                            i === mentionIndex ? 'bg-primary/5 text-primary' : 'hover:bg-accent'
+                                                        )}
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            insertMention(user);
+                                                        }}
+                                                        onMouseEnter={() => setMentionIndex(i)}
+                                                    >
+                                                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                                                            {getInitials(user.name)}
+                                                        </div>
+                                                        <span className="font-medium truncate">{user.name}</span>
+                                                        <span className="text-xs text-muted-foreground ml-auto capitalize">{user.role}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <Textarea
+                                            ref={textareaRef}
+                                            value={inputText}
+                                            onChange={handleInputChange}
+                                            placeholder="Escribe un mensaje... (@para mencionar)"
+                                            className="flex-1 min-h-[44px] max-h-[120px] py-[10px] pr-4 pl-0 text-sm md:text-base resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-muted-foreground/70"
+                                            onKeyDown={handleKeyDown}
+                                            onPaste={handlePaste}
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* Send button */}
                                 <Button
                                     type="submit"
-                                    disabled={!inputText.trim() && !isUploading}
-                                    className="chat-message-sent hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white w-11 h-11 rounded-full shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
+                                    disabled={(!inputText.trim() && !isUploading) || isUploading}
+                                    className="flex-shrink-0 bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] hover:from-[#435292] hover:to-[#334282] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-[0_4px_10px_rgba(46,63,132,0.3)] hover:shadow-[0_6px_16px_rgba(46,63,132,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_2px_4px_rgba(46,63,132,0.3)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center border-0 border-t border-white/10"
                                 >
                                     {isUploading ? (
-                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
                                     ) : (
-                                        <Send className="w-5 h-5" />
+                                        <Send className="w-5 h-5 ml-[2px]" />
                                     )}
                                 </Button>
                             </div>
@@ -1255,11 +1273,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         <button
                                             key={user.id}
                                             onClick={() => toggleUserSelection(user.id)}
-                                            className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${
-                                                isSelected
-                                                    ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)]'
-                                                    : 'hover:bg-accent'
-                                            }`}
+                                            className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${isSelected
+                                                ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)]'
+                                                : 'hover:bg-accent'
+                                                }`}
                                         >
                                             <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
                                                 {getInitials(user.name)}
@@ -1271,11 +1288,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     {user.is_online && <span className="ml-1.5 text-green-500">● En línea</span>}
                                                 </p>
                                             </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                                                isSelected
-                                                    ? 'bg-primary border-primary text-white'
-                                                    : 'border-border'
-                                            }`}>
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected
+                                                ? 'bg-primary border-primary text-white'
+                                                : 'border-border'
+                                                }`}>
                                                 {isSelected && <Check className="w-3 h-3" />}
                                             </div>
                                         </button>

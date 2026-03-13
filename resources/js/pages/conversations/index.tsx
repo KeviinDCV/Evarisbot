@@ -3162,7 +3162,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </div>
                             )}
 
-                            <div className="flex items-end gap-2 md:gap-3">
+                            <div className="flex items-end gap-2 md:gap-3 relative">
                                 {/* Input de archivo oculto */}
                                 <input
                                     ref={fileInputRef}
@@ -3172,89 +3172,93 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     className="hidden"
                                 />
 
-                                {/* Botón de adjuntar */}
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="flex hover:bg-accent"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <Paperclip className="w-5 h-5 text-primary dark:text-primary" />
-                                </Button>
+                                <div className="relative flex-1 flex items-end bg-card dark:bg-card/50 ring-1 ring-border shadow-sm rounded-3xl focus-within:ring-2 focus-within:ring-primary/50 focus-within:shadow-md transition-all duration-200 overflow-visible">
 
-                                {/* Campo de texto */}
-                                <div className="relative flex-1">
-                                    <Textarea
-                                        value={data.content}
-                                        onChange={(e) => handleMessageChange(e.target.value)}
-                                        placeholder={t('conversations.messagePlaceholder')}
-                                        className="flex-1 min-h-[40px] md:min-h-[44px] max-h-[100px] md:max-h-[120px] text-sm md:text-base resize-none border-0 card-gradient focus:ring-2 focus:ring-primary shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.8)] focus:shadow-[0_2px_6px_rgba(46,63,132,0.12),0_4px_12px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-3xl transition-shadow duration-200"
-                                        onKeyDown={handleTemplateKeyDown}
-                                        onPaste={handlePaste}
-                                        spellCheck={true}
-                                        lang="es"
-                                        autoCorrect="on"
-                                    />
+                                    {/* Botón de adjuntar - Ahora integrado dentro de la burbuja */}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="flex-shrink-0 h-[44px] w-12 p-0 rounded-l-3xl rounded-r-none hover:bg-transparent hover:text-primary self-end text-muted-foreground transition-colors flex items-center justify-center"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        title="Adjuntar archivo"
+                                    >
+                                        <Paperclip className="w-[22px] h-[22px]" />
+                                    </Button>
 
-                                    {/* Dropdown de plantillas */}
-                                    {showTemplates && filteredTemplates.length > 0 && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-2 bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto custom-scrollbar z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                            {filteredTemplates.map((template, index) => (
-                                                <div
-                                                    key={template.id}
-                                                    className={`px-4 py-3 cursor-pointer transition-colors ${index === selectedTemplateIndex
-                                                        ? 'bg-blue-50 text-blue-700'
-                                                        : 'hover:bg-accent'
-                                                        }`}
-                                                    onClick={() => selectTemplate(template)}
-                                                >
-                                                    <div className="font-medium text-sm">{template.name}</div>
-                                                    <div className="text-xs text-muted-foreground truncate mt-1">
-                                                        {template.content}
+                                    {/* Campo de texto */}
+                                    <div className="relative flex-1">
+                                        <Textarea
+                                            value={data.content}
+                                            onChange={(e) => handleMessageChange(e.target.value)}
+                                            placeholder={t('conversations.messagePlaceholder')}
+                                            className="flex-1 min-h-[44px] max-h-[120px] py-[10px] pr-4 pl-0 text-sm md:text-base resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-muted-foreground/70"
+                                            onKeyDown={handleTemplateKeyDown}
+                                            onPaste={handlePaste}
+                                            spellCheck={true}
+                                            lang="es"
+                                            autoCorrect="on"
+                                        />
+
+                                        {/* Dropdown de plantillas */}
+                                        {showTemplates && filteredTemplates.length > 0 && (
+                                            <div className="absolute bottom-full -left-12 right-0 mb-3 bg-card border border-border/80 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                {filteredTemplates.map((template, index) => (
+                                                    <div
+                                                        key={template.id}
+                                                        className={`px-4 py-3 cursor-pointer transition-colors ${index === selectedTemplateIndex
+                                                            ? 'bg-primary/5 text-primary'
+                                                            : 'hover:bg-accent'
+                                                            }`}
+                                                        onClick={() => selectTemplate(template)}
+                                                    >
+                                                        <div className="font-medium text-sm">{template.name}</div>
+                                                        <div className="text-xs text-muted-foreground truncate mt-1">
+                                                            {template.content}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* Indicador de autocorrección */}
-                                    {lastCorrection && (
-                                        <div className="absolute bottom-full left-2 mb-1 animate-in fade-in slide-in-from-bottom-1 duration-200">
-                                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-full shadow-sm">
-                                                <Check className="w-3 h-3 text-blue-500" />
-                                                <span className="text-[11px] text-blue-600 dark:text-blue-400">
-                                                    <span className="line-through opacity-60">{lastCorrection.original}</span>
-                                                    {' → '}
-                                                    <span className="font-medium">{lastCorrection.corrected}</span>
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    className="ml-0.5 text-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
-                                                    onClick={() => {
-                                                        // Deshacer la corrección
-                                                        const currentContent = data.content;
-                                                        const undone = currentContent.replace(lastCorrection.corrected, lastCorrection.original);
-                                                        setData('content', undone);
-                                                        previousTextRef.current = undone;
-                                                        setLastCorrection(null);
-                                                    }}
-                                                    title="Deshacer corrección"
-                                                >
-                                                    <RotateCcw className="w-3 h-3" />
-                                                </button>
+                                                ))}
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
+
+                                        {/* Indicador de autocorrección */}
+                                        {lastCorrection && (
+                                            <div className="absolute bottom-full left-0 mb-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-background/95 backdrop-blur border border-border rounded-full shadow-lg">
+                                                    <Check className="w-3.5 h-3.5 text-green-500" />
+                                                    <span className="text-[11px] md:text-xs">
+                                                        <span className="line-through text-muted-foreground mr-1">{lastCorrection.original}</span>
+                                                        <span className="font-semibold text-foreground">{lastCorrection.corrected}</span>
+                                                    </span>
+                                                    <div className="w-px h-3 bg-border mx-0.5"></div>
+                                                    <button
+                                                        type="button"
+                                                        className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-sm hover:bg-accent"
+                                                        onClick={() => {
+                                                            // Deshacer la corrección
+                                                            const currentContent = data.content;
+                                                            const undone = currentContent.replace(lastCorrection.corrected, lastCorrection.original);
+                                                            setData('content', undone);
+                                                            previousTextRef.current = undone;
+                                                            setLastCorrection(null);
+                                                        }}
+                                                        title="Deshacer corrección"
+                                                    >
+                                                        <RotateCcw className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Botón de enviar */}
                                 <Button
                                     type="submit"
                                     disabled={(!(data.content?.trim()) && !selectedFile) || processing || isSubmitting}
-                                    className="chat-message-sent hover:from-[#4e5fa4] hover:to-[#3e4f94] text-white w-11 h-11 rounded-full shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.25),0_6px_16px_rgba(46,63,132,0.35),inset_0_1px_0_rgba(255,255,255,0.2)] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
+                                    className="flex-shrink-0 bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] hover:from-[#435292] hover:to-[#334282] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-[0_4px_10px_rgba(46,63,132,0.3)] hover:shadow-[0_6px_16px_rgba(46,63,132,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_2px_4px_rgba(46,63,132,0.3)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center border-0 border-t border-white/10"
                                 >
-                                    <Send className="w-5 h-5" />
+                                    <Send className="w-5 h-5 ml-[2px]" />
                                 </Button>
                             </div>
                             <p className="hidden md:block text-xs text-muted-foreground mt-2">
