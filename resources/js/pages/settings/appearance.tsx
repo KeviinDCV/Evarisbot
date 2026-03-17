@@ -26,7 +26,7 @@ export default function Appearance() {
                         title="Apariencia"
                         description="Personaliza el tema visual de la aplicación"
                     />
-                    <div className="rounded-lg border border-border bg-card p-6 dark:bg-card">
+                    <div className="rounded-2xl border border-border bg-card p-6 dark:bg-card">
                         <div className="space-y-4">
                             <div>
                                 <h3 className="text-sm font-medium text-foreground">Tema</h3>

@@ -23,7 +23,7 @@ export default function Password() {
                     <p className="text-sm text-muted-foreground">Asegúrate de usar una contraseña segura para proteger tu cuenta</p>
                 </div>
 
-                    <div className="bg-card rounded-none border border-border shadow-sm p-6">
+                    <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
                         <Form
                             {...PasswordController.update.form()}
                             options={{
@@ -58,7 +58,7 @@ export default function Password() {
                                             ref={currentPasswordInput}
                                             name="current_password"
                                             type="password"
-                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none"
+                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none rounded-xl"
                                             autoComplete="current-password"
                                             placeholder="Ingresa tu contraseña actual"
                                         />
@@ -76,7 +76,7 @@ export default function Password() {
                                             ref={passwordInput}
                                             name="password"
                                             type="password"
-                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none"
+                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none rounded-xl"
                                             autoComplete="new-password"
                                             placeholder="Mínimo 8 caracteres"
                                         />
@@ -93,7 +93,7 @@ export default function Password() {
                                             id="password_confirmation"
                                             name="password_confirmation"
                                             type="password"
-                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none"
+                                            className="border-0 bg-accent focus:bg-gray-150 shadow-none rounded-xl"
                                             autoComplete="new-password"
                                             placeholder="Repite la nueva contraseña"
                                         />
@@ -104,7 +104,7 @@ export default function Password() {
                                     <div className="flex items-center gap-4 pt-4">
                                         <Button
                                             disabled={processing}
-                                            className="bg-primary hover:bg-primary/90 text-white"
+                                            className="bg-primary hover:bg-primary/90 text-white rounded-xl"
                                         >
                                             {processing ? 'Guardando...' : 'Cambiar Contraseña'}
                                         </Button>

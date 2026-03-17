@@ -115,6 +115,8 @@ interface Conversation {
         content: string;
         created_at: string;
         is_from_user: boolean;
+        status?: string;
+        error_message?: string | null;
     } | null;
     messages?: Message[];
     tags?: TagItem[];
@@ -631,7 +633,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                         freshConv.assigned_to !== conv.assigned_to ||
                         freshConv.contact_name !== conv.contact_name ||
                         freshConv.resolved_by !== conv.resolved_by ||
-                        freshConv.is_pinned !== conv.is_pinned) {
+                        freshConv.is_pinned !== conv.is_pinned ||
+                        freshConv.last_message?.status !== conv.last_message?.status ||
+                        freshConv.last_message?.content !== conv.last_message?.content) {
                         hasChanges = true;
                         // El servidor ya devuelve is_pinned/pinned_at por usuario — confiar en él
                         return {
@@ -1602,11 +1606,26 @@ export default function ConversationsIndex({ conversations: initialConversations
                 }
                 return response.json();
             })
-            .then(() => {
-                // Marcar como enviado - se eliminará cuando llegue el mensaje real del servidor
-                setOptimisticMessages(prev =>
-                    prev.map(m => m.tempId === tempId ? { ...m, status: 'sending' as const } : m)
-                );
+            .then((data) => {
+                const serverMessage = data?.message;
+                if (serverMessage && serverMessage.status === 'failed') {
+                    // El servidor envió pero WhatsApp rechazó: marcar como error
+                    setOptimisticMessages(prev =>
+                        prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const } : m)
+                    );
+                    // Actualizar last_message en la lista de conversaciones
+                    setLocalConversations(prev =>
+                        prev.map(c => c.id === selectedConversation.id
+                            ? { ...c, last_message: { content: serverMessage.content, created_at: serverMessage.created_at, is_from_user: false, status: 'failed', error_message: serverMessage.error_message } }
+                            : c
+                        )
+                    );
+                } else {
+                    // Marcar como enviado - se eliminará cuando llegue el mensaje real del servidor
+                    setOptimisticMessages(prev =>
+                        prev.map(m => m.tempId === tempId ? { ...m, status: 'sending' as const } : m)
+                    );
+                }
                 setIsSubmitting(false);
             })
             .catch((error) => {
@@ -1614,6 +1633,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Marcar mensaje como error
                 setOptimisticMessages(prev =>
                     prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const } : m)
+                );
+                // Actualizar last_message en la lista de conversaciones
+                setLocalConversations(prev =>
+                    prev.map(c => c.id === selectedConversation.id
+                        ? { ...c, last_message: { ...c.last_message!, status: 'failed' } }
+                        : c
+                    )
                 );
                 setIsSubmitting(false);
             });
@@ -2189,6 +2215,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     conversation.last_message.is_from_user ? (
                                                         <span title="Mensaje del cliente">
                                                             <CornerDownLeft className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                                                        </span>
+                                                    ) : conversation.last_message.status === 'failed' ? (
+                                                        <span title={conversation.last_message.error_message ? `Error: ${conversation.last_message.error_message}` : 'Error al enviar'}>
+                                                            <X className="w-3 h-3 text-red-500 flex-shrink-0" />
                                                         </span>
                                                     ) : (
                                                         <span title="Mensaje enviado">
