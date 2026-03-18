@@ -83,9 +83,9 @@ class ConversationController extends Controller
                 $query->where('unread_count', '>', 0)
                       ->whereNull('assigned_to');
             } elseif ($request->status === 'pending_response') {
-                // Conversaciones asignadas a mí donde el último mensaje es del asesor (en espera de respuesta del cliente)
-                $query->whereHas('lastMessage', fn ($q) => $q->where('is_from_user', false))
-                      ->where('assigned_to', auth()->id())
+                // En espera: conversaciones asignadas a mí donde he enviado al menos un mensaje
+                $query->where('assigned_to', auth()->id())
+                      ->whereHas('messages', fn ($q) => $q->where('is_from_user', false))
                       ->whereIn('status', ['active', 'pending']);
             } else {
                 $query->where('status', $request->status);
@@ -251,9 +251,9 @@ class ConversationController extends Controller
                 $query->where('unread_count', '>', 0)
                       ->whereNull('assigned_to');
             } elseif ($request->status === 'pending_response') {
-                // Conversaciones asignadas a mí donde el último mensaje es del asesor (en espera de respuesta del cliente)
-                $query->whereHas('lastMessage', fn ($q) => $q->where('is_from_user', false))
-                      ->where('assigned_to', auth()->id())
+                // En espera: conversaciones asignadas a mí donde he enviado al menos un mensaje
+                $query->where('assigned_to', auth()->id())
+                      ->whereHas('messages', fn ($q) => $q->where('is_from_user', false))
                       ->whereIn('status', ['active', 'pending']);
             } else {
                 $query->where('status', $request->status);
