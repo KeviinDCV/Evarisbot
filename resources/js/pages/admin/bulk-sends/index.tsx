@@ -813,8 +813,12 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         {bulkSends.map((bs) => {
                                             const status = statusLabel(bs.status);
                                             return (
-                                                <tr key={bs.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                                                    <td className="py-3 px-3 font-medium">{bs.name || '—'}</td>
+                                                <tr
+                                                    key={bs.id}
+                                                    className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                                                    onClick={() => router.visit(`/admin/bulk-sends/${bs.id}`)}
+                                                >
+                                                    <td className="py-3 px-3 font-medium text-primary hover:underline">{bs.name || '—'}</td>
                                                     <td className="py-3 px-3 font-mono text-xs text-muted-foreground">{bs.template_name}</td>
                                                     <td className="py-3 px-3 text-center">
                                                         <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${status.color}`}>

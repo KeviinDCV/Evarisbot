@@ -7,6 +7,7 @@ use App\Models\BulkSendRecipient;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Setting;
+use App\Models\WhatsappTemplate;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -149,9 +150,26 @@ class SendBulkMessageJob implements ShouldQueue
                     ]
                 );
 
+                // Obtener el preview_text del template para mostrar en el chat
+                $template = WhatsappTemplate::where('meta_template_name', $bulkSend->template_name)->first();
+                $previewText = $template?->preview_text ?? '';
+
+                // Si hay params dinámicos, reemplazar {{1}}, {{2}}, etc. en el preview
+                if ($previewText && !empty($paramValues)) {
+                    foreach ($paramValues as $index => $paramValue) {
+                        $placeholder = '{{' . ($index + 1) . '}}';
+                        $previewText = str_replace($placeholder, (string) $paramValue, $previewText);
+                    }
+                }
+
+                $bulkSendLabel = '[Envío masivo: ' . ($bulkSend->name ?? $bulkSend->template_name) . ']';
+                $messageContent = $previewText
+                    ? $bulkSendLabel . "\n" . $previewText
+                    : $bulkSendLabel;
+
                 Message::create([
                     'conversation_id' => $conversation->id,
-                    'content' => '[Envío masivo: ' . ($bulkSend->name ?? $bulkSend->template_name) . ']',
+                    'content' => $messageContent,
                     'message_type' => 'text',
                     'is_from_user' => false,
                     'whatsapp_message_id' => $messageId,

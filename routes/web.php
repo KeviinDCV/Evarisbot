@@ -100,6 +100,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/upload', 'upload')->name('upload');
         Route::post('/start', 'start')->name('start');
         Route::get('/status', 'status')->name('status');
+        Route::get('/{bulkSend}', 'show')->name('show');
         Route::post('/{bulkSend}/cancel', 'cancel')->name('cancel');
     });
 });

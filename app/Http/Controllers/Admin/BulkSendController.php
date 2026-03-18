@@ -88,6 +88,46 @@ class BulkSendController extends Controller
     }
 
     /**
+     * Mostrar detalle de un envío masivo con sus destinatarios
+     */
+    public function show(BulkSend $bulkSend)
+    {
+        $bulkSend->load('creator');
+
+        // Obtener preview_text del template
+        $template = WhatsappTemplate::where('meta_template_name', $bulkSend->template_name)->first();
+
+        $recipients = $bulkSend->recipients()
+            ->orderByRaw("FIELD(status, 'failed', 'pending', 'sent')")
+            ->orderBy('contact_name')
+            ->get()
+            ->map(fn($r) => [
+                'id' => $r->id,
+                'phone_number' => $r->phone_number,
+                'contact_name' => $r->contact_name,
+                'status' => $r->status,
+                'error' => $r->error,
+                'sent_at' => $r->sent_at?->format('Y-m-d H:i:s'),
+            ]);
+
+        return Inertia::render('admin/bulk-sends/show', [
+            'bulkSend' => [
+                'id' => $bulkSend->id,
+                'name' => $bulkSend->name,
+                'template_name' => $bulkSend->template_name,
+                'template_preview' => $template?->preview_text,
+                'status' => $bulkSend->status,
+                'total_recipients' => $bulkSend->total_recipients,
+                'sent_count' => $bulkSend->sent_count,
+                'failed_count' => $bulkSend->failed_count,
+                'created_by_name' => $bulkSend->creator?->name ?? 'Sistema',
+                'created_at' => $bulkSend->created_at->format('Y-m-d H:i'),
+            ],
+            'recipients' => $recipients,
+        ]);
+    }
+
+    /**
      * Subir archivo Excel con números de teléfono
      */
     public function upload(Request $request)

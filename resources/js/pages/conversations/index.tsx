@@ -2125,6 +2125,30 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 className="pl-10 settings-input rounded-2xl transition-all duration-200"
                             />
                         </div>
+
+                        {/* WhatsApp-style quick filter pills */}
+                        <div className="flex flex-wrap items-center gap-1.5 px-1 pt-2 pb-1">
+                            {[
+                                { value: 'all', label: 'Todos' },
+                                { value: 'unanswered', label: 'No leídos' },
+                                { value: 'pending_response', label: 'En espera' },
+                            ].map((pill) => (
+                                <button
+                                    key={pill.value}
+                                    onClick={() => {
+                                        setStatusFilter(pill.value);
+                                        applyFilters(pill.value, filterByAdvisor);
+                                    }}
+                                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                                        statusFilter === pill.value
+                                            ? 'bg-gradient-to-b from-[#4e5fa4] to-[#3e4f94] text-white shadow-md'
+                                            : 'bg-muted/60 dark:bg-muted/40 text-muted-foreground hover:bg-muted dark:hover:bg-muted/60'
+                                    }`}
+                                >
+                                    {pill.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Lista de Conversaciones */}
@@ -3048,6 +3072,25 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         <User className="w-5 h-5 flex-shrink-0 mt-0.5 opacity-80" />
                                                         <p className="whitespace-pre-wrap break-words">{message.content}</p>
                                                     </div>
+                                                ) : message.content?.startsWith('[Envío masivo:') ? (
+                                                    (() => {
+                                                        const lines = message.content.split('\n');
+                                                        const label = lines[0];
+                                                        const templateText = lines.slice(1).join('\n').trim();
+                                                        return (
+                                                            <div className="space-y-1.5 pr-3">
+                                                                <div className="flex items-center gap-1.5 text-xs font-semibold opacity-80">
+                                                                    <Send className="w-3 h-3" />
+                                                                    <span>{label}</span>
+                                                                </div>
+                                                                {templateText && (
+                                                                    <p className="text-[15px] leading-snug whitespace-pre-wrap break-words">
+                                                                        {templateText}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()
                                                 ) : (
                                                     <p className="text-[15px] leading-snug whitespace-pre-wrap break-words inline-block relative pr-3">
                                                         {message.content}
