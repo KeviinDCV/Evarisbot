@@ -1252,7 +1252,13 @@ export default function ConversationsIndex({ conversations: initialConversations
             });
             if (!isSelectionMode) setIsSelectionMode(true);
         } else {
-            router.get(`/admin/chat/${conversationId}`, {}, {
+            const params: Record<string, string> = {};
+            if (search) params.search = search;
+            if (statusFilter !== 'all') params.status = statusFilter;
+            if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
+            if (tagFilterId !== null) params.tag = String(tagFilterId);
+
+            router.get(`/admin/chat/${conversationId}`, params, {
                 preserveScroll: true,
                 preserveState: true
             });
@@ -1758,7 +1764,13 @@ export default function ConversationsIndex({ conversations: initialConversations
     };
 
     const handleCloseChat = () => {
-        router.get('/admin/chat', {}, {
+        const params: Record<string, string> = {};
+        if (search) params.search = search;
+        if (statusFilter !== 'all') params.status = statusFilter;
+        if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
+        if (tagFilterId !== null) params.tag = String(tagFilterId);
+
+        router.get('/admin/chat', params, {
             preserveState: true,
         });
     };

@@ -79,8 +79,9 @@ class ConversationController extends Controller
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
-                // Filtrar conversaciones sin leer (con mensajes pendientes por revisar)
-                $query->where('unread_count', '>', 0);
+                // Filtrar conversaciones sin leer y sin asignar
+                $query->where('unread_count', '>', 0)
+                      ->whereNull('assigned_to');
             } elseif ($request->status === 'pending_response') {
                 // Conversaciones asignadas a mí donde el último mensaje es del asesor (en espera de respuesta del cliente)
                 $query->whereHas('lastMessage', fn ($q) => $q->where('is_from_user', false))
@@ -246,7 +247,9 @@ class ConversationController extends Controller
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
-                $query->where('unread_count', '>', 0);
+                // Filtrar conversaciones sin leer y sin asignar
+                $query->where('unread_count', '>', 0)
+                      ->whereNull('assigned_to');
             } elseif ($request->status === 'pending_response') {
                 // Conversaciones asignadas a mí donde el último mensaje es del asesor (en espera de respuesta del cliente)
                 $query->whereHas('lastMessage', fn ($q) => $q->where('is_from_user', false))

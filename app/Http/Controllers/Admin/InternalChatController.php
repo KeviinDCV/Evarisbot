@@ -130,9 +130,11 @@ class InternalChatController extends Controller
 
         $messages = $chat->messages()
             ->with('user')
-            ->orderBy('created_at', 'asc')
+            ->orderBy('created_at', 'desc')
             ->limit(200)
             ->get()
+            ->reverse()
+            ->values()
             ->map(fn($m) => [
                 'id' => $m->id,
                 'body' => $m->body,
