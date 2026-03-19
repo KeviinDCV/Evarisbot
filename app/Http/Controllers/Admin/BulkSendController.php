@@ -176,6 +176,14 @@ class BulkSendController extends Controller
                 $highestCol = $worksheet->getHighestColumn();
                 $highestColIndex = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($highestCol);
 
+                // Leer encabezados primero para detectar columnas de hora
+                $headerNames = [];
+                for ($col = 1; $col <= $highestColIndex; $col++) {
+                    $headerNames[$col] = strtolower(trim((string) ($worksheet->getCellByColumnAndRow($col, 1)->getValue() ?? '')));
+                }
+                // Nombres de columna que indican "solo hora"
+                $timeColumnAliases = ['cithor', 'hora', 'hour', 'time', 'horario'];
+
                 for ($row = 1; $row <= $highestRow; $row++) {
                     $rowData = [];
                     for ($col = 1; $col <= $highestColIndex; $col++) {
@@ -183,13 +191,17 @@ class BulkSendController extends Controller
                         $value = $cell->getValue();
 
                         // Si es numérico y tiene formato de fecha/hora, convertir
-                        if (is_numeric($value) && $value > 0) {
+                        if ($row > 1 && is_numeric($value) && $value > 0) {
                             $format = $cell->getStyle()->getNumberFormat()->getFormatCode();
                             if (\PhpOffice\PhpSpreadsheet\Shared\Date::isDateTimeFormatCode($format)) {
                                 try {
                                     $dateObj = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($value);
-                                    // Si tiene parte decimal es fecha+hora o solo hora
-                                    if (fmod((float)$value, 1) > 0 && (float)$value < 1) {
+                                    $isTimeColumn = in_array($headerNames[$col] ?? '', $timeColumnAliases);
+
+                                    if ($isTimeColumn) {
+                                        // Columna de hora: siempre extraer solo la hora
+                                        $rowData[] = $dateObj->format('g:i A');
+                                    } elseif (fmod((float)$value, 1) > 0 && (float)$value < 1) {
                                         // Solo hora (valor < 1)
                                         $rowData[] = $dateObj->format('g:i A');
                                     } elseif (fmod((float)$value, 1) > 0) {
