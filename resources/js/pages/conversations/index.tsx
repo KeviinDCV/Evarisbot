@@ -1707,9 +1707,19 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (status === 'resolved') {
             // Quitar inmediatamente del listado local para que desaparezca
             setLocalConversations(prev => prev.filter(c => c.id !== convId));
-            // Backend ya redirige a /admin/chat (index) al resolver.
+
+            // Construir params de filtro para preservar estado
+            const params: Record<string, string> = {};
+            if (search) params.search = search;
+            if (statusFilter !== 'all') params.status = statusFilter;
+            if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
+            if (tagFilterId !== null) params.tag = String(tagFilterId);
+
             router.post(`/admin/chat/${convId}/status`, { status }, {
-                preserveScroll: false,
+                preserveScroll: true,
+                onSuccess: () => {
+                    router.get('/admin/chat', params, { preserveState: true, replace: true });
+                },
             });
             return;
         }
@@ -1732,9 +1742,19 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (status === 'resolved') {
             // Quitar inmediatamente del listado local para que desaparezca
             setLocalConversations(prev => prev.filter(c => c.id !== conversationId));
-            // Backend ya redirige a /admin/chat (index) al resolver.
+
+            // Construir params de filtro para preservar estado
+            const params: Record<string, string> = {};
+            if (search) params.search = search;
+            if (statusFilter !== 'all') params.status = statusFilter;
+            if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
+            if (tagFilterId !== null) params.tag = String(tagFilterId);
+
             router.post(`/admin/chat/${conversationId}/status`, { status }, {
-                preserveScroll: false,
+                preserveScroll: true,
+                onSuccess: () => {
+                    router.get('/admin/chat', params, { preserveState: true, replace: true });
+                },
             });
             return;
         }

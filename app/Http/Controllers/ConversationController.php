@@ -83,9 +83,9 @@ class ConversationController extends Controller
                 $query->where('unread_count', '>', 0)
                       ->whereNull('assigned_to');
             } elseif ($request->status === 'pending_response') {
-                // En espera: conversaciones asignadas a mí donde he enviado al menos un mensaje
+                // En espera: conversaciones asignadas a mí donde YO personalmente he enviado al menos un mensaje
                 $query->where('assigned_to', auth()->id())
-                      ->whereHas('messages', fn ($q) => $q->where('is_from_user', false))
+                      ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
                       ->whereIn('status', ['active', 'pending']);
             } else {
                 $query->where('status', $request->status);
@@ -251,9 +251,9 @@ class ConversationController extends Controller
                 $query->where('unread_count', '>', 0)
                       ->whereNull('assigned_to');
             } elseif ($request->status === 'pending_response') {
-                // En espera: conversaciones asignadas a mí donde he enviado al menos un mensaje
+                // En espera: conversaciones asignadas a mí donde YO personalmente he enviado al menos un mensaje
                 $query->where('assigned_to', auth()->id())
-                      ->whereHas('messages', fn ($q) => $q->where('is_from_user', false))
+                      ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
                       ->whereIn('status', ['active', 'pending']);
             } else {
                 $query->where('status', $request->status);
@@ -874,8 +874,8 @@ class ConversationController extends Controller
         $resolverName = auth()->user()->name;
 
         if ($validated['status'] === 'resolved') {
-            // Al resolver, redirigir al listado para que el chat desaparezca de la vista del asesor
-            return redirect()->route('admin.chat.index')
+            // Al resolver, redirigir al listado preservando filtros del referer
+            return redirect('/admin/chat')
                 ->with('success', "Conversación resuelta por {$resolverName}.");
         }
 
