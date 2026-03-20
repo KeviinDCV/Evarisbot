@@ -1809,8 +1809,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                     } ${isSidebarVisible ? 'w-full md:w-80 lg:w-96' : 'hidden md:w-0 md:overflow-hidden'
                     }`}>
                     {/* Header */}
-                    <div className="p-6">
-                        <div className="flex items-center justify-between mb-6">
+                    <div className="px-4 pt-4 pb-2">
+                        <div className="flex items-center justify-between mb-3">
                             <h1 className="text-2xl font-extrabold text-[#16235e] dark:text-blue-200 tracking-tight">{t('conversations.title')}</h1>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
@@ -2157,12 +2157,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         e.preventDefault();
                                     }
                                 }}
-                                className="w-full pl-11 pr-4 py-3 bg-[#e8e8e8] dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
+                                className="w-full pl-11 pr-4 py-2.5 bg-[#e8e8e8] dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
                             />
                         </div>
 
                         {/* WhatsApp-style quick filter pills */}
-                        <div className="flex flex-wrap items-center gap-1.5 px-1 pt-3 pb-1">
+                        <div className="flex flex-wrap items-center gap-1.5 px-1 pt-2 pb-0.5">
                             {[
                                 { value: 'all', label: 'Todos' },
                                 { value: 'unanswered', label: 'No leídos' },
