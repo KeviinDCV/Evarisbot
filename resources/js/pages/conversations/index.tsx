@@ -1802,19 +1802,19 @@ export default function ConversationsIndex({ conversations: initialConversations
             <div className="h-[calc(100vh-0px)] flex bg-background overflow-hidden">
                 {/* Lista de Conversaciones - Izquierda */}
                 {/* Mobile: oculta cuando hay chat | Desktop: siempre visible con toggle */}
-                <div className={`bg-accent dark:bg-accent flex-col transition-all duration-300 flex-shrink-0 conversation-sidebar ${selectedConversation ? 'hidden md:flex' : 'flex'
-                    } ${isSidebarVisible ? 'w-full md:w-64 lg:w-72 xl:w-80' : 'hidden md:w-0 md:overflow-hidden'
+                <div className={`bg-[#f3f3f3] dark:bg-slate-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-[#e2e2e2] dark:border-slate-700/50 ${selectedConversation ? 'hidden md:flex' : 'flex'
+                    } ${isSidebarVisible ? 'w-full md:w-80 lg:w-96' : 'hidden md:w-0 md:overflow-hidden'
                     }`}>
                     {/* Header */}
-                    <div className="p-3 md:p-4 conversation-header">
-                        <div className="flex items-center justify-between mb-2 md:mb-3">
-                            <h2 className="text-base md:text-lg font-bold text-primary dark:text-primary whitespace-nowrap">{t('conversations.title')}</h2>
+                    <div className="p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h1 className="text-2xl font-extrabold text-[#16235e] dark:text-blue-200 tracking-tight">{t('conversations.title')}</h1>
 
-                            <div className="flex items-center gap-1 flex-shrink-0">
+                            <div className="flex items-center gap-2 flex-shrink-0">
                                 {/* Botón para nueva conversación */}
                                 <button
                                     onClick={() => setShowNewChatModal(true)}
-                                    className="p-1.5 chat-message-sent text-white rounded-lg shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200"
+                                    className="w-9 h-9 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
                                     title={t('conversations.newConversation')}
                                 >
                                     <Plus className="w-4 h-4" />
@@ -1830,9 +1830,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 setIsSelectionMode(true);
                                             }
                                         }}
-                                        className={`p-1.5 rounded-lg shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${isSelectionMode
-                                            ? 'bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white'
-                                            : 'chat-message-sent text-white'
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all ${isSelectionMode
+                                            ? 'bg-gradient-to-br from-[#22c55e] to-[#16a34a] text-white'
+                                            : 'bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white'
                                             }`}
                                         title={isSelectionMode ? "Cancelar selección" : "Seleccionar múltiples"}
                                     >
@@ -1844,9 +1844,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <div className="relative" ref={filtersPanelRef} onClick={(e) => e.stopPropagation()}>
                                     <button
                                         onClick={() => setShowFiltersPanel(!showFiltersPanel)}
-                                        className={`p-1.5 rounded-lg shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.15)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.25),0_4px_8px_rgba(46,63,132,0.2)] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 ${activeFilterCount > 0
-                                            ? 'bg-gradient-to-b from-[#f59e0b] to-[#d97706] text-white'
-                                            : 'chat-message-sent text-white'
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all relative ${activeFilterCount > 0
+                                            ? 'bg-gradient-to-br from-[#f59e0b] to-[#d97706] text-white'
+                                            : 'bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white'
                                             }`}
                                         title="Filtros"
                                     >
@@ -2139,10 +2139,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {/* Búsqueda */}
-                        <div className="relative">
+                        <div className="relative group">
                             <label htmlFor="conversation-search" className="sr-only">{t('conversations.searchPlaceholder')}</label>
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                            <Input
+                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#767681] w-4 h-4" />
+                            <input
                                 id="conversation-search"
                                 name="conversation-search"
                                 type="text"
@@ -2154,12 +2154,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         e.preventDefault();
                                     }
                                 }}
-                                className="pl-10 settings-input rounded-2xl transition-all duration-200"
+                                className="w-full pl-11 pr-4 py-3 bg-[#e8e8e8] dark:bg-slate-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
                             />
                         </div>
 
                         {/* WhatsApp-style quick filter pills */}
-                        <div className="flex flex-wrap items-center gap-1.5 px-1 pt-2 pb-1">
+                        <div className="flex flex-wrap items-center gap-1.5 px-1 pt-3 pb-1">
                             {[
                                 { value: 'all', label: 'Todos' },
                                 { value: 'unanswered', label: 'No leídos' },
@@ -2173,8 +2173,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     }}
                                     className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                                         statusFilter === pill.value
-                                            ? 'bg-gradient-to-b from-[#4e5fa4] to-[#3e4f94] text-white shadow-md'
-                                            : 'bg-muted/60 dark:bg-muted/40 text-muted-foreground hover:bg-muted dark:hover:bg-muted/60'
+                                            ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300 font-semibold'
+                                            : 'bg-[#e8e8e8] dark:bg-slate-800 text-[#5f5e5e] dark:text-slate-400 hover:bg-[#e2e2e2] dark:hover:bg-slate-700'
                                     }`}
                                 >
                                     {pill.label}
@@ -2186,25 +2186,25 @@ export default function ConversationsIndex({ conversations: initialConversations
                     {/* Lista de Conversaciones */}
                     <div
                         ref={conversationsListRef}
-                        className="flex-1 overflow-y-auto overflow-x-hidden px-2 md:px-2 pt-4 custom-scrollbar-light"
+                        className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-6 custom-scrollbar-light"
                     >
                         {localConversations.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
-                                <MessageSquare className="w-16 h-16 mb-4 text-muted-foreground" />
+                            <div className="flex flex-col items-center justify-center h-full text-[#767681] p-8">
+                                <MessageSquare className="w-16 h-16 mb-4 text-[#767681]/50" />
                                 <p className="text-center text-sm">
                                     {t('conversations.noConversations')}
                                 </p>
-                                <p className="text-center text-xs text-muted-foreground mt-2">
+                                <p className="text-center text-xs text-[#767681] mt-2">
                                     {t('conversations.noConversationsSubtitle')}
                                 </p>
                             </div>
                         ) : displayedConversations.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
-                                <Filter className="w-12 h-12 mb-4 text-muted-foreground" />
+                            <div className="flex flex-col items-center justify-center h-full text-[#767681] p-8">
+                                <Filter className="w-12 h-12 mb-4 text-[#767681]/50" />
                                 <p className="text-center text-sm">
                                     No hay conversaciones con este filtro
                                 </p>
-                                <p className="text-center text-xs text-muted-foreground mt-2">
+                                <p className="text-center text-xs text-[#767681] mt-2">
                                     Intenta cambiar los filtros activos
                                 </p>
                             </div>
@@ -2218,59 +2218,59 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         onMouseDown={() => handleDragSelectStart(conversation.id)}
                                         onMouseEnter={() => handleDragSelectEnter(conversation.id)}
                                         onMouseUp={handleDragSelectEnd}
-                                        className={`w-full p-3 mb-1.5 transition-all duration-200 flex items-start gap-3 text-left rounded-2xl select-none group border ${selectedConversations.includes(conversation.id)
-                                                ? 'bg-green-50/80 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                                        className={`w-full flex items-center gap-4 p-4 mb-1.5 rounded-xl transition-all text-left select-none group ${selectedConversations.includes(conversation.id)
+                                                ? 'bg-green-50/80 dark:bg-green-900/20 border-l-4 border-green-500 shadow-sm'
                                                 : selectedConversation?.id === conversation.id
-                                                    ? 'bg-slate-100 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 shadow-sm'
-                                                    : 'bg-white dark:bg-[#1f2336] border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:border-slate-100 dark:hover:border-slate-800'
+                                                    ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400 shadow-sm'
+                                                    : 'bg-white dark:bg-slate-800/60 hover:bg-[#eeeeee] dark:hover:bg-slate-800/80 border-l-4 border-transparent shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
                                             }`}
                                     >
                                         {/* Avatar / Checkbox en modo selección */}
-                                        <div className="relative flex-shrink-0 mt-0.5">
+                                        <div className="relative flex-shrink-0">
                                             {isSelectionMode ? (
-                                                <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors ${selectedConversations.includes(conversation.id)
+                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${selectedConversations.includes(conversation.id)
                                                         ? 'bg-green-500 text-white'
-                                                        : 'bg-slate-100 dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700'
+                                                        : 'bg-[#e8e8e8] dark:bg-slate-800 border-2 border-[#c6c5d1] dark:border-slate-700'
                                                     }`}>
                                                     {selectedConversations.includes(conversation.id) ? (
                                                         <CheckSquare className="w-5 h-5 text-white" />
                                                     ) : (
-                                                        <Square className="w-5 h-5 text-slate-400" />
+                                                        <Square className="w-5 h-5 text-[#767681]" />
                                                     )}
                                                 </div>
                                             ) : (
-                                                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] flex items-center justify-center text-white text-[15px] font-semibold tracking-wide shadow-sm ring-2 ring-white dark:ring-[#1f2336]">
+                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] flex items-center justify-center text-white text-[15px] font-bold">
                                                     {conversation.contact_name?.[0]?.toUpperCase() || '?'}
                                                 </div>
                                             )}
                                             {!isSelectionMode && conversation.unread_count > 0 && (
-                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm ring-2 ring-white dark:ring-[#1f2336]">
+                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm border-2 border-[#f3f3f3] dark:border-slate-900">
                                                     {conversation.unread_count}
                                                 </div>
                                             )}
                                         </div>
 
                                         {/* Información */}
-                                        <div className="flex-1 min-w-0 pr-1">
-                                            <div className="flex items-center justify-between mb-0.5">
+                                        <div className="flex-grow min-w-0">
+                                            <div className="flex justify-between items-baseline mb-0.5">
                                                 <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                                                    <h3 className="font-semibold text-slate-800 dark:text-slate-200 truncate text-[15px] leading-tight">
+                                                    <h3 className="font-bold text-[#1a1c1c] dark:text-slate-200 truncate text-[15px]">
                                                         {conversation.contact_name || 'Sin nombre'}
                                                     </h3>
                                                     {conversation.is_pinned && (
-                                                        <Pin className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 rotate-45" />
+                                                        <Pin className="w-3.5 h-3.5 text-[#16235e] dark:text-blue-400 flex-shrink-0 rotate-45" />
                                                     )}
                                                 </div>
-                                                <span className={`text-[11px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-green-600 dark:text-green-500' : 'text-slate-400 dark:text-slate-500'
+                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-[#16235e] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-slate-500'
                                                     }`}>
                                                     {formatTime(conversation.last_message_at)}
                                                 </span>
                                             </div>
-                                            <p className={`text-[13px] truncate flex items-center gap-1 ${conversation.unread_count > 0 ? 'text-slate-800 dark:text-slate-200 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            <p className={`text-sm truncate flex items-center gap-1 ${conversation.unread_count > 0 ? 'text-[#1a1c1c] dark:text-slate-200 font-medium' : 'text-[#5f5e5e] dark:text-slate-400'}`}>
                                                 {conversation.last_message && (
                                                     conversation.last_message.is_from_user ? (
                                                         <span title="Mensaje del cliente">
-                                                            <CornerDownLeft className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                                                            <CornerDownLeft className="w-3 h-3 text-[#767681] flex-shrink-0" />
                                                         </span>
                                                     ) : conversation.last_message.status === 'failed' ? (
                                                         <span title={conversation.last_message.error_message ? `Error: ${conversation.last_message.error_message}` : 'Error al enviar'}>
@@ -2278,7 +2278,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         </span>
                                                     ) : (
                                                         <span title="Mensaje enviado">
-                                                            <CornerDownRight className="w-3 h-3 text-primary dark:text-primary flex-shrink-0" />
+                                                            <CornerDownRight className="w-3 h-3 text-[#16235e] dark:text-blue-400 flex-shrink-0" />
                                                         </span>
                                                     )
                                                 )}
@@ -2288,8 +2288,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </p>
                                             <div className="flex items-center justify-between mt-1.5">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)} ring-2 ring-white dark:ring-[#1f2336]`}></span>
-                                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{getStatusLabel(conversation.status)}</span>
+                                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
+                                                    <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-slate-400">{getStatusLabel(conversation.status)}</span>
                                                 </div>
                                                 {/* Mostrar quién resolvió la conversación */}
                                                 {conversation.status === 'resolved' && conversation.resolved_by_user && (() => {
@@ -2335,13 +2335,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Indicador de carga de más conversaciones */}
                                 {isLoadingMore && (
                                     <div className="py-4 text-center">
-                                        <div className="inline-block w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                        <div className="inline-block w-5 h-5 border-2 border-[#16235e] border-t-transparent rounded-full animate-spin"></div>
                                     </div>
                                 )}
 
                                 {/* Indicador de más conversaciones */}
                                 {hasMore && !isLoadingMore && (
-                                    <div className="py-2 text-center text-xs text-muted-foreground">
+                                    <div className="py-2 text-center text-xs text-[#767681]">
                                         Desplaza para cargar más...
                                     </div>
                                 )}
@@ -2351,7 +2351,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                     {/* Barra de acciones para selección múltiple */}
                     {selectedConversations.length > 0 && (
-                        <div className="p-3 chat-message-sent border-t border-[#4e5fa4]">
+                        <div className="p-3 bg-gradient-to-br from-[#16235e] to-[#2e3a75] border-t border-[#16235e]/30">
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-white text-sm font-medium">
                                     {selectedConversations.length} seleccionada{selectedConversations.length > 1 ? 's' : ''}
@@ -2739,26 +2739,24 @@ export default function ConversationsIndex({ conversations: initialConversations
                 {/* Área de Chat - Derecha */}
                 {/* En mobile: muestra solo cuando hay selección | En desktop: siempre visible */}
                 {!selectedConversation ? (
-                    <div className="hidden md:flex flex-1 items-center justify-center bg-background">
-                        <div className="text-center text-muted-foreground p-8 md:p-12">
-                            <MessageSquare className="w-24 h-24 mx-auto mb-4 text-muted-foreground/40" />
-                            <h3 className="text-xl font-semibold text-foreground/60 mb-2">
+                    <div className="hidden md:flex flex-1 items-center justify-center bg-[#f9f9f9] dark:bg-slate-900" style={{ backgroundImage: 'radial-gradient(circle, #d1d5db 1px, transparent 1px)', backgroundSize: '24px 24px' }}>
+                        <div className="text-center p-8 md:p-12">
+                            <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#767681]/40" />
+                            <h3 className="text-xl font-semibold text-[#16235e] dark:text-slate-300 mb-2">
                                 {t('conversations.selectConversation')}
                             </h3>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-[#767681]">
                                 {t('conversations.selectConversationHint')}
                             </p>
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col bg-card w-full md:w-auto">
+                    <div className="flex-1 flex flex-col bg-[#f9f9f9] dark:bg-slate-900 w-full md:w-auto">
                         {/* Header del Chat */}
-                        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-background/80 backdrop-blur-sm border-b border-border">
+                        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-sm">
                             <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
                                 {/* Botón volver (mobile) / toggle sidebar (desktop) */}
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
+                                <button
                                     onClick={() => {
                                         // En mobile: volver a lista | En desktop: toggle sidebar
                                         if (window.innerWidth < 768) {
@@ -2767,25 +2765,25 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             setIsSidebarVisible(!isSidebarVisible);
                                         }
                                     }}
-                                    className="hover:bg-accent flex-shrink-0"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#e8e8e8] dark:hover:bg-slate-800 transition-colors flex-shrink-0"
                                     title={isSidebarVisible ? t('conversations.hideList') : t('conversations.showList')}
                                 >
                                     {isSidebarVisible ? (
-                                        <PanelLeftClose className="w-5 h-5" />
+                                        <PanelLeftClose className="w-5 h-5 text-[#16235e] dark:text-slate-300" />
                                     ) : (
-                                        <PanelLeftOpen className="w-5 h-5" />
+                                        <PanelLeftOpen className="w-5 h-5 text-[#16235e] dark:text-slate-300" />
                                     )}
-                                </Button>
+                                </button>
                                 {/* Avatar e Información */}
                                 <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary flex items-center justify-center text-white text-sm md:text-base font-medium flex-shrink-0">
+                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] flex items-center justify-center text-white text-sm md:text-base font-bold flex-shrink-0">
                                         {selectedConversation.contact_name?.[0]?.toUpperCase() || '?'}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h2 className="font-semibold text-foreground text-sm md:text-base truncate">
+                                        <h2 className="font-bold text-[#16235e] dark:text-slate-200 text-sm md:text-base truncate">
                                             {selectedConversation.contact_name || 'Sin nombre'}
                                         </h2>
-                                        <div className="flex items-center gap-2 text-xs md:text-sm text-muted-foreground">
+                                        <div className="flex items-center gap-2 text-xs md:text-sm text-[#5f5e5e] dark:text-slate-400">
                                             <Phone className="w-3 h-3" />
                                             <span>{selectedConversation.phone_number}</span>
                                         </div>
@@ -2793,15 +2791,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </div>
 
                                 {/* Estado */}
-                                <div className="hidden lg:flex items-center gap-2 ml-4 px-3 py-1 rounded-full card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                                <div className="hidden lg:flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-[#dee1ff]/60 dark:bg-slate-800">
                                     <span className={`w-2 h-2 rounded-full ${getStatusColor(selectedConversation.status)}`}></span>
-                                    <span className="text-sm text-primary dark:text-primary font-medium">{getStatusLabel(selectedConversation.status)}</span>
+                                    <span className="text-sm text-[#16235e] dark:text-slate-300 font-medium">{getStatusLabel(selectedConversation.status)}</span>
                                 </div>
 
                                 {/* Asignación */}
                                 {selectedConversation.assigned_user && (
-                                    <div className="hidden xl:block text-sm text-muted-foreground ml-2">
-                                        {t('conversations.assignedTo')}: <span className="font-medium text-primary dark:text-primary">{selectedConversation.assigned_user.name}</span>
+                                    <div className="hidden xl:block text-sm text-[#5f5e5e] dark:text-slate-400 ml-2">
+                                        {t('conversations.assignedTo')}: <span className="font-medium text-[#16235e] dark:text-slate-300">{selectedConversation.assigned_user.name}</span>
                                     </div>
                                 )}
                             </div>
@@ -2810,23 +2808,21 @@ export default function ConversationsIndex({ conversations: initialConversations
                             <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
                                 {/* Botón Asignar - Solo Admin */}
                                 {isAdmin && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
+                                    <button
                                         onClick={() => setShowAssignModal(true)}
-                                        className="hover:bg-background text-primary dark:text-primary"
+                                        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#e8e8e8] dark:hover:bg-slate-800 transition-colors text-[#16235e] dark:text-slate-300"
                                         title={t('conversations.assignConversation')}
                                     >
                                         <UserPlus className="w-5 h-5" />
-                                    </Button>
+                                    </button>
                                 )}
 
                                 {/* Menú de Tres Puntos */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="sm">
+                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#e8e8e8] dark:hover:bg-slate-800 transition-colors text-[#16235e] dark:text-slate-300">
                                             <MoreVertical className="w-5 h-5" />
-                                        </Button>
+                                        </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-56 bg-card">
                                         {/* Marcar como Activo */}
@@ -2880,27 +2876,23 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                 {/* Botón Datos del Paciente */}
                                 {selectedConversation.welcome_flow_data && Object.keys(selectedConversation.welcome_flow_data).filter(k => !k.startsWith('_')).length > 0 && (
-                                    <Button
-                                        variant={showPatientData ? 'default' : 'ghost'}
-                                        size="sm"
+                                    <button
                                         onClick={() => setShowPatientData(!showPatientData)}
-                                        className={showPatientData ? 'bg-primary text-white' : 'hover:bg-accent text-primary dark:text-primary'}
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showPatientData ? 'bg-[#16235e] text-white' : 'hover:bg-[#e8e8e8] dark:hover:bg-slate-800 text-[#16235e] dark:text-slate-300'}`}
                                         title="Datos del paciente"
                                     >
                                         <ClipboardList className="w-5 h-5" />
-                                    </Button>
+                                    </button>
                                 )}
 
                                 {/* Botón Cerrar Chat */}
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
+                                <button
                                     onClick={handleCloseChat}
-                                    className="hover:bg-accent"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#e8e8e8] dark:hover:bg-slate-800 transition-colors text-[#16235e] dark:text-slate-300"
                                     title={t('conversations.closeChatHint')}
                                 >
                                     <X className="w-5 h-5" />
-                                </Button>
+                                </button>
                             </div>
                         </div>
 
@@ -2942,14 +2934,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         )}
                                     </span>
                                     {isAdmin && (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 h-7"
+                                        <button
+                                            className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 h-7 px-3 rounded-md font-medium transition-colors"
                                             onClick={() => handleStatusChange('active')}
                                         >
                                             Reabrir
-                                        </Button>
+                                        </button>
                                     )}
                                 </div>
                             );
@@ -2958,10 +2948,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                         {/* Área de Mensajes */}
                         <div
                             ref={messagesContainerRef}
-                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 messages-area relative custom-scrollbar"
+                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar"
+                            style={{ backgroundImage: 'radial-gradient(circle, #d1d5db 1px, transparent 1px)', backgroundSize: '24px 24px' }}
                         >
                             {!selectedConversation.messages || selectedConversation.messages.length === 0 ? (
-                                <div className="flex items-center justify-center h-full text-muted-foreground">
+                                <div className="flex items-center justify-center h-full text-[#767681]">
                                     <p>{t('conversations.noMessagesInConversation')}</p>
                                 </div>
                             ) : (
@@ -2973,13 +2964,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         >
                                             <div
                                                 className={`max-w-[85%] md:max-w-[70%] px-3 pt-2 pb-1.5 flex flex-col relative ${message.is_from_user
-                                                    ? 'rounded-2xl rounded-tl-sm bg-white dark:bg-[#1f2336] text-slate-800 dark:text-slate-200 shadow-sm border border-slate-100/50 dark:border-black/20'
-                                                    : 'rounded-2xl rounded-tr-sm bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] text-white shadow-md ring-1 ring-black/5 dark:ring-white/5'
+                                                    ? 'rounded-xl rounded-bl-sm bg-white dark:bg-slate-800 text-[#1a1c1c] dark:text-slate-200 shadow-sm ring-1 ring-black/5'
+                                                    : 'rounded-xl rounded-br-sm bg-[#2e3a75] text-white shadow-md'
                                                     }`}
                                             >
                                                 {/* Remitente (si es asesor) */}
                                                 {!message.is_from_user && message.sender && (
-                                                    <p className="text-[11px] font-bold text-blue-200/90 tracking-wide mb-1 flex items-center gap-1">
+                                                    <p className="text-[11px] font-bold text-[#dee1ff]/90 tracking-wide mb-1 flex items-center gap-1">
                                                         {message.sender.name}
                                                     </p>
                                                 )}
@@ -3130,7 +3121,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 )}
 
                                                 {/* Hora y Estado - Alinear a la derecha abajo */}
-                                                <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10.5px] font-medium tracking-wide ${message.is_from_user ? 'text-slate-400 dark:text-slate-500' : 'text-blue-100/70'
+                                                <div className={`flex items-center justify-end gap-1 mt-0.5 text-[10.5px] font-medium tracking-wide ${message.is_from_user ? 'text-[#767681] dark:text-slate-500' : 'text-[#dee1ff]/70'
                                                     } self-end ml-4`}>
                                                     <span>{formatTime(message.created_at)}</span>
                                                     {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
@@ -3146,9 +3137,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             className="flex justify-end"
                                         >
                                             <div
-                                                className={`max-w-[85%] md:max-w-[70%] px-3 pt-2 pb-1.5 flex flex-col relative rounded-2xl rounded-tr-sm text-white ${message.status === 'error'
-                                                    ? 'bg-gradient-to-br from-red-500 to-red-600 shadow-md ring-1 ring-red-700/50'
-                                                    : 'bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] shadow-md ring-1 ring-black/5 opacity-70'
+                                                className={`max-w-[85%] md:max-w-[70%] px-3 pt-2 pb-1.5 flex flex-col relative rounded-xl rounded-br-sm text-white ${message.status === 'error'
+                                                    ? 'bg-red-500 shadow-md'
+                                                    : 'bg-[#2e3a75] shadow-md opacity-70'
                                                     }`}
                                             >
                                                 {/* Remitente */}
@@ -3164,7 +3155,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 </p>
 
                                                 {/* Estado del mensaje */}
-                                                <div className="flex items-center justify-end gap-1 mt-0.5 text-[10.5px] font-medium tracking-wide text-blue-100/70 self-end ml-4">
+                                                <div className="flex items-center justify-end gap-1 mt-0.5 text-[10.5px] font-medium tracking-wide text-[#dee1ff]/70 self-end ml-4">
                                                     <span>{formatTime(message.created_at)}</span>
                                                     {message.status === 'sending' ? (
                                                         <Clock className="w-3 h-3 animate-pulse opacity-80" />
@@ -3195,7 +3186,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             {/* Botón flotante para ir al final + indicador de nuevos mensajes */}
                             <button
                                 onClick={() => scrollToBottom()}
-                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 card-gradient hover:from-[#fafbfc] hover:to-[#f0f2f8] text-primary dark:text-primary px-3 py-2 rounded-full shadow-[0_2px_8px_rgba(46,63,132,0.15),0_4px_16px_rgba(46,63,132,0.1)] hover:shadow-[0_4px_12px_rgba(46,63,132,0.2),0_8px_24px_rgba(46,63,132,0.15)] z-10 transition-all duration-300 ${isAtBottom
+                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 bg-white dark:bg-slate-800 text-[#16235e] dark:text-slate-300 px-3 py-2 rounded-full shadow-lg hover:shadow-xl z-10 transition-all duration-300 ${isAtBottom
                                     ? 'opacity-0 translate-y-4 pointer-events-none'
                                     : 'opacity-100 translate-y-0'
                                     }`}
@@ -3210,21 +3201,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {/* Área de Entrada de Mensaje */}
-                        <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-background">
+                        <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
                             {/* Preview del archivo seleccionado */}
                             {selectedFile && (
-                                <div className="mb-2 flex items-center gap-2 p-2 bg-gradient-to-b from-blue-50 to-blue-100/50 rounded-lg">
-                                    <Paperclip className="w-4 h-4 text-primary dark:text-primary" />
-                                    <span className="text-sm text-primary dark:text-primary flex-1 truncate">{selectedFile.name}</span>
-                                    <Button
+                                <div className="mb-2 flex items-center gap-2 p-2 bg-[#dee1ff]/40 dark:bg-blue-900/20 rounded-lg">
+                                    <Paperclip className="w-4 h-4 text-[#16235e] dark:text-slate-300" />
+                                    <span className="text-sm text-[#16235e] dark:text-slate-300 flex-1 truncate">{selectedFile.name}</span>
+                                    <button
                                         type="button"
-                                        variant="ghost"
-                                        size="sm"
                                         onClick={handleRemoveFile}
-                                        className="h-6 w-6 p-0 hover:bg-red-100"
+                                        className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-100 dark:hover:bg-red-900/20"
                                     >
                                         <X className="w-4 h-4 text-red-600" />
-                                    </Button>
+                                    </button>
                                 </div>
                             )}
 
@@ -3275,19 +3264,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     className="hidden"
                                 />
 
-                                <div className="relative flex-1 flex items-end bg-card dark:bg-card/50 ring-1 ring-border shadow-sm rounded-3xl focus-within:ring-2 focus-within:ring-primary/50 focus-within:shadow-md transition-all duration-200 overflow-visible">
+                                <div className="relative flex-1 flex items-end bg-[#e2e2e2] dark:bg-slate-800 ring-1 ring-black/5 dark:ring-white/5 rounded-full focus-within:ring-2 focus-within:ring-[#16235e]/30 transition-all duration-200 overflow-visible">
 
                                     {/* Botón de adjuntar - Ahora integrado dentro de la burbuja */}
-                                    <Button
+                                    <button
                                         type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="flex-shrink-0 h-[44px] w-12 p-0 rounded-l-3xl rounded-r-none hover:bg-transparent hover:text-primary self-end text-muted-foreground transition-colors flex items-center justify-center"
+                                        className="flex-shrink-0 h-[44px] w-12 p-0 rounded-l-full self-end text-[#767681] hover:text-[#16235e] dark:text-slate-400 dark:hover:text-slate-200 transition-colors flex items-center justify-center"
                                         onClick={() => fileInputRef.current?.click()}
                                         title="Adjuntar archivo"
                                     >
                                         <Paperclip className="w-[22px] h-[22px]" />
-                                    </Button>
+                                    </button>
 
                                     {/* Campo de texto */}
                                     <div className="relative flex-1">
@@ -3295,7 +3282,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             value={data.content}
                                             onChange={(e) => handleMessageChange(e.target.value)}
                                             placeholder={t('conversations.messagePlaceholder')}
-                                            className="flex-1 min-h-[44px] max-h-[120px] py-[10px] pr-4 pl-0 text-sm md:text-base resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-muted-foreground/70"
+                                            className="flex-1 min-h-[44px] max-h-[120px] py-[10px] pr-4 pl-0 text-sm md:text-base resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-[#767681]"
                                             onKeyDown={handleTemplateKeyDown}
                                             onPaste={handlePaste}
                                             spellCheck={true}
@@ -3356,15 +3343,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </div>
 
                                 {/* Botón de enviar */}
-                                <Button
+                                <button
                                     type="submit"
                                     disabled={(!(data.content?.trim()) && !selectedFile) || processing || isSubmitting}
-                                    className="flex-shrink-0 bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] hover:from-[#435292] hover:to-[#334282] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-[0_4px_10px_rgba(46,63,132,0.3)] hover:shadow-[0_6px_16px_rgba(46,63,132,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[0_2px_4px_rgba(46,63,132,0.3)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center border-0 border-t border-white/10"
+                                    className="flex-shrink-0 bg-gradient-to-br from-[#16235e] to-[#2e3a75] hover:from-[#1a2a6e] hover:to-[#364588] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
                                 >
                                     <Send className="w-5 h-5 ml-[2px]" />
-                                </Button>
+                                </button>
                             </div>
-                            <p className="hidden md:block text-xs text-muted-foreground mt-2">
+                            <p className="hidden md:block text-xs text-[#767681] mt-2">
                                 {t('conversations.sendHint')}
                             </p>
                         </form>
