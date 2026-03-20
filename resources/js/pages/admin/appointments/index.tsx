@@ -673,7 +673,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                     {progress.percentage}% ({progress.sent + progress.failed} / {progress.total})
                                                 </span>
                                             </div>
-                                            <div className="w-full bg-[#e5e7f0] dark:bg-[hsl(231,25%,20%)] rounded-full h-2.5 overflow-hidden">
+                                            <div className="w-full bg-[#e5e7f0] dark:bg-[hsl(30,4%,20%)] rounded-full h-2.5 overflow-hidden">
                                                 <div
                                                     className="h-full bg-gradient-to-r from-[#22c55e] to-[#16a34a] transition-all duration-500 ease-out rounded-full"
                                                     style={{ width: `${Math.min(progress.percentage, 100)}%` }}
@@ -930,7 +930,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     className={`
                                     border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
                                     upload-dropzone
-                                    ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(231,20%,25%)]'}
+                                    ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(30,5%,25%)]'}
                                     hover:border-primary hover:upload-dropzone-active
                                     transition-all duration-200
                                 `}
@@ -1092,9 +1092,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
 
                             {/* Tabla agilizada sin tanto scroll horizontal */}
-                            <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
+                            <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)]">
                                 <table className="w-full text-left border-collapse">
-                                    <thead className="bg-black/5 dark:bg-white/5 border-b border-border dark:border-[hsl(231,20%,20%)]">
+                                    <thead className="bg-black/5 dark:bg-white/5 border-b border-border dark:border-[hsl(30,5%,20%)]">
                                         <tr>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
                                                 #
@@ -1113,7 +1113,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-border dark:divide-[hsl(231,20%,20%)]">
+                                    <tbody className="divide-y divide-border dark:divide-[hsl(30,5%,20%)]">
                                         {paginatedAppointments.map((appointment, index) => (
                                             <tr
                                                 key={appointment.id}
@@ -1220,7 +1220,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                             disabled={currentPage === 1}
-                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(30,4%,18%)] dark:hover:to-[hsl(30,4%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
                                         >
                                             <ChevronLeft className="w-4 h-4" />
                                             Anterior
@@ -1228,7 +1228,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
-                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(30,4%,18%)] dark:hover:to-[hsl(30,4%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
                                         >
                                             Siguiente
                                             <ChevronRight className="w-4 h-4" />
@@ -1249,31 +1249,31 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             <div className="space-y-3 text-sm settings-subtitle">
                                 <p className="settings-title font-medium">El archivo debe contener las siguientes columnas:</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Citead</strong> - Código admisión
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Nom_paciente</strong> - Nombre paciente
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Pactel</strong> - Teléfono
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Citfc</strong> - Fecha cita
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Cithor</strong> - Hora cita
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Mednom</strong> - Nombre médico
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Espnom</strong> - Especialidad
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Citdoc</strong> - Documento
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(231,25%,16%)] dark:to-[hsl(231,25%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
                                         <strong className="settings-title">Citobsobs</strong> - Observaciones
                                     </div>
                                 </div>
