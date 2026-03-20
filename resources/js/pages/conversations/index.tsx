@@ -201,6 +201,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [bulkAssignSearchQuery, setBulkAssignSearchQuery] = useState('');
     const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'image' | 'video'; caption?: string } | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
+    const [imageRotation, setImageRotation] = useState(0);
     const [showPatientData, setShowPatientData] = useState(false);
     const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -893,6 +894,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && mediaViewer) {
                 setMediaViewer(null);
+                setImageRotation(0);
             }
         };
 
@@ -918,11 +920,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         };
     }, [mediaViewer]);
 
-    // Resetear posición y zoom cuando cambia el visor
+    // Resetear posición, zoom y rotación cuando cambia el visor
     useEffect(() => {
         if (mediaViewer) {
             setZoomLevel(1);
             setImagePosition({ x: 0, y: 0 });
+            setImageRotation(0);
         }
     }, [mediaViewer?.url]);
 
@@ -3704,12 +3707,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                             {mediaViewer.type === 'image' && (
                                 <>
                                     <button
-                                        onClick={() => {
-                                            setZoomLevel(1);
-                                            setImagePosition({ x: 0, y: 0 });
-                                        }}
+                                        onClick={() => setImageRotation(prev => prev - 90)}
                                         className="p-2 text-white/70 hover:text-white hover:bg-card/10 rounded-full transition-colors"
-                                        title="Restablecer zoom"
+                                        title="Rotar"
                                     >
                                         <RotateCcw className="w-5 h-5" />
                                     </button>
@@ -3788,7 +3788,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 className={`max-w-full max-h-full object-contain select-none ${zoomLevel > 1 ? 'cursor-grab' : 'cursor-zoom-in'
                                     } ${isDragging ? 'cursor-grabbing' : ''}`}
                                 style={{
-                                    transform: `scale(${zoomLevel}) translate(${imagePosition.x / zoomLevel}px, ${imagePosition.y / zoomLevel}px)`,
+                                    transform: `scale(${zoomLevel}) rotate(${imageRotation}deg) translate(${imagePosition.x / zoomLevel}px, ${imagePosition.y / zoomLevel}px)`,
                                     transformOrigin: 'center center',
                                     transition: isDragging ? 'none' : 'transform 0.1s ease-out'
                                 }}
