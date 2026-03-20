@@ -670,7 +670,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             <div className="h-[calc(100vh-0px)] flex bg-background overflow-hidden">
                 {/* Lista de Chats - Izquierda */}
                 <div className={cn(
-                    "bg-[#f3f3f3] dark:bg-slate-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-[#e2e2e2] dark:border-slate-700/50",
+                    "bg-[#f3f3f3] dark:bg-neutral-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-[#e2e2e2] dark:border-neutral-700/50",
                     activeChat ? 'hidden md:flex' : 'flex',
                     isSidebarVisible ? 'w-full md:w-80 lg:w-96' : 'hidden md:w-0 md:overflow-hidden'
                 )}>
@@ -699,7 +699,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 type="text"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-11 pr-4 py-3 bg-[#e8e8e8] dark:bg-slate-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
+                                className="w-full pl-11 pr-4 py-3 bg-[#e8e8e8] dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
                                 placeholder="Buscar conversaciones"
                             />
                         </div>
@@ -725,7 +725,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         onClick={() => handleChatSelect(chat)}
                                         className={`w-full flex items-center gap-4 p-4 mb-1 rounded-xl transition-all text-left select-none ${isActive
                                                 ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400'
-                                                : 'hover:bg-[#eeeeee] dark:hover:bg-slate-800/50 border-l-4 border-transparent'
+                                                : 'hover:bg-[#eeeeee] dark:hover:bg-neutral-800/50 border-l-4 border-transparent'
                                             }`}
                                     >
                                         {/* Avatar */}
@@ -739,7 +739,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 )}
                                             </div>
                                             {chat.unread > 0 && (
-                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm border-2 border-[#f3f3f3] dark:border-slate-900">
+                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm border-2 border-[#f3f3f3] dark:border-neutral-900">
                                                     {chat.unread}
                                                 </div>
                                             )}
@@ -748,15 +748,15 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         {/* Info */}
                                         <div className="flex-grow min-w-0">
                                             <div className="flex justify-between items-baseline mb-0.5">
-                                                <h3 className="font-bold text-[#1a1c1c] dark:text-slate-200 truncate text-[15px]">
+                                                <h3 className="font-bold text-[#1a1c1c] dark:text-neutral-200 truncate text-[15px]">
                                                     {chat.name}
                                                 </h3>
-                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${chat.unread > 0 ? 'text-[#16235e] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-slate-500'
+                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${chat.unread > 0 ? 'text-[#16235e] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
                                                     }`}>
                                                     {chat.latest_message?.created_at || ''}
                                                 </span>
                                             </div>
-                                            <p className={`text-sm truncate ${chat.unread > 0 ? 'text-[#1a1c1c] dark:text-slate-200 font-medium' : 'text-[#5f5e5e] dark:text-slate-400'}`}>
+                                            <p className={`text-sm truncate ${chat.unread > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
                                                 {getLastMessagePreview(chat)}
                                             </p>
                                         </div>
@@ -769,10 +769,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                 {/* Área de Chat - Derecha */}
                 {!activeChat ? (
-                    <div className="hidden md:flex flex-1 items-center justify-center bg-[#f9f9f9] dark:bg-slate-950" style={{ backgroundImage: 'radial-gradient(#e2e2e2 1px, transparent 1px)', backgroundSize: '32px 32px' }}>
+                    <div className="hidden md:flex flex-1 items-center justify-center bg-[#f9f9f9] dark:bg-neutral-950">
                         <div className="text-center p-8 md:p-12">
                             <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#c6c5d1]" />
-                            <h3 className="text-xl font-bold text-[#1a1c1c]/60 dark:text-slate-400 mb-2">
+                            <h3 className="text-xl font-bold text-[#1a1c1c]/60 dark:text-neutral-400 mb-2">
                                 Bienvenido al Chat Interno
                             </h3>
                             <p className="text-sm text-[#5f5e5e]">
@@ -781,9 +781,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col bg-[#f9f9f9] dark:bg-slate-950 w-full md:w-auto relative">
+                    <div className="flex-1 flex flex-col bg-[#f9f9f9] dark:bg-neutral-950 w-full md:w-auto relative">
                         {/* Header del Chat */}
-                        <header className="flex items-center justify-between w-full px-6 py-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-sm z-10">
+                        <header className="flex items-center justify-between w-full px-6 py-4 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm z-10">
                             <div className="flex items-center gap-4 flex-1 min-w-0">
                                 {/* Botón volver (mobile) / toggle sidebar (desktop) */}
                                 <button
@@ -794,7 +794,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             setIsSidebarVisible(!isSidebarVisible);
                                         }
                                     }}
-                                    className="p-2 rounded-full hover:bg-[#eeeeee] dark:hover:bg-slate-800 transition-colors text-[#16235e] dark:text-blue-300 flex-shrink-0"
+                                    className="p-2 rounded-full hover:bg-[#eeeeee] dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-blue-300 flex-shrink-0"
                                     title={isSidebarVisible ? 'Ocultar lista' : 'Mostrar lista'}
                                 >
                                     {isSidebarVisible ? (
@@ -814,14 +814,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         )}
                                     </div>
                                     {activeChat.type === 'direct' && activeChatInfo?.participants?.find(p => p.id !== auth.user.id)?.is_online && (
-                                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
+                                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-neutral-900 rounded-full"></div>
                                     )}
                                 </div>
                                 <div className="min-w-0 flex-1 overflow-hidden">
                                     <h2 className="font-semibold text-md text-[#16235e] dark:text-blue-200 leading-tight truncate">
                                         {activeChat.name}
                                     </h2>
-                                    <p className="text-xs text-[#5f5e5e] dark:text-slate-400 truncate">
+                                    <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">
                                         {activeChat.type === 'group'
                                             ? `${activeChat.participants.length} participantes`
                                             : (activeChatInfo?.participants?.find(p => p.id !== auth.user.id)?.is_online
@@ -837,7 +837,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 <div className="w-px h-6 bg-[#c6c5d1]/30 mx-1"></div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button className="p-2.5 rounded-full hover:bg-[#eeeeee] dark:hover:bg-slate-800 transition-colors text-[#16235e] dark:text-blue-300 opacity-80 hover:opacity-100">
+                                        <button className="p-2.5 rounded-full hover:bg-[#eeeeee] dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-blue-300 opacity-80 hover:opacity-100">
                                             <MoreVertical className="w-5 h-5" />
                                         </button>
                                     </DropdownMenuTrigger>
@@ -902,7 +902,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             ref={messagesContainerRef}
                             onScroll={handleMessagesScroll}
                             className="flex-1 overflow-y-auto p-8 flex flex-col gap-6 custom-scrollbar-light"
-                            style={{ backgroundImage: 'radial-gradient(#e2e2e2 1px, transparent 1px)', backgroundSize: '32px 32px' }}
+
                         >
                             {messages.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full text-[#5f5e5e]">
@@ -937,7 +937,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 <div
                                                     className={`${msg.is_mine
                                                         ? 'bg-[#2e3a75] text-white px-5 py-3.5 rounded-xl rounded-br-sm shadow-md'
-                                                        : 'bg-white dark:bg-slate-800 text-[#1a1c1c] dark:text-slate-100 px-5 py-3.5 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                                                        : 'bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 px-5 py-3.5 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10'
                                                         }`}
                                                 >
                                                         {/* Sender name (in groups show for all; in direct only for others) */}
@@ -1002,18 +1002,18 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* File / Document */}
                                                         {(msg.type === 'document') && msg.file_url && (
-                                                            <div className="flex items-center gap-4 bg-[#f3f3f3] dark:bg-slate-700/50 p-4 rounded-lg border border-[#c6c5d1]/20 dark:border-slate-600/30 mb-2">
+                                                            <div className="flex items-center gap-4 bg-[#f3f3f3] dark:bg-neutral-700/50 p-4 rounded-lg border border-[#c6c5d1]/20 dark:border-neutral-600/30 mb-2">
                                                                 <div className="w-12 h-12 bg-[#16235e]/10 dark:bg-blue-500/20 rounded flex items-center justify-center text-[#16235e] dark:text-blue-300">
                                                                     <FileText className="w-6 h-6" />
                                                                 </div>
                                                                 <div className="flex flex-col overflow-hidden flex-1">
                                                                     <span className="text-sm font-bold truncate">{msg.file_name || 'Archivo'}</span>
                                                                     {msg.file_size_human && (
-                                                                        <span className="text-xs text-[#5f5e5e] dark:text-slate-400 font-normal">{msg.file_size_human}</span>
+                                                                        <span className="text-xs text-[#5f5e5e] dark:text-neutral-400 font-normal">{msg.file_size_human}</span>
                                                                     )}
                                                                 </div>
-                                                                <a href={msg.file_url} download target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-[#e8e8e8] dark:hover:bg-slate-600 rounded-full transition-colors">
-                                                                    <Download className="w-5 h-5 text-[#5f5e5e] dark:text-slate-300" />
+                                                                <a href={msg.file_url} download target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-[#e8e8e8] dark:hover:bg-neutral-600 rounded-full transition-colors">
+                                                                    <Download className="w-5 h-5 text-[#5f5e5e] dark:text-neutral-300" />
                                                                 </a>
                                                             </div>
                                                         )}
@@ -1072,7 +1072,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     </div>
                                                 {/* Timestamp - outside bubble */}
                                                 <div className={`flex items-center gap-1 mt-1.5 ${msg.is_mine ? 'mr-1' : 'ml-1'}`}>
-                                                    <span className="text-[10px] text-[#5f5e5e] dark:text-slate-500">{msg.created_at}</span>
+                                                    <span className="text-[10px] text-[#5f5e5e] dark:text-neutral-500">{msg.created_at}</span>
                                                     {msg.is_mine && (
                                                         <Check className="w-3 h-3 text-[#16235e] dark:text-blue-400" style={{ fontSize: '14px' }} />
                                                     )}
@@ -1081,7 +1081,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 {readersHere.length > 0 && (
                                                     <div className={`flex items-center gap-1 mt-1.5 px-1 ${msg.is_mine ? 'justify-end mr-1' : 'justify-start ml-1'}`}>
                                                         <Check className="w-3.5 h-3.5 text-[#16235e] dark:text-blue-400 opacity-80 flex-shrink-0" />
-                                                        <span className="text-[10px] font-medium text-[#5f5e5e] dark:text-slate-400 leading-none">
+                                                        <span className="text-[10px] font-medium text-[#5f5e5e] dark:text-neutral-400 leading-none">
                                                             Visto por {readersHere.map(r => r.user_name).join(', ')}
                                                         </span>
                                                     </div>
@@ -1095,8 +1095,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         </div>
 
                         {/* Input Area */}
-                        <form onSubmit={handleSendMessage} className="p-6 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
-                            <div className="flex items-center gap-3 bg-[#e2e2e2] dark:bg-slate-800 px-4 py-2 rounded-full ring-1 ring-black/5 dark:ring-white/10 focus-within:ring-[#16235e]/20 transition-all relative">
+                        <form onSubmit={handleSendMessage} className="p-6 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md">
+                            <div className="flex items-center gap-3 bg-[#e2e2e2] dark:bg-neutral-800 px-4 py-2 rounded-full ring-1 ring-black/5 dark:ring-white/10 focus-within:ring-[#16235e]/20 transition-all relative">
                                 {/* Hidden file input */}
                                 <input
                                     type="file"
@@ -1107,7 +1107,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                 <button
                                     type="button"
-                                    className="p-2 text-[#5f5e5e] dark:text-slate-400 hover:text-[#16235e] dark:hover:text-blue-300 transition-colors flex-shrink-0"
+                                    className="p-2 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#16235e] dark:hover:text-blue-300 transition-colors flex-shrink-0"
                                     onClick={() => fileInputRef.current?.click()}
                                     title="Adjuntar archivo"
                                     disabled={isUploading}
@@ -1119,14 +1119,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 <div className="relative flex-1">
                                     {/* @Mentions dropdown */}
                                     {showMentions && mentionUsers.length > 0 && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-3 bg-white dark:bg-slate-800 border border-[#e2e2e2] dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
+                                        <div className="absolute bottom-full left-0 right-0 mb-3 bg-white dark:bg-neutral-800 border border-[#e2e2e2] dark:border-neutral-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
                                             {mentionUsers.map((user, i) => (
                                                 <button
                                                     key={user.id}
                                                     type="button"
                                                     className={cn(
                                                         'w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors',
-                                                        i === mentionIndex ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300' : 'hover:bg-[#f3f3f3] dark:hover:bg-slate-700'
+                                                        i === mentionIndex ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300' : 'hover:bg-[#f3f3f3] dark:hover:bg-neutral-700'
                                                     )}
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
@@ -1138,7 +1138,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                         {getInitials(user.name)}
                                                     </div>
                                                     <span className="font-medium truncate">{user.name}</span>
-                                                    <span className="text-xs text-[#5f5e5e] dark:text-slate-400 ml-auto capitalize">{user.role}</span>
+                                                    <span className="text-xs text-[#5f5e5e] dark:text-neutral-400 ml-auto capitalize">{user.role}</span>
                                                 </button>
                                             ))}
                                         </div>

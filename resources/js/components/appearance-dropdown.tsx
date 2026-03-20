@@ -28,7 +28,7 @@ export default function AppearanceToggleDropdown({
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <button
-                        className="flex flex-col items-center gap-0.5 py-2.5 w-full rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-all duration-200"
+                        className="flex flex-col items-center gap-0.5 py-2.5 w-full rounded-xl text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-neutral-200 hover:bg-slate-200/60 dark:hover:bg-neutral-800/60 transition-all duration-200"
                         title="Cambiar tema"
                     >
                         <CurrentIcon className="w-5 h-5" />

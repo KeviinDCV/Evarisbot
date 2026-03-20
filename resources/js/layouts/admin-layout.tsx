@@ -169,7 +169,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
             {/* Rail Sidebar */}
             <aside className={`
-                w-20 bg-slate-50 dark:bg-slate-900 flex flex-col items-center py-4 flex-shrink-0 z-40
+                w-20 bg-slate-50 dark:bg-neutral-900 flex flex-col items-center py-4 flex-shrink-0 z-40
                 transition-all duration-300 ease-in-out
                 fixed lg:relative top-0 left-0 h-full
                 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -195,7 +195,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                 className={`relative flex flex-col items-center gap-0.5 py-2.5 rounded-xl transition-all duration-200 group ${
                                     isActive
                                         ? 'bg-blue-100 dark:bg-blue-900/30 text-[#2e3a75] dark:text-blue-300'
-                                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
+                                        : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-neutral-200 hover:bg-slate-200/60 dark:hover:bg-neutral-800/60'
                                 }`}
                                 onClick={() => setIsMobileMenuOpen(false)}
                             >
@@ -215,7 +215,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 </nav>
 
                 {/* Bottom actions */}
-                <div className="mt-auto flex flex-col gap-2 items-center w-full px-2 pt-4 border-t border-slate-200 dark:border-slate-700/50">
+                <div className="mt-auto flex flex-col gap-2 items-center w-full px-2 pt-4 border-t border-slate-200 dark:border-neutral-700/50">
                     <div className="flex flex-col items-center gap-0.5 w-full">
                         <AppearanceToggleDropdown />
                     </div>
@@ -226,14 +226,14 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                         href={logout()}
                         method="post"
                         as="button"
-                        className="flex flex-col items-center gap-0.5 py-2.5 w-full rounded-xl text-slate-500 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
+                        className="flex flex-col items-center gap-0.5 py-2.5 w-full rounded-xl text-slate-500 dark:text-neutral-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200"
                     >
                         <LogOut className="w-5 h-5" />
                         <span className="text-[10px] font-medium">{t('common.logout')}</span>
                     </Link>
                     {/* User avatar */}
                     <Link href="/settings/profile" className="mt-1 group">
-                        <Avatar className="h-10 w-10 ring-2 ring-white dark:ring-slate-700 shadow-sm transition-transform group-hover:scale-105">
+                        <Avatar className="h-10 w-10 ring-2 ring-white dark:ring-neutral-700 shadow-sm transition-transform group-hover:scale-105">
                             <AvatarImage src={auth.user?.avatar} alt={auth.user?.name} />
                             <AvatarFallback className="bg-[#2e3a75] text-white text-sm font-bold">
                                 {getInitials(auth.user?.name)}
