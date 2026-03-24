@@ -45,7 +45,8 @@ import {
     Pin,
     ClipboardList,
 } from 'lucide-react';
-import { FormEvent, useEffect, useRef, useState, useCallback } from 'react';
+import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import axios from 'axios';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -207,6 +208,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
+    const lastMessageIdRef = useRef<number>(0);
 
     // Estados para el modal de advertencia de 24 horas
     const [show24HourWarning, setShow24HourWarning] = useState(false);
@@ -472,6 +474,9 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [newMessagesCount, setNewMessagesCount] = useState(0);
     const lastMessageCountRef = useRef(0);
 
+    // Local messages state — initialized from server, incrementally updated by lightweight poll
+    const [localMessages, setLocalMessages] = useState<Message[]>(selectedConversation?.messages || []);
+
     // Estados para mensajes optimistas (actualización instantánea)
     const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
     const messageCountBeforeSendRef = useRef<number>(0);
@@ -519,10 +524,9 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Scroll automático al final SOLO si el usuario ya estaba al final
     useEffect(() => {
-        const messages = selectedConversation?.messages;
-        if (!messages) return;
+        if (localMessages.length === 0) return;
 
-        const currentCount = messages.length;
+        const currentCount = localMessages.length;
         const previousCount = lastMessageCountRef.current;
 
         // Si es una nueva conversación, ir al final inmediatamente
@@ -546,7 +550,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
 
         lastMessageCountRef.current = currentCount;
-    }, [selectedConversation?.messages, isAtBottom, scrollToBottom]);
+    }, [localMessages, isAtBottom, scrollToBottom]);
 
     // Resetear cuando cambia la conversación
     useEffect(() => {
@@ -554,19 +558,22 @@ export default function ConversationsIndex({ conversations: initialConversations
         setNewMessagesCount(0);
         setIsAtBottom(true);
         setOptimisticMessages([]); // Limpiar mensajes optimistas al cambiar de conversación
+        // Initialize local messages from server prop
+        const msgs = selectedConversation?.messages || [];
+        setLocalMessages(msgs);
+        lastMessageIdRef.current = msgs.length > 0 ? Math.max(...msgs.map(m => m.id)) : 0;
     }, [selectedConversation?.id]);
 
 
-    // Limpiar mensajes optimistas cuando llegan los mensajes reales del servidor
+    // Limpiar mensajes optimistas cuando llegan los mensajes reales (del poll o del servidor)
     useEffect(() => {
-        if (optimisticMessages.length > 0 && selectedConversation?.messages) {
-            const serverMessageCount = selectedConversation.messages.length;
-            // Si el servidor tiene más mensajes que cuando enviamos, limpiar optimistas
-            if (serverMessageCount > messageCountBeforeSendRef.current) {
+        if (optimisticMessages.length > 0 && localMessages.length > 0) {
+            // Si local messages grew since we sent, clear optimistic
+            if (localMessages.length > messageCountBeforeSendRef.current) {
                 setOptimisticMessages([]);
             }
         }
-    }, [selectedConversation?.messages?.length, optimisticMessages.length]);
+    }, [localMessages.length, optimisticMessages.length]);
 
     // Ref para trackear el último filtro de búsqueda aplicado
     const lastSearchFilterRef = useRef<string>(filters.search || '');
@@ -798,46 +805,88 @@ export default function ConversationsIndex({ conversations: initialConversations
     }, [contextMenu]);
 
     // Polling para actualizar la lista de conversaciones (siempre activo)
-    // Se pausa automáticamente cuando el usuario está haciendo scroll
+    // Usa endpoint liviano JSON en lugar de Inertia reload completo
     useEffect(() => {
         let isActive = true;
 
-        // Actualizar lista de conversaciones cada 5 segundos
-        const conversationsInterval = setInterval(() => {
+        const conversationsInterval = setInterval(async () => {
             if (!isActive) return;
             // NO recargar si el usuario está haciendo scroll (evita saltos)
             if (isScrollingChatsRef.current) return;
 
-            // Guardar posición del scroll antes del reload
-            if (conversationsListRef.current) {
-                savedScrollTopRef.current = conversationsListRef.current.scrollTop;
-            }
+            try {
+                const params = new URLSearchParams();
+                if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+                if (filters.assigned) params.set('assigned', filters.assigned);
+                if (filters.search) params.set('search', filters.search);
+                if (filters.tag) params.set('tag', filters.tag);
 
-            router.reload({
-                only: ['conversations'],
-                onError: () => {
-                    // Silenciar errores de conflicto para evitar spam en consola
-                },
-                onFinish: () => {
-                    // Restaurar posición del scroll después del reload
-                    if (savedScrollTopRef.current !== null && conversationsListRef.current) {
-                        requestAnimationFrame(() => {
-                            if (conversationsListRef.current && savedScrollTopRef.current !== null) {
-                                conversationsListRef.current.scrollTop = savedScrollTopRef.current;
-                                savedScrollTopRef.current = null;
+                const res = await axios.get(`/admin/chat/poll-list?${params.toString()}`);
+                if (!isActive) return;
+
+                const freshConversations: Conversation[] = res.data.conversations;
+
+                setLocalConversations(prev => {
+                    if (prev.length === 0) return freshConversations;
+
+                    const serverMap = new Map(freshConversations.map(c => [c.id, c]));
+                    let hasChanges = false;
+
+                    const updated = prev.map(conv => {
+                        const fresh = serverMap.get(conv.id);
+                        if (fresh) {
+                            if (fresh.unread_count !== conv.unread_count ||
+                                fresh.status !== conv.status ||
+                                fresh.last_message_at !== conv.last_message_at ||
+                                fresh.assigned_to !== conv.assigned_to ||
+                                fresh.last_message?.content !== conv.last_message?.content ||
+                                fresh.last_message?.status !== conv.last_message?.status) {
+                                hasChanges = true;
+                                return { ...fresh, messages: conv.messages };
                             }
+                            return conv;
+                        }
+                        return conv;
+                    }).filter(conv => {
+                        if (!isAdmin && !filters.tag && (conv.status === 'resolved' || conv.status === 'closed')) {
+                            return false;
+                        }
+                        return true;
+                    });
+
+                    // Detect new conversations
+                    const existingIds = new Set(prev.map(c => c.id));
+                    const newConvs = freshConversations.filter(c => !existingIds.has(c.id));
+
+                    if (newConvs.length > 0) {
+                        const result = [...newConvs, ...updated];
+                        return result.sort((a, b) => {
+                            if (a.is_pinned && !b.is_pinned) return -1;
+                            if (!a.is_pinned && b.is_pinned) return 1;
+                            return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
                         });
                     }
-                },
-            });
-        }, 5000); // 5 segundos para reducir carga
 
-        // Cleanup: detener polling al desmontar
+                    if (hasChanges) {
+                        return updated.sort((a, b) => {
+                            if (a.is_pinned && !b.is_pinned) return -1;
+                            if (!a.is_pinned && b.is_pinned) return 1;
+                            return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+                        });
+                    }
+
+                    return prev;
+                });
+            } catch {
+                // Silenciar errores de polling
+            }
+        }, 10000); // 10 segundos — endpoint liviano, no Inertia reload
+
         return () => {
             isActive = false;
             clearInterval(conversationsInterval);
         };
-    }, []);
+    }, [filters.status, filters.assigned, filters.search, filters.tag, isAdmin]);
 
     // Escuchar evento en tiempo real cuando un chat es tomado por un asesor
     // Así los demás asesores lo ven desaparecer de su bandeja inmediatamente sin esperar el polling
@@ -930,25 +979,66 @@ export default function ConversationsIndex({ conversations: initialConversations
     }, [mediaViewer?.url]);
 
     // Polling para actualización de mensajes en conversación seleccionada
+    // Usa endpoint liviano que solo devuelve mensajes nuevos después del último ID
     useEffect(() => {
-        // Solo hacer polling si hay una conversación seleccionada
         if (!selectedConversation) return;
 
         let isActive = true;
 
-        // Consultar cada 5 segundos si hay mensajes nuevos en la conversación actual
-        const messagesInterval = setInterval(() => {
+        const messagesInterval = setInterval(async () => {
             if (!isActive) return;
 
-            router.reload({
-                only: ['selectedConversation'],
-                onError: () => {
-                    // Silenciar errores de conflicto para evitar spam en consola
-                },
-            });
-        }, 5000); // 5 segundos para reducir carga
+            try {
+                const res = await axios.get(`/admin/chat/${selectedConversation.id}/poll-messages?after=${lastMessageIdRef.current}`);
+                if (!isActive) return;
 
-        // Cleanup: detener polling al desmontar
+                const newMessages: Message[] = res.data.messages;
+                const updatedStatuses: Array<{ id: number; status: string; error_message?: string }> = res.data.updatedStatuses || [];
+
+                if (newMessages.length > 0) {
+                    setLocalMessages(prev => {
+                        const existingIds = new Set(prev.map(m => m.id));
+                        const truly = newMessages.filter(m => !existingIds.has(m.id));
+                        if (truly.length === 0) return prev;
+                        return [...prev, ...truly];
+                    });
+                    const maxId = Math.max(...newMessages.map(m => m.id));
+                    if (maxId > lastMessageIdRef.current) {
+                        lastMessageIdRef.current = maxId;
+                    }
+                }
+
+                // Update statuses of existing messages (delivered/read/failed)
+                if (updatedStatuses.length > 0) {
+                    setLocalMessages(prev => {
+                        const statusMap = new Map(updatedStatuses.map(s => [s.id, s]));
+                        let changed = false;
+                        const updated = prev.map(m => {
+                            const s = statusMap.get(m.id);
+                            if (s && s.status !== m.status) {
+                                changed = true;
+                                return { ...m, status: s.status, error_message: s.error_message || m.error_message };
+                            }
+                            return m;
+                        });
+                        return changed ? updated : prev;
+                    });
+                }
+
+                // Update unread count in conversation list
+                if (res.data.unread_count !== undefined) {
+                    setLocalConversations(prev =>
+                        prev.map(c => c.id === selectedConversation.id
+                            ? { ...c, unread_count: res.data.unread_count }
+                            : c
+                        )
+                    );
+                }
+            } catch {
+                // Silenciar errores de polling
+            }
+        }, 5000);
+
         return () => {
             isActive = false;
             clearInterval(messagesInterval);
@@ -1129,12 +1219,12 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Función para verificar si han pasado 24 horas desde el último mensaje del usuario
     const getLastUserMessageInfo = useCallback(() => {
-        if (!selectedConversation?.messages || selectedConversation.messages.length === 0) {
+        if (localMessages.length === 0) {
             return null;
         }
 
         // Buscar el último mensaje del usuario (is_from_user = true)
-        const userMessages = selectedConversation.messages.filter(msg => msg.is_from_user);
+        const userMessages = localMessages.filter(msg => msg.is_from_user);
 
         if (userMessages.length === 0) {
             return null;
@@ -1163,7 +1253,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             hoursAgo: Math.floor(diffHours),
             isExpired: diffHours >= 24
         };
-    }, [selectedConversation?.messages]);
+    }, [localMessages]);
 
     // Obtener todos los asesores disponibles para filtrar
     const availableAdvisors = users;
@@ -1541,7 +1631,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         setIsSubmitting(true);
 
         // Guardar conteo de mensajes actual para detectar cuando llegue el real
-        messageCountBeforeSendRef.current = selectedConversation.messages?.length || 0;
+        messageCountBeforeSendRef.current = localMessages.length;
 
         // Crear mensaje optimista (aparece inmediatamente)
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -2954,13 +3044,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                             className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar"
 
                         >
-                            {!selectedConversation.messages || selectedConversation.messages.length === 0 ? (
+                            {localMessages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-[#767681]">
                                     <p>{t('conversations.noMessagesInConversation')}</p>
                                 </div>
                             ) : (
                                 <div className="space-y-3 md:space-y-4">
-                                    {selectedConversation.messages.map((message) => (
+                                    {localMessages.map((message) => (
                                         <div
                                             key={message.id}
                                             className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'}`}

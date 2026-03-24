@@ -11,6 +11,9 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Lightweight endpoint to refresh XSRF-TOKEN cookie (no body, no Inertia overhead)
+Route::get('/csrf-refresh', fn () => response()->noContent());
+
 // Páginas públicas (requeridas para Meta)
 Route::get('/privacy-policy', function () {
     $path = public_path('POLITICA-DE-SEGURIDAD-DIGITAL-POL-HUV-HUV-003-VER-003-REV-01-2021-04-13.pdf');
@@ -122,12 +125,14 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::controller(\App\Http\Controllers\ConversationController::class)->prefix('chat')->group(function () {
         Route::get('/', 'index')->name('chat.index');
         Route::get('/unread-count', 'getUnreadCount')->name('chat.unread-count');
+        Route::get('/poll-list', 'pollList')->name('chat.poll-list');
         Route::post('/create', 'store')->name('chat.store'); // Crear nueva conversación
         // Operaciones masivas
         Route::post('/bulk-assign', 'bulkAssign')->name('chat.bulk-assign');
         Route::post('/bulk-status', 'bulkUpdateStatus')->name('chat.bulk-status');
         
         Route::get('/{conversation}', 'show')->name('chat.show');
+        Route::get('/{conversation}/poll-messages', 'pollMessages')->name('chat.poll-messages');
         Route::post('/{conversation}/send', 'sendMessage')->name('chat.send');
         Route::post('/{conversation}/assign', 'assign')->name('chat.assign');
         Route::post('/{conversation}/status', 'updateStatus')->name('chat.status');

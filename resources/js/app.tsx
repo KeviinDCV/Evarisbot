@@ -22,8 +22,8 @@ axios.interceptors.response.use(
         const originalRequest = error.config;
         if (error.response?.status === 419 && !originalRequest._retried) {
             originalRequest._retried = true;
-            // Fetch a fresh page to get updated XSRF-TOKEN cookie
-            await axios.get(window.location.pathname, { headers: { 'X-Inertia': 'false' } }).catch(() => {});
+            // Hit a lightweight endpoint to refresh XSRF-TOKEN cookie
+            await axios.get('/csrf-refresh').catch(() => {});
             return axios(originalRequest);
         }
         return Promise.reject(error);

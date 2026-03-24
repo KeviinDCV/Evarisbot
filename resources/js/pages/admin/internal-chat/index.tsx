@@ -250,7 +250,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
         // Immediate first poll
         pollChats();
-        const interval = setInterval(pollChats, 3000);
+        const interval = setInterval(pollChats, 5000);
         return () => clearInterval(interval);
     }, [activeChat?.id]);
 
@@ -260,19 +260,22 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
         const pollMessages = async () => {
             try {
-                const res = await axios.get(`/admin/internal-chat/${activeChat.id}/messages`);
+                const res = await axios.get(`/admin/internal-chat/${activeChat.id}/poll?since=${lastMessageIdRef.current > 0 ? encodeURIComponent(new Date(Date.now() - 10000).toISOString()) : ''}`);
                 if (res.data?.messages && Array.isArray(res.data.messages)) {
                     const newMessages: MessageItem[] = res.data.messages;
-                    const newLastId = newMessages.length > 0 ? newMessages[newMessages.length - 1].id : 0;
 
-                    // Compare by last message ID instead of length (more reliable)
-                    if (newLastId !== lastMessageIdRef.current) {
-                        const hadNewMessages = newLastId > lastMessageIdRef.current;
-                        lastMessageIdRef.current = newLastId;
-                        setMessages(newMessages);
+                    if (newMessages.length > 0) {
+                        const newLastId = newMessages[newMessages.length - 1].id;
 
-                        // Only scroll if new messages arrived (not on initial load / edits)
-                        if (hadNewMessages) {
+                        if (newLastId > lastMessageIdRef.current) {
+                            lastMessageIdRef.current = newLastId;
+                            // Append only truly new messages
+                            setMessages(prev => {
+                                const existingIds = new Set(prev.map(m => m.id));
+                                const truly = newMessages.filter(m => !existingIds.has(m.id));
+                                if (truly.length === 0) return prev;
+                                return [...prev, ...truly];
+                            });
                             setTimeout(() => scrollToBottom(), 50);
                         }
                     }
@@ -288,7 +291,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             }
         };
 
-        const interval = setInterval(pollMessages, 2000);
+        const interval = setInterval(pollMessages, 3000);
         return () => clearInterval(interval);
     }, [activeChat?.id]);
 

@@ -1206,4 +1206,141 @@ class ConversationController extends Controller
             return null;
         }
     }
+
+    /**
+     * Lightweight polling endpoint for conversations list.
+     * Returns only conversation summaries (no messages) as JSON.
+     */
+    public function pollList(Request $request)
+    {
+        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+            ->orderBy('last_message_at', 'desc');
+
+        $user = auth()->user();
+
+        if ($user->isAdvisor()) {
+            if ($user->isOnDuty()) {
+                $query->where(function ($q) {
+                    $q->whereNull('assigned_to')
+                      ->orWhere('assigned_to', auth()->id());
+                });
+            } else {
+                $query->where('assigned_to', auth()->id());
+            }
+        }
+
+        $filteringByTag = $request->has('tag') && is_numeric($request->tag);
+
+        if ($request->has('status') && $request->status !== 'all') {
+            if ($request->status === 'unanswered') {
+                $query->where('unread_count', '>', 0)->whereNull('assigned_to');
+            } elseif ($request->status === 'pending_response') {
+                $query->where('assigned_to', auth()->id())
+                      ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
+                      ->whereIn('status', ['active', 'pending']);
+            } else {
+                $query->where('status', $request->status);
+            }
+        } elseif ($user->isAdvisor() && !$filteringByTag) {
+            $query->whereIn('status', ['active', 'pending']);
+        }
+
+        if ($user->isAdmin() && $request->has('assigned')) {
+            if ($request->assigned === 'me') {
+                $query->where('assigned_to', auth()->id());
+            } elseif ($request->assigned === 'unassigned') {
+                $query->whereNull('assigned_to');
+            } elseif (is_numeric($request->assigned)) {
+                $query->where('assigned_to', (int) $request->assigned);
+            }
+        }
+
+        if ($request->has('tag') && is_numeric($request->tag)) {
+            $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('contact_name', 'like', "%{$search}%")
+                  ->orWhere('phone_number', 'like', "%{$search}%")
+                  ->orWhereHas('messages', fn ($mq) => $mq->where('content', 'like', "%{$search}%"));
+            });
+        }
+
+        $conversations = $query
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at'])
+            ->limit(50)
+            ->get();
+
+        // Inyectar pins
+        $convIds = $conversations->pluck('id');
+        $userPins = \DB::table('conversation_user_pins')
+            ->where('user_id', auth()->id())
+            ->whereIn('conversation_id', $convIds)
+            ->pluck('pinned_at', 'conversation_id');
+
+        $conversations = $conversations->map(function ($conv) use ($userPins) {
+            $conv->is_pinned = $userPins->has($conv->id);
+            $conv->pinned_at = $userPins->get($conv->id);
+            return $conv;
+        })->sortByDesc(fn ($conv) => [$conv->is_pinned ? 1 : 0, $conv->last_message_at?->timestamp ?? 0])
+          ->values();
+
+        return response()->json([
+            'conversations' => $conversations,
+        ]);
+    }
+
+    /**
+     * Lightweight polling endpoint for new messages in a conversation.
+     * Only returns messages created after the given `after` message ID.
+     */
+    public function pollMessages(Request $request, Conversation $conversation)
+    {
+        $user = auth()->user();
+
+        // Access control
+        if ($user->isAdvisor()) {
+            if ($user->isOnDuty()) {
+                $canAccess = is_null($conversation->assigned_to) || $conversation->assigned_to === auth()->id();
+            } else {
+                $canAccess = $conversation->assigned_to === auth()->id();
+            }
+            if (!$canAccess) {
+                return response()->json(['error' => 'No autorizado'], 403);
+            }
+        }
+
+        $afterId = (int) $request->query('after', 0);
+
+        $newMessages = $conversation->messages()
+            ->with('sender')
+            ->where('id', '>', $afterId)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        // Also return updated statuses for recent messages (last 20) that may have changed
+        $updatedStatuses = [];
+        if ($afterId > 0) {
+            $updatedStatuses = $conversation->messages()
+                ->where('id', '<=', $afterId)
+                ->where('id', '>', $afterId - 20)
+                ->whereIn('status', ['delivered', 'read', 'failed'])
+                ->select(['id', 'status', 'error_message'])
+                ->get()
+                ->toArray();
+        }
+
+        // Mark as read if there are new incoming messages
+        if ($newMessages->where('is_from_user', true)->count() > 0) {
+            $conversation->markAsRead();
+        }
+
+        return response()->json([
+            'messages' => $newMessages,
+            'updatedStatuses' => $updatedStatuses,
+            'unread_count' => $conversation->fresh()->unread_count,
+        ]);
+    }
 }
