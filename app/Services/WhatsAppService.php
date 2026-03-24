@@ -1316,8 +1316,9 @@ class WhatsAppService
                 return $existingMessage;
             }
 
-            // Buscar si hay un appointment asociado (sin enviar respuesta todavía)
-            $appointment = $this->findAppointmentForResponse($from, $messageData);
+            // Buscar si hay appointments asociados (sin enviar respuesta todavía)
+            $appointments = $this->findAppointmentsForResponse($from, $messageData);
+            $appointment = $appointments->first(); // Para compatibilidad con lógica de conversación
 
             // Extraer información del contacto
             $contactName = null;
@@ -1576,8 +1577,8 @@ class WhatsAppService
             ]);
 
             // DESPUÉS de guardar el mensaje del usuario, procesar respuesta automática de appointment
-            if ($appointment) {
-                $this->sendAppointmentAutoResponse($from, $messageData, $appointment, $conversation);
+            if ($appointments->isNotEmpty()) {
+                $this->sendAppointmentAutoResponse($from, $messageData, $appointments, $conversation);
                 // Si fue respuesta a un recordatorio de cita, NO iniciar el flujo de bienvenida
                 return $message;
             }
@@ -1703,10 +1704,13 @@ class WhatsAppService
     }
 
     /**
-     * Busca un appointment asociado a este mensaje (sin enviar respuesta)
+     * Busca TODOS los appointments pendientes asociados a este número (sin enviar respuesta)
+     * Retorna Collection para manejar correctamente pacientes con múltiples citas el mismo día
      */
-    private function findAppointmentForResponse(string $from, array $messageData): ?\App\Models\Appointment
+    private function findAppointmentsForResponse(string $from, array $messageData): \Illuminate\Database\Eloquent\Collection
     {
+        $empty = new \Illuminate\Database\Eloquent\Collection();
+
         try {
             // Obtener el contenido del mensaje
             $messageText = $messageData['text']['body'] ?? 
@@ -1715,52 +1719,61 @@ class WhatsAppService
                           null;
 
             if (!$messageText) {
-                return null;
+                return $empty;
             }
 
             // Verificar si el mensaje contiene palabras clave de respuesta
             $messageText = trim($messageText);
             if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|✅|❌/i', $messageText)) {
-                return null;
+                return $empty;
             }
 
-            // Buscar cita con recordatorio enviado
+            // Buscar citas con recordatorio enviado
             $phoneDigits = substr(preg_replace('/[^0-9]/', '', $from), -10);
             
-            // Primero, priorizar citas que AÚN NO han sido confirmadas o canceladas
-            $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
+            // Buscar TODAS las citas pendientes (no confirmadas ni canceladas) para este teléfono
+            $appointments = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
                 ->where('reminder_sent', true)
                 ->whereNotIn('reminder_status', ['confirmed', 'cancelled'])
                 ->whereDate('citfc', '>=', now())
                 ->orderBy('citfc', 'asc')
-                ->first();
+                ->orderBy('cithor', 'asc')
+                ->get();
 
-            // Si no hay ninguna pendiente por responder, buscar la cita más reciente
-            // SOLO si la fecha de la cita es cercana (máximo 2 días pasados)
-            // Esto evita que mensajes como "confirmar" meses después activen citas viejas
-            if (!$appointment) {
-                $appointment = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
+            // Si no hay ninguna pendiente, buscar citas recientes (máximo 2 días pasados)
+            if ($appointments->isEmpty()) {
+                $appointments = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
                     ->where('reminder_sent', true)
                     ->whereDate('citfc', '>=', now()->subDays(2))
                     ->orderBy('citfc', 'asc')
-                    ->first();
+                    ->orderBy('cithor', 'asc')
+                    ->get();
             }
 
-            return $appointment;
+            if ($appointments->isNotEmpty()) {
+                Log::info('Found appointments for response', [
+                    'phone' => $from,
+                    'count' => $appointments->count(),
+                    'ids' => $appointments->pluck('id')->toArray(),
+                ]);
+            }
+
+            return $appointments;
 
         } catch (\Exception $e) {
-            Log::error('Find appointment exception', [
+            Log::error('Find appointments exception', [
                 'error' => $e->getMessage(),
                 'from' => $from,
             ]);
-            return null;
+            return $empty;
         }
     }
 
     /**
      * Envía y guarda la respuesta automática del appointment
+     * Soporta múltiples citas del mismo paciente en el mismo día
      */
-    private function sendAppointmentAutoResponse(string $from, array $messageData, \App\Models\Appointment $appointment, \App\Models\Conversation $conversation): void
+    private function sendAppointmentAutoResponse(string $from, array $messageData, \Illuminate\Database\Eloquent\Collection $appointments, \App\Models\Conversation $conversation): void
     {
         try {
             // Obtener el contenido del mensaje
@@ -1777,80 +1790,113 @@ class WhatsAppService
             $messageText = trim($messageText);
 
             // Usar transacción con bloqueo pesimista para evitar condiciones de carrera
-            // (ej: usuario presiona "Confirmar" y luego "Cancelar" rápidamente)
-            \Illuminate\Support\Facades\DB::transaction(function () use ($from, $messageText, $appointment, $conversation) {
-                // Recargar el appointment con bloqueo FOR UPDATE para evitar lecturas concurrentes
-                $lockedAppointment = \App\Models\Appointment::where('id', $appointment->id)
+            \Illuminate\Support\Facades\DB::transaction(function () use ($from, $messageText, $appointments, $conversation) {
+                // Bloquear TODAS las citas para evitar lecturas concurrentes
+                $appointmentIds = $appointments->pluck('id')->toArray();
+                $lockedAppointments = \App\Models\Appointment::whereIn('id', $appointmentIds)
                     ->lockForUpdate()
-                    ->first();
+                    ->orderBy('citfc', 'asc')
+                    ->orderBy('cithor', 'asc')
+                    ->get();
 
-                if (!$lockedAppointment) {
-                    Log::warning('Appointment not found during locked read', [
-                        'appointment_id' => $appointment->id,
+                if ($lockedAppointments->isEmpty()) {
+                    Log::warning('No appointments found during locked read', [
+                        'appointment_ids' => $appointmentIds,
                     ]);
                     return;
                 }
 
-                // Verificar si la cita ya fue confirmada o cancelada previamente
-                // Esta verificación se hace CON el bloqueo, así que es atómica
+                // Separar citas que ya tienen estado final vs las pendientes
+                $alreadyProcessed = $lockedAppointments->filter(fn ($a) => in_array($a->reminder_status, ['confirmed', 'cancelled']));
+                $pendingAppointments = $lockedAppointments->filter(fn ($a) => !in_array($a->reminder_status, ['confirmed', 'cancelled']));
+
                 $responseMessage = null;
 
-                // Formatear hora para respuestas
-                $horaFormateada = $this->formatHoraForResponse($lockedAppointment->cithor);
-
-                // Verificar si la cita ya fue confirmada o cancelada previamente
-                if (in_array($lockedAppointment->reminder_status, ['confirmed', 'cancelled'])) {
-                    // Verificamos si ya hemos enviado el mensaje de advertencia previamente
-                    if (str_contains($lockedAppointment->notes ?? '', '[Advertencia de estado final enviada]')) {
+                // Si TODAS las citas ya fueron procesadas, enviar advertencia (solo una vez)
+                if ($pendingAppointments->isEmpty() && $alreadyProcessed->isNotEmpty()) {
+                    $firstProcessed = $alreadyProcessed->first();
+                    if (str_contains($firstProcessed->notes ?? '', '[Advertencia de estado final enviada]')) {
                         Log::info('Final status warning already sent, ignoring new response', [
-                            'appointment_id' => $lockedAppointment->id,
+                            'appointment_ids' => $appointmentIds,
                             'phone' => $from
                         ]);
                         return;
                     }
 
-                    $statusStr = $lockedAppointment->reminder_status === 'confirmed' ? 'CONFIRMADA' : 'CANCELADA';
-                    
-                    $responseMessage = "⚠️ *Estado: {$statusStr}*\n\nEsta cita ya se encuentra registrada como *{$statusStr}*.\n\nEl sistema ya ha procesado su respuesta anteriormente. Si necesita realizar cambios adicionales, por favor contacte con un asesor.\n\n_HUV - Evaristo García_";
+                    $citasInfo = $alreadyProcessed->map(function ($a) {
+                        $hora = $this->formatHoraForResponse($a->cithor);
+                        $status = $a->reminder_status === 'confirmed' ? 'CONFIRMADA' : 'CANCELADA';
+                        return "• {$a->citfc->format('d/m/Y')} a las {$hora} - *{$status}*";
+                    })->join("\n");
 
-                    // Actualizar las notas para no volver a enviar este mensaje
-                    $lockedAppointment->update([
-                        'notes' => ($lockedAppointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] [Advertencia de estado final enviada]"
-                    ]);
+                    $responseMessage = "⚠️ *Citas ya procesadas*\n\nSus citas ya se encuentran registradas:\n\n{$citasInfo}\n\nSi necesita realizar cambios adicionales, por favor contacte con un asesor.\n\n_HUV - Evaristo García_";
 
-                    Log::info('Appointment already has final status, sending info message', [
-                        'appointment_id' => $lockedAppointment->id,
-                        'current_status' => $lockedAppointment->reminder_status,
+                    foreach ($alreadyProcessed as $a) {
+                        $a->update([
+                            'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] [Advertencia de estado final enviada]"
+                        ]);
+                    }
+
+                    Log::info('All appointments already have final status, sending info message', [
+                        'appointment_ids' => $appointmentIds,
                         'phone' => $from,
                         'attempted_action' => $messageText
                     ]);
                 }
-                // Detectar tipo de respuesta
+                // Detectar tipo de respuesta — actuar sobre TODAS las citas pendientes
                 elseif (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
-                    // Confirmación de asistencia
-                    $lockedAppointment->update([
-                        'reminder_status' => 'confirmed',
-                        'notes' => ($lockedAppointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
-                    ]);
+                    // Confirmación de asistencia para TODAS las citas pendientes
+                    foreach ($pendingAppointments as $a) {
+                        $a->update([
+                            'reminder_status' => 'confirmed',
+                            'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
+                        ]);
+                    }
 
-                    $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$lockedAppointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                    if ($pendingAppointments->count() === 1) {
+                        $a = $pendingAppointments->first();
+                        $hora = $this->formatHoraForResponse($a->cithor);
+                        $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$a->citfc->format('d/m/Y')} a las {$hora}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                    } else {
+                        $citasInfo = $pendingAppointments->map(function ($a) {
+                            $hora = $this->formatHoraForResponse($a->cithor);
+                            $especialidad = $a->espnom ?? 'No especificada';
+                            return "• {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}";
+                        })->join("\n");
 
-                    Log::info('Appointment confirmed by patient', [
-                        'appointment_id' => $lockedAppointment->id,
+                        $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a las siguientes citas:\n\n{$citasInfo}\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                    }
+
+                    Log::info('Appointments confirmed by patient', [
+                        'appointment_ids' => $pendingAppointments->pluck('id')->toArray(),
                         'phone' => $from,
                     ]);
 
                 } elseif (preg_match('/cancelar|cancelo|no.*asistir|no.*podré|❌/i', $messageText)) {
-                    // Cancelación
-                    $lockedAppointment->update([
-                        'reminder_status' => 'cancelled',
-                        'notes' => ($lockedAppointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
-                    ]);
+                    // Cancelación de TODAS las citas pendientes
+                    foreach ($pendingAppointments as $a) {
+                        $a->update([
+                            'reminder_status' => 'cancelled',
+                            'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
+                        ]);
+                    }
 
-                    $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$lockedAppointment->citfc->format('d/m/Y')} a las {$horaFormateada}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                    if ($pendingAppointments->count() === 1) {
+                        $a = $pendingAppointments->first();
+                        $hora = $this->formatHoraForResponse($a->cithor);
+                        $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$a->citfc->format('d/m/Y')} a las {$hora}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                    } else {
+                        $citasInfo = $pendingAppointments->map(function ($a) {
+                            $hora = $this->formatHoraForResponse($a->cithor);
+                            $especialidad = $a->espnom ?? 'No especificada';
+                            return "• {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}";
+                        })->join("\n");
 
-                    Log::info('Appointment cancelled by patient', [
-                        'appointment_id' => $lockedAppointment->id,
+                        $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a las siguientes citas:\n\n{$citasInfo}\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                    }
+
+                    Log::info('Appointments cancelled by patient', [
+                        'appointment_ids' => $pendingAppointments->pluck('id')->toArray(),
                         'phone' => $from,
                     ]);
 
@@ -1887,7 +1933,7 @@ class WhatsAppService
                         Log::info('Automatic response saved to database', [
                             'conversation_id' => $conversation->id,
                             'message_id' => $messageId,
-                            'appointment_id' => $lockedAppointment->id
+                            'appointment_ids' => $lockedAppointments->pluck('id')->toArray()
                         ]);
                     } else {
                         Log::error('Failed to save automatic response', [

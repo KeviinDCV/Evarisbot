@@ -530,11 +530,19 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
 
                                                         {appointment.reminder_sent && (
                                                             <>
-                                                                {appointment.reminder_status === 'failed' ? (
+                                                                {appointment.reminder_status === 'confirmed' ? (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold w-fit">
+                                                                        <CalendarCheck className="w-3.5 h-3.5" /> Confirmada
+                                                                    </span>
+                                                                ) : appointment.reminder_status === 'cancelled' ? (
+                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-semibold w-fit">
+                                                                        <CalendarX className="w-3.5 h-3.5" /> Cancelada
+                                                                    </span>
+                                                                ) : appointment.reminder_status === 'failed' ? (
                                                                     <span className="inline-flex items-center gap-1 text-red-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
                                                                         <XCircle className="w-3 h-3" /> Error
                                                                     </span>
-                                                                ) : appointment.reminder_status && ['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status) ? (
+                                                                ) : appointment.reminder_status && ['delivered', 'read'].includes(appointment.reminder_status) ? (
                                                                     <span className="inline-flex items-center gap-1 text-emerald-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
                                                                         <CheckCircle2 className="w-3 h-3" /> Recibido
                                                                     </span>
