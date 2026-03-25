@@ -1576,11 +1576,6 @@ class WhatsAppService
                 'message_id' => $message->id,
             ]);
 
-            // Verificar si hay una selección pendiente de cita (escenario multi-cita)
-            if ($this->processPendingAppointmentSelection($conversation, $content, $from)) {
-                return $message;
-            }
-
             // DESPUÉS de guardar el mensaje del usuario, procesar respuesta automática de appointment
             if ($appointments->isNotEmpty()) {
                 $this->sendAppointmentAutoResponse($from, $messageData, $appointments, $conversation);
@@ -1839,8 +1834,9 @@ class WhatsAppService
                     $citasInfo = $alreadyProcessed->map(function ($a) {
                         $hora = $this->formatHoraForResponse($a->cithor);
                         $status = $a->reminder_status === 'confirmed' ? 'CONFIRMADA' : 'CANCELADA';
-                        return "• {$a->citfc->format('d/m/Y')} a las {$hora} - *{$status}*";
-                    })->join("\n");
+                        $paciente = $a->nom_paciente ?? 'Paciente';
+                        return "• *{$paciente}*\n  {$a->citfc->format('d/m/Y')} a las {$hora} - *{$status}*";
+                    })->join("\n\n");
 
                     $responseMessage = "⚠️ *Citas ya procesadas*\n\nSus citas ya se encuentran registradas:\n\n{$citasInfo}\n\nSi necesita realizar cambios adicionales, por favor contacte con un asesor.\n\n_HUV - Evaristo García_";
 
@@ -1856,47 +1852,60 @@ class WhatsAppService
                         'attempted_action' => $messageText
                     ]);
                 }
-                // Si hay MÚLTIPLES citas pendientes, enviar menú de selección individual
-                elseif ($pendingAppointments->count() > 1) {
-                    $action = null;
-                    if (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
-                        $action = 'confirm';
-                    } elseif (preg_match('/cancelar|cancelo|no.*asistir|no.*podré|❌/i', $messageText)) {
-                        $action = 'cancel';
-                    }
-                    if (!$action) return;
-
-                    $this->sendAppointmentSelectionMenu($from, $pendingAppointments, $action, $conversation);
-                    return; // No procesar aún, esperar selección del paciente
-                }
-                // Detectar tipo de respuesta — una sola cita pendiente, procesar directamente
+                // Detectar tipo de respuesta — procesar TODAS las citas pendientes de una vez
                 elseif (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
-                    $a = $pendingAppointments->first();
-                    $a->update([
-                        'reminder_status' => 'confirmed',
-                        'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
-                    ]);
+                    foreach ($pendingAppointments as $a) {
+                        $a->update([
+                            'reminder_status' => 'confirmed',
+                            'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
+                        ]);
+                    }
 
-                    $hora = $this->formatHoraForResponse($a->cithor);
-                    $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$a->citfc->format('d/m/Y')} a las {$hora}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                    if ($pendingAppointments->count() === 1) {
+                        $a = $pendingAppointments->first();
+                        $hora = $this->formatHoraForResponse($a->cithor);
+                        $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$a->citfc->format('d/m/Y')} a las {$hora}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                    } else {
+                        $citasInfo = $pendingAppointments->map(function ($a) {
+                            $hora = $this->formatHoraForResponse($a->cithor);
+                            $paciente = $a->nom_paciente ?? 'Paciente';
+                            $especialidad = $a->espnom ?? 'No especificada';
+                            return "• *{$paciente}*\n  {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}";
+                        })->join("\n\n");
 
-                    Log::info('Appointment confirmed by patient', [
-                        'appointment_id' => $a->id,
+                        $responseMessage = "✅ *Confirmación recibida*\n\nSe han confirmado todas sus citas:\n\n{$citasInfo}\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                    }
+
+                    Log::info('Appointments confirmed by patient', [
+                        'appointment_ids' => $pendingAppointments->pluck('id')->toArray(),
                         'phone' => $from,
                     ]);
 
                 } elseif (preg_match('/cancelar|cancelo|no.*asistir|no.*podré|❌/i', $messageText)) {
-                    $a = $pendingAppointments->first();
-                    $a->update([
-                        'reminder_status' => 'cancelled',
-                        'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
-                    ]);
+                    foreach ($pendingAppointments as $a) {
+                        $a->update([
+                            'reminder_status' => 'cancelled',
+                            'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
+                        ]);
+                    }
 
-                    $hora = $this->formatHoraForResponse($a->cithor);
-                    $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$a->citfc->format('d/m/Y')} a las {$hora}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                    if ($pendingAppointments->count() === 1) {
+                        $a = $pendingAppointments->first();
+                        $hora = $this->formatHoraForResponse($a->cithor);
+                        $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$a->citfc->format('d/m/Y')} a las {$hora}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                    } else {
+                        $citasInfo = $pendingAppointments->map(function ($a) {
+                            $hora = $this->formatHoraForResponse($a->cithor);
+                            $paciente = $a->nom_paciente ?? 'Paciente';
+                            $especialidad = $a->espnom ?? 'No especificada';
+                            return "• *{$paciente}*\n  {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}";
+                        })->join("\n\n");
 
-                    Log::info('Appointment cancelled by patient', [
-                        'appointment_id' => $a->id,
+                        $responseMessage = "❌ *Cancelación registrada*\n\nSe han cancelado las siguientes citas:\n\n{$citasInfo}\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                    }
+
+                    Log::info('Appointments cancelled by patient', [
+                        'appointment_ids' => $pendingAppointments->pluck('id')->toArray(),
                         'phone' => $from,
                     ]);
 
@@ -1952,223 +1961,6 @@ class WhatsAppService
         }
     }
 
-    /**
-     * Envía menú de selección cuando el paciente tiene múltiples citas pendientes.
-     * Permite confirmar/cancelar citas individualmente.
-     */
-    private function sendAppointmentSelectionMenu(string $from, \Illuminate\Database\Eloquent\Collection $pendingAppointments, string $action, \App\Models\Conversation $conversation): void
-    {
-        $actionVerb = $action === 'confirm' ? 'confirmar' : 'cancelar';
-        $emoji = $action === 'confirm' ? '✅' : '❌';
-
-        $citasInfo = $pendingAppointments->values()->map(function ($a, $index) {
-            $num = $index + 1;
-            $hora = $this->formatHoraForResponse($a->cithor);
-            $especialidad = $a->espnom ?? 'No especificada';
-            $medico = $a->mednom ?? 'No especificado';
-            return "*{$num}.* {$a->citfc->format('d/m/Y')} a las {$hora}\n     📋 {$especialidad} — Dr(a). {$medico}";
-        })->join("\n\n");
-
-        $responseMessage = "{$emoji} *Tiene {$pendingAppointments->count()} citas pendientes*\n\n" .
-            "¿Cuál desea {$actionVerb}?\n\n" .
-            "{$citasInfo}\n\n" .
-            "Responda con:\n" .
-            "• El *número* de la cita (ej: *1*)\n" .
-            "• *\"Todas\"* para {$actionVerb} todas\n\n" .
-            "_HUV - Evaristo García_";
-
-        // Guardar estado pendiente en la conversación
-        $flowData = $conversation->welcome_flow_data ?? [];
-        $flowData['pending_appt_action'] = $action;
-        $flowData['pending_appt_ids'] = $pendingAppointments->pluck('id')->values()->toArray();
-        $flowData['pending_appt_at'] = now()->toISOString();
-        $conversation->update(['welcome_flow_data' => $flowData]);
-
-        // Enviar mensaje
-        $result = $this->sendTextMessage($from, $responseMessage);
-
-        if (($result['success'] ?? false) && isset($result['message_id'])) {
-            \App\Models\Message::create([
-                'conversation_id' => $conversation->id,
-                'content' => $responseMessage,
-                'message_type' => 'text',
-                'is_from_user' => false,
-                'whatsapp_message_id' => $result['message_id'],
-                'status' => 'sent',
-                'sent_by' => null
-            ]);
-        }
-
-        Log::info('Sent appointment selection menu', [
-            'phone' => $from,
-            'action' => $action,
-            'appointment_ids' => $pendingAppointments->pluck('id')->toArray(),
-        ]);
-    }
-
-    /**
-     * Procesa la selección del paciente cuando tiene múltiples citas pendientes.
-     * Retorna true si se procesó una selección, false si no había selección pendiente.
-     */
-    private function processPendingAppointmentSelection(\App\Models\Conversation $conversation, string $content, string $from): bool
-    {
-        $flowData = $conversation->welcome_flow_data ?? [];
-
-        if (!isset($flowData['pending_appt_action']) || !isset($flowData['pending_appt_ids'])) {
-            return false;
-        }
-
-        // Expirar selección pendiente después de 30 minutos
-        if (isset($flowData['pending_appt_at'])) {
-            try {
-                $pendingAt = \Carbon\Carbon::parse($flowData['pending_appt_at']);
-                if ($pendingAt->addMinutes(30)->isPast()) {
-                    $this->clearPendingAppointmentSelection($conversation);
-                    return false;
-                }
-            } catch (\Exception $e) {
-                $this->clearPendingAppointmentSelection($conversation);
-                return false;
-            }
-        }
-
-        $content = trim($content);
-        $action = $flowData['pending_appt_action'];
-        $appointmentIds = $flowData['pending_appt_ids'];
-
-        // Si el usuario envía una nueva palabra clave (confirmar/cancelar), limpiar estado
-        // y dejar que el flujo normal reinicie con la nueva acción
-        if (preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|✅|❌/i', $content)) {
-            $this->clearPendingAppointmentSelection($conversation);
-            return false;
-        }
-
-        // Parsear selección
-        $selectedIds = [];
-
-        if (preg_match('/^toda[s]?$/i', $content)) {
-            $selectedIds = $appointmentIds;
-        } elseif (preg_match('/^(\d+)$/', $content, $matches)) {
-            $number = (int) $matches[1];
-            if ($number >= 1 && $number <= count($appointmentIds)) {
-                $selectedIds = [$appointmentIds[$number - 1]];
-            }
-        }
-
-        if (empty($selectedIds)) {
-            // No es una selección válida — no consumir el mensaje
-            $this->clearPendingAppointmentSelection($conversation);
-            return false;
-        }
-
-        // Procesar la selección dentro de una transacción
-        \Illuminate\Support\Facades\DB::transaction(function () use ($selectedIds, $appointmentIds, $action, $from, $conversation) {
-            $appointments = \App\Models\Appointment::whereIn('id', $selectedIds)
-                ->lockForUpdate()
-                ->orderBy('citfc', 'asc')
-                ->orderBy('cithor', 'asc')
-                ->get();
-
-            $processed = collect();
-            foreach ($appointments as $appointment) {
-                if (in_array($appointment->reminder_status, ['confirmed', 'cancelled'])) {
-                    continue;
-                }
-
-                $status = $action === 'confirm' ? 'confirmed' : 'cancelled';
-                $noteText = $action === 'confirm'
-                    ? 'Paciente confirmó asistencia vía WhatsApp (selección individual)'
-                    : 'Paciente canceló vía WhatsApp (selección individual)';
-
-                $appointment->update([
-                    'reminder_status' => $status,
-                    'notes' => ($appointment->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] {$noteText}"
-                ]);
-                $processed->push($appointment);
-            }
-
-            if ($processed->isEmpty()) {
-                return;
-            }
-
-            // Construir respuesta
-            $citasInfo = $processed->map(function ($a) {
-                $hora = $this->formatHoraForResponse($a->cithor);
-                $especialidad = $a->espnom ?? 'No especificada';
-                return "• {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}";
-            })->join("\n");
-
-            // Contar citas restantes pendientes
-            $remainingCount = count($appointmentIds) - count($selectedIds);
-
-            if ($action === 'confirm') {
-                $responseMessage = "✅ *Confirmación recibida*\n\n" .
-                    ($processed->count() === 1
-                        ? "Se ha confirmado su cita:\n\n{$citasInfo}\n\nLo esperamos en el Hospital Universitario del Valle."
-                        : "Se han confirmado las siguientes citas:\n\n{$citasInfo}\n\nLo esperamos en el Hospital Universitario del Valle.");
-            } else {
-                $responseMessage = "❌ *Cancelación registrada*\n\n" .
-                    ($processed->count() === 1
-                        ? "Se ha cancelado su cita:\n\n{$citasInfo}"
-                        : "Se han cancelado las siguientes citas:\n\n{$citasInfo}") .
-                    "\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n" .
-                    "🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n" .
-                    "📞 *Teléfono:* 6206275\n\n" .
-                    "Para cancelación de la cita me regala su información:\n" .
-                    "📄 Documento de identidad del paciente\n" .
-                    "📝 Motivo de cancelación\n" .
-                    "👤 Nombre completo de quien cancela la cita\n" .
-                    "👥 Parentesco";
-            }
-
-            // Si quedan citas pendientes, informar al paciente
-            if ($remainingCount > 0) {
-                $responseMessage .= "\n\n⏳ Aún tiene *{$remainingCount}* " .
-                    ($remainingCount === 1 ? 'cita pendiente' : 'citas pendientes') .
-                    " por gestionar. Envíe *\"confirmar\"* o *\"cancelar\"* para continuar.";
-            }
-
-            $responseMessage .= "\n\n_HUV - Evaristo García_";
-
-            // Enviar respuesta
-            $result = $this->sendTextMessage($from, $responseMessage);
-
-            if (($result['success'] ?? false) && isset($result['message_id'])) {
-                \App\Models\Message::create([
-                    'conversation_id' => $conversation->id,
-                    'content' => $responseMessage,
-                    'message_type' => 'text',
-                    'is_from_user' => false,
-                    'whatsapp_message_id' => $result['message_id'],
-                    'status' => 'sent',
-                    'sent_by' => null
-                ]);
-            }
-        });
-
-        // Limpiar estado pendiente
-        $this->clearPendingAppointmentSelection($conversation);
-
-        Log::info('Processed pending appointment selection', [
-            'action' => $action,
-            'selected_ids' => $selectedIds,
-            'all_ids' => $appointmentIds,
-            'phone' => $from,
-        ]);
-
-        return true;
-    }
-
-    /**
-     * Limpia el estado de selección pendiente de cita en la conversación
-     */
-    private function clearPendingAppointmentSelection(\App\Models\Conversation $conversation): void
-    {
-        $flowData = $conversation->welcome_flow_data ?? [];
-        unset($flowData['pending_appt_action'], $flowData['pending_appt_ids'], $flowData['pending_appt_at']);
-        $conversation->update(['welcome_flow_data' => !empty($flowData) ? $flowData : null]);
-    }
-    
     /**
      * Formatea la hora de 24h a 12h con AM/PM para respuestas
      */
