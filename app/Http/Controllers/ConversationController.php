@@ -551,7 +551,7 @@ class ConversationController extends Controller
             } else {
                 $message->update([
                     'status' => 'failed',
-                    'error_message' => $result['error'] ?? 'Unknown error',
+                    'error_message' => $this->friendlyErrorMessage($result['error'] ?? 'Unknown error'),
                 ]);
             }
         } else {
@@ -1342,5 +1342,35 @@ class ConversationController extends Controller
             'updatedStatuses' => $updatedStatuses,
             'unread_count' => $conversation->fresh()->unread_count,
         ]);
+    }
+
+    /**
+     * Traduce errores técnicos de la API de Meta a mensajes amigables en español.
+     */
+    private function friendlyErrorMessage(string $error): string
+    {
+        $lower = mb_strtolower($error);
+
+        if (str_contains($lower, '24') || str_contains($lower, 'window') || str_contains($lower, 're-engage') || str_contains($lower, '131047')) {
+            return 'Han pasado más de 24 horas desde el último mensaje del paciente. Para volver a escribirle, debe usar una plantilla de mensaje aprobada.';
+        }
+
+        if (str_contains($lower, 'rate limit') || str_contains($lower, 'throttl') || str_contains($lower, '80007')) {
+            return 'Se ha superado el límite de mensajes. Intente de nuevo en unos minutos.';
+        }
+
+        if (str_contains($lower, 'media') && (str_contains($lower, 'download') || str_contains($lower, 'upload') || str_contains($lower, 'size'))) {
+            return 'No se pudo enviar el archivo multimedia. Verifique que el archivo no sea muy grande y que el formato sea compatible.';
+        }
+
+        if (str_contains($lower, 'recipient') || str_contains($lower, 'phone') || str_contains($lower, '131026')) {
+            return 'El número de teléfono del destinatario no es válido o no tiene WhatsApp.';
+        }
+
+        if (str_contains($lower, 'template')) {
+            return 'Error con la plantilla de mensaje. Verifique que la plantilla esté aprobada y los parámetros sean correctos.';
+        }
+
+        return $error;
     }
 }

@@ -136,8 +136,6 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const lastMessageIdRef = useRef<number>(0);
     const lastChatPollRef = useRef<string>('');
 
-    const isAdmin = auth.user.role === 'admin';
-
     // --- Derived State ---
 
     const filteredChats = useMemo(() => {
@@ -685,15 +683,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             <h1 className="text-2xl font-extrabold text-[#16235e] dark:text-blue-200 tracking-tight">Mensajes</h1>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
-                                {isAdmin && (
-                                    <button
-                                        onClick={() => setShowCreateGroup(true)}
-                                        className="w-10 h-10 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
-                                        title="Nuevo chat o grupo"
-                                    >
-                                        <Plus className="w-5 h-5" />
-                                    </button>
-                                )}
+                                <button
+                                    onClick={() => setShowCreateGroup(true)}
+                                    className="w-10 h-10 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
+                                    title="Nuevo chat o grupo"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                </button>
                             </div>
                         </div>
 

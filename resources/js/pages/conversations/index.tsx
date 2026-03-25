@@ -62,6 +62,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTranslation } from 'react-i18next';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
 
@@ -1540,6 +1541,22 @@ export default function ConversationsIndex({ conversations: initialConversations
         return () => window.removeEventListener('mouseup', onMouseUp);
     }, []);
 
+    const friendlyError = (msg?: string | null): string => {
+        if (!msg) return 'No se pudo enviar el mensaje.';
+        const lower = msg.toLowerCase();
+        if (lower.includes('24 hora') || lower.includes('re-engage') || lower.includes('131047') || lower.includes('window'))
+            return 'Han pasado más de 24 horas desde el último mensaje del paciente. Para volver a escribirle, debe usar una plantilla de mensaje aprobada.';
+        if (lower.includes('rate limit') || lower.includes('throttl') || lower.includes('80007'))
+            return 'Se ha superado el límite de mensajes. Intente de nuevo en unos minutos.';
+        if (lower.includes('media') && (lower.includes('download') || lower.includes('upload') || lower.includes('size')))
+            return 'No se pudo enviar el archivo multimedia. Verifique que el archivo no sea muy grande y que el formato sea compatible.';
+        if (lower.includes('recipient') || lower.includes('phone') || lower.includes('131026'))
+            return 'El número de teléfono del destinatario no es válido o no tiene WhatsApp.';
+        if (lower.includes('template'))
+            return 'Error con la plantilla de mensaje. Verifique que la plantilla esté aprobada y los parámetros sean correctos.';
+        return msg;
+    };
+
     const getStatusIcon = (status: string, errorMessage?: string | null) => {
         switch (status) {
             case 'pending':
@@ -1566,12 +1583,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                         <CheckCheck className="w-4 h-4 text-blue-500" />
                     </span>
                 );
-            case 'failed':
+            case 'failed': {
+                const friendly = friendlyError(errorMessage);
                 return (
-                    <span title={errorMessage ? `Error: ${errorMessage}` : t('conversations.status.failed')}>
-                        <X className="w-4 h-4 text-red-500" />
-                    </span>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <span className="cursor-help">
+                                <X className="w-4 h-4 text-red-500" />
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs bg-red-600 text-white text-xs px-3 py-2 rounded-lg shadow-lg">
+                            <p className="font-semibold mb-0.5">Error al enviar</p>
+                            <p>{friendly}</p>
+                        </TooltipContent>
+                    </Tooltip>
                 );
+            }
             default:
                 return null;
         }

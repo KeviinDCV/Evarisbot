@@ -175,11 +175,6 @@ class InternalChatController extends Controller
      */
     public function create(Request $request)
     {
-        // Solo administradores pueden crear chats/grupos
-        if (auth()->user()->role !== 'admin') {
-            return response()->json(['error' => 'Solo los administradores pueden crear chats o grupos'], 403);
-        }
-
         $userId = auth()->id();
 
         $request->validate([
