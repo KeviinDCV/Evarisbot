@@ -1852,60 +1852,68 @@ class WhatsAppService
                         'attempted_action' => $messageText
                     ]);
                 }
-                // Detectar tipo de respuesta — procesar TODAS las citas pendientes de una vez
+                // Detectar tipo de respuesta — procesar UNA cita a la vez (la primera pendiente)
                 elseif (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
-                    foreach ($pendingAppointments as $a) {
-                        $a->update([
-                            'reminder_status' => 'confirmed',
-                            'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
-                        ]);
-                    }
+                    $a = $pendingAppointments->first();
+                    $a->update([
+                        'reminder_status' => 'confirmed',
+                        'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
+                    ]);
 
-                    if ($pendingAppointments->count() === 1) {
-                        $a = $pendingAppointments->first();
-                        $hora = $this->formatHoraForResponse($a->cithor);
-                        $responseMessage = "✅ *Confirmación recibida*\n\nGracias por confirmar su asistencia a la cita del {$a->citfc->format('d/m/Y')} a las {$hora}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                    $hora = $this->formatHoraForResponse($a->cithor);
+                    $paciente = $a->nom_paciente ?? 'Paciente';
+                    $especialidad = $a->espnom ?? 'No especificada';
+
+                    $remaining = $pendingAppointments->slice(1);
+
+                    if ($remaining->isEmpty()) {
+                        $responseMessage = "✅ *Confirmación recibida*\n\nSe ha confirmado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
                     } else {
-                        $citasInfo = $pendingAppointments->map(function ($a) {
-                            $hora = $this->formatHoraForResponse($a->cithor);
-                            $paciente = $a->nom_paciente ?? 'Paciente';
-                            $especialidad = $a->espnom ?? 'No especificada';
-                            return "• *{$paciente}*\n  {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}";
+                        $nextInfo = $remaining->map(function ($r) {
+                            $h = $this->formatHoraForResponse($r->cithor);
+                            $p = $r->nom_paciente ?? 'Paciente';
+                            $e = $r->espnom ?? 'No especificada';
+                            return "• *{$p}*\n  {$r->citfc->format('d/m/Y')} a las {$h} — {$e}";
                         })->join("\n\n");
 
-                        $responseMessage = "✅ *Confirmación recibida*\n\nSe han confirmado todas sus citas:\n\n{$citasInfo}\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                        $responseMessage = "✅ *Confirmación recibida*\n\nSe ha confirmado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\n📋 Aún tiene " . $remaining->count() . " " . ($remaining->count() === 1 ? 'cita pendiente' : 'citas pendientes') . ":\n\n{$nextInfo}\n\nResponda *confirmar* o *cancelar* para esta cita.\n\n_HUV - Evaristo García_";
                     }
 
-                    Log::info('Appointments confirmed by patient', [
-                        'appointment_ids' => $pendingAppointments->pluck('id')->toArray(),
+                    Log::info('Appointment confirmed by patient (sequential)', [
+                        'appointment_id' => $a->id,
+                        'remaining' => $remaining->pluck('id')->toArray(),
                         'phone' => $from,
                     ]);
 
                 } elseif (preg_match('/cancelar|cancelo|no.*asistir|no.*podré|❌/i', $messageText)) {
-                    foreach ($pendingAppointments as $a) {
-                        $a->update([
-                            'reminder_status' => 'cancelled',
-                            'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
-                        ]);
-                    }
+                    $a = $pendingAppointments->first();
+                    $a->update([
+                        'reminder_status' => 'cancelled',
+                        'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
+                    ]);
 
-                    if ($pendingAppointments->count() === 1) {
-                        $a = $pendingAppointments->first();
-                        $hora = $this->formatHoraForResponse($a->cithor);
-                        $responseMessage = "❌ *Cancelación registrada*\n\nHemos registrado que no podrá asistir a su cita del {$a->citfc->format('d/m/Y')} a las {$hora}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                    $hora = $this->formatHoraForResponse($a->cithor);
+                    $paciente = $a->nom_paciente ?? 'Paciente';
+                    $especialidad = $a->espnom ?? 'No especificada';
+
+                    $remaining = $pendingAppointments->slice(1);
+
+                    if ($remaining->isEmpty()) {
+                        $responseMessage = "❌ *Cancelación registrada*\n\nSe ha cancelado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
                     } else {
-                        $citasInfo = $pendingAppointments->map(function ($a) {
-                            $hora = $this->formatHoraForResponse($a->cithor);
-                            $paciente = $a->nom_paciente ?? 'Paciente';
-                            $especialidad = $a->espnom ?? 'No especificada';
-                            return "• *{$paciente}*\n  {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}";
+                        $nextInfo = $remaining->map(function ($r) {
+                            $h = $this->formatHoraForResponse($r->cithor);
+                            $p = $r->nom_paciente ?? 'Paciente';
+                            $e = $r->espnom ?? 'No especificada';
+                            return "• *{$p}*\n  {$r->citfc->format('d/m/Y')} a las {$h} — {$e}";
                         })->join("\n\n");
 
-                        $responseMessage = "❌ *Cancelación registrada*\n\nSe han cancelado las siguientes citas:\n\n{$citasInfo}\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                        $responseMessage = "❌ *Cancelación registrada*\n\nSe ha cancelado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\n📋 Aún tiene " . $remaining->count() . " " . ($remaining->count() === 1 ? 'cita pendiente' : 'citas pendientes') . ":\n\n{$nextInfo}\n\nResponda *confirmar* o *cancelar* para esta cita.\n\n_HUV - Evaristo García_";
                     }
 
-                    Log::info('Appointments cancelled by patient', [
-                        'appointment_ids' => $pendingAppointments->pluck('id')->toArray(),
+                    Log::info('Appointment cancelled by patient (sequential)', [
+                        'appointment_id' => $a->id,
+                        'remaining' => $remaining->pluck('id')->toArray(),
                         'phone' => $from,
                     ]);
 
