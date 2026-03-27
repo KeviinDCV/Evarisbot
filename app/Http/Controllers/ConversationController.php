@@ -364,6 +364,17 @@ class ConversationController extends Controller
      */
     public function sendMessage(Request $request, Conversation $conversation, WhatsAppService $whatsappService, SpellCheckService $spellCheckService)
     {
+        // Bloquear envío si la conversación está asignada a otro asesor
+        $conversation->refresh();
+        if ($conversation->assigned_to && $conversation->assigned_to !== auth()->id()) {
+            $assignedUser = \App\Models\User::find($conversation->assigned_to);
+            return response()->json([
+                'error' => 'Esta conversación está siendo atendida por ' . ($assignedUser->name ?? 'otro asesor') . '. No puedes enviar mensajes.',
+                'assigned_to' => $conversation->assigned_to,
+                'assigned_user_name' => $assignedUser->name ?? 'Otro asesor',
+            ], 423);
+        }
+
         // Aumentar límites de PHP para uploads grandes
         @ini_set('upload_max_filesize', '20M');
         @ini_set('post_max_size', '25M');
@@ -482,14 +493,32 @@ class ConversationController extends Controller
         ]);
 
         // Auto-asignar al asesor que responde si el chat no tiene asignación
-        // Esto implementa el "pool compartido" donde el primero en responder toma el chat
-        $updateData = ['last_message_at' => now()];
+        // Usar update atómico para evitar race condition entre dos asesores
         $wasUnassigned = is_null($conversation->assigned_to);
         if ($wasUnassigned) {
-            $updateData['assigned_to'] = auth()->id();
-            $updateData['status'] = 'active';
+            $affected = Conversation::where('id', $conversation->id)
+                ->whereNull('assigned_to')
+                ->update([
+                    'assigned_to' => auth()->id(),
+                    'status' => 'active',
+                    'last_message_at' => now(),
+                ]);
+            if ($affected === 0) {
+                // Otro asesor tomó el chat en la fracción de segundo intermedia
+                $conversation->refresh();
+                if ($conversation->assigned_to !== auth()->id()) {
+                    $assignedUser = \App\Models\User::find($conversation->assigned_to);
+                    return response()->json([
+                        'error' => 'Esta conversación acaba de ser tomada por ' . ($assignedUser->name ?? 'otro asesor') . '.',
+                        'assigned_to' => $conversation->assigned_to,
+                        'assigned_user_name' => $assignedUser->name ?? 'Otro asesor',
+                    ], 423);
+                }
+            }
+            $conversation->refresh();
+        } else {
+            $conversation->update(['last_message_at' => now()]);
         }
-        $conversation->update($updateData);
 
         // Si el chat acaba de ser tomado, notificar a todos los demás asesores
         // para que lo eliminen de su bandeja inmediatamente (sin esperar polling)

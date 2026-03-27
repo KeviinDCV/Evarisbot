@@ -1640,11 +1640,31 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
     };
 
+    // Determinar si el chat actual está bloqueado (asignado a otro asesor)
+    // Usar localConversations como fuente de verdad (se actualiza via polling)
+    const currentAssignedTo = useMemo(() => {
+        if (!selectedConversation) return null;
+        const local = localConversations.find(c => c.id === selectedConversation.id);
+        return local?.assigned_to ?? selectedConversation.assigned_to;
+    }, [selectedConversation?.id, localConversations]);
+
+    const currentAssignedUserName = useMemo(() => {
+        if (!selectedConversation) return null;
+        const local = localConversations.find(c => c.id === selectedConversation.id);
+        return local?.assigned_user?.name ?? selectedConversation.assigned_user?.name ?? 'otro asesor';
+    }, [selectedConversation?.id, localConversations]);
+
+    const isLockedByOther = useMemo(() => {
+        if (!selectedConversation) return false;
+        if (isAdmin) return false;
+        return currentAssignedTo !== null && currentAssignedTo !== auth.user.id;
+    }, [currentAssignedTo, auth.user.id, isAdmin, selectedConversation]);
+
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
 
         // Protección contra doble envío
-        if (isSubmitting) {
+        if (isSubmitting || isLockedByOther) {
             return;
         }
 
@@ -1724,9 +1744,13 @@ export default function ConversationsIndex({ conversations: initialConversations
         })
             .then(response => {
                 if (!response.ok) {
-                    // Si es error 419, la sesión expiró
                     if (response.status === 419) {
                         throw new Error('Sesión expirada. Por favor recarga la página.');
+                    }
+                    if (response.status === 423) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Esta conversación está siendo atendida por otro asesor.');
+                        });
                     }
                     throw new Error('Error al enviar mensaje');
                 }
@@ -3324,6 +3348,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {/* Área de Entrada de Mensaje */}
+                        {isLockedByOther ? (
+                            <div className="px-3 md:px-6 py-4 bg-amber-50/80 dark:bg-amber-950/30 backdrop-blur-md border-t border-amber-200 dark:border-amber-800/50">
+                                <div className="flex items-center gap-3 justify-center">
+                                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                                        Esta conversación está siendo atendida por <strong>{currentAssignedUserName}</strong>. No puedes enviar mensajes hasta que sea liberada o reasignada.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
                         <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md">
                             {/* Preview del archivo seleccionado */}
                             {selectedFile && (
@@ -3478,6 +3512,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {t('conversations.sendHint')}
                             </p>
                         </form>
+                        )}
                     </div>
                 )}
             </div>
