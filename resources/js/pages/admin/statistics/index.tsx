@@ -1,11 +1,28 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { BarChart3, Download, Calendar, MessageSquare, FileText, Users, Clock, CheckCircle2, XCircle, Calendar as CalendarIcon, Send, AlertCircle, Filter, Table2 } from 'lucide-react';
-import { useState, FormEventHandler } from 'react';
+import { BarChart3, Download, Calendar, MessageSquare, FileText, Users, Clock, CheckCircle2, XCircle, Calendar as CalendarIcon, Send, AlertCircle, Filter, Table2, ChevronDown, ChevronUp, Timer, TrendingUp } from 'lucide-react';
+import { useState, FormEventHandler, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import axios from 'axios';
+
+interface AdvisorDetail {
+    advisor: { id: number; name: string };
+    summary: {
+        messages_sent: number;
+        total_conversations: number;
+        resolved_conversations: number;
+        active_conversations: number;
+        pending_conversations: number;
+        resolution_rate: number;
+        avg_response_time_minutes: number | null;
+    };
+    daily_activity: Array<{ date: string; label: string; count: number }>;
+    hourly_distribution: Array<{ hour: string; count: number }>;
+    message_types: Record<string, number>;
+}
 
 interface Statistics {
     messages: {
@@ -121,6 +138,30 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     const [period, setPeriod] = useState(statistics.date_range.period || 'all');
     const [startDate, setStartDate] = useState(statistics.date_range.start || '');
     const [endDate, setEndDate] = useState(statistics.date_range.end || '');
+    const [expandedAdvisor, setExpandedAdvisor] = useState<number | null>(null);
+    const [advisorDetail, setAdvisorDetail] = useState<AdvisorDetail | null>(null);
+    const [loadingAdvisor, setLoadingAdvisor] = useState(false);
+
+    const toggleAdvisorDetail = useCallback(async (advisorId: number) => {
+        if (expandedAdvisor === advisorId) {
+            setExpandedAdvisor(null);
+            setAdvisorDetail(null);
+            return;
+        }
+        setExpandedAdvisor(advisorId);
+        setLoadingAdvisor(true);
+        try {
+            const params: Record<string, string> = { period };
+            if (startDate) params.start_date = startDate;
+            if (endDate) params.end_date = endDate;
+            const res = await axios.get(`/admin/statistics/advisor/${advisorId}`, { params });
+            setAdvisorDetail(res.data);
+        } catch {
+            setAdvisorDetail(null);
+        } finally {
+            setLoadingAdvisor(false);
+        }
+    }, [expandedAdvisor, period, startDate, endDate]);
     const [isExporting, setIsExporting] = useState(false);
     const [showCharts, setShowCharts] = useState(false);
 
@@ -440,42 +481,168 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                             </div>
 
                             {/* Asesores */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                            <div className="col-span-2 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
                                     <Users className="w-3.5 h-3.5 settings-title" />
                                     <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
                                         Rendimiento de Asesores
                                     </h2>
+                                    <span className="text-[10px] settings-subtitle ml-auto">Click para ver detalle</span>
                                 </div>
                                 {statistics.advisors.advisors.length > 0 ? (
-                                    <div className="space-y-1 max-h-[300px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
+                                    <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
                                         {statistics.advisors.advisors.map((advisor, index) => (
-                                            <div
-                                                key={advisor.id}
-                                                className={`py-1.5 px-3 mb-1 rounded-lg transition-colors stat-row-hover ${index % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : ''}`}
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <span className="font-semibold settings-title truncate" style={{ fontSize: 'var(--text-xs)' }}>
-                                                        {advisor.name}
-                                                    </span>
-                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{
-                                                        backgroundColor: advisor.resolution_rate >= 70 ? '#dcfce7' : advisor.resolution_rate >= 40 ? '#fef9c3' : '#fee2e2',
-                                                        color: advisor.resolution_rate >= 70 ? '#166534' : advisor.resolution_rate >= 40 ? '#854d0e' : '#991b1b',
-                                                    }}>
-                                                        {advisor.resolution_rate}% resueltas
-                                                    </span>
+                                            <div key={advisor.id}>
+                                                <div
+                                                    onClick={() => toggleAdvisorDetail(advisor.id)}
+                                                    className={`py-1.5 px-3 mb-1 rounded-lg transition-colors cursor-pointer stat-row-hover ${index % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : ''} ${expandedAdvisor === advisor.id ? 'ring-1 ring-[#2e3f84]/30' : ''}`}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            {expandedAdvisor === advisor.id ? (
+                                                                <ChevronUp className="w-3 h-3 settings-title" />
+                                                            ) : (
+                                                                <ChevronDown className="w-3 h-3 settings-subtitle" />
+                                                            )}
+                                                            <span className="font-semibold settings-title truncate" style={{ fontSize: 'var(--text-xs)' }}>
+                                                                {advisor.name}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{
+                                                            backgroundColor: advisor.resolution_rate >= 70 ? '#dcfce7' : advisor.resolution_rate >= 40 ? '#fef9c3' : '#fee2e2',
+                                                            color: advisor.resolution_rate >= 70 ? '#166534' : advisor.resolution_rate >= 40 ? '#854d0e' : '#991b1b',
+                                                        }}>
+                                                            {advisor.resolution_rate}% resueltas
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex gap-3 mt-0.5 ml-5">
+                                                        <span className="settings-subtitle" style={{ fontSize: '10px' }}>
+                                                            {advisor.total_conversations} conv.
+                                                        </span>
+                                                        <span className="settings-subtitle" style={{ fontSize: '10px' }}>
+                                                            {advisor.resolved_conversations} resueltas
+                                                        </span>
+                                                        <span className="settings-subtitle" style={{ fontSize: '10px' }}>
+                                                            {advisor.messages_sent} msgs
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex gap-3 mt-0.5">
-                                                    <span className="settings-subtitle" style={{ fontSize: '10px' }}>
-                                                        {advisor.total_conversations} conv.
-                                                    </span>
-                                                    <span className="settings-subtitle" style={{ fontSize: '10px' }}>
-                                                        {advisor.resolved_conversations} resueltas
-                                                    </span>
-                                                    <span className="settings-subtitle" style={{ fontSize: '10px' }}>
-                                                        {advisor.messages_sent} msgs
-                                                    </span>
-                                                </div>
+
+                                                {/* Detail panel */}
+                                                {expandedAdvisor === advisor.id && (
+                                                    <div className="mb-2 ml-5 mr-1 p-3 rounded-xl bg-black/[0.03] dark:bg-white/[0.03] border border-border/50">
+                                                        {loadingAdvisor ? (
+                                                            <div className="flex items-center justify-center py-6">
+                                                                <div className="w-5 h-5 border-2 border-[#2e3f84] border-t-transparent rounded-full animate-spin" />
+                                                                <span className="ml-2 settings-subtitle text-xs">Cargando métricas...</span>
+                                                            </div>
+                                                        ) : advisorDetail ? (
+                                                            <div className="space-y-3">
+                                                                {/* Summary cards */}
+                                                                <div className="grid grid-cols-4 gap-2">
+                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
+                                                                        <div className="text-lg font-bold settings-title">{advisorDetail.summary.messages_sent}</div>
+                                                                        <div className="text-[10px] settings-subtitle">Mensajes enviados</div>
+                                                                    </div>
+                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
+                                                                        <div className="text-lg font-bold settings-title">{advisorDetail.summary.resolution_rate}%</div>
+                                                                        <div className="text-[10px] settings-subtitle">Tasa resolución</div>
+                                                                    </div>
+                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
+                                                                        <div className="text-lg font-bold settings-title">
+                                                                            {advisorDetail.summary.avg_response_time_minutes !== null
+                                                                                ? `${advisorDetail.summary.avg_response_time_minutes} min`
+                                                                                : 'N/A'}
+                                                                        </div>
+                                                                        <div className="text-[10px] settings-subtitle">Resp. promedio</div>
+                                                                    </div>
+                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
+                                                                        <div className="text-lg font-bold settings-title">
+                                                                            {advisorDetail.summary.active_conversations + advisorDetail.summary.pending_conversations}
+                                                                        </div>
+                                                                        <div className="text-[10px] settings-subtitle">Conv. abiertas</div>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Charts row */}
+                                                                <div className="grid grid-cols-2 gap-3">
+                                                                    {/* Daily activity */}
+                                                                    <div className="rounded-lg bg-card p-3 border border-border/30">
+                                                                        <h4 className="text-xs font-semibold settings-title mb-2 flex items-center gap-1">
+                                                                            <TrendingUp className="w-3 h-3" />
+                                                                            Actividad diaria
+                                                                        </h4>
+                                                                        <ResponsiveContainer width="100%" height={120}>
+                                                                            <BarChart data={advisorDetail.daily_activity}>
+                                                                                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                                                                                <XAxis dataKey="label" tick={{ fontSize: 9 }} className="fill-muted-foreground" />
+                                                                                <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" allowDecimals={false} />
+                                                                                <Tooltip
+                                                                                    contentStyle={{
+                                                                                        backgroundColor: 'var(--card)',
+                                                                                        border: '1px solid var(--border)',
+                                                                                        borderRadius: '8px',
+                                                                                        fontSize: '11px',
+                                                                                        color: 'var(--foreground)',
+                                                                                    }}
+                                                                                    formatter={(value: any) => [value, 'Mensajes']}
+                                                                                />
+                                                                                <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                                                                            </BarChart>
+                                                                        </ResponsiveContainer>
+                                                                    </div>
+
+                                                                    {/* Hourly distribution */}
+                                                                    <div className="rounded-lg bg-card p-3 border border-border/30">
+                                                                        <h4 className="text-xs font-semibold settings-title mb-2 flex items-center gap-1">
+                                                                            <Timer className="w-3 h-3" />
+                                                                            Distribución por hora
+                                                                        </h4>
+                                                                        <ResponsiveContainer width="100%" height={120}>
+                                                                            <LineChart data={advisorDetail.hourly_distribution}>
+                                                                                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                                                                                <XAxis
+                                                                                    dataKey="hour"
+                                                                                    tick={{ fontSize: 8 }}
+                                                                                    className="fill-muted-foreground"
+                                                                                    interval={2}
+                                                                                />
+                                                                                <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" allowDecimals={false} />
+                                                                                <Tooltip
+                                                                                    contentStyle={{
+                                                                                        backgroundColor: 'var(--card)',
+                                                                                        border: '1px solid var(--border)',
+                                                                                        borderRadius: '8px',
+                                                                                        fontSize: '11px',
+                                                                                        color: 'var(--foreground)',
+                                                                                    }}
+                                                                                    formatter={(value: any) => [value, 'Mensajes']}
+                                                                                />
+                                                                                <Line type="monotone" dataKey="count" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 2 }} />
+                                                                            </LineChart>
+                                                                        </ResponsiveContainer>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Message types */}
+                                                                {Object.keys(advisorDetail.message_types).length > 0 && (
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        <span className="text-[10px] font-semibold settings-title">Tipos de mensaje:</span>
+                                                                        {Object.entries(advisorDetail.message_types).map(([type, count]) => (
+                                                                            <span key={type} className="text-[10px] px-2 py-0.5 rounded-full bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-[#2e3f84]/20 dark:text-blue-300">
+                                                                                {type}: {count}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-center py-4 text-xs settings-subtitle">
+                                                                Error al cargar métricas
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>

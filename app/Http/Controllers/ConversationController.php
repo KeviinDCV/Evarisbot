@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Events\MessageSent;
 use App\Models\Conversation;
+use App\Models\ConversationActivity;
 use App\Models\Message;
 use App\Models\Template;
 use App\Models\User;
@@ -11,6 +12,7 @@ use App\Services\SpellCheckService;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ConversationController extends Controller
 {
@@ -514,6 +516,11 @@ class ConversationController extends Controller
                         'assigned_user_name' => $assignedUser->name ?? 'Otro asesor',
                     ], 423);
                 }
+            } else {
+                // Registrar auto-asignación
+                ConversationActivity::log($conversation->id, 'auto_assigned', auth()->id(), [
+                    'assigned_to_name' => auth()->user()->name,
+                ]);
             }
             $conversation->refresh();
         } else {
@@ -854,10 +861,26 @@ class ConversationController extends Controller
         // Si no está presente, usar el usuario actual
         $userId = $request->has('user_id') ? $validated['user_id'] : auth()->id();
         
+        $previousAssignedTo = $conversation->assigned_to;
+
         $conversation->update([
             'assigned_to' => $userId,
             'status' => $userId ? 'active' : $conversation->status,
         ]);
+
+        // Registrar actividad
+        if ($userId) {
+            $assignedUser = User::find($userId);
+            ConversationActivity::log($conversation->id, 'assigned', null, [
+                'assigned_to' => $userId,
+                'assigned_to_name' => $assignedUser?->name,
+                'previous_assigned_to' => $previousAssignedTo,
+            ]);
+        } else {
+            ConversationActivity::log($conversation->id, 'unassigned', null, [
+                'previous_assigned_to' => $previousAssignedTo,
+            ]);
+        }
 
         // Notificar a todos los demás en tiempo real sobre el cambio de asignación
         if ($userId) {
@@ -891,19 +914,24 @@ class ConversationController extends Controller
             $updateData['resolved_at'] = null;
         }
 
+        $oldStatus = $conversation->status;
         $conversation->update($updateData);
+
+        // Registrar actividad
+        $activityType = $validated['status'] === 'resolved' ? 'resolved' : ($oldStatus === 'resolved' ? 'reopened' : 'status_changed');
+        ConversationActivity::log($conversation->id, $activityType, null, [
+            'old_status' => $oldStatus,
+            'new_status' => $validated['status'],
+        ]);
 
         // Si se resuelve, marcar todos los mensajes como leídos
         if ($validated['status'] === 'resolved') {
             $conversation->markAsRead();
-            // Deshabilitado: ya no se envía plantilla de despedida al resolver
-            // $this->sendFarewellMessage($conversation);
         }
 
         $resolverName = auth()->user()->name;
 
         if ($validated['status'] === 'resolved') {
-            // Al resolver, redirigir al listado preservando filtros del referer
             return redirect('/admin/chat')
                 ->with('success', "Conversación resuelta por {$resolverName}.");
         }
@@ -928,6 +956,8 @@ class ConversationController extends Controller
                       'Chat marcado como resuelto por ' . auth()->user()->name . ' el ' . now()->format('Y-m-d H:i:s')
         ]);
 
+        ConversationActivity::log($conversation->id, 'resolved');
+
         // Marcar todos los mensajes como leídos para que el badge baje
         $conversation->markAsRead();
 
@@ -948,6 +978,41 @@ class ConversationController extends Controller
         ]);
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Obtener historial de actividades de una conversación
+     */
+    public function activities(Conversation $conversation)
+    {
+        $activities = $conversation->activities()
+            ->with('user:id,name')
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get();
+
+        return response()->json(['activities' => $activities]);
+    }
+
+    /**
+     * Exportar conversación a PDF
+     */
+    public function exportPdf(Conversation $conversation)
+    {
+        $conversation->load(['assignedUser', 'resolvedByUser']);
+        $messages = $conversation->messages()->with('sender')->orderBy('created_at', 'asc')->get();
+        $activities = $conversation->activities()->with('user:id,name')->orderBy('created_at', 'desc')->limit(50)->get();
+
+        $pdf = Pdf::loadView('exports.conversation-pdf', [
+            'conversation' => $conversation,
+            'messages' => $messages,
+            'activities' => $activities,
+        ]);
+
+        $filename = 'conversacion_' . ($conversation->contact_name ?? $conversation->phone_number) . '_' . now()->format('Y-m-d') . '.pdf';
+        $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+
+        return $pdf->download($filename);
     }
 
     /**
@@ -1382,11 +1447,39 @@ class ConversationController extends Controller
             $conversation->markAsRead();
         }
 
+        // Check if anyone else is typing in this conversation
+        $typingUsers = [];
+        $cachePrefix = 'typing_' . $conversation->id . '_';
+        // Check all users who might be typing (cached individually)
+        $potentialTypers = User::select('id', 'name')->get();
+        foreach ($potentialTypers as $typer) {
+            if ($typer->id === auth()->id()) continue;
+            $typingAt = cache()->get($cachePrefix . $typer->id);
+            if ($typingAt && now()->diffInSeconds($typingAt) < 6) {
+                $typingUsers[] = ['id' => $typer->id, 'name' => $typer->name];
+            }
+        }
+
         return response()->json([
             'messages' => $newMessages,
             'updatedStatuses' => $updatedStatuses,
             'unread_count' => $conversation->fresh()->unread_count,
+            'typing' => $typingUsers,
         ]);
+    }
+
+    /**
+     * Señalar que el usuario está escribiendo en una conversación
+     */
+    public function typing(Conversation $conversation)
+    {
+        cache()->put(
+            'typing_' . $conversation->id . '_' . auth()->id(),
+            now(),
+            10 // expires in 10 seconds
+        );
+
+        return response()->json(['ok' => true]);
     }
 
     /**

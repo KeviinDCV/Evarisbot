@@ -95,6 +95,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::controller(StatisticsController::class)->prefix('statistics')->name('statistics.')->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/export', 'export')->name('export');
+        Route::get('/advisor/{user}', 'advisorDetail')->name('advisor-detail');
     });
 
     // Envío Masivo
@@ -139,6 +140,9 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::delete('/{conversation}/hide', 'hide')->name('chat.hide');
         Route::post('/{conversation}/pin', 'togglePin')->name('chat.pin');
         Route::post('/{conversation}/notes', 'updateNotes')->name('chat.notes');
+        Route::get('/{conversation}/activities', 'activities')->name('chat.activities');
+        Route::post('/{conversation}/typing', 'typing')->name('chat.typing');
+        Route::get('/{conversation}/export-pdf', 'exportPdf')->name('chat.export-pdf');
     });
 
     // Etiquetas de conversaciones

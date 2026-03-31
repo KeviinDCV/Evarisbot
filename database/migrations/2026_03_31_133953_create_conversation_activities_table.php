@@ -13,7 +13,13 @@ return new class extends Migration
     {
         Schema::create('conversation_activities', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('conversation_id')->constrained()->onDelete('cascade');
+            $table->foreignId('user_id')->nullable()->constrained()->onDelete('set null');
+            $table->string('type'); // assigned, unassigned, status_changed, created, message_sent, resolved, reopened
+            $table->json('metadata')->nullable(); // extra data (old/new values, target user, etc.)
             $table->timestamps();
+
+            $table->index(['conversation_id', 'created_at']);
         });
     }
 

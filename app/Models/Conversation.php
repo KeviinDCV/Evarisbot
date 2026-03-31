@@ -69,6 +69,14 @@ class Conversation extends Model
     }
 
     /**
+     * Historial de actividades
+     */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(ConversationActivity::class);
+    }
+
+    /**
      * Marcar mensajes como leídos
      */
     public function markAsRead(): void

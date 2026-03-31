@@ -382,5 +382,175 @@ class StatisticsController extends Controller
         $export = new StatisticsExport($statistics, $dateRange);
         return $export->download($fileName);
     }
-}
 
+    /**
+     * Get detailed statistics for a specific advisor
+     */
+    public function advisorDetail(Request $request, User $user)
+    {
+        $startDate = $request->get('start_date');
+        $endDate = $request->get('end_date');
+        $period = $request->get('period', 'all');
+
+        [$dateStart, $dateEnd] = $this->calculateDateRange($startDate, $endDate, $period);
+
+        // Messages sent by this advisor
+        $msgQuery = Message::where('sent_by', $user->id)->where('is_from_user', false);
+        if ($dateStart && $dateEnd) {
+            $msgQuery->whereBetween('created_at', [$dateStart, $dateEnd]);
+        }
+        $messagesSent = $msgQuery->count();
+
+        // Conversations assigned
+        $convQuery = Conversation::where('assigned_to', $user->id);
+        if ($dateStart && $dateEnd) {
+            $convQuery->whereBetween('created_at', [$dateStart, $dateEnd]);
+        }
+
+        $totalConversations = (clone $convQuery)->count();
+        $resolvedConversations = (clone $convQuery)->whereIn('status', ['resolved', 'closed'])->count();
+        $activeConversations = (clone $convQuery)->where('status', 'active')->count();
+        $pendingConversations = (clone $convQuery)->where('status', 'pending')->count();
+
+        // Average response time: time between a user message and the next advisor reply in conversations assigned to this advisor
+        $avgResponseTime = $this->calculateAvgResponseTime($user->id, $dateStart, $dateEnd);
+
+        // Daily message counts (last 7 days or within range)
+        $dailyActivity = $this->getDailyActivity($user->id, $dateStart, $dateEnd);
+
+        // Hourly distribution
+        $hourlyDistribution = DB::table('messages')
+            ->where('sent_by', $user->id)
+            ->where('is_from_user', false)
+            ->when($dateStart && $dateEnd, fn($q) => $q->whereBetween('created_at', [$dateStart, $dateEnd]))
+            ->selectRaw('HOUR(created_at) as hour, COUNT(*) as count')
+            ->groupBy('hour')
+            ->orderBy('hour')
+            ->pluck('count', 'hour')
+            ->toArray();
+
+        // Fill all 24 hours
+        $hourly = [];
+        for ($h = 0; $h < 24; $h++) {
+            $hourly[] = [
+                'hour' => sprintf('%02d:00', $h),
+                'count' => $hourlyDistribution[$h] ?? 0,
+            ];
+        }
+
+        // Message types sent
+        $messageTypes = DB::table('messages')
+            ->where('sent_by', $user->id)
+            ->where('is_from_user', false)
+            ->when($dateStart && $dateEnd, fn($q) => $q->whereBetween('created_at', [$dateStart, $dateEnd]))
+            ->selectRaw('message_type, COUNT(*) as count')
+            ->groupBy('message_type')
+            ->pluck('count', 'message_type')
+            ->toArray();
+
+        return response()->json([
+            'advisor' => [
+                'id' => $user->id,
+                'name' => $user->name,
+            ],
+            'summary' => [
+                'messages_sent' => $messagesSent,
+                'total_conversations' => $totalConversations,
+                'resolved_conversations' => $resolvedConversations,
+                'active_conversations' => $activeConversations,
+                'pending_conversations' => $pendingConversations,
+                'resolution_rate' => $totalConversations > 0
+                    ? round(($resolvedConversations * 100.0) / $totalConversations, 2)
+                    : 0,
+                'avg_response_time_minutes' => $avgResponseTime,
+            ],
+            'daily_activity' => $dailyActivity,
+            'hourly_distribution' => $hourly,
+            'message_types' => $messageTypes,
+        ]);
+    }
+
+    /**
+     * Calculate average response time in minutes for an advisor
+     */
+    private function calculateAvgResponseTime(int $advisorId, ?\Carbon\Carbon $dateStart, ?\Carbon\Carbon $dateEnd): ?float
+    {
+        // Get conversations where this advisor has sent messages
+        $conversationIds = Message::where('sent_by', $advisorId)
+            ->where('is_from_user', false)
+            ->when($dateStart && $dateEnd, fn($q) => $q->whereBetween('created_at', [$dateStart, $dateEnd]))
+            ->distinct()
+            ->pluck('conversation_id');
+
+        if ($conversationIds->isEmpty()) {
+            return null;
+        }
+
+        // For each conversation, find pairs: user message -> next advisor reply
+        // Use a raw query for efficiency
+        $responseTimes = DB::select("
+            SELECT AVG(response_seconds) as avg_seconds FROM (
+                SELECT TIMESTAMPDIFF(SECOND, user_msg.created_at, advisor_msg.created_at) as response_seconds
+                FROM messages user_msg
+                INNER JOIN messages advisor_msg ON advisor_msg.conversation_id = user_msg.conversation_id
+                    AND advisor_msg.is_from_user = 0
+                    AND advisor_msg.sent_by = ?
+                    AND advisor_msg.created_at > user_msg.created_at
+                    AND advisor_msg.id = (
+                        SELECT MIN(m2.id) FROM messages m2
+                        WHERE m2.conversation_id = user_msg.conversation_id
+                        AND m2.is_from_user = 0
+                        AND m2.sent_by = ?
+                        AND m2.created_at > user_msg.created_at
+                    )
+                WHERE user_msg.is_from_user = 1
+                    AND user_msg.conversation_id IN (" . implode(',', $conversationIds->toArray()) . ")
+                    " . ($dateStart && $dateEnd ? "AND user_msg.created_at BETWEEN ? AND ?" : "") . "
+                HAVING response_seconds BETWEEN 0 AND 86400
+            ) as response_data
+        ", array_merge(
+            [$advisorId, $advisorId],
+            $dateStart && $dateEnd ? [$dateStart, $dateEnd] : []
+        ));
+
+        $avgSeconds = $responseTimes[0]->avg_seconds ?? null;
+        return $avgSeconds !== null ? round($avgSeconds / 60, 1) : null;
+    }
+
+    /**
+     * Get daily message activity for an advisor
+     */
+    private function getDailyActivity(int $advisorId, ?\Carbon\Carbon $dateStart, ?\Carbon\Carbon $dateEnd): array
+    {
+        // Default to last 7 days if no range
+        $start = $dateStart ?? now()->subDays(6)->startOfDay();
+        $end = $dateEnd ?? now()->endOfDay();
+
+        $daily = DB::table('messages')
+            ->where('sent_by', $advisorId)
+            ->where('is_from_user', false)
+            ->whereBetween('created_at', [$start, $end])
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
+            ->groupBy('date')
+            ->orderBy('date')
+            ->pluck('count', 'date')
+            ->toArray();
+
+        // Fill in missing dates
+        $result = [];
+        $current = $start->copy()->startOfDay();
+        $endDate = $end->copy()->startOfDay();
+
+        while ($current->lte($endDate)) {
+            $dateStr = $current->format('Y-m-d');
+            $result[] = [
+                'date' => $dateStr,
+                'label' => $current->translatedFormat('D d'),
+                'count' => $daily[$dateStr] ?? 0,
+            ];
+            $current->addDay();
+        }
+
+        return $result;
+    }
+}

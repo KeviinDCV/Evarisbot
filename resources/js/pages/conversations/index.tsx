@@ -45,6 +45,7 @@ import {
     Pin,
     ClipboardList,
     StickyNote,
+    History,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -126,6 +127,14 @@ interface Conversation {
     tags?: TagItem[];
     notes?: string | null;
     welcome_flow_data?: Record<string, { text?: string; button_id?: string; timestamp?: string }> | null;
+}
+
+interface Activity {
+    id: number;
+    type: string;
+    user?: { id: number; name: string } | null;
+    metadata?: Record<string, any> | null;
+    created_at: string;
 }
 
 interface TagItem {
@@ -212,6 +221,11 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [notesText, setNotesText] = useState(selectedConversation?.notes || '');
     const [savingNotes, setSavingNotes] = useState(false);
     const notesTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [showActivity, setShowActivity] = useState(false);
+    const [activities, setActivities] = useState<Activity[]>([]);
+    const [loadingActivities, setLoadingActivities] = useState(false);
+    const [typingUsers, setTypingUsers] = useState<Array<{ id: number; name: string }>>([]);
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -386,6 +400,9 @@ export default function ConversationsIndex({ conversations: initialConversations
             setShowTemplates(false);
             setTemplateFilter('');
         }
+
+        // Emit typing indicator
+        emitTyping();
     };
 
     // Seleccionar una plantilla
@@ -573,6 +590,8 @@ export default function ConversationsIndex({ conversations: initialConversations
         // Sync notes
         setNotesText(selectedConversation?.notes || '');
         setShowNotes(false);
+        setShowActivity(false);
+        setActivities([]);
     }, [selectedConversation?.id]);
 
 
@@ -1045,6 +1064,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                         )
                     );
                 }
+
+                // Update typing indicator
+                setTypingUsers(res.data.typing || []);
             } catch {
                 // Silenciar errores de polling
             }
@@ -1869,6 +1891,74 @@ export default function ConversationsIndex({ conversations: initialConversations
         }, 800);
     };
 
+    const fetchActivities = async () => {
+        if (!selectedConversation) return;
+        setLoadingActivities(true);
+        try {
+            const res = await axios.get(`/admin/chat/${selectedConversation.id}/activities`);
+            setActivities(res.data.activities || []);
+        } catch {
+            toast.error('Error al cargar el historial');
+        } finally {
+            setLoadingActivities(false);
+        }
+    };
+
+    const toggleActivityPanel = () => {
+        const next = !showActivity;
+        setShowActivity(next);
+        if (next) fetchActivities();
+    };
+
+    const getActivityLabel = (activity: Activity): string => {
+        const name = activity.user?.name || 'Sistema';
+        const meta = activity.metadata || {};
+        switch (activity.type) {
+            case 'assigned':
+                return `${name} asignó el chat a ${meta.assigned_to_name || 'un asesor'}`;
+            case 'unassigned':
+                return `${name} removió la asignación`;
+            case 'auto_assigned':
+                return `${meta.assigned_to_name || name} tomó el chat automáticamente`;
+            case 'resolved':
+                return `${name} marcó como resuelto`;
+            case 'reopened':
+                return `${name} reabrió la conversación`;
+            case 'status_changed':
+                return `${name} cambió estado a ${meta.new_status === 'active' ? 'activo' : meta.new_status === 'pending' ? 'pendiente' : meta.new_status}`;
+            case 'created':
+                return `${name} creó la conversación`;
+            default:
+                return `${name}: ${activity.type}`;
+        }
+    };
+
+    const getActivityColor = (type: string): string => {
+        switch (type) {
+            case 'assigned': case 'auto_assigned': return 'bg-blue-400';
+            case 'unassigned': return 'bg-gray-400';
+            case 'resolved': return 'bg-green-400';
+            case 'reopened': return 'bg-amber-400';
+            case 'status_changed': return 'bg-purple-400';
+            case 'created': return 'bg-sky-400';
+            default: return 'bg-gray-400';
+        }
+    };
+
+    const emitTyping = () => {
+        if (!selectedConversation) return;
+        if (typingTimeoutRef.current) return; // Already sent recently
+        fetch(`/admin/chat/${selectedConversation.id}/typing`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+        }).catch(() => {});
+        typingTimeoutRef.current = setTimeout(() => {
+            typingTimeoutRef.current = null;
+        }, 4000);
+    };
+
     const handleAssign = (userId?: number | null) => {
         if (!selectedConversation) return;
         const assignedName = userId ? users.find(u => u.id === userId)?.name : null;
@@ -2001,7 +2091,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             <div className="h-[calc(100vh-0px)] flex bg-background overflow-hidden">
                 {/* Lista de Conversaciones - Izquierda */}
                 {/* Mobile: oculta cuando hay chat | Desktop: siempre visible con toggle */}
-                <div className={`bg-[#f3f3f3] dark:bg-neutral-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-[#e2e2e2] dark:border-neutral-700/50 ${selectedConversation ? 'hidden md:flex' : 'flex'
+                <div className={`bg-background dark:bg-neutral-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-border dark:border-neutral-700/50 ${selectedConversation ? 'hidden md:flex' : 'flex'
                     } ${isSidebarVisible ? 'w-full md:w-80 lg:w-96' : 'hidden md:w-0 md:overflow-hidden'
                     }`}>
                     {/* Header */}
@@ -2353,7 +2443,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         e.preventDefault();
                                     }
                                 }}
-                                className="w-full pl-11 pr-4 py-2.5 bg-[#e8e8e8] dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
+                                className="w-full pl-11 pr-4 py-2.5 bg-muted dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
                             />
                         </div>
 
@@ -2373,7 +2463,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                                         statusFilter === pill.value
                                             ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300 font-semibold'
-                                            : 'bg-[#e8e8e8] dark:bg-neutral-800 text-[#5f5e5e] dark:text-neutral-400 hover:bg-[#e2e2e2] dark:hover:bg-neutral-700'
+                                            : 'bg-muted dark:bg-neutral-800 text-[#5f5e5e] dark:text-neutral-400 hover:bg-muted/80 dark:hover:bg-neutral-700'
                                     }`}
                                 >
                                     {pill.label}
@@ -2421,7 +2511,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 ? 'bg-green-50/80 dark:bg-green-900/20 border-l-4 border-green-500 shadow-sm'
                                                 : selectedConversation?.id === conversation.id
                                                     ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400 shadow-sm'
-                                                    : 'bg-white dark:bg-neutral-800/60 hover:bg-[#eeeeee] dark:hover:bg-neutral-800/80 border-l-4 border-transparent shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
+                                                    : 'bg-card dark:bg-neutral-800/60 hover:bg-muted/60 dark:hover:bg-neutral-800/80 border-l-4 border-transparent shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
                                             }`}
                                     >
                                         {/* Avatar / Checkbox en modo selección */}
@@ -2429,7 +2519,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             {isSelectionMode ? (
                                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${selectedConversations.includes(conversation.id)
                                                         ? 'bg-green-500 text-white'
-                                                        : 'bg-[#e8e8e8] dark:bg-neutral-800 border-2 border-[#c6c5d1] dark:border-neutral-700'
+                                                        : 'bg-muted dark:bg-neutral-800 border-2 border-border dark:border-neutral-700'
                                                     }`}>
                                                     {selectedConversations.includes(conversation.id) ? (
                                                         <CheckSquare className="w-5 h-5 text-white" />
@@ -2938,7 +3028,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 {/* Área de Chat - Derecha */}
                 {/* En mobile: muestra solo cuando hay selección | En desktop: siempre visible */}
                 {!selectedConversation ? (
-                    <div className="hidden md:flex flex-1 items-center justify-center bg-[#f9f9f9] dark:bg-neutral-900">
+                    <div className="hidden md:flex flex-1 items-center justify-center bg-background dark:bg-neutral-900">
                         <div className="text-center p-8 md:p-12">
                             <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#767681]/40" />
                             <h3 className="text-xl font-semibold text-[#16235e] dark:text-neutral-300 mb-2">
@@ -2950,9 +3040,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col bg-[#f9f9f9] dark:bg-neutral-900 w-full md:w-auto">
+                    <div className="flex-1 flex flex-col bg-background dark:bg-neutral-900 w-full md:w-auto">
                         {/* Header del Chat */}
-                        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm">
+                        <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm">
                             <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
                                 {/* Botón volver (mobile) / toggle sidebar (desktop) */}
                                 <button
@@ -2964,7 +3054,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             setIsSidebarVisible(!isSidebarVisible);
                                         }
                                     }}
-                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#e8e8e8] dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
                                     title={isSidebarVisible ? t('conversations.hideList') : t('conversations.showList')}
                                 >
                                     {isSidebarVisible ? (
@@ -3009,7 +3099,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {isAdmin && (
                                     <button
                                         onClick={() => setShowAssignModal(true)}
-                                        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#e8e8e8] dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300"
+                                        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300"
                                         title={t('conversations.assignConversation')}
                                     >
                                         <UserPlus className="w-5 h-5" />
@@ -3019,7 +3109,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Menú de Tres Puntos */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#e8e8e8] dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300">
+                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300">
                                             <MoreVertical className="w-5 h-5" />
                                         </button>
                                     </DropdownMenuTrigger>
@@ -3062,6 +3152,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             <>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem
+                                                    onClick={() => {
+                                                        window.open(`/admin/chat/${selectedConversation.id}/export-pdf`, '_blank');
+                                                    }}
+                                                    className="cursor-pointer hover:bg-accent text-[#16235e] dark:text-neutral-300"
+                                                >
+                                                    <Download className="w-4 h-4 mr-2" />
+                                                    Exportar a PDF
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
                                                     onClick={handleHideChat}
                                                     className="cursor-pointer hover:bg-red-50 text-red-600"
                                                 >
@@ -3077,7 +3177,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {selectedConversation.welcome_flow_data && Object.keys(selectedConversation.welcome_flow_data).filter(k => !k.startsWith('_')).length > 0 && (
                                     <button
                                         onClick={() => setShowPatientData(!showPatientData)}
-                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showPatientData ? 'bg-[#16235e] text-white' : 'hover:bg-[#e8e8e8] dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showPatientData ? 'bg-[#16235e] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
                                         title="Datos del paciente"
                                     >
                                         <ClipboardList className="w-5 h-5" />
@@ -3087,7 +3187,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Botón Notas Internas */}
                                 <button
                                     onClick={() => setShowNotes(!showNotes)}
-                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors relative ${showNotes ? 'bg-[#16235e] text-white' : 'hover:bg-[#e8e8e8] dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors relative ${showNotes ? 'bg-[#16235e] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
                                     title="Notas internas"
                                 >
                                     <StickyNote className="w-5 h-5" />
@@ -3096,10 +3196,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     )}
                                 </button>
 
+                                {/* Botón Historial de Actividad */}
+                                <button
+                                    onClick={toggleActivityPanel}
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showActivity ? 'bg-[#16235e] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
+                                    title="Historial de actividad"
+                                >
+                                    <History className="w-5 h-5" />
+                                </button>
+
                                 {/* Botón Cerrar Chat */}
                                 <button
                                     onClick={handleCloseChat}
-                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-[#e8e8e8] dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300"
                                     title={t('conversations.closeChatHint')}
                                 >
                                     <X className="w-5 h-5" />
@@ -3153,6 +3262,36 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     placeholder="Escribe notas internas sobre esta conversación... (solo visible para asesores)"
                                     className="w-full min-h-[80px] max-h-[160px] resize-y rounded-lg border border-amber-200 dark:border-amber-800/30 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-400/50"
                                 />
+                            </div>
+                        )}
+
+                        {/* Panel de historial de actividad */}
+                        {showActivity && (
+                            <div className="border-b border-border bg-slate-50/50 dark:bg-slate-950/20 px-4 py-3 max-h-[200px] overflow-y-auto custom-scrollbar">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <History className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-300">Historial de actividad</span>
+                                </div>
+                                {loadingActivities ? (
+                                    <p className="text-xs text-muted-foreground">Cargando...</p>
+                                ) : activities.length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">No hay actividad registrada aún.</p>
+                                ) : (
+                                    <div className="relative pl-4">
+                                        <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200 dark:bg-slate-700" />
+                                        {activities.map((act) => (
+                                            <div key={act.id} className="relative flex items-start gap-3 pb-3 last:pb-0">
+                                                <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${getActivityColor(act.type)} ring-2 ring-white dark:ring-slate-900`} />
+                                                <div className="min-w-0">
+                                                    <p className="text-xs text-foreground leading-snug">{getActivityLabel(act)}</p>
+                                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                                        {new Date(act.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -3449,7 +3588,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </div>
                             </div>
                         ) : (
-                        <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md">
+                        <>
+                        {/* Indicador de escribiendo */}
+                        {typingUsers.length > 0 && (
+                            <div className="px-4 md:px-6 py-1.5 text-xs text-muted-foreground italic animate-pulse">
+                                {typingUsers.length === 1
+                                    ? `${typingUsers[0].name} está escribiendo...`
+                                    : `${typingUsers.map(u => u.name).join(', ')} están escribiendo...`
+                                }
+                            </div>
+                        )}
+                        <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md">
                             {/* Preview del archivo seleccionado */}
                             {selectedFile && (
                                 <div className="mb-2 flex items-center gap-2 p-2 bg-[#dee1ff]/40 dark:bg-blue-900/20 rounded-lg">
@@ -3512,7 +3661,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     className="hidden"
                                 />
 
-                                <div className="relative flex-1 flex items-end bg-[#e2e2e2] dark:bg-neutral-800 ring-1 ring-black/5 dark:ring-white/5 rounded-full focus-within:ring-2 focus-within:ring-[#16235e]/30 transition-all duration-200 overflow-visible">
+                                <div className="relative flex-1 flex items-end bg-muted dark:bg-neutral-800 ring-1 ring-black/5 dark:ring-white/5 rounded-full focus-within:ring-2 focus-within:ring-[#16235e]/30 transition-all duration-200 overflow-visible">
 
                                     {/* Botón de adjuntar - Ahora integrado dentro de la burbuja */}
                                     <button
@@ -3603,6 +3752,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {t('conversations.sendHint')}
                             </p>
                         </form>
+                        </>
                         )}
                     </div>
                 )}
