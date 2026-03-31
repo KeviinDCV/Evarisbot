@@ -136,6 +136,8 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/{chat}/read', 'markRead')->name('read');
         Route::get('/{chat}/poll', 'poll')->name('poll');
         Route::put('/{chat}/rename', 'rename')->name('rename');          Route::get('/{chat}/read-receipts', 'readReceipts')->name('read-receipts');        Route::delete('/{chat}', 'destroy')->name('destroy');
+        Route::post('/{chat}/participants', 'addParticipants')->name('participants.add');
+        Route::delete('/{chat}/participants/{user}', 'removeParticipant')->name('participants.remove');
     });
 
     // Conversaciones (WhatsApp) - Accesible para Admin y Asesores

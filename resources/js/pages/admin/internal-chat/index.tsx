@@ -24,6 +24,8 @@ import {
     ZoomIn,
     ZoomOut,
     RotateCcw,
+    UserPlus,
+    UserMinus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
@@ -54,6 +56,7 @@ interface ChatItem {
     id: number;
     name: string;
     type: 'direct' | 'group';
+    created_by?: number;
     unread: number;
     participants: UserInfo[];
     latest_message: LatestMessage | null;
@@ -113,6 +116,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
     // Participants modal
     const [showParticipantsModal, setShowParticipantsModal] = useState(false);
+    const [showAddParticipants, setShowAddParticipants] = useState(false);
+    const [addParticipantSearch, setAddParticipantSearch] = useState('');
+    const [addParticipantIds, setAddParticipantIds] = useState<number[]>([]);
+    const [isAddingParticipants, setIsAddingParticipants] = useState(false);
 
     // Mentions
     const [showMentions, setShowMentions] = useState(false);
@@ -1329,37 +1336,173 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             </Dialog>
 
             {/* Modal: Ver participantes */}
-            <Dialog open={showParticipantsModal} onOpenChange={setShowParticipantsModal}>
-                <DialogContent className="sm:max-w-sm card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
+            <Dialog open={showParticipantsModal} onOpenChange={(open) => {
+                setShowParticipantsModal(open);
+                if (!open) {
+                    setShowAddParticipants(false);
+                    setAddParticipantSearch('');
+                    setAddParticipantIds([]);
+                }
+            }}>
+                <DialogContent className="sm:max-w-md card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Users className="w-5 h-5" />
                             Participantes ({activeChat?.participants.length ?? 0})
                         </DialogTitle>
-                        <DialogDescription className="sr-only">Lista de participantes del grupo</DialogDescription>
+                        <DialogDescription className="sr-only">Gestionar participantes del grupo</DialogDescription>
                     </DialogHeader>
-                    <div className="mt-2 space-y-1 max-h-[60vh] overflow-y-auto custom-scrollbar-light pr-1">
-                        {(activeChat?.participants ?? []).map(p => (
-                            <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-accent transition-colors">
-                                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                                    {p.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-foreground truncate">
-                                        {p.name}
-                                        {p.id === auth.user.id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(tú)</span>}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {p.role === 'admin' ? 'Administrador' : p.role === 'advisor' ? 'Asesor' : p.role}
-                                        {p.is_online && <span className="ml-1.5 text-green-500">● En línea</span>}
-                                    </p>
-                                </div>
+
+                    {/* Lista de participantes actuales */}
+                    {!showAddParticipants && (
+                        <>
+                            <div className="mt-2 space-y-1 max-h-[50vh] overflow-y-auto custom-scrollbar-light pr-1">
+                                {(activeChat?.participants ?? []).map(p => {
+                                    const isCreator = activeChat && p.id === (activeChat as any).created_by;
+                                    const canRemove = activeChat?.type === 'group' && p.id !== auth.user.id && !isCreator;
+                                    return (
+                                        <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-accent transition-colors group">
+                                            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                                                {p.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-semibold text-foreground truncate">
+                                                    {p.name}
+                                                    {p.id === auth.user.id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(tú)</span>}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {p.role === 'admin' ? 'Administrador' : p.role === 'advisor' ? 'Asesor' : p.role}
+                                                    {p.is_online && <span className="ml-1.5 text-green-500">● En línea</span>}
+                                                </p>
+                                            </div>
+                                            {canRemove && (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!confirm(`¿Eliminar a ${p.name} del grupo?`)) return;
+                                                        try {
+                                                            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                                                            const res = await axios.delete(`/admin/internal-chat/${activeChat!.id}/participants/${p.id}`, {
+                                                                headers: { 'X-CSRF-TOKEN': csrfToken }
+                                                            });
+                                                            if (res.data.success) {
+                                                                // Actualizar participantes localmente
+                                                                setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
+                                                                setChats(prev => prev.map(c => c.id === activeChat!.id ? { ...c, participants: res.data.participants } : c));
+                                                                toast.success(res.data.message);
+                                                            }
+                                                        } catch (err: any) {
+                                                            toast.error(err.response?.data?.error || 'Error al eliminar participante');
+                                                        }
+                                                    }}
+                                                    className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-all"
+                                                    title="Eliminar del grupo"
+                                                >
+                                                    <UserMinus className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        ))}
-                    </div>
-                    <div className="flex justify-end pt-2">
-                        <Button variant="outline" onClick={() => setShowParticipantsModal(false)} className="rounded-lg">Cerrar</Button>
-                    </div>
+                            <div className="flex justify-between pt-2">
+                                {activeChat?.type === 'group' && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setShowAddParticipants(true)}
+                                        className="rounded-lg gap-2"
+                                    >
+                                        <UserPlus className="w-4 h-4" />
+                                        Agregar
+                                    </Button>
+                                )}
+                                <Button variant="outline" onClick={() => setShowParticipantsModal(false)} className="rounded-lg ml-auto">Cerrar</Button>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Vista de agregar participantes */}
+                    {showAddParticipants && (
+                        <>
+                            <div className="mt-2">
+                                <Input
+                                    placeholder="Buscar usuario..."
+                                    value={addParticipantSearch}
+                                    onChange={(e) => setAddParticipantSearch(e.target.value)}
+                                    className="rounded-lg"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="space-y-1 max-h-[40vh] overflow-y-auto custom-scrollbar-light pr-1">
+                                {availableUsers
+                                    .filter(u => !(activeChat?.participants ?? []).some(p => p.id === u.id))
+                                    .filter(u => !addParticipantSearch || u.name.toLowerCase().includes(addParticipantSearch.toLowerCase()))
+                                    .map(u => {
+                                        const selected = addParticipantIds.includes(u.id);
+                                        return (
+                                            <div
+                                                key={u.id}
+                                                onClick={() => setAddParticipantIds(prev => selected ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                                                className={cn(
+                                                    'flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors',
+                                                    selected ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200 dark:ring-blue-800' : 'hover:bg-accent'
+                                                )}
+                                            >
+                                                <div className={cn(
+                                                    'w-9 h-9 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0',
+                                                    selected ? 'bg-blue-500 text-white' : 'bg-primary text-white'
+                                                )}>
+                                                    {selected ? <Check className="w-4 h-4" /> : u.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {u.role === 'admin' ? 'Administrador' : u.role === 'advisor' ? 'Asesor' : u.role}
+                                                        {u.is_online && <span className="ml-1.5 text-green-500">● En línea</span>}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                            </div>
+                            <div className="flex justify-between pt-2 gap-2">
+                                <Button variant="outline" onClick={() => { setShowAddParticipants(false); setAddParticipantSearch(''); setAddParticipantIds([]); }} className="rounded-lg">
+                                    Volver
+                                </Button>
+                                <Button
+                                    disabled={addParticipantIds.length === 0 || isAddingParticipants}
+                                    onClick={async () => {
+                                        if (!activeChat || addParticipantIds.length === 0) return;
+                                        setIsAddingParticipants(true);
+                                        try {
+                                            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                                            const res = await axios.post(`/admin/internal-chat/${activeChat.id}/participants`, {
+                                                user_ids: addParticipantIds,
+                                            }, {
+                                                headers: { 'X-CSRF-TOKEN': csrfToken }
+                                            });
+                                            if (res.data.success) {
+                                                setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
+                                                setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, participants: res.data.participants } : c));
+                                                toast.success(res.data.message);
+                                                setShowAddParticipants(false);
+                                                setAddParticipantSearch('');
+                                                setAddParticipantIds([]);
+                                            }
+                                        } catch (err: any) {
+                                            toast.error(err.response?.data?.error || 'Error al agregar participantes');
+                                        } finally {
+                                            setIsAddingParticipants(false);
+                                        }
+                                    }}
+                                    className="rounded-lg gap-2"
+                                    style={{ backgroundColor: 'var(--primary-base)' }}
+                                >
+                                    <UserPlus className="w-4 h-4" />
+                                    Agregar ({addParticipantIds.length})
+                                </Button>
+                            </div>
+                        </>
+                    )}
                 </DialogContent>
             </Dialog>
 

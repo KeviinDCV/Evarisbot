@@ -30,6 +30,7 @@ class InternalChatController extends Controller
                     'id' => $chat->id,
                     'name' => $chat->displayNameFor($userId),
                     'type' => $chat->type,
+                    'created_by' => $chat->created_by,
                     'unread' => $chat->unreadCountFor($userId),
                     'participants' => $chat->participants->map(fn($u) => [
                         'id' => $u->id,
@@ -86,6 +87,7 @@ class InternalChatController extends Controller
                     'id' => $chat->id,
                     'name' => $chat->displayNameFor($userId),
                     'type' => $chat->type,
+                    'created_by' => $chat->created_by,
                     'unread' => $chat->unreadCountFor($userId),
                     'participants' => $chat->participants->map(fn($u) => [
                         'id' => $u->id,
@@ -473,5 +475,101 @@ class InternalChatController extends Controller
             ]);
 
         return response()->json(['receipts' => $receipts]);
+    }
+
+    /**
+     * Agregar participantes a un grupo existente
+     */
+    public function addParticipants(Request $request, InternalChat $chat)
+    {
+        $userId = auth()->id();
+
+        if (!$chat->hasParticipant($userId)) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+
+        if ($chat->type !== 'group') {
+            return response()->json(['error' => 'Solo se pueden agregar participantes a grupos'], 400);
+        }
+
+        $request->validate([
+            'user_ids' => 'required|array|min:1',
+            'user_ids.*' => 'exists:users,id',
+        ]);
+
+        $added = [];
+        foreach ($request->input('user_ids') as $uid) {
+            if (!$chat->hasParticipant($uid)) {
+                $chat->participants()->attach($uid, ['role' => 'member']);
+                $user = User::find($uid);
+                $added[] = $user->name;
+            }
+        }
+
+        if (empty($added)) {
+            return response()->json(['success' => false, 'message' => 'Los usuarios seleccionados ya son participantes'], 400);
+        }
+
+        // Recargar participantes
+        $chat->load('participants');
+        $participants = $chat->participants->map(fn($u) => [
+            'id' => $u->id,
+            'name' => $u->name,
+            'role' => $u->pivot->role ?? 'member',
+            'is_online' => $u->isOnline(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Se agregaron: ' . implode(', ', $added),
+            'participants' => $participants,
+        ]);
+    }
+
+    /**
+     * Eliminar un participante de un grupo
+     */
+    public function removeParticipant(InternalChat $chat, User $user)
+    {
+        $userId = auth()->id();
+
+        if (!$chat->hasParticipant($userId)) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+
+        if ($chat->type !== 'group') {
+            return response()->json(['error' => 'Solo se pueden eliminar participantes de grupos'], 400);
+        }
+
+        // No se puede eliminar al creador del grupo
+        if ($user->id === $chat->created_by) {
+            return response()->json(['error' => 'No se puede eliminar al creador del grupo'], 400);
+        }
+
+        // No se puede eliminar a uno mismo con este endpoint (usar destroy/leave)
+        if ($user->id === $userId) {
+            return response()->json(['error' => 'Para salir del grupo, usa la opción "Salir del grupo"'], 400);
+        }
+
+        if (!$chat->hasParticipant($user->id)) {
+            return response()->json(['error' => 'El usuario no es participante de este grupo'], 400);
+        }
+
+        $chat->participants()->detach($user->id);
+
+        // Recargar participantes
+        $chat->load('participants');
+        $participants = $chat->participants->map(fn($u) => [
+            'id' => $u->id,
+            'name' => $u->name,
+            'role' => $u->pivot->role ?? 'member',
+            'is_online' => $u->isOnline(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $user->name . ' fue eliminado del grupo',
+            'participants' => $participants,
+        ]);
     }
 }
