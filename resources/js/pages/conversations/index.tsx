@@ -47,6 +47,7 @@ import {
     StickyNote,
     History,
     Eye,
+    CalendarCheck,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -689,17 +690,24 @@ export default function ConversationsIndex({ conversations: initialConversations
                 }
                 return conv; // No está en primera página, mantener
             }).filter(conv => {
-                // Ocultar conversaciones resueltas/cerradas de "Todos"
-                // EXCEPTO si el filtro activo es 'resolved' o hay filtro de etiqueta
-                if (!filters.tag && filters.status !== 'resolved' && (conv.status === 'resolved' || conv.status === 'closed')) {
-                    return false;
+                // Ocultar conversaciones resueltas/cerradas/agendadas de "Todos"
+                // EXCEPTO si el filtro activo corresponde o hay filtro de etiqueta
+                if (!filters.tag) {
+                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
+                    if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
                 return true;
             });
 
             // Detectar nuevas conversaciones que no existían
             const existingIds = new Set(prev.map(c => c.id));
-            const newConvs = initialConversations.filter(c => !existingIds.has(c.id));
+            const newConvs = initialConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
+                if (!filters.tag) {
+                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
+                    if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
+                }
+                return true;
+            });
 
             if (newConvs.length > 0) {
                 hasChanges = true;
@@ -708,8 +716,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                 return result;
             }
 
-            // Si hubo cambios de datos, reordenar: pinned primero, luego por last_message_at
-            if (hasChanges) {
+            // Si hubo cambios de datos o el filtro eliminó items, reordenar
+            if (hasChanges || updated.length !== prev.length) {
                 return updated.sort((a, b) => {
                     if (a.is_pinned && !b.is_pinned) return -1;
                     if (!a.is_pinned && b.is_pinned) return 1;
@@ -881,15 +889,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }
                         return conv;
                     }).filter(conv => {
-                        if (!filters.tag && filters.status !== 'resolved' && (conv.status === 'resolved' || conv.status === 'closed')) {
-                            return false;
+                        if (!filters.tag) {
+                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
+                            if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                         }
                         return true;
                     });
 
                     // Detect new conversations
                     const existingIds = new Set(prev.map(c => c.id));
-                    const newConvs = freshConversations.filter(c => !existingIds.has(c.id));
+                    const newConvs = freshConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
+                        if (!filters.tag) {
+                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
+                            if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
+                        }
+                        return true;
+                    });
 
                     if (newConvs.length > 0) {
                         const result = [...newConvs, ...updated];
@@ -900,7 +915,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         });
                     }
 
-                    if (hasChanges) {
+                    if (hasChanges || updated.length !== prev.length) {
                         return updated.sort((a, b) => {
                             if (a.is_pinned && !b.is_pinned) return -1;
                             if (!a.is_pinned && b.is_pinned) return 1;
@@ -1178,6 +1193,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                 return 'bg-yellow-500';
             case 'resolved':
                 return 'bg-gray-400';
+            case 'scheduled':
+                return 'bg-indigo-500';
             default:
                 return 'bg-gray-300';
         }
@@ -1188,6 +1205,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             active: t('conversations.statusLabels.active'),
             pending: 'Pendiente',
             resolved: t('conversations.statusLabels.resolved'),
+            scheduled: 'Agendado',
         };
         return labels[status] || status;
     };
@@ -1951,7 +1969,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             case 'reopened':
                 return `${name} reabrió la conversación`;
             case 'status_changed':
-                return `${name} cambió estado a ${meta.new_status === 'active' ? 'activo' : meta.new_status === 'pending' ? 'pendiente' : meta.new_status}`;
+                return `${name} cambió estado a ${meta.new_status === 'active' ? 'activo' : meta.new_status === 'pending' ? 'pendiente' : meta.new_status === 'scheduled' ? 'agendado' : meta.new_status}`;
             case 'created':
                 return `${name} creó la conversación`;
             default:
@@ -2187,7 +2205,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         <span>Estado</span>
                                                         {statusFilter !== 'all' && (
                                                             <span className="px-1.5 py-0.5 text-[10px] font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 rounded">
-                                                                {statusFilter === 'unanswered' ? 'Sin contestar' : statusFilter === 'active' ? 'Activo' : statusFilter === 'pending' ? 'Pendiente' : 'Resuelto'}
+                                                                {statusFilter === 'unanswered' ? 'Sin contestar' : statusFilter === 'active' ? 'Activo' : statusFilter === 'pending' ? 'Pendiente' : statusFilter === 'scheduled' ? 'Agendado' : 'Resuelto'}
                                                             </span>
                                                         )}
                                                     </div>
@@ -2480,6 +2498,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 { value: 'unanswered', label: 'No leídos' },
                                 { value: 'pending_response', label: 'En espera' },
                                 { value: 'resolved', label: 'Resueltos' },
+                                { value: 'scheduled', label: 'Agendados' },
                             ].map((pill) => (
                                 <button
                                     key={pill.value}
@@ -2780,6 +2799,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     <CheckCheck className="w-3 h-3" />
                                     Resuelto
                                 </button>
+                                <button
+                                    onClick={() => handleBulkStatusChange('scheduled')}
+                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-indigo-500/30 text-white text-xs rounded-lg flex items-center justify-center gap-1 transition-colors"
+                                >
+                                    <CalendarCheck className="w-3 h-3" />
+                                    Agendado
+                                </button>
                             </div>
                         </div>
                     )}
@@ -3047,6 +3073,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         {t('conversations.markAsResolved')}
                                     </button>
                                 )}
+
+                                {conversation.status !== 'scheduled' && (
+                                    <button
+                                        onClick={() => handleStatusChangeFromContext(conversation.id, 'scheduled')}
+                                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent text-indigo-600 flex items-center gap-2"
+                                    >
+                                        <CalendarCheck className="w-4 h-4" />
+                                        Marcar como Agendado
+                                    </button>
+                                )}
                             </div>
                         );
                     })()}
@@ -3171,6 +3207,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             >
                                                 <CheckCheck className="w-4 h-4 mr-2" />
                                                 {t('conversations.markAsResolved')}
+                                            </DropdownMenuItem>
+                                        )}
+
+                                        {/* Marcar como Agendado */}
+                                        {selectedConversation.status !== 'scheduled' && (
+                                            <DropdownMenuItem
+                                                onClick={() => handleStatusChange('scheduled')}
+                                                className="cursor-pointer hover:bg-accent text-indigo-600"
+                                            >
+                                                <CalendarCheck className="w-4 h-4 mr-2" />
+                                                Marcar como Agendado
                                             </DropdownMenuItem>
                                         )}
 

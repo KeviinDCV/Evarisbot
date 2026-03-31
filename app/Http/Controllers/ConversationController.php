@@ -97,6 +97,14 @@ class ConversationController extends Controller
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
                 }
+            } elseif ($request->status === 'scheduled') {
+                // Agendados: mostrar TODAS las conversaciones agendadas para todos los usuarios
+                $query->where('status', 'scheduled');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'scheduled')
+                        ->orderBy('updated_at', 'desc');
+                }
             } else {
                 $query->where('status', $request->status);
             }
@@ -264,12 +272,27 @@ class ConversationController extends Controller
                 $query->where('assigned_to', auth()->id())
                       ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
                       ->whereIn('status', ['active', 'pending']);
+            } elseif ($request->status === 'resolved') {
+                // Resueltos: mostrar TODAS las conversaciones resueltas para todos los usuarios
+                $query->where('status', 'resolved');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'scheduled') {
+                // Agendados: mostrar TODAS las conversaciones agendadas para todos los usuarios
+                $query->where('status', 'scheduled');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'scheduled')
+                        ->orderBy('updated_at', 'desc');
+                }
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif ($user->isAdvisor() && !$filteringByTag) {
-            // Sin filtro de estado explícito y sin etiqueta: mostrar active+pending (NO resolved)
-            // Si hay filtro de etiqueta, mostrar todos los estados para que las resueltas aparezcan
+        } elseif (!$filteringByTag) {
+            // Sin filtro de estado explícito y sin etiqueta: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
         }
 
@@ -822,7 +845,7 @@ class ConversationController extends Controller
         $validated = $request->validate([
             'ids' => 'required|array',
             'ids.*' => 'exists:conversations,id',
-            'status' => 'required|in:active,pending,resolved',
+            'status' => 'required|in:active,pending,resolved,scheduled',
         ]);
 
         $status = $validated['status'];
@@ -904,7 +927,7 @@ class ConversationController extends Controller
     public function updateStatus(Request $request, Conversation $conversation)
     {
         $validated = $request->validate([
-            'status' => 'required|in:active,pending,resolved',
+            'status' => 'required|in:active,pending,resolved,scheduled',
         ]);
 
         $updateData = [
@@ -1362,6 +1385,14 @@ class ConversationController extends Controller
                     $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'scheduled') {
+                // Agendados: mostrar TODAS las conversaciones agendadas (todos los asesores/admin)
+                $query->where('status', 'scheduled');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'scheduled')
+                        ->orderBy('updated_at', 'desc');
                 }
             } else {
                 $query->where('status', $request->status);

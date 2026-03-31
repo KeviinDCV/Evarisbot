@@ -1419,7 +1419,7 @@ class WhatsAppService
 
             // Si la conversación estaba resuelta, reactivarla cuando llega un mensaje nuevo
             // Quitar asignación para que entre al pool compartido de asesores de turno
-            if ($conversation->status === 'resolved') {
+            if (in_array($conversation->status, ['resolved', 'scheduled'])) {
                 // Conservar datos de perfil del usuario, pero borrar historial clínico/navegación de menú
                 $flowData = $conversation->welcome_flow_data ?? [];
                 $profileData = [];

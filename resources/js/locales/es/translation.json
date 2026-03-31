@@ -119,7 +119,9 @@
     },
     "statusLabels": {
       "active": "Activa",
-      "resolved": "Resuelta"
+      "pending": "Pendiente",
+      "resolved": "Resuelta",
+      "scheduled": "Agendado"
     }
   },
   "templates": {
