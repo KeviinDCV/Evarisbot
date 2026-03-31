@@ -89,12 +89,19 @@ class ConversationController extends Controller
                 $query->where('assigned_to', auth()->id())
                       ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
                       ->whereIn('status', ['active', 'pending']);
+            } elseif ($request->status === 'resolved') {
+                // Resueltos: mostrar TODAS las conversaciones resueltas para todos los usuarios
+                $query->where('status', 'resolved');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->orderBy('resolved_at', 'desc');
+                }
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif ($user->isAdvisor() && !$filteringByTag) {
-            // Sin filtro de estado explícito y sin etiqueta: mostrar active+pending (NO resolved)
-            // Si hay filtro de etiqueta, mostrar todos los estados para que las resueltas aparezcan
+        } elseif (!$filteringByTag) {
+            // Sin filtro de estado explícito y sin etiqueta: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
         }
 
@@ -1348,10 +1355,18 @@ class ConversationController extends Controller
                 $query->where('assigned_to', auth()->id())
                       ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
                       ->whereIn('status', ['active', 'pending']);
+            } elseif ($request->status === 'resolved') {
+                // Resueltos: mostrar TODAS las conversaciones resueltas (todos los asesores/admin)
+                $query->where('status', 'resolved');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->orderBy('resolved_at', 'desc');
+                }
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif ($user->isAdvisor() && !$filteringByTag) {
+        } elseif (!$filteringByTag) {
             $query->whereIn('status', ['active', 'pending']);
         }
 
@@ -1447,16 +1462,19 @@ class ConversationController extends Controller
             $conversation->markAsRead();
         }
 
-        // Check if anyone else is typing in this conversation
+        // Check if anyone else is typing or viewing this conversation
         $typingUsers = [];
-        $cachePrefix = 'typing_' . $conversation->id . '_';
-        // Check all users who might be typing (cached individually)
-        $potentialTypers = User::select('id', 'name')->get();
-        foreach ($potentialTypers as $typer) {
-            if ($typer->id === auth()->id()) continue;
-            $typingAt = cache()->get($cachePrefix . $typer->id);
+        $viewingUsers = [];
+        $potentialUsers = User::select('id', 'name')->get();
+        foreach ($potentialUsers as $other) {
+            if ($other->id === auth()->id()) continue;
+            $typingAt = cache()->get('typing_' . $conversation->id . '_' . $other->id);
             if ($typingAt && now()->diffInSeconds($typingAt) < 6) {
-                $typingUsers[] = ['id' => $typer->id, 'name' => $typer->name];
+                $typingUsers[] = ['id' => $other->id, 'name' => $other->name];
+            }
+            $viewingAt = cache()->get('viewing_' . $conversation->id . '_' . $other->id);
+            if ($viewingAt && now()->diffInSeconds($viewingAt) < 12) {
+                $viewingUsers[] = ['id' => $other->id, 'name' => $other->name];
             }
         }
 
@@ -1465,6 +1483,7 @@ class ConversationController extends Controller
             'updatedStatuses' => $updatedStatuses,
             'unread_count' => $conversation->fresh()->unread_count,
             'typing' => $typingUsers,
+            'viewing' => $viewingUsers,
         ]);
     }
 
@@ -1477,6 +1496,20 @@ class ConversationController extends Controller
             'typing_' . $conversation->id . '_' . auth()->id(),
             now(),
             10 // expires in 10 seconds
+        );
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Señalar que el usuario está viendo una conversación (heartbeat de presencia)
+     */
+    public function viewing(Conversation $conversation)
+    {
+        cache()->put(
+            'viewing_' . $conversation->id . '_' . auth()->id(),
+            now(),
+            15 // expires in 15 seconds
         );
 
         return response()->json(['ok' => true]);

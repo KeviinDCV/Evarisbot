@@ -142,6 +142,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/{conversation}/notes', 'updateNotes')->name('chat.notes');
         Route::get('/{conversation}/activities', 'activities')->name('chat.activities');
         Route::post('/{conversation}/typing', 'typing')->name('chat.typing');
+        Route::post('/{conversation}/viewing', 'viewing')->name('chat.viewing');
         Route::get('/{conversation}/export-pdf', 'exportPdf')->name('chat.export-pdf');
     });
 

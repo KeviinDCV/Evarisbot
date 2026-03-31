@@ -46,6 +46,7 @@ import {
     ClipboardList,
     StickyNote,
     History,
+    Eye,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -226,6 +227,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [loadingActivities, setLoadingActivities] = useState(false);
     const [typingUsers, setTypingUsers] = useState<Array<{ id: number; name: string }>>([]);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [viewingUsers, setViewingUsers] = useState<Array<{ id: number; name: string }>>([]);
+    const viewingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -686,9 +689,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                 }
                 return conv; // No está en primera página, mantener
             }).filter(conv => {
-                // Para asesores: ocultar conversaciones resueltas/cerradas
-                // EXCEPTO si hay un filtro de etiqueta activo (el asesor las busca explícitamente)
-                if (!isAdmin && !filters.tag && (conv.status === 'resolved' || conv.status === 'closed')) {
+                // Ocultar conversaciones resueltas/cerradas de "Todos"
+                // EXCEPTO si el filtro activo es 'resolved' o hay filtro de etiqueta
+                if (!filters.tag && filters.status !== 'resolved' && (conv.status === 'resolved' || conv.status === 'closed')) {
                     return false;
                 }
                 return true;
@@ -878,7 +881,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }
                         return conv;
                     }).filter(conv => {
-                        if (!isAdmin && !filters.tag && (conv.status === 'resolved' || conv.status === 'closed')) {
+                        if (!filters.tag && filters.status !== 'resolved' && (conv.status === 'resolved' || conv.status === 'closed')) {
                             return false;
                         }
                         return true;
@@ -1065,8 +1068,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                     );
                 }
 
-                // Update typing indicator
+                // Update typing and viewing indicators
                 setTypingUsers(res.data.typing || []);
+                setViewingUsers(res.data.viewing || []);
             } catch {
                 // Silenciar errores de polling
             }
@@ -1076,6 +1080,28 @@ export default function ConversationsIndex({ conversations: initialConversations
             isActive = false;
             clearInterval(messagesInterval);
         };
+    }, [selectedConversation?.id]);
+
+    // Heartbeat de presencia: señalar que estamos viendo esta conversación
+    useEffect(() => {
+        if (!selectedConversation) {
+            setViewingUsers([]);
+            return;
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const sendViewing = () => {
+            fetch(`/admin/chat/${selectedConversation.id}/viewing`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrfToken },
+            }).catch(() => {});
+        };
+
+        // Enviar inmediatamente al abrir y luego cada 10s
+        sendViewing();
+        const viewingInterval = setInterval(sendViewing, 10000);
+
+        return () => clearInterval(viewingInterval);
     }, [selectedConversation?.id]);
 
     // Debounce para la búsqueda
@@ -2453,6 +2479,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 { value: 'all', label: 'Todos' },
                                 { value: 'unanswered', label: 'No leídos' },
                                 { value: 'pending_response', label: 'En espera' },
+                                { value: 'resolved', label: 'Resueltos' },
                             ].map((pill) => (
                                 <button
                                     key={pill.value}
@@ -3215,6 +3242,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </button>
                             </div>
                         </div>
+
+                        {/* Indicador de otros asesores viendo esta conversación */}
+                        {viewingUsers.length > 0 && (
+                            <div className="px-4 py-2 bg-amber-50/80 dark:bg-amber-950/30 border-b border-amber-200/60 dark:border-amber-800/40 flex items-center gap-2">
+                                <Eye className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                <span className="text-xs text-amber-700 dark:text-amber-300">
+                                    {viewingUsers.length === 1
+                                        ? <><strong>{viewingUsers[0].name}</strong> también está viendo esta conversación</>
+                                        : <><strong>{viewingUsers.map(u => u.name).join(', ')}</strong> también están viendo esta conversación</>
+                                    }
+                                </span>
+                            </div>
+                        )}
 
                         {/* Panel de datos del paciente */}
                         {showPatientData && selectedConversation.welcome_flow_data && (
