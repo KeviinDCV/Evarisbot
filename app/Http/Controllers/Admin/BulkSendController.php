@@ -89,6 +89,50 @@ class BulkSendController extends Controller
     }
 
     /**
+     * Buscar envíos masivos (incluye búsqueda en destinatarios)
+     */
+    public function search(Request $request)
+    {
+        $q = trim($request->input('q', ''));
+
+        if ($q === '') {
+            $bulkSends = BulkSend::with('creator')
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } else {
+            $bulkSends = BulkSend::with('creator')
+                ->where(function ($query) use ($q) {
+                    $query->where('name', 'like', "%{$q}%")
+                        ->orWhere('template_name', 'like', "%{$q}%")
+                        ->orWhere('status', 'like', "%{$q}%")
+                        ->orWhereHas('creator', fn($cq) => $cq->where('name', 'like', "%{$q}%"))
+                        ->orWhereHas('recipients', function ($rq) use ($q) {
+                            $rq->where('phone_number', 'like', "%{$q}%")
+                                ->orWhere('contact_name', 'like', "%{$q}%")
+                                ->orWhere('params', 'like', "%{$q}%")
+                                ->orWhere('error', 'like', "%{$q}%");
+                        });
+                })
+                ->orderBy('created_at', 'desc')
+                ->get();
+        }
+
+        return response()->json(
+            $bulkSends->map(fn($bs) => [
+                'id' => $bs->id,
+                'name' => $bs->name,
+                'template_name' => $bs->template_name,
+                'status' => $bs->status,
+                'total_recipients' => $bs->total_recipients,
+                'sent_count' => $bs->sent_count,
+                'failed_count' => $bs->failed_count,
+                'created_by_name' => $bs->creator?->name ?? 'Sistema',
+                'created_at' => $bs->created_at->format('Y-m-d H:i'),
+            ])
+        );
+    }
+
+    /**
      * Mostrar detalle de un envío masivo con sus destinatarios
      */
     public function show(BulkSend $bulkSend)

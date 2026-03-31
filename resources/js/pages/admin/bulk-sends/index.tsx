@@ -1,7 +1,7 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
 import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search } from 'lucide-react';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTranslation } from 'react-i18next';
@@ -71,21 +71,31 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [showPreview, setShowPreview] = useState(false);
     const [extraColumns, setExtraColumns] = useState<string[]>([]);
     const [historySearch, setHistorySearch] = useState('');
+    const [searchResults, setSearchResults] = useState<BulkSendRecord[] | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const filteredBulkSends = useMemo(() => {
-        if (!historySearch.trim()) return bulkSends;
-        const q = historySearch.toLowerCase();
-        return bulkSends.filter(bs =>
-            (bs.name || '').toLowerCase().includes(q) ||
-            bs.template_name.toLowerCase().includes(q) ||
-            bs.status.toLowerCase().includes(q) ||
-            bs.created_by_name.toLowerCase().includes(q) ||
-            bs.created_at.toLowerCase().includes(q) ||
-            String(bs.total_recipients).includes(q) ||
-            String(bs.sent_count).includes(q) ||
-            String(bs.failed_count).includes(q)
-        );
-    }, [bulkSends, historySearch]);
+    useEffect(() => {
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        const q = historySearch.trim();
+        if (!q) {
+            setSearchResults(null);
+            setIsSearching(false);
+            return;
+        }
+        setIsSearching(true);
+        searchTimerRef.current = setTimeout(() => {
+            fetch(`/admin/bulk-sends/search?q=${encodeURIComponent(q)}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then(res => res.json())
+                .then(data => { setSearchResults(data); setIsSearching(false); })
+                .catch(() => setIsSearching(false));
+        }, 400);
+        return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+    }, [historySearch]);
+
+    const filteredBulkSends = searchResults ?? bulkSends;
 
     const handleSelectTemplate = (templateId: string) => {
         const template = whatsappTemplates.find(t => t.id === Number(templateId));
@@ -808,11 +818,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 Historial de envíos ({filteredBulkSends.length})
                             </h2>
                             <div className="relative">
-                                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${isSearching ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
                                 <Input
                                     value={historySearch}
                                     onChange={(e) => setHistorySearch(e.target.value)}
-                                    placeholder="Buscar por nombre, template, estado, creador..."
+                                    placeholder="Buscar por nombre, teléfono, template, destinatario..."
                                     className="pl-9 h-9 text-sm rounded-xl w-full sm:w-80"
                                 />
                             </div>

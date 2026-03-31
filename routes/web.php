@@ -121,6 +121,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     // Envío Masivo - Accesible para Admin y asesores con permiso
     Route::controller(\App\Http\Controllers\Admin\BulkSendController::class)->prefix('bulk-sends')->name('bulk-sends.')->middleware('bulk-send')->group(function () {
         Route::get('/', 'index')->name('index');
+        Route::get('/search', 'search')->name('search');
         Route::post('/upload', 'upload')->name('upload');
         Route::post('/start', 'start')->name('start');
         Route::get('/status', 'status')->name('status');
