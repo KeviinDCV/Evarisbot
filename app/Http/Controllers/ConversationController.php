@@ -6,6 +6,7 @@ use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\ConversationActivity;
 use App\Models\Message;
+use App\Models\Tag;
 use App\Models\Template;
 use App\Models\User;
 use App\Services\SpellCheckService;
@@ -946,6 +947,15 @@ class ConversationController extends Controller
 
         $oldStatus = $conversation->status;
         $conversation->update($updateData);
+
+        // Si se marca como agendado, agregar etiqueta persistente "Agendado"
+        if ($validated['status'] === 'scheduled') {
+            $tag = Tag::firstOrCreate(
+                ['name' => 'Agendado'],
+                ['color' => '#f59e0b']
+            );
+            $conversation->tags()->syncWithoutDetaching([$tag->id]);
+        }
 
         // Registrar actividad
         $activityType = $validated['status'] === 'resolved' ? 'resolved' : ($oldStatus === 'resolved' ? 'reopened' : 'status_changed');
