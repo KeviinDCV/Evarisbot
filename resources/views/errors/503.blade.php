@@ -21,13 +21,13 @@
             max-width: 520px;
         }
         .icon {
-            font-size: 4rem;
-            margin-bottom: 1.5rem;
-            animation: pulse 2s ease-in-out infinite;
+            margin-bottom: 2rem;
         }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+        .icon img {
+            width: 200px;
+            height: 200px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
         }
         h1 {
             font-size: 1.75rem;
@@ -63,7 +63,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="icon">🛠️</div>
+        <div class="icon"><img src="/images/favicon.png" alt="Hospital Universitario del Valle"></div>
         <h1>Estamos en mantenimiento</h1>
         <p>Estamos realizando mejoras y ajustes en el sistema para brindarte un mejor servicio. Volveremos en unos minutos.</p>
         <p>Agradecemos tu paciencia.</p>
