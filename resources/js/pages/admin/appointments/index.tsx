@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, Phone, Wrench } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, Phone } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -82,7 +82,6 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, pending_tomorrow: 0, failed: 0 });
     // Inicializar progreso con el valor del servidor si existe
     const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; pending: number; percentage: number } | null>(initialProgress);
-    const [showUploadTools, setShowUploadTools] = useState(!uploadedFile);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         file: null as File | null,
@@ -585,7 +584,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
             <Head title="Citas" />
 
             <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
-                <div className="max-w-7xl mx-auto flex flex-col">
+                <div className="max-w-7xl mx-auto">
                     {/* Header */}
                     <div className="mb-6">
                         <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
@@ -626,9 +625,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                         </div>
                     )}
 
-                    {/* Resumen de Recordatorios */}
+                    {/* Resumen rápido */}
                     {(remindersStats || localStats) && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             {/* Enviados */}
                             <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                                 <div className="flex items-center gap-4">
@@ -670,6 +669,143 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             {localStats.failed.toLocaleString()}
                                         </p>
                                         <p className="text-sm settings-subtitle">Fallidos</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Total citas */}
+                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                        <CalendarCheck className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold settings-title">
+                                            {totalAppointments.toLocaleString()}
+                                        </p>
+                                        <p className="text-sm settings-subtitle">Total citas</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Upload Section */}
+                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
+                    >
+                        <form onSubmit={submit}>
+                            <div className="mb-6">
+                                <h2 className="text-lg font-semibold settings-title mb-4 flex items-center gap-2">
+                                    <FileSpreadsheet className="w-5 h-5" />
+                                    Cargar archivo de citas
+                                </h2>
+
+                                {/* File Upload Area */}
+                                <div
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    className={`
+                                    border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
+                                    upload-dropzone
+                                    ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(30,5%,25%)]'}
+                                    hover:border-primary hover:upload-dropzone-active
+                                    transition-all duration-200
+                                `}
+                                >
+                                    {!data.file ? (
+                                        <label htmlFor="appointment-file-upload" className="cursor-pointer block">
+                                            <input
+                                                id="appointment-file-upload"
+                                                name="appointment-file"
+                                                type="file"
+                                                className="hidden"
+                                                accept=".xlsx,.xls,.csv"
+                                                onChange={handleFileChange}
+                                                disabled={processing}
+                                            />
+                                            <div className="flex flex-col items-center gap-4">
+                                                <div className="w-16 h-16 rounded-full flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)]">
+                                                    <Upload className="w-8 h-8 text-white" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-lg font-medium settings-title mb-1">
+                                                        Arrastra y suelta tu archivo aquí
+                                                    </p>
+                                                    <p className="text-sm settings-subtitle">
+                                                        o <span className="settings-title font-semibold">haz click para seleccionar</span>
+                                                    </p>
+                                                    <p className="text-xs settings-subtitle mt-2">
+                                                        Formatos soportados: .xlsx, .xls, .csv (máx. 10MB)
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    ) : (
+                                        <div className="flex items-center justify-between p-4 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_6px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.15)]">
+                                                    <FileSpreadsheet className="w-6 h-6 text-white" />
+                                                </div>
+                                                <div className="text-left">
+                                                    <p className="font-medium settings-title">{data.file.name}</p>
+                                                    <p className="text-sm settings-subtitle">
+                                                        {formatFileSize(data.file.size)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={removeFile}
+                                                className="p-2 hover:bg-gradient-to-b hover:from-red-50 hover:to-red-100 rounded-xl transition-all duration-200"
+                                                disabled={processing}
+                                            >
+                                                <X className="w-5 h-5 text-red-500" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {errors.file && (
+                                    <div className="mt-4 flex items-start gap-2 p-4 bg-gradient-to-b from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-900/10 rounded-2xl shadow-[0_1px_2px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
+                                        <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                                        <p className="text-sm text-red-600 dark:text-red-400">{errors.file}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Upload Button */}
+                            {data.file && (
+                                <div className="flex justify-end">
+                                    <button
+                                        type="submit"
+                                        disabled={processing}
+                                        className="px-6 py-3 text-white rounded-xl font-medium chat-message-sent shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_12px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.2),0_6px_16px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                    >
+                                        {processing ? 'Subiendo...' : 'Subir archivo'}
+                                    </button>
+                                </div>
+                            )}
+                        </form>
+                    </div>
+
+                    {/* Uploaded File Info */}
+                    {uploadedFile && (
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
+                        >
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-b from-emerald-400 to-emerald-500 shadow-[0_2px_8px_rgba(16,185,129,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]">
+                                    <CheckCircle2 className="w-6 h-6 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold settings-title mb-2">
+                                        Archivo cargado exitosamente
+                                    </h3>
+                                    <div className="space-y-1 text-sm settings-subtitle">
+                                        <p><span className="font-semibold settings-title">Nombre:</span> {uploadedFile.name}</p>
+                                        <p><span className="font-semibold settings-title">Tamaño:</span> {formatFileSize(uploadedFile.size)}</p>
+                                        <p><span className="font-semibold settings-title">Registros:</span> {uploadedFile.total_rows || initialAppointments.length} citas</p>
+                                        <p><span className="font-semibold settings-title">Fecha:</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
                                     </div>
                                 </div>
                             </div>
@@ -715,7 +851,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         )}
                                     </div>
 
-                                    {/* Barra de progreso en tiempo real - usar estado local isProcessing, no depender del servidor */}
+                                    {/* Barra de progreso en tiempo real */}
                                     {isProcessing && progress && progress.total > 0 && (
                                         <div className="mt-4 space-y-2">
                                             <div className="flex items-center justify-between text-xs settings-subtitle">
@@ -913,169 +1049,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                         </div>
                     )}
 
-                    {/* Herramientas de Carga */}
-                    <div style={{ order: 2 }}>
-                        <button
-                            type="button"
-                            onClick={() => setShowUploadTools(!showUploadTools)}
-                            className="w-full flex items-center justify-between p-4 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 cursor-pointer mb-4"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_6px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.15)]">
-                                    <Wrench className="w-5 h-5 text-white" />
-                                </div>
-                                <div>
-                                    <span className="text-lg font-semibold settings-title">Herramientas de carga</span>
-                                    {uploadedFile && (
-                                        <p className="text-xs settings-subtitle mt-0.5">
-                                            Archivo actual: {uploadedFile.name} ({uploadedFile.total_rows || initialAppointments.length} registros)
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {uploadedFile && (
-                                    <span className="text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-full font-medium">
-                                        ✓ Cargado
-                                    </span>
-                                )}
-                                {showUploadTools ? (
-                                    <ChevronUp className="w-5 h-5 settings-subtitle" />
-                                ) : (
-                                    <ChevronDown className="w-5 h-5 settings-subtitle" />
-                                )}
-                            </div>
-                        </button>
-                        {showUploadTools && (
-                            <>
-                    {/* Upload Section */}
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
-                    >
-                        <form onSubmit={submit}>
-                            <div className="mb-6">
-                                <h2 className="text-lg font-semibold settings-title mb-4 flex items-center gap-2">
-                                    <FileSpreadsheet className="w-5 h-5" />
-                                    Cargar archivo de citas
-                                </h2>
-
-                                {/* File Upload Area */}
-                                <div
-                                    onDrop={handleDrop}
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                    className={`
-                                    border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
-                                    upload-dropzone
-                                    ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(30,5%,25%)]'}
-                                    hover:border-primary hover:upload-dropzone-active
-                                    transition-all duration-200
-                                `}
-                                >
-                                    {!data.file ? (
-                                        <label htmlFor="appointment-file-upload" className="cursor-pointer block">
-                                            <input
-                                                id="appointment-file-upload"
-                                                name="appointment-file"
-                                                type="file"
-                                                className="hidden"
-                                                accept=".xlsx,.xls,.csv"
-                                                onChange={handleFileChange}
-                                                disabled={processing}
-                                            />
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="w-16 h-16 rounded-full flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)]">
-                                                    <Upload className="w-8 h-8 text-white" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-lg font-medium settings-title mb-1">
-                                                        Arrastra y suelta tu archivo aquí
-                                                    </p>
-                                                    <p className="text-sm settings-subtitle">
-                                                        o <span className="settings-title font-semibold">haz click para seleccionar</span>
-                                                    </p>
-                                                    <p className="text-xs settings-subtitle mt-2">
-                                                        Formatos soportados: .xlsx, .xls, .csv (máx. 10MB)
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    ) : (
-                                        <div className="flex items-center justify-between p-4 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_6px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.15)]">
-                                                    <FileSpreadsheet className="w-6 h-6 text-white" />
-                                                </div>
-                                                <div className="text-left">
-                                                    <p className="font-medium settings-title">{data.file.name}</p>
-                                                    <p className="text-sm settings-subtitle">
-                                                        {formatFileSize(data.file.size)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={removeFile}
-                                                className="p-2 hover:bg-gradient-to-b hover:from-red-50 hover:to-red-100 rounded-xl transition-all duration-200"
-                                                disabled={processing}
-                                            >
-                                                <X className="w-5 h-5 text-red-500" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {errors.file && (
-                                    <div className="mt-4 flex items-start gap-2 p-4 bg-gradient-to-b from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-900/10 rounded-2xl shadow-[0_1px_2px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
-                                        <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                                        <p className="text-sm text-red-600 dark:text-red-400">{errors.file}</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Upload Button */}
-                            {data.file && (
-                                <div className="flex justify-end">
-                                    <button
-                                        type="submit"
-                                        disabled={processing}
-                                        className="px-6 py-3 text-white rounded-xl font-medium chat-message-sent shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_12px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.2),0_6px_16px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-                                    >
-                                        {processing ? 'Subiendo...' : 'Subir archivo'}
-                                    </button>
-                                </div>
-                            )}
-                        </form>
-                    </div>
-
-                    {/* Uploaded File Info */}
-                    {uploadedFile && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
-                        >
-                            <div className="flex items-start gap-4">
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-b from-emerald-400 to-emerald-500 shadow-[0_2px_8px_rgba(16,185,129,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                    <CheckCircle2 className="w-6 h-6 text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="font-semibold settings-title mb-2">
-                                        Archivo cargado exitosamente
-                                    </h3>
-                                    <div className="space-y-1 text-sm settings-subtitle">
-                                        <p><span className="font-semibold settings-title">Nombre:</span> {uploadedFile.name}</p>
-                                        <p><span className="font-semibold settings-title">Tamaño:</span> {formatFileSize(uploadedFile.size)}</p>
-                                        <p><span className="font-semibold settings-title">Registros:</span> {uploadedFile.total_rows || initialAppointments.length} citas</p>
-                                        <p><span className="font-semibold settings-title">Fecha:</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                            </>
-                        )}
-                    </div>
-
                     {/* Tabla de Citas */}
                     {initialAppointments.length > 0 && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6" style={{ order: 1 }}>
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6">
                             {/* Header con búsqueda */}
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
@@ -1288,7 +1264,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
                     {/* Instructions */}
                     {initialAppointments.length === 0 && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10" style={{ order: 3 }}
+                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10"
                         >
                             <h3 className="font-semibold settings-title mb-4">
                                 Formato del archivo excel

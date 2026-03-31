@@ -141,6 +141,27 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     const [expandedAdvisor, setExpandedAdvisor] = useState<number | null>(null);
     const [advisorDetail, setAdvisorDetail] = useState<AdvisorDetail | null>(null);
     const [loadingAdvisor, setLoadingAdvisor] = useState(false);
+    const [advisorPeriod, setAdvisorPeriod] = useState('all');
+    const [advisorStartDate, setAdvisorStartDate] = useState('');
+    const [advisorEndDate, setAdvisorEndDate] = useState('');
+
+    const fetchAdvisorDetail = useCallback(async (advisorId: number, p?: string, sd?: string, ed?: string) => {
+        setLoadingAdvisor(true);
+        try {
+            const usePeriod = p ?? advisorPeriod;
+            const useStart = sd ?? advisorStartDate;
+            const useEnd = ed ?? advisorEndDate;
+            const params: Record<string, string> = { period: usePeriod };
+            if (useStart) params.start_date = useStart;
+            if (useEnd) params.end_date = useEnd;
+            const res = await axios.get(`/admin/statistics/advisor/${advisorId}`, { params });
+            setAdvisorDetail(res.data);
+        } catch {
+            setAdvisorDetail(null);
+        } finally {
+            setLoadingAdvisor(false);
+        }
+    }, [advisorPeriod, advisorStartDate, advisorEndDate]);
 
     const toggleAdvisorDetail = useCallback(async (advisorId: number) => {
         if (expandedAdvisor === advisorId) {
@@ -149,19 +170,11 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
             return;
         }
         setExpandedAdvisor(advisorId);
-        setLoadingAdvisor(true);
-        try {
-            const params: Record<string, string> = { period };
-            if (startDate) params.start_date = startDate;
-            if (endDate) params.end_date = endDate;
-            const res = await axios.get(`/admin/statistics/advisor/${advisorId}`, { params });
-            setAdvisorDetail(res.data);
-        } catch {
-            setAdvisorDetail(null);
-        } finally {
-            setLoadingAdvisor(false);
-        }
-    }, [expandedAdvisor, period, startDate, endDate]);
+        setAdvisorPeriod('all');
+        setAdvisorStartDate('');
+        setAdvisorEndDate('');
+        await fetchAdvisorDetail(advisorId, 'all', '', '');
+    }, [expandedAdvisor, fetchAdvisorDetail]);
     const [isExporting, setIsExporting] = useState(false);
     const [showCharts, setShowCharts] = useState(false);
 
@@ -531,6 +544,56 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                                 {/* Detail panel */}
                                                 {expandedAdvisor === advisor.id && (
                                                     <div className="mb-2 ml-5 mr-1 p-3 rounded-xl bg-black/[0.03] dark:bg-white/[0.03] border border-border/50">
+                                                        {/* Filtro por fecha del asesor */}
+                                                        <div className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-border/30">
+                                                            <span className="text-[10px] font-semibold settings-title">Filtrar:</span>
+                                                            {['today', 'week', 'month', 'year', 'all'].map((p) => (
+                                                                <button
+                                                                    key={p}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setAdvisorPeriod(p);
+                                                                        setAdvisorStartDate('');
+                                                                        setAdvisorEndDate('');
+                                                                        if (expandedAdvisor) fetchAdvisorDetail(expandedAdvisor, p, '', '');
+                                                                    }}
+                                                                    className={`text-[10px] px-2.5 py-1 rounded-full font-medium transition-all duration-200 ${
+                                                                        advisorPeriod === p && !advisorStartDate
+                                                                            ? 'bg-[#2e3f84] text-white shadow-sm'
+                                                                            : 'bg-black/5 dark:bg-white/5 settings-subtitle hover:bg-black/10 dark:hover:bg-white/10'
+                                                                    }`}
+                                                                >
+                                                                    {{ today: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año', all: 'Todo' }[p]}
+                                                                </button>
+                                                            ))}
+                                                            <span className="text-[10px] settings-subtitle mx-1">|</span>
+                                                            <input
+                                                                type="date"
+                                                                value={advisorStartDate}
+                                                                onChange={(e) => {
+                                                                    setAdvisorStartDate(e.target.value);
+                                                                    if (e.target.value && advisorEndDate && expandedAdvisor) {
+                                                                        setAdvisorPeriod('custom');
+                                                                        fetchAdvisorDetail(expandedAdvisor, 'custom', e.target.value, advisorEndDate);
+                                                                    }
+                                                                }}
+                                                                className="text-[10px] px-2 py-1 rounded-lg settings-input border border-border/50 w-[110px]"
+                                                            />
+                                                            <span className="text-[10px] settings-subtitle">a</span>
+                                                            <input
+                                                                type="date"
+                                                                value={advisorEndDate}
+                                                                onChange={(e) => {
+                                                                    setAdvisorEndDate(e.target.value);
+                                                                    if (advisorStartDate && e.target.value && expandedAdvisor) {
+                                                                        setAdvisorPeriod('custom');
+                                                                        fetchAdvisorDetail(expandedAdvisor, 'custom', advisorStartDate, e.target.value);
+                                                                    }
+                                                                }}
+                                                                className="text-[10px] px-2 py-1 rounded-lg settings-input border border-border/50 w-[110px]"
+                                                            />
+                                                        </div>
+
                                                         {loadingAdvisor ? (
                                                             <div className="flex items-center justify-center py-6">
                                                                 <div className="w-5 h-5 border-2 border-[#2e3f84] border-t-transparent rounded-full animate-spin" />
