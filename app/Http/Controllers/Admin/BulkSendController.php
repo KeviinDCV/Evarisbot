@@ -96,39 +96,56 @@ class BulkSendController extends Controller
         $q = trim($request->input('q', ''));
 
         if ($q === '') {
-            $bulkSends = BulkSend::with('creator')
-                ->orderBy('created_at', 'desc')
-                ->get();
-        } else {
-            $bulkSends = BulkSend::with('creator')
-                ->where(function ($query) use ($q) {
-                    $query->where('name', 'like', "%{$q}%")
-                        ->orWhere('template_name', 'like', "%{$q}%")
-                        ->orWhere('status', 'like', "%{$q}%")
-                        ->orWhereHas('creator', fn($cq) => $cq->where('name', 'like', "%{$q}%"))
-                        ->orWhereHas('recipients', function ($rq) use ($q) {
-                            $rq->where('phone_number', 'like', "%{$q}%")
-                                ->orWhere('contact_name', 'like', "%{$q}%")
-                                ->orWhere('params', 'like', "%{$q}%")
-                                ->orWhere('error', 'like', "%{$q}%");
-                        });
-                })
-                ->orderBy('created_at', 'desc')
-                ->get();
+            return response()->json([]);
         }
 
+        // Buscar en destinatarios que coincidan
+        $matchingRecipients = BulkSendRecipient::where('phone_number', 'like', "%{$q}%")
+            ->orWhere('contact_name', 'like', "%{$q}%")
+            ->orWhere('params', 'like', "%{$q}%")
+            ->orWhere('error', 'like', "%{$q}%")
+            ->limit(200)
+            ->get()
+            ->groupBy('bulk_send_id');
+
+        // Buscar bulk sends que coincidan por metadata
+        $metaMatchIds = BulkSend::where('name', 'like', "%{$q}%")
+            ->orWhere('template_name', 'like', "%{$q}%")
+            ->orWhere('status', 'like', "%{$q}%")
+            ->orWhereHas('creator', fn($cq) => $cq->where('name', 'like', "%{$q}%"))
+            ->pluck('id');
+
+        $allIds = $matchingRecipients->keys()->merge($metaMatchIds)->unique();
+
+        $bulkSends = BulkSend::with('creator')
+            ->whereIn('id', $allIds)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return response()->json(
-            $bulkSends->map(fn($bs) => [
-                'id' => $bs->id,
-                'name' => $bs->name,
-                'template_name' => $bs->template_name,
-                'status' => $bs->status,
-                'total_recipients' => $bs->total_recipients,
-                'sent_count' => $bs->sent_count,
-                'failed_count' => $bs->failed_count,
-                'created_by_name' => $bs->creator?->name ?? 'Sistema',
-                'created_at' => $bs->created_at->format('Y-m-d H:i'),
-            ])
+            $bulkSends->map(function ($bs) use ($matchingRecipients) {
+                $matched = $matchingRecipients->get($bs->id);
+                return [
+                    'id' => $bs->id,
+                    'name' => $bs->name,
+                    'template_name' => $bs->template_name,
+                    'status' => $bs->status,
+                    'total_recipients' => $bs->total_recipients,
+                    'sent_count' => $bs->sent_count,
+                    'failed_count' => $bs->failed_count,
+                    'created_by_name' => $bs->creator?->name ?? 'Sistema',
+                    'created_at' => $bs->created_at->format('Y-m-d H:i'),
+                    'matching_recipients' => $matched ? $matched->map(fn($r) => [
+                        'id' => $r->id,
+                        'phone_number' => $r->phone_number,
+                        'contact_name' => $r->contact_name,
+                        'status' => $r->status,
+                        'error' => $r->error,
+                        'sent_at' => $r->sent_at?->format('Y-m-d H:i:s'),
+                        'params' => $r->params,
+                    ])->values()->toArray() : null,
+                ];
+            })
         );
     }
 

@@ -1,7 +1,7 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
 import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2 } from 'lucide-react';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,16 @@ interface Recipient {
     phone: string;
     name: string;
     params?: Record<string, string>;
+}
+
+interface MatchingRecipient {
+    id: number;
+    phone_number: string;
+    contact_name: string | null;
+    status: string;
+    error: string | null;
+    sent_at: string | null;
+    params: Record<string, string> | null;
 }
 
 interface BulkSendRecord {
@@ -23,6 +33,7 @@ interface BulkSendRecord {
     failed_count: number;
     created_by_name: string;
     created_at: string;
+    matching_recipients?: MatchingRecipient[] | null;
 }
 
 interface ActiveProgress {
@@ -373,8 +384,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             draft: { text: 'Borrador', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
             processing: { text: 'Procesando', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
             completed: { text: 'Completado', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
+            sent: { text: 'Enviado', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
             failed: { text: 'Fallido', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
             cancelled: { text: 'Cancelado', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
+            pending: { text: 'Pendiente', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
         };
         return labels[status] || { text: status, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' };
     };
@@ -836,7 +849,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                         {filteredBulkSends.length === 0 ? (
                             <p className="text-sm text-muted-foreground text-center py-6">
-                                No hay envíos masivos registrados
+                                {isSearching ? 'Buscando...' : historySearch.trim() ? 'No se encontraron resultados' : 'No hay envíos masivos registrados'}
                             </p>
                         ) : (
                             <div className="overflow-x-auto">
@@ -856,25 +869,68 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     <tbody>
                                         {filteredBulkSends.map((bs) => {
                                             const status = statusLabel(bs.status);
+                                            const hasMatches = bs.matching_recipients && bs.matching_recipients.length > 0;
                                             return (
-                                                <tr
-                                                    key={bs.id}
-                                                    className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
-                                                    onClick={() => router.visit(`/admin/bulk-sends/${bs.id}`)}
-                                                >
-                                                    <td className="py-3 px-3 font-medium text-primary hover:underline">{bs.name || '—'}</td>
-                                                    <td className="py-3 px-3 font-mono text-xs text-muted-foreground">{bs.template_name}</td>
-                                                    <td className="py-3 px-3 text-center">
-                                                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${status.color}`}>
-                                                            {status.text}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3 px-3 text-center font-medium">{bs.total_recipients}</td>
-                                                    <td className="py-3 px-3 text-center text-green-600 font-bold">{bs.sent_count}</td>
-                                                    <td className="py-3 px-3 text-center text-red-600 font-bold">{bs.failed_count}</td>
-                                                    <td className="py-3 px-3 text-muted-foreground">{bs.created_by_name}</td>
-                                                    <td className="py-3 px-3 text-muted-foreground text-xs">{bs.created_at}</td>
-                                                </tr>
+                                                <React.Fragment key={bs.id}>
+                                                    <tr
+                                                        className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                                                        onClick={() => router.visit(`/admin/bulk-sends/${bs.id}`)}
+                                                    >
+                                                        <td className="py-3 px-3 font-medium text-primary hover:underline">{bs.name || '—'}</td>
+                                                        <td className="py-3 px-3 font-mono text-xs text-muted-foreground">{bs.template_name}</td>
+                                                        <td className="py-3 px-3 text-center">
+                                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${status.color}`}>
+                                                                {status.text}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-3 px-3 text-center font-medium">{bs.total_recipients}</td>
+                                                        <td className="py-3 px-3 text-center text-green-600 font-bold">{bs.sent_count}</td>
+                                                        <td className="py-3 px-3 text-center text-red-600 font-bold">{bs.failed_count}</td>
+                                                        <td className="py-3 px-3 text-muted-foreground">{bs.created_by_name}</td>
+                                                        <td className="py-3 px-3 text-muted-foreground text-xs">{bs.created_at}</td>
+                                                    </tr>
+                                                    {hasMatches && (
+                                                        <tr key={`${bs.id}-matches`}>
+                                                            <td colSpan={8} className="p-0">
+                                                                <div className="bg-muted/40 dark:bg-muted/20 border-b border-border/50 px-4 py-3">
+                                                                    <p className="text-xs font-semibold text-primary/80 mb-2 flex items-center gap-1.5">
+                                                                        <Eye className="w-3.5 h-3.5" />
+                                                                        {bs.matching_recipients!.length} destinatario{bs.matching_recipients!.length !== 1 ? 's' : ''} encontrado{bs.matching_recipients!.length !== 1 ? 's' : ''}
+                                                                    </p>
+                                                                    <table className="w-full text-xs">
+                                                                        <thead>
+                                                                            <tr className="text-muted-foreground">
+                                                                                <th className="text-left py-1 px-2 font-medium">Nombre</th>
+                                                                                <th className="text-left py-1 px-2 font-medium">Teléfono</th>
+                                                                                <th className="text-center py-1 px-2 font-medium">Estado</th>
+                                                                                <th className="text-left py-1 px-2 font-medium">Enviado</th>
+                                                                                <th className="text-left py-1 px-2 font-medium">Error</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {bs.matching_recipients!.map((r) => {
+                                                                                const rStatus = statusLabel(r.status);
+                                                                                return (
+                                                                                    <tr key={r.id} className="border-t border-border/30">
+                                                                                        <td className="py-1.5 px-2 text-foreground">{r.contact_name || '—'}</td>
+                                                                                        <td className="py-1.5 px-2 font-mono text-foreground font-medium">{r.phone_number}</td>
+                                                                                        <td className="py-1.5 px-2 text-center">
+                                                                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${rStatus.color}`}>
+                                                                                                {rStatus.text}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="py-1.5 px-2 text-muted-foreground">{r.sent_at || '—'}</td>
+                                                                                        <td className="py-1.5 px-2 text-red-500 max-w-[200px] truncate">{r.error || '—'}</td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
                                             );
                                         })}
                                     </tbody>
