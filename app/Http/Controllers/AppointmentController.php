@@ -20,25 +20,48 @@ use Illuminate\Support\Facades\Bus;
 
 class AppointmentController extends Controller
 {
+    protected string $service = 'general';
+    protected string $routePrefix = 'admin.appointments';
+    protected string $urlPrefix = '/admin/appointments';
+    protected string $inertiaPage = 'admin/appointments/index';
+    protected string $inertiaViewPage = 'admin/appointments/view';
+    protected string $pageTitle = 'Gestión de Citas';
+
+    /**
+     * Query builder filtrado por servicio
+     */
+    protected function serviceQuery()
+    {
+        return Appointment::where('service', $this->service);
+    }
+
+    /**
+     * Claves de settings con prefijo de servicio para no colisionar
+     */
+    protected function settingKey(string $key): string
+    {
+        return $this->service === 'general' ? $key : $this->service . '_' . $key;
+    }
+
     /**
      * Mostrar la página de gestión de citas
      */
     public function index()
     {
         // Verificar estado de procesamiento y obtener progreso del batch
-        $reminderProcessing = Setting::get('reminder_processing', 'false') === 'true';
+        $reminderProcessing = Setting::get($this->settingKey('reminder_processing'), 'false') === 'true';
         $reminderProgress = null;
         
         if ($reminderProcessing) {
-            $batchId = Setting::get('reminder_batch_id');
+            $batchId = Setting::get($this->settingKey('reminder_batch_id'));
             if ($batchId) {
                 try {
                     $batch = Bus::findBatch($batchId);
                     if ($batch && ($batch->finished() || $batch->cancelled())) {
                         // Batch terminó, limpiar estado
-                        Setting::set('reminder_processing', 'false');
-                        Setting::set('reminder_paused', 'false');
-                        Setting::remove('reminder_batch_id');
+                        Setting::set($this->settingKey('reminder_processing'), 'false');
+                        Setting::set($this->settingKey('reminder_paused'), 'false');
+                        Setting::remove($this->settingKey('reminder_batch_id'));
                         $reminderProcessing = false;
                     } elseif ($batch) {
                         // Batch activo - obtener progreso para enviarlo al frontend
@@ -55,8 +78,8 @@ class AppointmentController extends Controller
                     } else {
                         // Batch no encontrado
                         Log::warning('Batch de recordatorios no encontrado', ['batch_id' => $batchId]);
-                        Setting::set('reminder_processing', 'false');
-                        Setting::remove('reminder_batch_id');
+                        Setting::set($this->settingKey('reminder_processing'), 'false');
+                        Setting::remove($this->settingKey('reminder_batch_id'));
                         $reminderProcessing = false;
                     }
                 } catch (\Exception $e) {
@@ -70,7 +93,7 @@ class AppointmentController extends Controller
         }
         
         // Cargar las últimas 50 citas (más recientes primero) - todos los admins ven todas
-        $appointments = Appointment::orderBy('id', 'desc')
+        $appointments = $this->serviceQuery()->orderBy('id', 'desc')
             ->limit(50)
             ->get()
             ->map(fn($apt) => [
@@ -90,14 +113,14 @@ class AppointmentController extends Controller
                 'reminder_status' => $apt->reminder_status,
             ]);
         
-        $totalAppointments = Appointment::count();
+        $totalAppointments = $this->serviceQuery()->count();
         
         // Obtener solo las citas pendientes de pasado mañana (2 días desde hoy)
-        $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
+        $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
         $targetDate = now()->addDays($daysInAdvance)->startOfDay();
         $targetDateString = $targetDate->format('Y-m-d');
         
-        $pendingCount = Appointment::query()
+        $pendingCount = $this->serviceQuery()
             ->whereDate('citfc', '=', $targetDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
@@ -110,7 +133,7 @@ class AppointmentController extends Controller
         $tomorrowDate = now()->addDays(1)->startOfDay();
         $tomorrowDateString = $tomorrowDate->format('Y-m-d');
         
-        $pendingTomorrowCount = Appointment::query()
+        $pendingTomorrowCount = $this->serviceQuery()
             ->whereDate('citfc', '=', $tomorrowDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
@@ -120,16 +143,16 @@ class AppointmentController extends Controller
             ->count();
         
         $remindersStats = [
-            'sent' => Appointment::where('reminder_sent', true)->count(),
+            'sent' => $this->serviceQuery()->where('reminder_sent', true)->count(),
             'pending' => $pendingCount,
             'pending_tomorrow' => $pendingTomorrowCount,
-            'failed' => Appointment::where('reminder_status', 'failed')->count(),
+            'failed' => $this->serviceQuery()->where('reminder_status', 'failed')->count(),
         ];
         
         // Estado de recordatorios
-        $reminderPaused = Setting::get('reminder_paused', 'false') === 'true';
+        $reminderPaused = Setting::get($this->settingKey('reminder_paused'), 'false') === 'true';
         
-        return Inertia::render('admin/appointments/index', [
+        return Inertia::render($this->inertiaPage, [
             'appointments' => $appointments,
             'totalAppointments' => $totalAppointments,
             'remindersStats' => $remindersStats,
@@ -137,6 +160,8 @@ class AppointmentController extends Controller
             'reminderPaused' => $reminderPaused,
             'reminderProcessing' => $reminderProcessing,
             'reminderProgress' => $reminderProgress,
+            'routePrefix' => $this->urlPrefix,
+            'pageTitle' => $this->pageTitle,
         ]);
     }
 
@@ -145,7 +170,7 @@ class AppointmentController extends Controller
      */
     public function view(Request $request)
     {
-        $query = Appointment::query();
+        $query = $this->serviceQuery();
         
         // Aplicar filtro por estado de recordatorio
         $filter = $request->get('filter', 'all');
@@ -235,13 +260,13 @@ class AppointmentController extends Controller
         
         // Estadísticas por filtro
         $stats = [
-            'all' => Appointment::count(),
-            'pending' => Appointment::where('reminder_sent', false)->count(),
-            'confirmed' => Appointment::where('reminder_status', 'confirmed')->count(),
-            'cancelled' => Appointment::where('reminder_status', 'cancelled')->count(),
+            'all' => $this->serviceQuery()->count(),
+            'pending' => $this->serviceQuery()->where('reminder_sent', false)->count(),
+            'confirmed' => $this->serviceQuery()->where('reminder_status', 'confirmed')->count(),
+            'cancelled' => $this->serviceQuery()->where('reminder_status', 'cancelled')->count(),
         ];
         
-        return Inertia::render('admin/appointments/view', [
+        return Inertia::render($this->inertiaViewPage, [
             'appointments' => $appointments,
             'filter' => $filter,
             'search' => $search,
@@ -250,6 +275,8 @@ class AppointmentController extends Controller
             'sort' => $sortField,
             'direction' => $sortDirection,
             'stats' => $stats,
+            'routePrefix' => $this->urlPrefix,
+            'pageTitle' => $this->pageTitle,
         ]);
     }
 
@@ -268,7 +295,7 @@ class AppointmentController extends Controller
         set_time_limit(300);
         ini_set('memory_limit', '512M');
 
-        $query = Appointment::query()
+        $query = $this->serviceQuery()
             ->select([
                 'citead', 'cianom', 'nom_paciente', 'citide', 'pactel',
                 'citfc', 'cithor', 'mednom', 'espnom', 'connom', 'citobsobs',
@@ -450,7 +477,7 @@ class AppointmentController extends Controller
                 $successMessage .= " Se omitieron {$result['duplicates']} citas porque ya estaban registradas.";
             }
 
-            return redirect()->route('admin.appointments.index')->with([
+            return redirect()->route($this->routePrefix . '.index')->with([
                 'success' => $successMessage,
                 'uploaded_file' => [
                     'name' => $originalName,
@@ -557,7 +584,7 @@ class AppointmentController extends Controller
                         continue;
                     }
 
-                    $appointment = ['uploaded_by' => auth()->id()];
+                    $appointment = ['uploaded_by' => auth()->id(), 'service' => $this->service];
                     $rowDebug = [];
                     
                     foreach ($columnIndexes as $column => $index) {
@@ -795,7 +822,8 @@ class AppointmentController extends Controller
         ];
         
         $query = DB::table('appointments')
-            ->where('uploaded_by', $uploadedBy);
+            ->where('uploaded_by', $uploadedBy)
+            ->where('service', $this->service);
         
         // Comparar todos los campos
         foreach ($fieldsToCompare as $field) {
@@ -821,11 +849,11 @@ class AppointmentController extends Controller
     {
         try {
             // Verificar si ya está procesando
-            $isProcessing = Setting::get('reminder_processing', 'false') === 'true';
+            $isProcessing = Setting::get($this->settingKey('reminder_processing'), 'false') === 'true';
             
             if ($isProcessing) {
                 // Verificar si realmente hay un batch activo
-                $batchId = Setting::get('reminder_batch_id');
+                $batchId = Setting::get($this->settingKey('reminder_batch_id'));
                 $hasActiveBatch = false;
                 
                 if ($batchId) {
@@ -844,12 +872,12 @@ class AppointmentController extends Controller
                         'batch_exists' => $batch ?? null,
                     ]);
                     
-                    Setting::set('reminder_processing', 'false');
-                    Setting::set('reminder_paused', 'false');
-                    Setting::remove('reminder_batch_id');
-                    Setting::remove('reminder_progress_sent');
-                    Setting::remove('reminder_progress_failed');
-                    Setting::remove('reminder_progress_total');
+                    Setting::set($this->settingKey('reminder_processing'), 'false');
+                    Setting::set($this->settingKey('reminder_paused'), 'false');
+                    Setting::remove($this->settingKey('reminder_batch_id'));
+                    Setting::remove($this->settingKey('reminder_progress_sent'));
+                    Setting::remove($this->settingKey('reminder_progress_failed'));
+                    Setting::remove($this->settingKey('reminder_progress_total'));
                     
                     // Continuar con el proceso normalmente
                 } else {
@@ -866,12 +894,12 @@ class AppointmentController extends Controller
             // Si se pasa en el request, usar ese valor (para envío 1 día antes)
             $daysInAdvance = $request->has('days_in_advance') 
                 ? (int) $request->input('days_in_advance')
-                : (int) Setting::get('reminder_days_in_advance', '2');
+                : (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
             
             // Límites de Meta WhatsApp Business API:
             // - Máximo 1,000 conversaciones iniciadas por día (24 horas)
             // - Rate limiting manejado por el middleware del Job (WithoutOverlapping)
-            $maxPerDay = (int) Setting::get('reminder_max_per_day', '1000'); // Límite diario de Meta
+            $maxPerDay = (int) Setting::get($this->settingKey('reminder_max_per_day'), '1000'); // Límite diario de Meta
             
             // Calcular fecha objetivo: pasado mañana (2 días desde hoy)
             $targetDate = now()->addDays($daysInAdvance)->startOfDay();
@@ -880,7 +908,7 @@ class AppointmentController extends Controller
             // PASO 1: Limpiar errores temporales ANTES de consultar
             // Esto permite reintentar citas con errores transitorios (rate limit, timeout, etc.)
             // pero NO limpia errores permanentes (teléfono inválido, formato incorrecto)
-            Appointment::query()
+            $this->serviceQuery()
                 ->whereDate('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('reminder_error')
@@ -897,7 +925,7 @@ class AppointmentController extends Controller
             
             // PASO 2: Obtener citas pendientes EXCLUYENDO las que tienen errores permanentes
             // Esto coincide con el conteo del index page (que también usa whereNull('reminder_error'))
-            $appointments = Appointment::query()
+            $appointments = $this->serviceQuery()
                 ->whereDate('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNull('reminder_error') // Excluir errores permanentes (teléfono inválido, etc.)
@@ -926,15 +954,15 @@ class AppointmentController extends Controller
             }
 
             // Marcar como procesando
-            Setting::set('reminder_processing', 'true');
-            Setting::set('reminder_paused', 'false');
+            Setting::set($this->settingKey('reminder_processing'), 'true');
+            Setting::set($this->settingKey('reminder_paused'), 'false');
 
             $totalAppointments = $appointments->count();
             
             // Guardar progreso inicial
-            Setting::set('reminder_progress_total', (string) $totalAppointments);
-            Setting::set('reminder_progress_sent', '0');
-            Setting::set('reminder_progress_failed', '0');
+            Setting::set($this->settingKey('reminder_progress_total'), (string) $totalAppointments);
+            Setting::set($this->settingKey('reminder_progress_sent'), '0');
+            Setting::set($this->settingKey('reminder_progress_failed'), '0');
             
             // Validar límite diario de Meta (1000 conversaciones por día en Tier 1)
             if ($totalAppointments > $maxPerDay) {
@@ -957,14 +985,16 @@ class AppointmentController extends Controller
             })->toArray();
             
             // Crear batch con callbacks para tracking
+            $service = $this->service;
             $batch = Bus::batch($jobs)
-                ->name('Recordatorios de citas - ' . now()->format('Y-m-d H:i'))
+                ->name('Recordatorios de citas (' . $service . ') - ' . now()->format('Y-m-d H:i'))
                 ->allowFailures() // Permitir que algunos jobs fallen sin cancelar todo
-                ->finally(function ($batch) {
+                ->finally(function ($batch) use ($service) {
                     // Limpiar estado cuando termine el batch
-                    Setting::set('reminder_processing', 'false');
-                    Setting::set('reminder_paused', 'false');
-                    Setting::remove('reminder_batch_id');
+                    $keyPrefix = $service === 'general' ? '' : $service . '_';
+                    Setting::set($keyPrefix . 'reminder_processing', 'false');
+                    Setting::set($keyPrefix . 'reminder_paused', 'false');
+                    Setting::remove($keyPrefix . 'reminder_batch_id');
                     
                     Log::info('Batch de recordatorios completado', [
                         'batch_id' => $batch->id,
@@ -976,7 +1006,7 @@ class AppointmentController extends Controller
                 ->dispatch();
             
             // Guardar ID del batch para tracking
-            Setting::set('reminder_batch_id', $batch->id);
+            Setting::set($this->settingKey('reminder_batch_id'), $batch->id);
             
             Log::info('Batch de recordatorios creado', [
                 'batch_id' => $batch->id,
@@ -991,7 +1021,7 @@ class AppointmentController extends Controller
                 'processing' => true
             ]);
         } catch (\Exception $e) {
-            Setting::set('reminder_processing', 'false');
+            Setting::set($this->settingKey('reminder_processing'), 'false');
             
             Log::error('Error al iniciar recordatorios', [
                 'error' => $e->getMessage(),
@@ -1022,7 +1052,7 @@ class AppointmentController extends Controller
     public function pauseReminders()
     {
         try {
-            Setting::set('reminder_paused', 'true');
+            Setting::set($this->settingKey('reminder_paused'), 'true');
             
             Log::info('Recordatorios pausados manualmente', [
                 'user_id' => auth()->id()
@@ -1050,7 +1080,7 @@ class AppointmentController extends Controller
     public function resumeReminders()
     {
         try {
-            Setting::set('reminder_paused', 'false');
+            Setting::set($this->settingKey('reminder_paused'), 'false');
             
             Log::info('Recordatorios reanudados manualmente', [
                 'user_id' => auth()->id()
@@ -1079,7 +1109,7 @@ class AppointmentController extends Controller
     {
         try {
             // Cancelar el batch si existe
-            $batchId = Setting::get('reminder_batch_id');
+            $batchId = Setting::get($this->settingKey('reminder_batch_id'));
             if ($batchId) {
                 try {
                     $batch = Bus::findBatch($batchId);
@@ -1099,12 +1129,12 @@ class AppointmentController extends Controller
             }
             
             // Marcar como detenido
-            Setting::set('reminder_paused', 'true');
-            Setting::set('reminder_processing', 'false');
-            Setting::remove('reminder_batch_id');
-            Setting::remove('reminder_progress_sent');
-            Setting::remove('reminder_progress_failed');
-            Setting::remove('reminder_progress_total');
+            Setting::set($this->settingKey('reminder_paused'), 'true');
+            Setting::set($this->settingKey('reminder_processing'), 'false');
+            Setting::remove($this->settingKey('reminder_batch_id'));
+            Setting::remove($this->settingKey('reminder_progress_sent'));
+            Setting::remove($this->settingKey('reminder_progress_failed'));
+            Setting::remove($this->settingKey('reminder_progress_total'));
             
             Log::info('Recordatorios detenidos completamente', [
                 'user_id' => auth()->id()
@@ -1139,12 +1169,12 @@ class AppointmentController extends Controller
             $phoneNumber = $request->input('phone_number');
             
             // Obtener configuración
-            $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
+            $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
             $targetDate = now()->addDays($daysInAdvance)->startOfDay();
             $targetDateString = $targetDate->format('Y-m-d');
             
             // Actualizar solo las citas pendientes para la fecha objetivo
-            $updated = Appointment::query()
+            $updated = $this->serviceQuery()
                 ->whereDate('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('citfc')
@@ -1182,27 +1212,27 @@ class AppointmentController extends Controller
     public function getReminderStatus()
     {
         // Leer directamente de BD sin caché para ser más rápido
-        $paused = DB::table('settings')->where('key', 'reminder_paused')->value('value') === 'true';
-        $processing = DB::table('settings')->where('key', 'reminder_processing')->value('value') === 'true';
+        $paused = DB::table('settings')->where('key', $this->settingKey('reminder_paused'))->value('value') === 'true';
+        $processing = DB::table('settings')->where('key', $this->settingKey('reminder_processing'))->value('value') === 'true';
         
         // Obtener progreso guardado sin caché para tener valores actualizados en tiempo real
-        $progressSent = (int) DB::table('settings')->where('key', 'reminder_progress_sent')->value('value') ?? 0;
-        $progressFailed = (int) DB::table('settings')->where('key', 'reminder_progress_failed')->value('value') ?? 0;
-        $progressTotal = (int) DB::table('settings')->where('key', 'reminder_progress_total')->value('value') ?? 0;
+        $progressSent = (int) DB::table('settings')->where('key', $this->settingKey('reminder_progress_sent'))->value('value') ?? 0;
+        $progressFailed = (int) DB::table('settings')->where('key', $this->settingKey('reminder_progress_failed'))->value('value') ?? 0;
+        $progressTotal = (int) DB::table('settings')->where('key', $this->settingKey('reminder_progress_total'))->value('value') ?? 0;
         
         // Verificar si realmente hay un proceso corriendo
         if ($processing) {
-            $batchId = DB::table('settings')->where('key', 'reminder_batch_id')->value('value');
+            $batchId = DB::table('settings')->where('key', $this->settingKey('reminder_batch_id'))->value('value');
             if ($batchId) {
                 try {
                     $batch = \Illuminate\Support\Facades\Bus::findBatch($batchId);
                     if ($batch) {
                         if ($batch->finished() || $batch->cancelled()) {
                             // El batch terminó, limpiar estado
-                            DB::table('settings')->where('key', 'reminder_processing')->update(['value' => 'false']);
-                            DB::table('settings')->where('key', 'reminder_batch_id')->delete();
-                            Cache::forget('setting.reminder_processing');
-                            Cache::forget('setting.reminder_batch_id');
+                            DB::table('settings')->where('key', $this->settingKey('reminder_processing'))->update(['value' => 'false']);
+                            DB::table('settings')->where('key', $this->settingKey('reminder_batch_id'))->delete();
+                            Cache::forget('setting.' . $this->settingKey('reminder_processing'));
+                            Cache::forget('setting.' . $this->settingKey('reminder_batch_id'));
                             $processing = false;
                             // Mantener el progreso final para que el usuario lo vea
                             $progressTotal = $batch->totalJobs;
@@ -1217,10 +1247,10 @@ class AppointmentController extends Controller
                     } else {
                         // Batch no encontrado (ID inválido), limpiar
                         Log::warning('Batch de recordatorios no encontrado en getReminderStatus', ['batch_id' => $batchId]);
-                        DB::table('settings')->where('key', 'reminder_processing')->update(['value' => 'false']);
-                        DB::table('settings')->where('key', 'reminder_batch_id')->delete();
-                        Cache::forget('setting.reminder_processing');
-                        Cache::forget('setting.reminder_batch_id');
+                        DB::table('settings')->where('key', $this->settingKey('reminder_processing'))->update(['value' => 'false']);
+                        DB::table('settings')->where('key', $this->settingKey('reminder_batch_id'))->delete();
+                        Cache::forget('setting.' . $this->settingKey('reminder_processing'));
+                        Cache::forget('setting.' . $this->settingKey('reminder_batch_id'));
                         $processing = false;
                     }
                 } catch (\Exception $e) {
@@ -1234,26 +1264,26 @@ class AppointmentController extends Controller
             } else {
                 // No hay batchId pero está marcado como processing
                 // Solo limpiar si han pasado más de 30 minutos sin batch_id (timeout largo)
-                $processingRecord = DB::table('settings')->where('key', 'reminder_processing')->first();
+                $processingRecord = DB::table('settings')->where('key', $this->settingKey('reminder_processing'))->first();
                 $minutesSinceUpdate = $processingRecord ? now()->diffInMinutes($processingRecord->updated_at) : 999;
                 
                 if ($minutesSinceUpdate > 30) {
                     Log::warning('Proceso de recordatorios sin batch_id detectado como muerto por timeout', [
                         'minutes_since_update' => $minutesSinceUpdate
                     ]);
-                    DB::table('settings')->where('key', 'reminder_processing')->update(['value' => 'false']);
-                    Cache::forget('setting.reminder_processing');
+                    DB::table('settings')->where('key', $this->settingKey('reminder_processing'))->update(['value' => 'false']);
+                    Cache::forget('setting.' . $this->settingKey('reminder_processing'));
                     $processing = false;
                 }
             }
         }
         
         // Obtener citas pendientes de pasado mañana (2 días desde hoy)
-        $daysInAdvance = (int) Setting::get('reminder_days_in_advance', '2');
+        $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
         $targetDate = now()->addDays($daysInAdvance)->startOfDay();
         $targetDateString = $targetDate->format('Y-m-d');
         
-        $pendingCount = Appointment::query()
+        $pendingCount = $this->serviceQuery()
             ->whereDate('citfc', '=', $targetDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error')
@@ -1263,7 +1293,7 @@ class AppointmentController extends Controller
         
         // Obtener citas pendientes para MAÑANA (1 día desde hoy)
         $tomorrowDateString = now()->addDays(1)->format('Y-m-d');
-        $pendingTomorrowCount = Appointment::query()
+        $pendingTomorrowCount = $this->serviceQuery()
             ->whereDate('citfc', '=', $tomorrowDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error')
@@ -1295,7 +1325,7 @@ class AppointmentController extends Controller
 
         // Si se solicita como Inertia (para actualizar la página)
         // Necesitamos cargar todos los datos de la página
-        $appointments = Appointment::orderBy('created_at', 'desc')
+        $appointments = $this->serviceQuery()->orderBy('created_at', 'desc')
             ->limit(50)
             ->get()
             ->map(fn($apt) => [
@@ -1315,20 +1345,22 @@ class AppointmentController extends Controller
                 'reminder_status' => $apt->reminder_status,
             ]);
         
-        $totalAppointments = Appointment::count();
+        $totalAppointments = $this->serviceQuery()->count();
         
-        return Inertia::render('admin/appointments/index', [
+        return Inertia::render($this->inertiaPage, [
             'appointments' => $appointments,
             'totalAppointments' => $totalAppointments,
             'reminderPaused' => $paused,
             'reminderProcessing' => $processing,
             'remindersStats' => [
-                'sent' => Appointment::where('reminder_sent', true)->count(),
+                'sent' => $this->serviceQuery()->where('reminder_sent', true)->count(),
                 'pending' => $pendingCount,
                 'pending_tomorrow' => $pendingTomorrowCount,
-                'failed' => Appointment::where('reminder_status', 'failed')->count(),
+                'failed' => $this->serviceQuery()->where('reminder_status', 'failed')->count(),
             ],
             'uploadedFile' => session('uploaded_file'),
+            'routePrefix' => $this->urlPrefix,
+            'pageTitle' => $this->pageTitle,
         ]);
     }
 }

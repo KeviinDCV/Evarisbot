@@ -81,6 +81,22 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/update-pending-phones', 'updatePendingPhones')->name('update-pending-phones');
     });
     
+    // Gestión de Citas de Oncología
+    Route::controller(\App\Http\Controllers\OncologyAppointmentController::class)->prefix('oncology-appointments')->name('oncology-appointments.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/view', 'view')->name('view');
+        Route::get('/export', 'export')->name('export');
+        Route::post('/upload', 'upload')->name('upload');
+        Route::post('/process', 'process')->name('process');
+        Route::post('/reminders/start', 'startReminders')->name('reminders.start');
+        Route::post('/reminders/start-day-before', 'startRemindersDayBefore')->name('reminders.start-day-before');
+        Route::post('/reminders/pause', 'pauseReminders')->name('reminders.pause');
+        Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
+        Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');
+        Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
+        Route::post('/update-pending-phones', 'updatePendingPhones')->name('update-pending-phones');
+    });
+    
     // Configuración del sistema
     Route::controller(\App\Http\Controllers\Admin\SettingsController::class)->group(function () {
         Route::get('/settings', 'index')->name('settings.index');

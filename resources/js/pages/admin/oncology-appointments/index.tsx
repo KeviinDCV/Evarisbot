@@ -69,7 +69,7 @@ interface AppointmentIndexProps {
     pageTitle?: string;
 }
 
-export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/appointments', pageTitle = 'Gestión de Citas' }: AppointmentIndexProps) {
+export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/oncology-appointments', pageTitle = 'Citas de Oncología' }: AppointmentIndexProps) {
     const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
     const [showFlashMessage, setShowFlashMessage] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
@@ -1310,3 +1310,4 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         </AdminLayout>
     );
 }
+

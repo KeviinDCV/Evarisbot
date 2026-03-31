@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { type PropsWithChildren, type ReactNode, useState, useEffect } from 'react';
-import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText, Calendar, BarChart3, Send, MessagesSquare } from 'lucide-react';
+import { Users, MessageSquare, Settings, LogOut, Menu, User, X, FileText, Calendar, BarChart3, Send, MessagesSquare, ChevronDown } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { logout } from '@/routes';
@@ -20,6 +20,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     const currentUrl = usePage().url;
     const getInitials = useInitials();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
     const [unreadConversationsCount, setUnreadConversationsCount] = useState(initialUnreadCount);
     const [unreadInternalChatCount, setUnreadInternalChatCount] = useState(0);
@@ -107,6 +108,10 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             title: t('navigation.appointments'),
             href: '/admin/appointments',
             icon: Calendar,
+            children: [
+                { title: 'General', href: '/admin/appointments' },
+                { title: 'Oncología', href: '/admin/oncology-appointments' },
+            ],
         },
         {
             title: t('navigation.bulkSends'),
@@ -139,6 +144,18 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             icon: Settings,
         },
     ];
+
+    // Auto-expand menus when a child is active
+    useEffect(() => {
+        menuItems.forEach((item) => {
+            if (item.children) {
+                const isChildActive = item.children.some((child) => currentUrl.startsWith(child.href));
+                if (isChildActive && !expandedMenus.includes(item.href)) {
+                    setExpandedMenus((prev) => [...prev, item.href]);
+                }
+            }
+        });
+    }, [currentUrl]);
 
     // Filtrar menú según rol
     const visibleMenuItems = menuItems.filter((item) => {
@@ -184,10 +201,65 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 <nav className="flex flex-col gap-1.5 flex-grow w-full px-2">
                     {visibleMenuItems.map((item) => {
                         const Icon = item.icon;
-                        const isActive = currentUrl.startsWith(item.href);
+                        const hasChildren = !!(item as any).children;
+                        const children = (item as any).children as { title: string; href: string }[] | undefined;
+                        const isExpanded = expandedMenus.includes(item.href);
+                        const isActive = hasChildren
+                            ? children!.some((child) => currentUrl.startsWith(child.href))
+                            : currentUrl.startsWith(item.href);
                         const badge = item.href === '/admin/chat' ? unreadConversationsCount
                             : item.href === '/admin/internal-chat' ? unreadInternalChatCount
                             : 0;
+
+                        if (hasChildren) {
+                            return (
+                                <div key={item.href}>
+                                    <button
+                                        onClick={() =>
+                                            setExpandedMenus((prev) =>
+                                                prev.includes(item.href)
+                                                    ? prev.filter((h) => h !== item.href)
+                                                    : [...prev, item.href]
+                                            )
+                                        }
+                                        className={`relative flex flex-col items-center gap-0.5 py-2.5 rounded-xl transition-all duration-200 group w-full ${
+                                            isActive
+                                                ? 'bg-blue-100 dark:bg-blue-900/30 text-[#2e3a75] dark:text-blue-300'
+                                                : 'text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-neutral-200 hover:bg-slate-200/60 dark:hover:bg-neutral-800/60'
+                                        }`}
+                                    >
+                                        <Icon className={`w-5 h-5 transition-transform duration-200 ${!isActive ? 'group-hover:scale-110' : ''}`} />
+                                        <span className={`text-[10px] leading-tight text-center px-0.5 truncate w-full ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                                            {item.title}
+                                        </span>
+                                        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {isExpanded && (
+                                        <div className="flex flex-col gap-0.5 mt-0.5">
+                                            {children!.map((child) => {
+                                                const isChildActive = currentUrl.startsWith(child.href);
+                                                return (
+                                                    <Link
+                                                        key={child.href}
+                                                        href={child.href}
+                                                        className={`flex flex-col items-center py-1.5 rounded-lg transition-all duration-200 ${
+                                                            isChildActive
+                                                                ? 'bg-blue-50 dark:bg-blue-900/20 text-[#2e3a75] dark:text-blue-300 font-semibold'
+                                                                : 'text-slate-400 dark:text-neutral-500 hover:text-slate-700 dark:hover:text-neutral-300 hover:bg-slate-100 dark:hover:bg-neutral-800/40'
+                                                        }`}
+                                                        onClick={() => setIsMobileMenuOpen(false)}
+                                                    >
+                                                        <span className="text-[9px] leading-tight text-center px-1 truncate w-full">
+                                                            {child.title}
+                                                        </span>
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }
 
                         return (
                             <Link

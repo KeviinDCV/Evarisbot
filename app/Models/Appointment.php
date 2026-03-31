@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Appointment extends Model
 {
     protected $fillable = [
+        'service',
         'citead', 'cianom', 'citmed', 'mednom', 'citesp', 'espnom',
         'citfc', 'cithor', 'citdoc', 'nom_paciente', 'pactel', 'pacnac',
         'pachis', 'cittid', 'citide', 'citres', 'cittip', 'nom_cotizante',

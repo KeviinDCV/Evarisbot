@@ -63,7 +63,7 @@ interface AppointmentsViewProps {
     pageTitle?: string;
 }
 
-export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, sort: initialSort, direction: initialDirection, stats, routePrefix = '/admin/appointments', pageTitle = 'Gestión de Citas' }: AppointmentsViewProps) {
+export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, sort: initialSort, direction: initialDirection, stats, routePrefix = '/admin/oncology-appointments', pageTitle = 'Citas de Oncología' }: AppointmentsViewProps) {
     const [filter, setFilter] = useState(initialFilter || 'all');
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
     const [dateFrom, setDateFrom] = useState(initialDateFrom || '');
@@ -602,4 +602,5 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         </AdminLayout>
     );
 }
+
 
