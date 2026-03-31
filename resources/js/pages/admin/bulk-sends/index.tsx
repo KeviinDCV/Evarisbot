@@ -1,7 +1,8 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search } from 'lucide-react';
+import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2 } from 'lucide-react';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTranslation } from 'react-i18next';
@@ -74,6 +75,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [searchResults, setSearchResults] = useState<BulkSendRecord[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchAbortRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -85,13 +87,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         }
         setIsSearching(true);
         searchTimerRef.current = setTimeout(() => {
-            fetch(`/admin/bulk-sends/search?q=${encodeURIComponent(q)}`, {
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            })
-                .then(res => res.json())
-                .then(data => { setSearchResults(data); setIsSearching(false); })
-                .catch(() => setIsSearching(false));
-        }, 400);
+            if (searchAbortRef.current) searchAbortRef.current.abort();
+            const controller = new AbortController();
+            searchAbortRef.current = controller;
+            axios.get('/admin/bulk-sends/search', { params: { q }, signal: controller.signal })
+                .then(res => { setSearchResults(res.data); setIsSearching(false); })
+                .catch(err => { if (!axios.isCancel(err)) setIsSearching(false); });
+        }, 350);
         return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
     }, [historySearch]);
 
@@ -818,7 +820,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 Historial de envíos ({filteredBulkSends.length})
                             </h2>
                             <div className="relative">
-                                <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${isSearching ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
+                                {isSearching ? (
+                                    <Loader2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-primary animate-spin" />
+                                ) : (
+                                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                )}
                                 <Input
                                     value={historySearch}
                                     onChange={(e) => setHistorySearch(e.target.value)}
