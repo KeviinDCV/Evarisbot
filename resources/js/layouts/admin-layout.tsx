@@ -8,6 +8,7 @@ import { useInitials } from '@/hooks/use-initials';
 import { LanguageSelector } from '@/components/language-selector';
 import { useTranslation } from 'react-i18next';
 import AppearanceToggleDropdown from '@/components/appearance-dropdown';
+import { Toaster } from 'sonner';
 
 interface AdminLayoutProps {
     children: ReactNode;
@@ -247,6 +248,8 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             <main className="flex-1 min-w-0 overflow-auto bg-background lg:ml-0 pt-16 lg:pt-0">
                 {children}
             </main>
+
+            <Toaster position="bottom-right" richColors closeButton duration={4000} />
         </div>
     );
 }

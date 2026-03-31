@@ -24,6 +24,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import InputError from '@/components/input-error';
+import { toast } from 'sonner';
 
 interface User {
     id: number;
@@ -76,7 +77,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     const handleDelete = () => {
         if (userToDelete) {
             router.delete(`/admin/users/${userToDelete.id}`, {
-                onSuccess: () => setUserToDelete(null),
+                onSuccess: () => {
+                    setUserToDelete(null);
+                    toast.success('Usuario eliminado');
+                },
+                onError: () => toast.error('Error al eliminar el usuario'),
             });
         }
     };
@@ -87,6 +92,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             onSuccess: () => {
                 setShowCreateModal(false);
                 createForm.reset();
+                toast.success('Usuario creado exitosamente');
             }
         });
     };
@@ -98,6 +104,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 onSuccess: () => {
                     setShowEditModal(false);
                     setUserToEdit(null);
+                    toast.success('Usuario actualizado');
                 }
             });
         }

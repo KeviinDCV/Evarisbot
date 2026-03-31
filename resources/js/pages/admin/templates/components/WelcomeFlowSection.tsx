@@ -1,4 +1,5 @@
 import { router, useForm } from '@inertiajs/react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -163,12 +164,19 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
     };
 
     const toggleFlowStatus = (flowId: number) => {
-        router.post(`/admin/welcome-flows/${flowId}/toggle`, {}, { preserveScroll: true });
+        router.post(`/admin/welcome-flows/${flowId}/toggle`, {}, {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Estado del flujo actualizado'),
+        });
     };
 
     const deleteFlow = (flowId: number) => {
         if (confirm('¿Estás seguro de eliminar este flujo de bienvenida?')) {
-            router.delete(`/admin/welcome-flows/${flowId}`, { preserveScroll: true });
+            router.delete(`/admin/welcome-flows/${flowId}`, {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Flujo eliminado'),
+                onError: () => toast.error('Error al eliminar el flujo'),
+            });
         }
     };
 

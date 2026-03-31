@@ -935,6 +935,22 @@ class ConversationController extends Controller
     }
 
     /**
+     * Actualizar notas internas de una conversación
+     */
+    public function updateNotes(Request $request, Conversation $conversation)
+    {
+        $request->validate([
+            'notes' => 'nullable|string|max:5000',
+        ]);
+
+        $conversation->update([
+            'notes' => $request->input('notes'),
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Fijar o desfijar una conversación (por usuario)
      */
     public function togglePin(Conversation $conversation)

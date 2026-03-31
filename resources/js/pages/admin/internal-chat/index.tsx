@@ -32,6 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 
 // --- Interfaces matching backend API ---
 
@@ -650,9 +651,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 setGroupName('');
                 setSelectedUserIds([]);
                 setUserSearchQuery('');
+                toast.success(res.data?.chat_id ? 'Chat creado' : 'Chat listo');
             }
         } catch (error) {
             console.error('Error creating chat:', error);
+            toast.error('Error al crear el chat');
         } finally {
             setIsCreatingGroup(false);
         }
@@ -885,8 +888,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     setActiveChat(null);
                                                     // Remove from local list immediately (optimistic)
                                                     setChats(prev => prev.filter(c => c.id !== deletedId));
+                                                    toast.success('Chat eliminado');
                                                 } catch (err) {
                                                     console.error('Error eliminando chat:', err);
+                                                    toast.error('Error al eliminar el chat');
                                                 }
                                             }}
                                         >

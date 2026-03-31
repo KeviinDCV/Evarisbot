@@ -8,6 +8,7 @@ import { CheckCircle2, AlertCircle, Loader2, Users, Check } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 interface Settings {
     whatsapp: {
@@ -80,7 +81,9 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
             preserveScroll: true,
             onSuccess: () => {
                 whatsappForm.reset('whatsapp_token', 'whatsapp_verify_token');
+                toast.success('Configuración de WhatsApp guardada');
             },
+            onError: () => toast.error('Error al guardar la configuración'),
         });
     };
 
@@ -90,7 +93,9 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
             preserveScroll: true,
             onSuccess: () => {
                 groqForm.reset('groq_api_key');
+                toast.success('Configuración de Groq guardada');
             },
+            onError: () => toast.error('Error al guardar la configuración'),
         });
     };
 
@@ -140,6 +145,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
         }, {
             preserveScroll: true,
             onFinish: () => setSavingAdvisors(false),
+            onSuccess: () => toast.success('Asesores de turno actualizados'),
+            onError: () => toast.error('Error al guardar los asesores'),
         });
     };
 

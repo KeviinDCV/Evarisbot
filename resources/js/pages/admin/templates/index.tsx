@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import TemplateCreateModal from './components/TemplateCreateModal';
 import TemplateEditModal from './components/TemplateEditModal';
 import WelcomeFlowSection from './components/WelcomeFlowSection';
+import { toast } from 'sonner';
 
 interface MediaFile {
     url: string;
@@ -76,6 +77,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
     const toggleStatus = (templateId: number) => {
         router.post(`/admin/templates/${templateId}/toggle`, {}, {
             preserveScroll: true,
+            onSuccess: () => toast.success('Estado de plantilla actualizado'),
         });
     };
 
@@ -83,6 +85,8 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
         if (confirm(t('templates.deleteConfirm'))) {
             router.delete(`/admin/templates/${templateId}`, {
                 preserveScroll: true,
+                onSuccess: () => toast.success('Plantilla eliminada'),
+                onError: () => toast.error('Error al eliminar la plantilla'),
             });
         }
     };

@@ -138,6 +138,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/{conversation}/status', 'updateStatus')->name('chat.status');
         Route::delete('/{conversation}/hide', 'hide')->name('chat.hide');
         Route::post('/{conversation}/pin', 'togglePin')->name('chat.pin');
+        Route::post('/{conversation}/notes', 'updateNotes')->name('chat.notes');
     });
 
     // Etiquetas de conversaciones

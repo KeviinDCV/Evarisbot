@@ -44,6 +44,7 @@ import {
     ChevronUp,
     Pin,
     ClipboardList,
+    StickyNote,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -64,6 +65,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
 
 interface Message {
@@ -122,6 +124,7 @@ interface Conversation {
     } | null;
     messages?: Message[];
     tags?: TagItem[];
+    notes?: string | null;
     welcome_flow_data?: Record<string, { text?: string; button_id?: string; timestamp?: string }> | null;
 }
 
@@ -205,6 +208,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [zoomLevel, setZoomLevel] = useState(1);
     const [imageRotation, setImageRotation] = useState(0);
     const [showPatientData, setShowPatientData] = useState(false);
+    const [showNotes, setShowNotes] = useState(false);
+    const [notesText, setNotesText] = useState(selectedConversation?.notes || '');
+    const [savingNotes, setSavingNotes] = useState(false);
+    const notesTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -563,6 +570,9 @@ export default function ConversationsIndex({ conversations: initialConversations
         const msgs = selectedConversation?.messages || [];
         setLocalMessages(msgs);
         lastMessageIdRef.current = msgs.length > 0 ? Math.max(...msgs.map(m => m.id)) : 0;
+        // Sync notes
+        setNotesText(selectedConversation?.notes || '');
+        setShowNotes(false);
     }, [selectedConversation?.id]);
 
 
@@ -1780,6 +1790,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             })
             .catch((error) => {
                 console.error('Error sending message:', error);
+                toast.error(error.message || 'Error al enviar el mensaje');
                 // Marcar mensaje como error
                 setOptimisticMessages(prev =>
                     prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const } : m)
@@ -1827,20 +1838,54 @@ export default function ConversationsIndex({ conversations: initialConversations
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
             },
-        }).catch(err => console.error('Error toggling pin:', err));
+        }).then(() => {
+            toast.success(isPinned ? 'Chat desfijado' : 'Chat fijado');
+        }).catch(err => {
+            console.error('Error toggling pin:', err);
+            toast.error('Error al fijar/desfijar el chat');
+        });
+    };
+
+    const handleSaveNotes = (text: string) => {
+        if (!selectedConversation) return;
+        setNotesText(text);
+        // Debounce: guardar después de 800ms sin escribir
+        if (notesTimeoutRef.current) clearTimeout(notesTimeoutRef.current);
+        notesTimeoutRef.current = setTimeout(() => {
+            setSavingNotes(true);
+            fetch(`/admin/chat/${selectedConversation.id}/notes`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: JSON.stringify({ notes: text }),
+            }).then(() => {
+                setSavingNotes(false);
+            }).catch(() => {
+                setSavingNotes(false);
+                toast.error('Error al guardar las notas');
+            });
+        }, 800);
     };
 
     const handleAssign = (userId?: number | null) => {
         if (!selectedConversation) return;
+        const assignedName = userId ? users.find(u => u.id === userId)?.name : null;
         router.post(`/admin/chat/${selectedConversation.id}/assign`, { user_id: userId ?? null }, {
             preserveScroll: true,
+            onSuccess: () => toast.success(assignedName ? `Chat asignado a ${assignedName}` : 'Asignación removida'),
+            onError: () => toast.error('Error al asignar el chat'),
         });
     };
 
     const handleAssignFromContext = (conversationId: number, userId?: number | null) => {
         setContextMenu(null);
+        const assignedName = userId ? users.find(u => u.id === userId)?.name : null;
         router.post(`/admin/chat/${conversationId}/assign`, { user_id: userId ?? null }, {
             preserveScroll: true,
+            onSuccess: () => toast.success(assignedName ? `Chat asignado a ${assignedName}` : 'Asignación removida'),
+            onError: () => toast.error('Error al asignar el chat'),
         });
     };
 
@@ -1862,8 +1907,10 @@ export default function ConversationsIndex({ conversations: initialConversations
             router.post(`/admin/chat/${convId}/status`, { status }, {
                 preserveScroll: true,
                 onSuccess: () => {
+                    toast.success('Chat marcado como resuelto');
                     router.get('/admin/chat', params, { preserveState: true, replace: true });
                 },
+                onError: () => toast.error('Error al cambiar el estado'),
             });
             return;
         }
@@ -1872,11 +1919,13 @@ export default function ConversationsIndex({ conversations: initialConversations
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
+                toast.success('Estado actualizado');
                 // Actualizar estado localmente sin recargar ni navegar
                 setLocalConversations(prev =>
                     prev.map(c => c.id === convId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
                 );
             },
+            onError: () => toast.error('Error al cambiar el estado'),
         });
     };
 
@@ -1897,8 +1946,10 @@ export default function ConversationsIndex({ conversations: initialConversations
             router.post(`/admin/chat/${conversationId}/status`, { status }, {
                 preserveScroll: true,
                 onSuccess: () => {
+                    toast.success('Chat marcado como resuelto');
                     router.get('/admin/chat', params, { preserveState: true, replace: true });
                 },
+                onError: () => toast.error('Error al cambiar el estado'),
             });
             return;
         }
@@ -1907,10 +1958,12 @@ export default function ConversationsIndex({ conversations: initialConversations
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
+                toast.success('Estado actualizado');
                 setLocalConversations(prev =>
                     prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
                 );
             },
+            onError: () => toast.error('Error al cambiar el estado'),
         });
     };
 
@@ -1924,6 +1977,8 @@ export default function ConversationsIndex({ conversations: initialConversations
         setShowDeleteDialog(false);
         router.delete(`/admin/chat/${selectedConversation.id}/hide`, {
             preserveScroll: false,
+            onSuccess: () => toast.success('Chat ocultado'),
+            onError: () => toast.error('Error al ocultar el chat'),
         });
     };
 
@@ -3029,6 +3084,18 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </button>
                                 )}
 
+                                {/* Botón Notas Internas */}
+                                <button
+                                    onClick={() => setShowNotes(!showNotes)}
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors relative ${showNotes ? 'bg-[#16235e] text-white' : 'hover:bg-[#e8e8e8] dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
+                                    title="Notas internas"
+                                >
+                                    <StickyNote className="w-5 h-5" />
+                                    {selectedConversation.notes && !showNotes && (
+                                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full border-2 border-white dark:border-neutral-900" />
+                                    )}
+                                </button>
+
                                 {/* Botón Cerrar Chat */}
                                 <button
                                     onClick={handleCloseChat}
@@ -3062,6 +3129,30 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         ))
                                     }
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Panel de notas internas */}
+                        {showNotes && (
+                            <div className="border-b border-border bg-amber-50/50 dark:bg-amber-950/10 px-4 py-3">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <StickyNote className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                                        <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">Notas internas</span>
+                                    </div>
+                                    {savingNotes && (
+                                        <span className="text-xs text-muted-foreground">Guardando...</span>
+                                    )}
+                                    {!savingNotes && notesText && (
+                                        <span className="text-xs text-green-600 dark:text-green-400">Guardado</span>
+                                    )}
+                                </div>
+                                <textarea
+                                    value={notesText}
+                                    onChange={(e) => handleSaveNotes(e.target.value)}
+                                    placeholder="Escribe notas internas sobre esta conversación... (solo visible para asesores)"
+                                    className="w-full min-h-[80px] max-h-[160px] resize-y rounded-lg border border-amber-200 dark:border-amber-800/30 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                                />
                             </div>
                         )}
 
@@ -3733,6 +3824,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 setShowNewChatModal(false);
                                 setNewChatData({ phone_number: '', contact_name: '', assigned_to: null });
                                 setIsCreatingChat(false);
+                                toast.success('Conversación creada exitosamente');
                             },
                             onError: (errors) => {
                                 setNewChatError(errors.message || errors.phone_number || 'Error al crear la conversación');

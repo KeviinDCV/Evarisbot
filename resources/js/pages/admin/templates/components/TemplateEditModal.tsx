@@ -8,6 +8,7 @@ import { Paperclip, X, Image, Video, FileText, Users, Globe, UserCheck, Plus, Ed
 import { useTranslation } from 'react-i18next';
 import { useRef, useState, useEffect, FormEvent } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 interface User {
     id: number;
@@ -176,7 +177,9 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
             forceFormData: true,
             onSuccess: () => {
                 handleClose();
-            }
+                toast.success('Plantilla actualizada');
+            },
+            onError: () => toast.error('Error al actualizar la plantilla'),
         });
     };
 
