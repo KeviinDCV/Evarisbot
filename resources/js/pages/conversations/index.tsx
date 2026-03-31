@@ -248,6 +248,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const scrollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const savedScrollTopRef = useRef<number | null>(null);
     const advisorFilterButtonRef = useRef<HTMLButtonElement>(null);
+    const filterPillsRef = useRef<HTMLDivElement>(null);
     const [advisorDropdownPosition, setAdvisorDropdownPosition] = useState({ top: 0, right: 0 });
 
     // Estados para plantillas
@@ -530,6 +531,20 @@ export default function ConversationsIndex({ conversations: initialConversations
         messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
         setIsAtBottom(true);
         setNewMessagesCount(0);
+    }, []);
+
+    // Scroll horizontal con rueda del mouse en filtros
+    useEffect(() => {
+        const el = filterPillsRef.current;
+        if (!el) return;
+        const handler = (e: WheelEvent) => {
+            if (e.deltaY !== 0) {
+                el.scrollLeft += e.deltaY;
+                e.preventDefault();
+            }
+        };
+        el.addEventListener('wheel', handler, { passive: false });
+        return () => el.removeEventListener('wheel', handler);
     }, []);
 
     // Detectar scroll del usuario
@@ -2492,7 +2507,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {/* WhatsApp-style quick filter pills */}
-                        <div className="flex flex-wrap items-center gap-1.5 px-1 pt-2 pb-0.5">
+                        <div
+                            ref={filterPillsRef}
+                            className="flex items-center gap-1.5 px-1 pt-2 pb-0.5 overflow-x-auto scrollbar-none"
+                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                        >
                             {[
                                 { value: 'all', label: 'Todos' },
                                 { value: 'unanswered', label: 'No leídos' },
@@ -2506,7 +2525,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         setStatusFilter(pill.value);
                                         applyFilters(pill.value, filterByAdvisor);
                                     }}
-                                    className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                                         statusFilter === pill.value
                                             ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300 font-semibold'
                                             : 'bg-muted dark:bg-neutral-800 text-[#5f5e5e] dark:text-neutral-400 hover:bg-muted/80 dark:hover:bg-neutral-700'
