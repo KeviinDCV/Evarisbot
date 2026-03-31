@@ -1,8 +1,9 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useTranslation } from 'react-i18next';
 
 interface Recipient {
@@ -69,6 +70,22 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [selectedTemplate, setSelectedTemplate] = useState<WhatsappTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [extraColumns, setExtraColumns] = useState<string[]>([]);
+    const [historySearch, setHistorySearch] = useState('');
+
+    const filteredBulkSends = useMemo(() => {
+        if (!historySearch.trim()) return bulkSends;
+        const q = historySearch.toLowerCase();
+        return bulkSends.filter(bs =>
+            (bs.name || '').toLowerCase().includes(q) ||
+            bs.template_name.toLowerCase().includes(q) ||
+            bs.status.toLowerCase().includes(q) ||
+            bs.created_by_name.toLowerCase().includes(q) ||
+            bs.created_at.toLowerCase().includes(q) ||
+            String(bs.total_recipients).includes(q) ||
+            String(bs.sent_count).includes(q) ||
+            String(bs.failed_count).includes(q)
+        );
+    }, [bulkSends, historySearch]);
 
     const handleSelectTemplate = (templateId: string) => {
         const template = whatsappTemplates.find(t => t.id === Number(templateId));
@@ -785,12 +802,23 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                     {/* Historial de envíos - Estilo Card Gradient */}
                     <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                        <h2 className="font-semibold mb-4 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                            <Clock className="w-5 h-5" />
-                            Historial de envíos
-                        </h2>
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                            <h2 className="font-semibold flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
+                                <Clock className="w-5 h-5" />
+                                Historial de envíos ({filteredBulkSends.length})
+                            </h2>
+                            <div className="relative">
+                                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    value={historySearch}
+                                    onChange={(e) => setHistorySearch(e.target.value)}
+                                    placeholder="Buscar por nombre, template, estado, creador..."
+                                    className="pl-9 h-9 text-sm rounded-xl w-full sm:w-80"
+                                />
+                            </div>
+                        </div>
 
-                        {bulkSends.length === 0 ? (
+                        {filteredBulkSends.length === 0 ? (
                             <p className="text-sm text-muted-foreground text-center py-6">
                                 No hay envíos masivos registrados
                             </p>
@@ -810,7 +838,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {bulkSends.map((bs) => {
+                                        {filteredBulkSends.map((bs) => {
                                             const status = statusLabel(bs.status);
                                             return (
                                                 <tr

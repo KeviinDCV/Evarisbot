@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SendBulkMessageJob;
 use App\Models\BulkSend;
 use App\Models\BulkSendRecipient;
+use App\Models\Conversation;
 use App\Models\WhatsappTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
@@ -100,11 +101,24 @@ class BulkSendController extends Controller
         $recipients = $bulkSend->recipients()
             ->orderByRaw("FIELD(status, 'failed', 'pending', 'sent')")
             ->orderBy('contact_name')
-            ->get()
-            ->map(fn($r) => [
+            ->get();
+
+        // Buscar nombres de contactos en conversaciones para los que no tienen nombre
+        $phonesWithoutName = $recipients->filter(fn($r) => empty($r->contact_name))->pluck('phone_number')->toArray();
+        $contactNames = [];
+        if (!empty($phonesWithoutName)) {
+            $contactNames = Conversation::whereIn('phone_number', $phonesWithoutName)
+                ->whereNotNull('contact_name')
+                ->where('contact_name', '!=', '')
+                ->pluck('contact_name', 'phone_number')
+                ->toArray();
+        }
+
+        $recipients = $recipients->map(fn($r) => [
                 'id' => $r->id,
                 'phone_number' => $r->phone_number,
-                'contact_name' => $r->contact_name,
+                'contact_name' => $r->contact_name ?: ($contactNames[$r->phone_number] ?? null),
+                'params' => $r->params,
                 'status' => $r->status,
                 'error' => $r->error,
                 'sent_at' => $r->sent_at?->format('Y-m-d H:i:s'),
@@ -242,7 +256,7 @@ class BulkSendController extends Controller
             $extraCols = [];
 
             $phoneAliases = ['telefono', 'teléfono', 'phone', 'celular', 'cel', 'numero', 'número', 'pactel', 'phone_number'];
-            $nameAliases = ['nombre', 'name', 'contacto', 'paciente', 'nom_paciente', 'contact_name'];
+            $nameAliases = ['nombre', 'name', 'contacto', 'paciente', 'nom_paciente', 'contact_name', 'nom_pac', 'nombrepaciente', 'nombre_paciente', 'nombrepac', 'cliente', 'destinatario', 'usuario'];
 
             foreach ($headers as $i => $header) {
                 $header = strtolower(trim($header));
@@ -259,6 +273,20 @@ class BulkSendController extends Controller
                 $phoneCol = 0;
                 $nameCol = count($headers) > 1 ? 1 : null;
                 $extraCols = [];
+            }
+
+            // Si encontramos teléfono pero no nombre, buscar por coincidencia parcial en columnas extra
+            if ($phoneCol !== null && $nameCol === null && !empty($extraCols)) {
+                $nameSubstrings = ['nombre', 'name', 'nom_', 'paciente', 'contacto', 'cliente'];
+                foreach ($extraCols as $colIdx => $colName) {
+                    foreach ($nameSubstrings as $sub) {
+                        if (str_contains($colName, $sub)) {
+                            $nameCol = $colIdx;
+                            unset($extraCols[$colIdx]);
+                            break 2;
+                        }
+                    }
+                }
             }
 
             $seen = [];

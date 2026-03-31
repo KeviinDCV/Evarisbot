@@ -9,6 +9,7 @@ interface Recipient {
     id: number;
     phone_number: string;
     contact_name: string | null;
+    params: Record<string, string> | null;
     status: string;
     error: string | null;
     sent_at: string | null;
@@ -60,11 +61,25 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('all');
 
+    // Obtener todas las claves de params únicas
+    const paramKeys = useMemo(() => {
+        const keys = new Set<string>();
+        recipients.forEach(r => {
+            if (r.params) {
+                Object.keys(r.params).forEach(k => keys.add(k));
+            }
+        });
+        return Array.from(keys);
+    }, [recipients]);
+
     const filteredRecipients = useMemo(() => {
         return recipients.filter((r) => {
+            const s = search.toLowerCase();
+            const paramsMatch = r.params ? Object.values(r.params).some(v => String(v).toLowerCase().includes(s)) : false;
             const matchesSearch = !search ||
-                (r.contact_name?.toLowerCase().includes(search.toLowerCase())) ||
-                r.phone_number.includes(search);
+                (r.contact_name?.toLowerCase().includes(s)) ||
+                r.phone_number.includes(search) ||
+                paramsMatch;
             const matchesStatus = filterStatus === 'all' || r.status === filterStatus;
             return matchesSearch && matchesStatus;
         });
@@ -199,6 +214,9 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                             <th className="text-left py-3 px-3 font-semibold text-foreground/70">#</th>
                                             <th className="text-left py-3 px-3 font-semibold text-foreground/70">Nombre</th>
                                             <th className="text-left py-3 px-3 font-semibold text-foreground/70">Teléfono</th>
+                                            {paramKeys.map(key => (
+                                                <th key={key} className="text-left py-3 px-3 font-semibold text-foreground/70 capitalize">{key}</th>
+                                            ))}
                                             <th className="text-center py-3 px-3 font-semibold text-foreground/70">Estado</th>
                                             <th className="text-left py-3 px-3 font-semibold text-foreground/70">Enviado</th>
                                             <th className="text-left py-3 px-3 font-semibold text-foreground/70">Error</th>
@@ -214,7 +232,10 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                                     <td className="py-2.5 px-3 font-medium">
                                                         <div className="flex items-center gap-2">
                                                             <User className="w-3.5 h-3.5 text-muted-foreground" />
-                                                            {r.contact_name || '—'}
+                                                            {r.contact_name || (r.params && (() => {
+                                                                const nameKey = Object.keys(r.params!).find(k => /nombre|name|paciente|contacto|cliente/i.test(k));
+                                                                return nameKey ? r.params![nameKey] : null;
+                                                            })()) || '—'}
                                                         </div>
                                                     </td>
                                                     <td className="py-2.5 px-3">
@@ -223,6 +244,11 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                                             <span className="font-mono text-xs">{r.phone_number}</span>
                                                         </div>
                                                     </td>
+                                                    {paramKeys.map(key => (
+                                                        <td key={key} className="py-2.5 px-3 text-xs text-muted-foreground max-w-[200px] truncate" title={r.params?.[key] || ''}>
+                                                            {r.params?.[key] || '—'}
+                                                        </td>
+                                                    ))}
                                                     <td className="py-2.5 px-3 text-center">
                                                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${badge.color}`}>
                                                             <Icon className="w-3 h-3" />
