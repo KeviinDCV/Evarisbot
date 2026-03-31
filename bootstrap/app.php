@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CheckBulkSendAccess;
 use App\Http\Middleware\CheckRole;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Registrar middleware de roles
         $middleware->alias([
             'role' => CheckRole::class,
+            'bulk-send' => CheckBulkSendAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

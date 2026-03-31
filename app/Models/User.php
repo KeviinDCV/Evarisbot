@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         'is_on_duty',
+        'can_bulk_send',
     ];
 
     /**

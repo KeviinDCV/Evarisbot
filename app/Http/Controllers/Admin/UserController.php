@@ -22,6 +22,7 @@ class UserController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'role' => $user->role,
+                'can_bulk_send' => (bool) $user->can_bulk_send,
                 'created_at' => $user->created_at,
                 'is_online' => $user->isOnline(),
                 'online_status' => $user->getOnlineStatus(),
@@ -119,5 +120,19 @@ class UserController extends Controller
 
         return redirect()->back()
             ->with('success', 'Usuario eliminado exitosamente.');
+    }
+
+    /**
+     * Toggle permiso de envío masivo para un usuario
+     */
+    public function toggleBulkSend(User $user)
+    {
+        $user->update(['can_bulk_send' => !$user->can_bulk_send]);
+
+        return back()->with('success',
+            $user->can_bulk_send
+                ? "{$user->name} ahora tiene acceso a Envío masivo."
+                : "Se removió el acceso a Envío masivo de {$user->name}."
+        );
     }
 }

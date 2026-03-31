@@ -52,6 +52,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     });
     
     Route::resource('users', UserController::class);
+    Route::post('users/{user}/toggle-bulk-send', [UserController::class, 'toggleBulkSend'])->name('users.toggle-bulk-send');
     
     // Plantillas para envíos masivos
     Route::resource('templates', TemplateController::class);
@@ -113,9 +114,12 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/export', 'export')->name('export');
         Route::get('/advisor/{user}', 'advisorDetail')->name('advisor-detail');
     });
+});
 
-    // Envío Masivo
-    Route::controller(\App\Http\Controllers\Admin\BulkSendController::class)->prefix('bulk-sends')->name('bulk-sends.')->group(function () {
+// Rutas para Admin y Asesores (Conversaciones y Plantillas)
+Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
+    // Envío Masivo - Accesible para Admin y asesores con permiso
+    Route::controller(\App\Http\Controllers\Admin\BulkSendController::class)->prefix('bulk-sends')->name('bulk-sends.')->middleware('bulk-send')->group(function () {
         Route::get('/', 'index')->name('index');
         Route::post('/upload', 'upload')->name('upload');
         Route::post('/start', 'start')->name('start');
@@ -123,10 +127,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/{bulkSend}', 'show')->name('show');
         Route::post('/{bulkSend}/cancel', 'cancel')->name('cancel');
     });
-});
 
-// Rutas para Admin y Asesores (Conversaciones y Plantillas)
-Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
     // Chat Interno - Accesible para todos los usuarios
     Route::controller(\App\Http\Controllers\Admin\InternalChatController::class)->prefix('internal-chat')->name('internal-chat.')->group(function () {
         Route::get('/', 'index')->name('index');          Route::get('/list', 'chatList')->name('list');        Route::get('/unread-count', 'unreadCount')->name('unread-count');

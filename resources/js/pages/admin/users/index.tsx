@@ -2,7 +2,7 @@ import { Head, Link, router, useForm } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2, Calendar, UserCircle } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Calendar, UserCircle, Send } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
     Dialog,
@@ -31,6 +31,7 @@ interface User {
     name: string;
     email: string;
     role: 'admin' | 'advisor';
+    can_bulk_send: boolean;
     created_at: string;
     is_online: boolean;
     online_status: 'online' | 'offline' | 'never';
@@ -269,6 +270,12 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
                                                 Estado
                                             </th>
+                                            <th className="p-4 font-semibold settings-title whitespace-nowrap text-center" style={{ fontSize: 'var(--text-sm)' }}>
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <Send className="w-3.5 h-3.5" />
+                                                    Envío masivo
+                                                </div>
+                                            </th>
                                             <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
                                                 Registro
                                             </th>
@@ -325,6 +332,34 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                             </span>
                                                         )}
                                                     </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {user.role === 'advisor' ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                router.post(`/admin/users/${user.id}/toggle-bulk-send`, {}, {
+                                                                    preserveScroll: true,
+                                                                    onSuccess: () => toast.success(
+                                                                        user.can_bulk_send
+                                                                            ? `Se removió el acceso a Envío masivo de ${user.name}`
+                                                                            : `${user.name} ahora tiene acceso a Envío masivo`
+                                                                    ),
+                                                                });
+                                                            }}
+                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2e3f84]/30 ${
+                                                                user.can_bulk_send ? 'bg-[#2e3f84]' : 'bg-gray-300 dark:bg-gray-600'
+                                                            }`}
+                                                            title={user.can_bulk_send ? 'Desactivar envío masivo' : 'Activar envío masivo'}
+                                                        >
+                                                            <span
+                                                                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
+                                                                    user.can_bulk_send ? 'translate-x-6' : 'translate-x-1'
+                                                                }`}
+                                                            />
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">—</span>
+                                                    )}
                                                 </td>
                                                 <td className="p-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-1.5">

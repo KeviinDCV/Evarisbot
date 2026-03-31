@@ -159,9 +159,15 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
     // Filtrar menú según rol
     const visibleMenuItems = menuItems.filter((item) => {
-        // Asesores solo ven Conversaciones y Plantillas
+        // Asesores solo ven Conversaciones, Plantillas, Chat Interno, y Envío masivo si tienen permiso
         if (auth.user.role === 'advisor') {
-            return item.href === '/admin/chat' || item.href === '/admin/templates' || item.href === '/admin/internal-chat';
+            if (item.href === '/admin/chat' || item.href === '/admin/templates' || item.href === '/admin/internal-chat') {
+                return true;
+            }
+            if (item.href === '/admin/bulk-sends' && (auth.user as any).can_bulk_send) {
+                return true;
+            }
+            return false;
         }
         // Admins ven todo
         return true;
