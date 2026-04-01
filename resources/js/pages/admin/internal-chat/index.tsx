@@ -925,21 +925,17 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             ) : (
                                 <div className="flex flex-col gap-6">
                                     {messages.map((msg, idx) => {
-                                        // Build a map: for each reader, find the index of the last message they've read
-                                        // A reader has read msg if their last_read_at >= msg.created_at_full
+                                        // Show "Visto por" only on the last message
+                                        const isLastMessage = idx === messages.length - 1;
                                         const readersHere: ReadReceipt[] = [];
-                                        for (const r of readReceipts) {
-                                            const readAt = new Date(r.last_read_at).getTime();
+                                        if (isLastMessage) {
                                             const msgAt = new Date(msg.created_at_full).getTime();
-                                            // Reader must have read at least this message
-                                            if (readAt < msgAt) continue;
-                                            // Check if the next message is ALSO read by this reader
-                                            const nextMsg = messages[idx + 1];
-                                            if (nextMsg) {
-                                                const nextMsgAt = new Date(nextMsg.created_at_full).getTime();
-                                                if (readAt >= nextMsgAt) continue; // reader read further, skip this msg
+                                            for (const r of readReceipts) {
+                                                const readAt = new Date(r.last_read_at).getTime();
+                                                if (readAt >= msgAt) {
+                                                    readersHere.push(r);
+                                                }
                                             }
-                                            readersHere.push(r);
                                         }
 
                                         return (
