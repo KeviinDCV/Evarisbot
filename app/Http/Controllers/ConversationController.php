@@ -99,11 +99,11 @@ class ConversationController extends Controller
                         ->orderBy('resolved_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
-                // Agendados: mostrar TODAS las conversaciones agendadas para todos los usuarios
-                $query->where('status', 'scheduled');
+                // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
+                $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
                     $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
-                        ->where('status', 'scheduled')
+                        ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
             } elseif ($request->status === 'oncology') {
@@ -295,11 +295,11 @@ class ConversationController extends Controller
                         ->orderBy('resolved_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
-                // Agendados: mostrar TODAS las conversaciones agendadas para todos los usuarios
-                $query->where('status', 'scheduled');
+                // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
+                $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
                     $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
-                        ->where('status', 'scheduled')
+                        ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
             } elseif ($request->status === 'oncology') {
@@ -1423,11 +1423,11 @@ class ConversationController extends Controller
                         ->orderBy('resolved_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
-                // Agendados: mostrar TODAS las conversaciones agendadas (todos los asesores/admin)
-                $query->where('status', 'scheduled');
+                // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
+                $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
                     $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
-                        ->where('status', 'scheduled')
+                        ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
             } elseif ($request->status === 'oncology') {

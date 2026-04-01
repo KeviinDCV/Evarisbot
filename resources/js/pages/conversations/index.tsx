@@ -48,6 +48,7 @@ import {
     History,
     Eye,
     CalendarCheck,
+    Stethoscope,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -709,7 +710,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             }).filter(conv => {
                 // Ocultar conversaciones resueltas/cerradas/agendadas de "Todos"
                 // EXCEPTO si el filtro activo corresponde o hay filtro de etiqueta
-                if (!filters.tag) {
+                if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
                     if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
@@ -719,7 +720,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             // Detectar nuevas conversaciones que no existían
             const existingIds = new Set(prev.map(c => c.id));
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
-                if (!filters.tag) {
+                if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
                     if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
@@ -908,7 +909,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }
                         return conv;
                     }).filter(conv => {
-                        if (!filters.tag && filters.status !== 'oncology') {
+                        if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                         }
@@ -918,7 +919,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     // Detect new conversations
                     const existingIds = new Set(prev.map(c => c.id));
                     const newConvs = freshConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
-                        if (!filters.tag && filters.status !== 'oncology') {
+                        if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                         }
@@ -3059,6 +3060,46 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 Cancelar
                                             </button>
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* Especialidad */}
+                                <div className="border-t border-border my-1"></div>
+                                {!showSpecialtyInput ? (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setShowSpecialtyInput(true); }}
+                                        className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent flex items-center gap-2"
+                                    >
+                                        <Stethoscope className="w-3.5 h-3.5" />
+                                        Especialidad
+                                    </button>
+                                ) : (
+                                    <div className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                            type="text"
+                                            value={specialtyName}
+                                            onChange={(e) => setSpecialtyName(e.target.value)}
+                                            placeholder="Nombre de especialidad"
+                                            className="w-full px-2 py-1.5 text-sm border border-border rounded focus:outline-none focus:border-primary bg-muted"
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && specialtyName.trim()) {
+                                                    const name = specialtyName.trim();
+                                                    createTag(name, '#14b8a6').then((tag) => {
+                                                        if (tag) {
+                                                            attachTag(conversation.id, tag.id);
+                                                            setSpecialtyName('');
+                                                            setShowSpecialtyInput(false);
+                                                            setContextMenu(null);
+                                                        }
+                                                    });
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    setShowSpecialtyInput(false);
+                                                    setSpecialtyName('');
+                                                }
+                                            }}
+                                        />
                                     </div>
                                 )}
 
