@@ -259,6 +259,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Estados para etiquetas
     const [allTags, setAllTags] = useState<TagItem[]>(initialAllTags);
     const [showTagSubmenu, setShowTagSubmenu] = useState(false);
+    const [showSpecialtyInput, setShowSpecialtyInput] = useState(false);
+    const [specialtyName, setSpecialtyName] = useState('');
     const [newTagName, setNewTagName] = useState('');
     const [newTagColor, setNewTagColor] = useState('#6366f1');
     const [tagFilterId, setTagFilterId] = useState<number | null>(
@@ -852,6 +854,8 @@ export default function ConversationsIndex({ conversations: initialConversations
             setContextMenu(null);
             setShowTagSubmenu(false);
             setNewTagName('');
+            setShowSpecialtyInput(false);
+            setSpecialtyName('');
         };
 
         if (contextMenu) {
@@ -2595,7 +2599,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 </div>
                                             ) : (
                                                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] flex items-center justify-center text-white text-[15px] font-bold">
-                                                    {conversation.contact_name?.[0]?.toUpperCase() || '?'}
+                                                    {[...(conversation.contact_name || '')][0]?.toUpperCase() || '?'}
                                                 </div>
                                             )}
                                             {!isSelectionMode && conversation.unread_count > 0 && (
@@ -3149,7 +3153,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Avatar e Información */}
                                 <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] flex items-center justify-center text-white text-sm md:text-base font-bold flex-shrink-0">
-                                        {selectedConversation.contact_name?.[0]?.toUpperCase() || '?'}
+                                        {[...(selectedConversation.contact_name || '')][0]?.toUpperCase() || '?'}
                                     </div>
                                     <div className="min-w-0 flex-1">
                                         <h2 className="font-bold text-[#16235e] dark:text-neutral-200 text-sm md:text-base truncate">
