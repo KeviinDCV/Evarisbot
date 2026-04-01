@@ -904,7 +904,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }
                         return conv;
                     }).filter(conv => {
-                        if (!filters.tag) {
+                        if (!filters.tag && filters.status !== 'oncology') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                         }
@@ -914,7 +914,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     // Detect new conversations
                     const existingIds = new Set(prev.map(c => c.id));
                     const newConvs = freshConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
-                        if (!filters.tag) {
+                        if (!filters.tag && filters.status !== 'oncology') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                         }
