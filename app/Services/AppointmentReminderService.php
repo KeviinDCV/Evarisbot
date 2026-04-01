@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Setting;
+use App\Models\Tag;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 
@@ -226,6 +227,15 @@ class AppointmentReminderService
                     'conversation_id' => $conversation->id
                 ]);
                 
+                // Auto-etiquetar conversaciones de oncología
+                if ($appointment->service === 'oncology') {
+                    $tag = Tag::firstOrCreate(
+                        ['name' => 'Oncología'],
+                        ['color' => '#9333ea']
+                    );
+                    $conversation->tags()->syncWithoutDetaching([$tag->id]);
+                }
+
                 // Actualizar appointment
                 $appointment->update(['conversation_id' => $conversation->id]);
                 $appointment->markReminderSent($messageId);

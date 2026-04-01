@@ -106,12 +106,25 @@ class ConversationController extends Controller
                         ->where('status', 'scheduled')
                         ->orderBy('updated_at', 'desc');
                 }
+            } elseif ($request->status === 'oncology') {
+                // Oncología: conversaciones con etiqueta "Oncología"
+                $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
+                        ->orderBy('last_message_at', 'desc');
+                }
             } else {
                 $query->where('status', $request->status);
             }
         } elseif (!$filteringByTag) {
             // Sin filtro de estado explícito y sin etiqueta: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
+        }
+
+        // Excluir conversaciones de oncología del listado general (solo se ven con filtro "oncology")
+        if (!$request->has('status') || $request->status !== 'oncology') {
+            $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
         // Filtrar por asignación (solo para admin)
@@ -289,12 +302,25 @@ class ConversationController extends Controller
                         ->where('status', 'scheduled')
                         ->orderBy('updated_at', 'desc');
                 }
+            } elseif ($request->status === 'oncology') {
+                // Oncología: conversaciones con etiqueta "Oncología"
+                $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
+                        ->orderBy('last_message_at', 'desc');
+                }
             } else {
                 $query->where('status', $request->status);
             }
         } elseif (!$filteringByTag) {
             // Sin filtro de estado explícito y sin etiqueta: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
+        }
+
+        // Excluir conversaciones de oncología del listado general
+        if (!$request->has('status') || $request->status !== 'oncology') {
+            $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
         // Aplicar filtros adicionales si existen (solo admin)
@@ -1404,11 +1430,24 @@ class ConversationController extends Controller
                         ->where('status', 'scheduled')
                         ->orderBy('updated_at', 'desc');
                 }
+            } elseif ($request->status === 'oncology') {
+                // Oncología: conversaciones con etiqueta "Oncología"
+                $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
+                        ->orderBy('last_message_at', 'desc');
+                }
             } else {
                 $query->where('status', $request->status);
             }
         } elseif (!$filteringByTag) {
             $query->whereIn('status', ['active', 'pending']);
+        }
+
+        // Excluir conversaciones de oncología del listado general
+        if (!$request->has('status') || $request->status !== 'oncology') {
+            $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
         if ($user->isAdmin() && $request->has('assigned')) {

@@ -2518,6 +2518,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 { value: 'pending_response', label: 'En espera' },
                                 { value: 'resolved', label: 'Resueltos' },
                                 { value: 'scheduled', label: 'Agendados' },
+                                { value: 'oncology', label: 'Oncología' },
                             ].map((pill) => (
                                 <button
                                     key={pill.value}
