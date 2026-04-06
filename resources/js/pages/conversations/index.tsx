@@ -262,6 +262,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [showTagSubmenu, setShowTagSubmenu] = useState(false);
     const [showSpecialtyInput, setShowSpecialtyInput] = useState(false);
     const [specialtyName, setSpecialtyName] = useState('');
+    const [tagSearch, setTagSearch] = useState('');
     const [newTagName, setNewTagName] = useState('');
     const [newTagColor, setNewTagColor] = useState('#6366f1');
     const [tagFilterId, setTagFilterId] = useState<number | null>(
@@ -857,6 +858,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             setNewTagName('');
             setShowSpecialtyInput(false);
             setSpecialtyName('');
+            setTagSearch('');
         };
 
         if (contextMenu) {
@@ -2973,8 +2975,18 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                 {/* Agregar etiqueta existente */}
                                 {allTags.filter(t => !(conversation.tags || []).some(ct => ct.id === t.id)).length > 0 && (
+                                    <>
+                                    <div className="px-3 py-1" onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                            type="text"
+                                            value={tagSearch}
+                                            onChange={(e) => setTagSearch(e.target.value)}
+                                            placeholder="Buscar etiqueta..."
+                                            className="w-full px-2 py-1 text-xs border border-border rounded focus:outline-none focus:border-primary bg-muted"
+                                        />
+                                    </div>
                                     <div className="max-h-[120px] overflow-y-auto">
-                                        {allTags.filter(t => !(conversation.tags || []).some(ct => ct.id === t.id)).map((tag) => (
+                                        {allTags.filter(t => !(conversation.tags || []).some(ct => ct.id === t.id)).filter(t => !tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase())).map((tag) => (
                                             <button
                                                 key={tag.id}
                                                 onClick={() => {
@@ -2988,6 +3000,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </button>
                                         ))}
                                     </div>
+                                    </>
                                 )}
 
                                 {/* Crear nueva etiqueta */}

@@ -423,9 +423,9 @@ class ConversationController extends Controller
      */
     public function sendMessage(Request $request, Conversation $conversation, WhatsAppService $whatsappService, SpellCheckService $spellCheckService)
     {
-        // Bloquear envío si la conversación está asignada a otro asesor
+        // Bloquear envío si la conversación está asignada a otro asesor (admins pueden enviar siempre)
         $conversation->refresh();
-        if ($conversation->assigned_to && $conversation->assigned_to !== auth()->id()) {
+        if ($conversation->assigned_to && $conversation->assigned_to !== auth()->id() && !auth()->user()->isAdmin()) {
             $assignedUser = \App\Models\User::find($conversation->assigned_to);
             return response()->json([
                 'error' => 'Esta conversación está siendo atendida por ' . ($assignedUser->name ?? 'otro asesor') . '. No puedes enviar mensajes.',
