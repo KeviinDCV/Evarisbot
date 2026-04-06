@@ -903,12 +903,14 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     Rendimiento de Asesores
                                 </h2>
                                 {statistics.advisors.advisors.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={Math.max(200, statistics.advisors.advisors.slice(0, 5).length * 60)}>
-                                        <BarChart
-                                            data={statistics.advisors.advisors.slice(0, 5)}
-                                            layout="vertical"
-                                            margin={{ left: 10, right: 20, top: 5, bottom: 5 }}
-                                        >
+                                    <div className="max-h-[300px] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                                        <div style={{ height: Math.max(200, statistics.advisors.advisors.length * 45) }}>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart
+                                                    data={statistics.advisors.advisors}
+                                                    layout="vertical"
+                                                    margin={{ left: 10, right: 20, top: 5, bottom: 5 }}
+                                                >
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                                             <XAxis
                                                 type="number"
@@ -951,7 +953,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                             <Bar dataKey="active_conversations" fill={COLORS.info} radius={[0, 4, 4, 0]} />
                                             <Bar dataKey="messages_sent" fill={COLORS.primaryLight} radius={[0, 4, 4, 0]} />
                                         </BarChart>
-                                    </ResponsiveContainer>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className="flex items-center justify-center h-48 settings-subtitle">
                                         <p>No hay datos de asesores disponibles</p>
