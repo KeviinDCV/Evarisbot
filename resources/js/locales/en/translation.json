@@ -127,6 +127,7 @@
   },
   "templates": {
     "title": "Templates",
+    "name": "Name",
     "newTemplate": "New template",
     "editTemplate": "Edit template",
     "deleteTemplate": "Delete template",

@@ -45,6 +45,7 @@
     "username": "Nombre de usuario",
     "email": "Correo electrónico",
     "emailPlaceholder": "Ingresa tu email",
+    "password": "Contraseña",
     "passwordPlaceholder": "Ingresa tu contraseña",
     "newPassword": "Nueva contraseña",
     "currentPassword": "Contraseña actual",
@@ -126,6 +127,7 @@
   },
   "templates": {
     "title": "Plantillas",
+    "name": "Nombre",
     "newTemplate": "Nueva plantilla",
     "editTemplate": "Editar plantilla",
     "deleteTemplate": "Eliminar plantilla",
