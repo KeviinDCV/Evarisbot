@@ -903,23 +903,25 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     Rendimiento de Asesores
                                 </h2>
                                 {statistics.advisors.advisors.length > 0 ? (
-                                    <ResponsiveContainer width="100%" height={200}>
+                                    <ResponsiveContainer width="100%" height={Math.max(200, statistics.advisors.advisors.slice(0, 5).length * 60)}>
                                         <BarChart
                                             data={statistics.advisors.advisors.slice(0, 5)}
-                                            layout="horizontal"
+                                            layout="vertical"
+                                            margin={{ left: 10, right: 20, top: 5, bottom: 5 }}
                                         >
                                             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                                             <XAxis
                                                 type="number"
-                                                tick={{ fontSize: 9 }}
+                                                tick={{ fontSize: 10 }}
                                                 className="fill-muted-foreground"
+                                                allowDecimals={false}
                                             />
                                             <YAxis
                                                 type="category"
                                                 dataKey="name"
-                                                tick={{ fontSize: 9 }}
+                                                tick={{ fontSize: 10 }}
                                                 className="fill-muted-foreground"
-                                                width={80}
+                                                width={110}
                                             />
                                             <Tooltip
                                                 contentStyle={{
