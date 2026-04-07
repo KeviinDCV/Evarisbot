@@ -1902,6 +1902,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const handleTogglePin = (conversationId: number) => {
         setContextMenu(null);
+        const isPinned = localConversations.find(c => c.id === conversationId)?.is_pinned;
         // Optimistic update
         setLocalConversations(prev => {
             const updated = prev.map(c =>
