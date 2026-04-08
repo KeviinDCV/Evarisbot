@@ -125,6 +125,9 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/upload', 'upload')->name('upload');
         Route::post('/start', 'start')->name('start');
         Route::get('/status', 'status')->name('status');
+        Route::post('/templates/create', 'createTemplate')->name('templates.create');
+        Route::post('/templates/sync', 'syncTemplates')->name('templates.sync');
+        Route::delete('/templates/{template}', 'deleteTemplate')->name('templates.delete');
         Route::get('/{bulkSend}', 'show')->name('show');
         Route::post('/{bulkSend}/cancel', 'cancel')->name('cancel');
     });

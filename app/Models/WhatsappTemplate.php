@@ -14,6 +14,11 @@ class WhatsappTemplate extends Model
         'meta_template_name',
         'preview_text',
         'language',
+        'category',
+        'status',
+        'meta_template_id',
+        'header_text',
+        'footer_text',
         'default_params',
         'is_active',
     ];

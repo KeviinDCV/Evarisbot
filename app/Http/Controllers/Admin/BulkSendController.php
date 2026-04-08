@@ -8,9 +8,11 @@ use App\Models\BulkSend;
 use App\Models\BulkSendRecipient;
 use App\Models\Conversation;
 use App\Models\WhatsappTemplate;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -81,10 +83,28 @@ class BulkSendController extends Controller
                 'default_params' => $t->default_params,
             ]);
 
+        $allTemplates = WhatsappTemplate::orderByRaw("FIELD(status, 'PENDING', 'REJECTED', 'APPROVED', '') DESC")
+            ->orderBy('name')
+            ->get()
+            ->map(fn($t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'meta_template_name' => $t->meta_template_name,
+                'preview_text' => $t->preview_text,
+                'language' => $t->language,
+                'category' => $t->category ?? 'UTILITY',
+                'status' => $t->status ?? 'APPROVED',
+                'header_text' => $t->header_text,
+                'footer_text' => $t->footer_text,
+                'is_active' => $t->is_active,
+                'created_at' => $t->created_at?->format('Y-m-d H:i'),
+            ]);
+
         return Inertia::render('admin/bulk-sends/index', [
             'bulkSends' => $bulkSends,
             'activeProgress' => $activeProgress,
             'whatsappTemplates' => $whatsappTemplates,
+            'allTemplates' => $allTemplates,
         ]);
     }
 
@@ -620,5 +640,246 @@ class BulkSendController extends Controller
                 'message' => 'Error al cancelar: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Crear plantilla y enviarla a Meta para revisión
+     */
+    public function createTemplate(Request $request)
+    {
+        $request->validate([
+            'name' => ['required', 'string', 'max:512', 'regex:/^[a-z][a-z0-9_]*$/'],
+            'category' => 'required|in:MARKETING,UTILITY,AUTHENTICATION',
+            'language' => 'required|string|max:10',
+            'header_text' => 'nullable|string|max:60',
+            'body_text' => 'required|string|max:1024',
+            'footer_text' => 'nullable|string|max:60',
+            'display_name' => 'required|string|max:255',
+        ], [
+            'name.regex' => 'El nombre debe empezar con letra minúscula y solo contener letras minúsculas, números y guiones bajos.',
+            'body_text.required' => 'El cuerpo del mensaje es obligatorio.',
+        ]);
+
+        $businessAccountId = Setting::get('whatsapp_business_account_id');
+        $token = Setting::get('whatsapp_token');
+
+        if (!$businessAccountId || !$token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'WhatsApp API no está configurada. Configure Business Account ID y Token en Configuración.',
+            ], 400);
+        }
+
+        // Check if template name already exists locally
+        if (WhatsappTemplate::where('meta_template_name', $request->input('name'))->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya existe una plantilla con ese nombre técnico.',
+            ], 422);
+        }
+
+        $components = [];
+
+        if ($request->filled('header_text')) {
+            $components[] = [
+                'type' => 'HEADER',
+                'format' => 'TEXT',
+                'text' => $request->input('header_text'),
+            ];
+        }
+
+        // Build body component with example params if needed
+        $bodyText = $request->input('body_text');
+        $bodyComponent = [
+            'type' => 'BODY',
+            'text' => $bodyText,
+        ];
+
+        // If body has parameters like {{1}}, {{2}}, add example values
+        preg_match_all('/\{\{(\d+)\}\}/', $bodyText, $matches);
+        if (!empty($matches[1])) {
+            $exampleValues = array_map(fn($i) => "ejemplo{$i}", $matches[1]);
+            $bodyComponent['example'] = [
+                'body_text' => [$exampleValues],
+            ];
+        }
+        $components[] = $bodyComponent;
+
+        if ($request->filled('footer_text')) {
+            $components[] = [
+                'type' => 'FOOTER',
+                'text' => $request->input('footer_text'),
+            ];
+        }
+
+        try {
+            $response = Http::withToken($token)
+                ->post("https://graph.facebook.com/v21.0/{$businessAccountId}/message_templates", [
+                    'name' => $request->input('name'),
+                    'category' => $request->input('category'),
+                    'language' => $request->input('language'),
+                    'components' => $components,
+                ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+
+                $defaultParams = !empty($matches[1])
+                    ? array_fill(0, count($matches[1]), '')
+                    : null;
+
+                WhatsappTemplate::create([
+                    'name' => $request->input('display_name'),
+                    'meta_template_name' => $request->input('name'),
+                    'preview_text' => $bodyText,
+                    'language' => $request->input('language'),
+                    'category' => $request->input('category'),
+                    'status' => $data['status'] ?? 'PENDING',
+                    'meta_template_id' => $data['id'] ?? null,
+                    'header_text' => $request->input('header_text'),
+                    'footer_text' => $request->input('footer_text'),
+                    'default_params' => $defaultParams,
+                    'is_active' => false,
+                ]);
+
+                Log::info('Plantilla de WhatsApp enviada a revisión', [
+                    'name' => $request->input('name'),
+                    'category' => $request->input('category'),
+                    'meta_id' => $data['id'] ?? null,
+                    'status' => $data['status'] ?? 'PENDING',
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Plantilla enviada a revisión en Meta exitosamente.',
+                ]);
+            }
+
+            $errorData = $response->json();
+            $errorMsg = $errorData['error']['message'] ?? 'Error desconocido';
+            $errorUserMsg = $errorData['error']['error_user_msg'] ?? '';
+
+            Log::error('Error creando plantilla en Meta', [
+                'status' => $response->status(),
+                'error' => $errorData,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => "Error de Meta: {$errorMsg}" . ($errorUserMsg ? " — {$errorUserMsg}" : ''),
+            ], 400);
+        } catch (\Exception $e) {
+            Log::error('Excepción al crear plantilla de WhatsApp', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al enviar plantilla: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Sincronizar estados de plantillas desde Meta
+     */
+    public function syncTemplates()
+    {
+        $businessAccountId = Setting::get('whatsapp_business_account_id');
+        $token = Setting::get('whatsapp_token');
+
+        if (!$businessAccountId || !$token) {
+            return response()->json([
+                'success' => false,
+                'message' => 'WhatsApp API no está configurada.',
+            ], 400);
+        }
+
+        try {
+            $allMetaTemplates = [];
+            $url = "https://graph.facebook.com/v21.0/{$businessAccountId}/message_templates?limit=100";
+
+            // Paginate through all templates
+            while ($url) {
+                $response = Http::withToken($token)->get($url);
+
+                if (!$response->successful()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Error al obtener plantillas de Meta: ' . ($response->json()['error']['message'] ?? 'Error desconocido'),
+                    ], 400);
+                }
+
+                $data = $response->json();
+                $allMetaTemplates = array_merge($allMetaTemplates, $data['data'] ?? []);
+                $url = $data['paging']['next'] ?? null;
+            }
+
+            $updated = 0;
+
+            foreach ($allMetaTemplates as $mt) {
+                $local = WhatsappTemplate::where('meta_template_name', $mt['name'])
+                    ->where('language', $mt['language'])
+                    ->first();
+
+                if ($local) {
+                    $local->update([
+                        'status' => $mt['status'],
+                        'meta_template_id' => $mt['id'],
+                        'is_active' => $mt['status'] === 'APPROVED',
+                    ]);
+                    $updated++;
+                }
+            }
+
+            Log::info('Sincronización de plantillas completada', [
+                'meta_count' => count($allMetaTemplates),
+                'updated' => $updated,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Sincronización completada. {$updated} plantilla(s) actualizada(s) de " . count($allMetaTemplates) . " en Meta.",
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sincronizando plantillas', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al sincronizar: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Eliminar plantilla de Meta y localmente
+     */
+    public function deleteTemplate(WhatsappTemplate $template)
+    {
+        $businessAccountId = Setting::get('whatsapp_business_account_id');
+        $token = Setting::get('whatsapp_token');
+
+        if ($businessAccountId && $token && $template->meta_template_name) {
+            try {
+                Http::withToken($token)
+                    ->delete("https://graph.facebook.com/v21.0/{$businessAccountId}/message_templates", [
+                        'name' => $template->meta_template_name,
+                    ]);
+            } catch (\Exception $e) {
+                Log::warning('Error eliminando plantilla de Meta (se eliminará localmente)', [
+                    'error' => $e->getMessage(),
+                    'template' => $template->meta_template_name,
+                ]);
+            }
+        }
+
+        $template->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Plantilla eliminada.',
+        ]);
     }
 }
