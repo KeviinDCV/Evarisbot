@@ -3115,14 +3115,37 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' && specialtyName.trim()) {
                                                     const name = specialtyName.trim();
-                                                    createTag(name, '#14b8a6').then((tag) => {
-                                                        if (tag) {
-                                                            attachTag(conversation.id, tag.id);
-                                                            setSpecialtyName('');
-                                                            setShowSpecialtyInput(false);
-                                                            setContextMenu(null);
+                                                    const currentNotes = conversation.notes || '';
+                                                    const specialtyLine = `Especialidad: ${name}`;
+                                                    // Replace existing specialty or append
+                                                    let newNotes: string;
+                                                    if (/^Especialidad: .+$/m.test(currentNotes)) {
+                                                        newNotes = currentNotes.replace(/^Especialidad: .+$/m, specialtyLine);
+                                                    } else {
+                                                        newNotes = currentNotes ? `${specialtyLine}\n${currentNotes}` : specialtyLine;
+                                                    }
+                                                    fetch(`/admin/chat/${conversation.id}/notes`, {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            'Content-Type': 'application/json',
+                                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                                        },
+                                                        body: JSON.stringify({ notes: newNotes }),
+                                                    }).then(() => {
+                                                        // Update local conversation notes
+                                                        setLocalConversations(prev => prev.map(c =>
+                                                            c.id === conversation.id ? { ...c, notes: newNotes } : c
+                                                        ));
+                                                        if (selectedConversation?.id === conversation.id) {
+                                                            setNotesText(newNotes);
                                                         }
+                                                        toast.success(`Especialidad "${name}" guardada en notas`);
+                                                    }).catch(() => {
+                                                        toast.error('Error al guardar la especialidad');
                                                     });
+                                                    setSpecialtyName('');
+                                                    setShowSpecialtyInput(false);
+                                                    setContextMenu(null);
                                                 }
                                                 if (e.key === 'Escape') {
                                                     setShowSpecialtyInput(false);
