@@ -129,6 +129,7 @@ interface Conversation {
     messages?: Message[];
     tags?: TagItem[];
     notes?: string | null;
+    specialty?: string | null;
     welcome_flow_data?: Record<string, { text?: string; button_id?: string; timestamp?: string }> | null;
 }
 
@@ -2707,6 +2708,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     )}
                                                 </div>
                                             )}
+                                            {/* Especialidad */}
+                                            {conversation.specialty && (
+                                                <div className="flex items-center gap-1 mt-1">
+                                                    <span className="text-[10px] font-medium text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 px-1.5 py-0.5 rounded-full truncate max-w-[150px] flex items-center gap-1" title={`Especialidad: ${conversation.specialty}`}>
+                                                        <Stethoscope className="w-2.5 h-2.5 flex-shrink-0" />
+                                                        {conversation.specialty}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </button>
                                 ))}
@@ -3115,31 +3125,18 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' && specialtyName.trim()) {
                                                     const name = specialtyName.trim();
-                                                    const currentNotes = conversation.notes || '';
-                                                    const specialtyLine = `Especialidad: ${name}`;
-                                                    // Replace existing specialty or append
-                                                    let newNotes: string;
-                                                    if (/^Especialidad: .+$/m.test(currentNotes)) {
-                                                        newNotes = currentNotes.replace(/^Especialidad: .+$/m, specialtyLine);
-                                                    } else {
-                                                        newNotes = currentNotes ? `${specialtyLine}\n${currentNotes}` : specialtyLine;
-                                                    }
-                                                    fetch(`/admin/chat/${conversation.id}/notes`, {
+                                                    fetch(`/admin/chat/${conversation.id}/specialty`, {
                                                         method: 'POST',
                                                         headers: {
                                                             'Content-Type': 'application/json',
                                                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                                                         },
-                                                        body: JSON.stringify({ notes: newNotes }),
+                                                        body: JSON.stringify({ specialty: name }),
                                                     }).then(() => {
-                                                        // Update local conversation notes
                                                         setLocalConversations(prev => prev.map(c =>
-                                                            c.id === conversation.id ? { ...c, notes: newNotes } : c
+                                                            c.id === conversation.id ? { ...c, specialty: name } : c
                                                         ));
-                                                        if (selectedConversation?.id === conversation.id) {
-                                                            setNotesText(newNotes);
-                                                        }
-                                                        toast.success(`Especialidad "${name}" guardada en notas`);
+                                                        toast.success(`Especialidad "${name}" guardada`);
                                                     }).catch(() => {
                                                         toast.error('Error al guardar la especialidad');
                                                     });

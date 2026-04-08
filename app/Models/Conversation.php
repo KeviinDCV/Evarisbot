@@ -20,6 +20,7 @@ class Conversation extends Model
         'last_message_at',
         'unread_count',
         'notes',
+        'specialty',
         'is_pinned',
         'pinned_at',
         'welcome_flow_step',

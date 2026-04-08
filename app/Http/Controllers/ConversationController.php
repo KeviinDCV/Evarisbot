@@ -177,7 +177,7 @@ class ConversationController extends Controller
         }
 
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty'])
             ->limit($perPage)
             ->get();
         
@@ -357,7 +357,7 @@ class ConversationController extends Controller
         // Paginación: cargar solo 50 conversaciones
         $perPage = 50;
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty'])
             ->limit($perPage)
             ->get();
         
@@ -1047,6 +1047,22 @@ class ConversationController extends Controller
     }
 
     /**
+     * Actualizar especialidad de una conversación
+     */
+    public function updateSpecialty(Request $request, Conversation $conversation)
+    {
+        $request->validate([
+            'specialty' => 'nullable|string|max:255',
+        ]);
+
+        $conversation->update([
+            'specialty' => $request->input('specialty'),
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Obtener historial de actividades de una conversación
      */
     public function activities(Conversation $conversation)
@@ -1474,7 +1490,7 @@ class ConversationController extends Controller
         }
 
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty'])
             ->limit(50)
             ->get();
 
