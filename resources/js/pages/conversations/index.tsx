@@ -288,6 +288,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Funciones de etiquetas
     const createTag = async (name: string, color: string) => {
         try {
+            // Check if tag already exists locally
+            const existing = allTags.find(t => t.name.toLowerCase() === name.toLowerCase());
+            if (existing) return existing;
+
             const res = await fetch('/admin/tags', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
@@ -297,6 +301,18 @@ export default function ConversationsIndex({ conversations: initialConversations
                 const tag = await res.json();
                 setAllTags(prev => [...prev, { ...tag, conversations_count: 0 }].sort((a, b) => a.name.localeCompare(b.name)));
                 return tag;
+            }
+            // If 422 (duplicate), try to find it from server
+            if (res.status === 422) {
+                const tagsRes = await fetch('/admin/tags');
+                if (tagsRes.ok) {
+                    const tags = await tagsRes.json();
+                    const found = tags.find((t: any) => t.name.toLowerCase() === name.toLowerCase());
+                    if (found) {
+                        setAllTags(tags.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+                        return found;
+                    }
+                }
             }
         } catch { }
         return null;
