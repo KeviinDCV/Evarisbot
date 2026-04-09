@@ -158,6 +158,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::get('/{conversation}', 'show')->name('chat.show');
         Route::get('/{conversation}/poll-messages', 'pollMessages')->name('chat.poll-messages');
         Route::post('/{conversation}/send', 'sendMessage')->name('chat.send');
+        Route::post('/{conversation}/send-template', 'sendWhatsappTemplate')->name('chat.send-template');
         Route::post('/{conversation}/assign', 'assign')->name('chat.assign');
         Route::post('/{conversation}/status', 'updateStatus')->name('chat.status');
         Route::delete('/{conversation}/hide', 'hide')->name('chat.hide');

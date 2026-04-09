@@ -1235,6 +1235,104 @@ class ConversationController extends Controller
     }
 
     /**
+     * Enviar plantilla de WhatsApp en una conversación existente
+     */
+    public function sendWhatsappTemplate(Request $request, Conversation $conversation, WhatsAppService $whatsappService)
+    {
+        $validated = $request->validate([
+            'whatsapp_template_id' => 'required|exists:whatsapp_templates,id',
+            'template_params' => 'nullable|array',
+            'template_params.*' => 'nullable|string|max:1024',
+        ]);
+
+        $whatsappTemplate = WhatsappTemplate::findOrFail($validated['whatsapp_template_id']);
+
+        // Construir texto para guardar en BD
+        $templateParams = $validated['template_params'] ?? [];
+        $messageText = $whatsappTemplate->preview_text;
+        foreach ($templateParams as $idx => $val) {
+            if ($val) {
+                $messageText = str_replace('{{' . ($idx + 1) . '}}', $val, $messageText);
+            }
+        }
+
+        // Agregar header/footer si existen
+        $fullText = '';
+        if ($whatsappTemplate->header_text) {
+            $fullText .= $whatsappTemplate->header_text . "\n\n";
+        }
+        $fullText .= $messageText;
+        if ($whatsappTemplate->footer_text) {
+            $fullText .= "\n\n" . $whatsappTemplate->footer_text;
+        }
+
+        // Crear mensaje en BD
+        $message = $conversation->messages()->create([
+            'content' => $fullText,
+            'message_type' => 'text',
+            'is_from_user' => false,
+            'sent_by' => auth()->id(),
+            'status' => 'pending',
+        ]);
+
+        // Construir componentes de la plantilla
+        $components = [];
+        if (!empty($templateParams)) {
+            $bodyParams = array_map(fn($val) => ['type' => 'text', 'text' => $val ?: ''], $templateParams);
+            $components[] = [
+                'type' => 'body',
+                'parameters' => $bodyParams,
+            ];
+        }
+
+        // Enviar via WhatsApp API
+        if ($whatsappService->isConfigured()) {
+            $result = $whatsappService->sendTemplate(
+                $conversation->phone_number,
+                $whatsappTemplate->meta_template_name,
+                $whatsappTemplate->language,
+                $components
+            );
+
+            if ($result && $result['success']) {
+                $message->update([
+                    'status' => 'sent',
+                    'whatsapp_message_id' => $result['message_id'] ?? null,
+                ]);
+
+                // Actualizar timestamp
+                $conversation->update(['last_message_at' => now()]);
+            } else {
+                $message->update([
+                    'status' => 'failed',
+                    'error_message' => $result['error'] ?? 'Error desconocido',
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $message->fresh()->load('sender'),
+                    'error' => $result['error'] ?? 'Error al enviar plantilla',
+                ]);
+            }
+        } else {
+            $message->update([
+                'status' => 'failed',
+                'error_message' => 'WhatsApp API no está configurada',
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'WhatsApp API no está configurada',
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message->fresh()->load('sender'),
+        ]);
+    }
+
+    /**
      * Crear una nueva conversación (iniciar chat con un número)
      * 
      * IMPORTANTE: Según las políticas de Meta/WhatsApp Business API:

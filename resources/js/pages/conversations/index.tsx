@@ -49,6 +49,8 @@ import {
     Eye,
     CalendarCheck,
     Stethoscope,
+    FileText,
+    Loader2,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -255,6 +257,11 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Estados para el modal de advertencia de 24 horas
     const [show24HourWarning, setShow24HourWarning] = useState(false);
     const [lastUserMessageInfo, setLastUserMessageInfo] = useState<{ date: string; hoursAgo: number } | null>(null);
+    // Estado para modal de enviar plantilla WhatsApp
+    const [showWaTemplateModal, setShowWaTemplateModal] = useState(false);
+    const [waTemplateId, setWaTemplateId] = useState<number | null>(null);
+    const [waTemplateParams, setWaTemplateParams] = useState<string[]>([]);
+    const [isSendingWaTemplate, setIsSendingWaTemplate] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
@@ -3889,6 +3896,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         <Paperclip className="w-[22px] h-[22px]" />
                                     </button>
 
+                                    {/* Botón enviar plantilla WhatsApp */}
+                                    <button
+                                        type="button"
+                                        className="flex-shrink-0 h-[44px] w-10 p-0 self-end text-[#767681] hover:text-[#16235e] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+                                        onClick={() => setShowWaTemplateModal(true)}
+                                        title="Enviar plantilla de WhatsApp"
+                                    >
+                                        <FileText className="w-[20px] h-[20px]" />
+                                    </button>
+
                                     {/* Campo de texto */}
                                     <div className="relative flex-1">
                                         <Textarea
@@ -4049,7 +4066,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     ¿Qué puedes hacer?
                                 </div>
                                 <div className="text-sm text-blue-800 dark:text-blue-400">
-                                    <strong>1.</strong> Utiliza el botón <strong>"Nueva conversación"</strong> en los filtros para iniciar una conversación con una plantilla aprobada por Meta.
+                                    <strong>1.</strong> Usa el botón <strong>📄 (plantilla)</strong> en la barra de mensajes para enviar una plantilla aprobada por Meta.
                                 </div>
                                 <div className="text-sm text-blue-800 dark:text-blue-400">
                                     <strong>2.</strong> Espera a que el usuario te envíe un nuevo mensaje para poder responder.
@@ -4068,6 +4085,182 @@ export default function ConversationsIndex({ conversations: initialConversations
                             className="w-full settings-btn-primary"
                         >
                             Entendido
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Enviar Plantilla WhatsApp */}
+            <Dialog open={showWaTemplateModal} onOpenChange={(open) => {
+                setShowWaTemplateModal(open);
+                if (!open) {
+                    setWaTemplateId(null);
+                    setWaTemplateParams([]);
+                }
+            }}>
+                <DialogContent className="sm:max-w-lg card-gradient border-0 shadow-[0_4px_12px_rgba(46,63,132,0.15),0_8px_24px_rgba(46,63,132,0.2)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3),0_8px_24px_rgba(0,0,0,0.4)]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
+                            <FileText className="w-6 h-6 text-primary dark:text-[hsl(231,55%,70%)]" />
+                            Enviar plantilla de WhatsApp
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-muted-foreground">
+                            Selecciona una plantilla aprobada y completa las variables para enviar.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
+                                Plantilla *
+                            </label>
+                            <select
+                                value={waTemplateId || ''}
+                                onChange={(e) => {
+                                    const templateId = e.target.value ? Number(e.target.value) : null;
+                                    const selectedTpl = whatsappTemplates.find(t => t.id === templateId);
+                                    setWaTemplateId(templateId);
+                                    setWaTemplateParams(selectedTpl?.default_params ? selectedTpl.default_params.map(() => '') : []);
+                                }}
+                                className="w-full h-10 px-3 settings-input rounded-xl"
+                            >
+                                <option value="">Seleccionar plantilla...</option>
+                                {whatsappTemplates.map((tpl) => (
+                                    <option key={tpl.id} value={tpl.id}>
+                                        {tpl.name} ({tpl.meta_template_name})
+                                    </option>
+                                ))}
+                            </select>
+                            {whatsappTemplates.length === 0 && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                    No hay plantillas aprobadas. Créelas desde Envíos Masivos.
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Parámetros */}
+                        {(() => {
+                            const selectedTpl = whatsappTemplates.find(t => t.id === waTemplateId);
+                            if (!selectedTpl?.default_params || selectedTpl.default_params.length === 0) return null;
+                            return (
+                                <div className="space-y-3">
+                                    <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
+                                        Variables de la plantilla
+                                    </label>
+                                    {selectedTpl.default_params.map((_, idx) => (
+                                        <div key={idx} className="space-y-1">
+                                            <span className="text-xs text-muted-foreground">{`{{${idx + 1}}}`}</span>
+                                            <Input
+                                                type="text"
+                                                placeholder={`Valor para {{${idx + 1}}}`}
+                                                value={waTemplateParams[idx] || ''}
+                                                onChange={(e) => {
+                                                    const params = [...waTemplateParams];
+                                                    params[idx] = e.target.value;
+                                                    setWaTemplateParams(params);
+                                                }}
+                                                className="settings-input rounded-xl"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Vista previa */}
+                        {(() => {
+                            const selectedTpl = whatsappTemplates.find(t => t.id === waTemplateId);
+                            if (!selectedTpl) return null;
+                            let previewBody = selectedTpl.preview_text;
+                            waTemplateParams.forEach((val, idx) => {
+                                if (val) previewBody = previewBody.replace(`{{${idx + 1}}}`, val);
+                            });
+                            return (
+                                <div className="border border-border/60 rounded-xl overflow-hidden">
+                                    <div className="px-3 py-2 bg-muted/40 border-b border-border/40">
+                                        <span className="flex items-center gap-2 text-xs font-medium text-foreground/80">
+                                            <Eye className="w-3.5 h-3.5" />
+                                            Vista previa
+                                        </span>
+                                    </div>
+                                    <div className="p-3 bg-green-50/60 dark:bg-green-950/20">
+                                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 text-sm">
+                                            {selectedTpl.header_text && (
+                                                <p className="font-bold text-foreground mb-1">{selectedTpl.header_text}</p>
+                                            )}
+                                            <p className="text-foreground leading-relaxed whitespace-pre-wrap">{previewBody}</p>
+                                            {selectedTpl.footer_text && (
+                                                <p className="text-xs text-muted-foreground mt-2">{selectedTpl.footer_text}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    <DialogFooter className="gap-2 pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowWaTemplateModal(false)}
+                            className="settings-btn-secondary"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="button"
+                            disabled={!waTemplateId || isSendingWaTemplate}
+                            className="settings-btn-primary"
+                            onClick={async () => {
+                                if (!waTemplateId || !selectedConversation) return;
+                                setIsSendingWaTemplate(true);
+                                try {
+                                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                                    const response = await fetch(`/admin/chat/${selectedConversation.id}/send-template`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRF-TOKEN': csrfToken,
+                                            'Accept': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            whatsapp_template_id: waTemplateId,
+                                            template_params: waTemplateParams,
+                                        }),
+                                    });
+                                    const result = await response.json();
+                                    if (result.success) {
+                                        toast.success('Plantilla enviada exitosamente');
+                                        setShowWaTemplateModal(false);
+                                        setWaTemplateId(null);
+                                        setWaTemplateParams([]);
+                                        // Agregar mensaje al chat
+                                        if (result.message) {
+                                            setLocalMessages(prev => [...prev, result.message]);
+                                            setTimeout(() => scrollToBottom(), 100);
+                                        }
+                                    } else {
+                                        toast.error(result.error || 'Error al enviar la plantilla');
+                                    }
+                                } catch {
+                                    toast.error('Error al enviar la plantilla');
+                                } finally {
+                                    setIsSendingWaTemplate(false);
+                                }
+                            }}
+                        >
+                            {isSendingWaTemplate ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Enviando...
+                                </>
+                            ) : (
+                                <>
+                                    <Send className="w-4 h-4 mr-2" />
+                                    Enviar plantilla
+                                </>
+                            )}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
