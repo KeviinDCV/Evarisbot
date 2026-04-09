@@ -18,6 +18,8 @@ class WhatsappTemplate extends Model
         'status',
         'meta_template_id',
         'header_text',
+        'header_format',
+        'header_media_url',
         'footer_text',
         'default_params',
         'is_active',

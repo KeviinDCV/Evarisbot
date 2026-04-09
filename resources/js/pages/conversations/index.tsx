@@ -170,6 +170,19 @@ interface Template {
     media_files?: MediaFile[];
 }
 
+interface WhatsappTemplate {
+    id: number;
+    name: string;
+    meta_template_name: string;
+    preview_text: string;
+    language: string;
+    header_text?: string | null;
+    header_format?: string | null;
+    header_media_url?: string | null;
+    footer_text?: string | null;
+    default_params?: string[] | null;
+}
+
 interface ConversationsIndexProps {
     conversations: Conversation[];
     hasMore?: boolean;
@@ -183,9 +196,10 @@ interface ConversationsIndexProps {
         tag?: string;
     };
     templates?: Template[];
+    whatsappTemplates?: WhatsappTemplate[];
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, allTags: initialAllTags = [], filters, templates = [] }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, allTags: initialAllTags = [], filters, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -200,7 +214,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showAssignModal, setShowAssignModal] = useState(false);
     const [showNewChatModal, setShowNewChatModal] = useState(false);
-    const [newChatData, setNewChatData] = useState({ phone_number: '', contact_name: '', assigned_to: null as number | null });
+    const [newChatData, setNewChatData] = useState({ phone_number: '', assigned_to: null as number | null, whatsapp_template_id: null as number | null, template_params: [] as string[] });
     const [newChatError, setNewChatError] = useState('');
     const [isCreatingChat, setIsCreatingChat] = useState(false);
     const [advisorSearchQuery, setAdvisorSearchQuery] = useState('');
@@ -4140,7 +4154,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             <Dialog open={showNewChatModal} onOpenChange={(open) => {
                 setShowNewChatModal(open);
                 if (!open) {
-                    setNewChatData({ phone_number: '', contact_name: '', assigned_to: null });
+                    setNewChatData({ phone_number: '', assigned_to: null, whatsapp_template_id: null, template_params: [] });
                     setNewChatError('');
                 }
             }}>
@@ -4165,16 +4179,21 @@ export default function ConversationsIndex({ conversations: initialConversations
                             return;
                         }
 
+                        if (!newChatData.whatsapp_template_id) {
+                            setNewChatError('Debe seleccionar una plantilla aprobada');
+                            return;
+                        }
+
                         setIsCreatingChat(true);
                         router.post('/admin/chat/create', {
                             phone_number: newChatData.phone_number,
-                            contact_name: newChatData.contact_name,
                             assigned_to: newChatData.assigned_to,
-                            message: 'saludo' // Se usa plantilla de saludo automáticamente
+                            whatsapp_template_id: newChatData.whatsapp_template_id,
+                            template_params: newChatData.template_params,
                         }, {
                             onSuccess: () => {
                                 setShowNewChatModal(false);
-                                setNewChatData({ phone_number: '', contact_name: '', assigned_to: null });
+                                setNewChatData({ phone_number: '', assigned_to: null, whatsapp_template_id: null, template_params: [] });
                                 setIsCreatingChat(false);
                                 toast.success('Conversación creada exitosamente');
                             },
@@ -4205,19 +4224,89 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
-                                {t('conversations.contactName')} (opcional)
+                                Plantilla de WhatsApp *
                             </label>
-                            <div className="relative">
-                                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                                <Input
-                                    type="text"
-                                    placeholder="Nombre del contacto"
-                                    value={newChatData.contact_name}
-                                    onChange={(e) => setNewChatData({ ...newChatData, contact_name: e.target.value })}
-                                    className="pl-10 settings-input rounded-xl"
-                                />
-                            </div>
+                            <select
+                                value={newChatData.whatsapp_template_id || ''}
+                                onChange={(e) => {
+                                    const templateId = e.target.value ? Number(e.target.value) : null;
+                                    const selectedTpl = whatsappTemplates.find(t => t.id === templateId);
+                                    setNewChatData({
+                                        ...newChatData,
+                                        whatsapp_template_id: templateId,
+                                        template_params: selectedTpl?.default_params ? selectedTpl.default_params.map(() => '') : [],
+                                    });
+                                }}
+                                className="w-full h-10 px-3 settings-input rounded-xl"
+                            >
+                                <option value="">Seleccionar plantilla...</option>
+                                {whatsappTemplates.map((tpl) => (
+                                    <option key={tpl.id} value={tpl.id}>
+                                        {tpl.name} ({tpl.meta_template_name})
+                                    </option>
+                                ))}
+                            </select>
+                            {whatsappTemplates.length === 0 && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                    No hay plantillas aprobadas disponibles. Cree y apruebe plantillas desde Envíos Masivos.
+                                </p>
+                            )}
                         </div>
+
+                        {/* Template params */}
+                        {(() => {
+                            const selectedTpl = whatsappTemplates.find(t => t.id === newChatData.whatsapp_template_id);
+                            if (!selectedTpl?.default_params || selectedTpl.default_params.length === 0) return null;
+                            return (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
+                                        Parámetros de la plantilla
+                                    </label>
+                                    {selectedTpl.default_params.map((_, idx) => (
+                                        <Input
+                                            key={idx}
+                                            type="text"
+                                            placeholder={`Valor para {{${idx + 1}}}`}
+                                            value={newChatData.template_params[idx] || ''}
+                                            onChange={(e) => {
+                                                const params = [...newChatData.template_params];
+                                                params[idx] = e.target.value;
+                                                setNewChatData({ ...newChatData, template_params: params });
+                                            }}
+                                            className="settings-input rounded-xl"
+                                        />
+                                    ))}
+                                </div>
+                            );
+                        })()}
+
+                        {/* Template preview */}
+                        {(() => {
+                            const selectedTpl = whatsappTemplates.find(t => t.id === newChatData.whatsapp_template_id);
+                            if (!selectedTpl) return null;
+                            let previewBody = selectedTpl.preview_text;
+                            newChatData.template_params.forEach((val, idx) => {
+                                if (val) previewBody = previewBody.replace(`{{${idx + 1}}}`, val);
+                            });
+                            return (
+                                <div className="border border-border/60 rounded-xl overflow-hidden">
+                                    <div className="px-3 py-2 bg-muted/40 border-b border-border/40">
+                                        <span className="text-xs font-medium text-foreground/80">Vista previa</span>
+                                    </div>
+                                    <div className="p-3 bg-green-50/60 dark:bg-green-950/20">
+                                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 max-w-sm text-sm">
+                                            {selectedTpl.header_text && (
+                                                <p className="font-bold text-foreground mb-1">{selectedTpl.header_text}</p>
+                                            )}
+                                            <p className="text-foreground leading-relaxed whitespace-pre-wrap">{previewBody}</p>
+                                            {selectedTpl.footer_text && (
+                                                <p className="text-xs text-muted-foreground mt-2">{selectedTpl.footer_text}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
@@ -4235,12 +4324,6 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </option>
                                 ))}
                             </select>
-                        </div>
-
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-500 p-3">
-                            <div className="text-sm text-blue-800 dark:text-blue-300">
-                                <strong>Mensaje automático:</strong> Se enviará el saludo de presentación usando la plantilla aprobada por Meta con el nombre del asesor asignado.
-                            </div>
                         </div>
 
                         {newChatError && (

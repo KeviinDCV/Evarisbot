@@ -504,6 +504,70 @@ class WhatsAppService
     }
 
     /**
+     * Enviar plantilla genérica de WhatsApp
+     */
+    public function sendTemplate(string $to, string $templateName, string $language, array $components = []): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'recipient_type' => 'individual',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'template',
+                'template' => [
+                    'name' => $templateName,
+                    'language' => ['code' => $language],
+                ],
+            ];
+
+            if (!empty($components)) {
+                $payload['template']['components'] = $components;
+            }
+
+            Log::info('Enviando plantilla', [
+                'to' => $to,
+                'template' => $templateName,
+                'language' => $language,
+            ]);
+
+            $response = Http::withToken($this->token)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return [
+                    'success' => true,
+                    'message_id' => $data['messages'][0]['id'] ?? null,
+                    'data' => $data,
+                ];
+            }
+
+            $errorJson = $response->json();
+            $errorMsg = $errorJson['error']['message'] ?? 'Error desconocido';
+
+            Log::error('Error enviando plantilla', [
+                'to' => $to,
+                'template' => $templateName,
+                'status' => $response->status(),
+                'error' => $errorMsg,
+            ]);
+
+            return ['success' => false, 'error' => $errorMsg];
+        } catch (\Exception $e) {
+            Log::error('Excepción enviando plantilla', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+                'template' => $templateName,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Enviar plantilla de saludo de asesor
      * Esta plantilla debe estar aprobada en Meta con el nombre 'saludo_asesor'
      */

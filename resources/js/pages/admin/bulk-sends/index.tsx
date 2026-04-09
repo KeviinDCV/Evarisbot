@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2, RefreshCw, FilePlus2, Shield, Megaphone, Key, Globe } from 'lucide-react';
+import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2, RefreshCw, FilePlus2, Shield, Megaphone, Key, Globe, Image, Video, FileText } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -111,6 +111,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [newTplCategory, setNewTplCategory] = useState<'MARKETING' | 'UTILITY' | 'AUTHENTICATION'>('UTILITY');
     const [newTplLanguage, setNewTplLanguage] = useState('es');
     const [newTplHeader, setNewTplHeader] = useState('');
+    const [newTplHeaderFormat, setNewTplHeaderFormat] = useState<'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'>('NONE');
+    const [newTplHeaderMediaUrl, setNewTplHeaderMediaUrl] = useState('');
     const [newTplBody, setNewTplBody] = useState('');
     const [newTplFooter, setNewTplFooter] = useState('');
     const [isCreatingTemplate, setIsCreatingTemplate] = useState(false);
@@ -461,7 +463,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     display_name: newTplDisplayName,
                     category: newTplCategory,
                     language: newTplLanguage,
-                    header_text: newTplHeader || null,
+                    header_format: newTplHeaderFormat !== 'NONE' ? newTplHeaderFormat : null,
+                    header_text: newTplHeaderFormat === 'TEXT' ? newTplHeader || null : null,
+                    header_media_url: ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(newTplHeaderFormat) ? newTplHeaderMediaUrl || null : null,
                     body_text: newTplBody,
                     footer_text: newTplFooter || null,
                 }),
@@ -475,6 +479,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setNewTplCategory('UTILITY');
                 setNewTplLanguage('es');
                 setNewTplHeader('');
+                setNewTplHeaderFormat('NONE');
+                setNewTplHeaderMediaUrl('');
                 setNewTplBody('');
                 setNewTplFooter('');
                 setTimeout(() => setSuccess(''), 5000);
@@ -1310,16 +1316,56 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     {/* Header (optional) */}
                                     <div>
                                         <label className="block font-semibold mb-1.5 settings-label text-sm">
-                                            Encabezado <span className="font-normal text-muted-foreground">(opcional, máx. 60 car.)</span>
+                                            Encabezado <span className="font-normal text-muted-foreground">(opcional)</span>
                                         </label>
-                                        <input
-                                            type="text"
-                                            value={newTplHeader}
-                                            onChange={(e) => setNewTplHeader(e.target.value)}
-                                            placeholder="Ej: Hospital Universitario del Valle"
-                                            maxLength={60}
-                                            className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm"
-                                        />
+                                        <div className="relative mb-2">
+                                            <select
+                                                value={newTplHeaderFormat}
+                                                onChange={(e) => {
+                                                    setNewTplHeaderFormat(e.target.value as 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT');
+                                                    setNewTplHeader('');
+                                                    setNewTplHeaderMediaUrl('');
+                                                }}
+                                                className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm appearance-none pr-10 cursor-pointer"
+                                            >
+                                                <option value="NONE">Sin encabezado</option>
+                                                <option value="TEXT">Texto</option>
+                                                <option value="IMAGE">Imagen</option>
+                                                <option value="VIDEO">Video</option>
+                                                <option value="DOCUMENT">Documento</option>
+                                            </select>
+                                            <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                                        </div>
+                                        {newTplHeaderFormat === 'TEXT' && (
+                                            <input
+                                                type="text"
+                                                value={newTplHeader}
+                                                onChange={(e) => setNewTplHeader(e.target.value)}
+                                                placeholder="Ej: Hospital Universitario del Valle"
+                                                maxLength={60}
+                                                className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm"
+                                            />
+                                        )}
+                                        {['IMAGE', 'VIDEO', 'DOCUMENT'].includes(newTplHeaderFormat) && (
+                                            <div className="space-y-2">
+                                                <input
+                                                    type="url"
+                                                    value={newTplHeaderMediaUrl}
+                                                    onChange={(e) => setNewTplHeaderMediaUrl(e.target.value)}
+                                                    placeholder={
+                                                        newTplHeaderFormat === 'IMAGE' ? 'https://ejemplo.com/imagen.jpg' :
+                                                        newTplHeaderFormat === 'VIDEO' ? 'https://ejemplo.com/video.mp4' :
+                                                        'https://ejemplo.com/documento.pdf'
+                                                    }
+                                                    className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm"
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    {newTplHeaderFormat === 'IMAGE' && 'Formatos: JPG, PNG. Máx. 5 MB. URL pública accesible.'}
+                                                    {newTplHeaderFormat === 'VIDEO' && 'Formatos: MP4. Máx. 16 MB. URL pública accesible.'}
+                                                    {newTplHeaderFormat === 'DOCUMENT' && 'Formatos: PDF. Máx. 100 MB. URL pública accesible.'}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Body */}
@@ -1369,8 +1415,26 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             </div>
                                             <div className="p-4 bg-green-50/60 dark:bg-green-950/20">
                                                 <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 max-w-sm">
-                                                    {newTplHeader && (
+                                                    {newTplHeaderFormat === 'TEXT' && newTplHeader && (
                                                         <p className="text-sm font-bold text-foreground mb-1">{newTplHeader}</p>
+                                                    )}
+                                                    {newTplHeaderFormat === 'IMAGE' && (
+                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 mb-2 flex flex-col items-center justify-center gap-1">
+                                                            <Image className="w-8 h-8 text-muted-foreground" />
+                                                            <span className="text-xs text-muted-foreground">Imagen</span>
+                                                        </div>
+                                                    )}
+                                                    {newTplHeaderFormat === 'VIDEO' && (
+                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 mb-2 flex flex-col items-center justify-center gap-1">
+                                                            <Video className="w-8 h-8 text-muted-foreground" />
+                                                            <span className="text-xs text-muted-foreground">Video</span>
+                                                        </div>
+                                                    )}
+                                                    {newTplHeaderFormat === 'DOCUMENT' && (
+                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 mb-2 flex flex-col items-center justify-center gap-1">
+                                                            <FileText className="w-8 h-8 text-muted-foreground" />
+                                                            <span className="text-xs text-muted-foreground">Documento</span>
+                                                        </div>
                                                     )}
                                                     <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{newTplBody}</p>
                                                     {newTplFooter && (

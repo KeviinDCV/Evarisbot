@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\Tag;
 use App\Models\Template;
 use App\Models\User;
+use App\Models\WhatsappTemplate;
 use App\Services\SpellCheckService;
 use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
@@ -229,6 +230,10 @@ class ConversationController extends Controller
             'users' => $users,
             'allTags' => $allTags,
             'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
+            'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
+                ->whereIn('status', ['APPROVED', 'approved'])
+                ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
+                ->get(),
         ]);
     }
 
@@ -415,6 +420,10 @@ class ConversationController extends Controller
             'allTags' => $allTags,
             'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
             'templates' => $templates,
+            'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
+                ->whereIn('status', ['APPROVED', 'approved'])
+                ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
+                ->get(),
         ]);
     }
 
@@ -1237,10 +1246,14 @@ class ConversationController extends Controller
     {
         $validated = $request->validate([
             'phone_number' => 'required|string|min:10|max:20',
-            'contact_name' => 'nullable|string|max:255',
             'assigned_to' => 'nullable|exists:users,id',
-            'message' => 'required|string|max:4096',
+            'whatsapp_template_id' => 'required|exists:whatsapp_templates,id',
+            'template_params' => 'nullable|array',
+            'template_params.*' => 'nullable|string|max:1024',
         ]);
+
+        // Obtener la plantilla seleccionada
+        $whatsappTemplate = WhatsappTemplate::findOrFail($validated['whatsapp_template_id']);
 
         // Obtener el asesor seleccionado o usar el usuario actual (admin)
         $assignedUser = $validated['assigned_to'] 
@@ -1274,7 +1287,6 @@ class ConversationController extends Controller
             // Crear nueva conversación asignada al asesor seleccionado
             $conversation = Conversation::create([
                 'phone_number' => $phoneNumber,
-                'contact_name' => $validated['contact_name'] ?? null,
                 'status' => 'active',
                 'assigned_to' => $assignedUser->id,
                 'last_message_at' => now(),
@@ -1282,29 +1294,41 @@ class ConversationController extends Controller
             ]);
         }
 
-        // Usar plantilla de saludo con el primer nombre del asesor seleccionado
-        $advisorName = explode(' ', trim($assignedUser->name))[0];
-        
-        // Generar el texto del mensaje de saludo para guardar en BD
-        $greetingText = "Buen día.\n" .
-            "Le saludamos de Hospital Universitario del Valle.\n" .
-            "A partir de este momento será atendido(a) por {$advisorName}, quien estará a cargo de la asignación y seguimiento de su cita.\n" .
-            "Quedamos atentos a cualquier consulta adicional.";
-        
+        // Construir texto de preview del mensaje para guardar en BD
+        $templateParams = $validated['template_params'] ?? [];
+        $messageText = $whatsappTemplate->preview_text;
+        foreach ($templateParams as $idx => $val) {
+            if ($val) {
+                $messageText = str_replace('{{' . ($idx + 1) . '}}', $val, $messageText);
+            }
+        }
+
         // Crear el mensaje en la base de datos (enviado por el asesor seleccionado)
         $message = $conversation->messages()->create([
-            'content' => $greetingText,
+            'content' => $messageText,
             'message_type' => 'text',
             'is_from_user' => false,
             'sent_by' => $assignedUser->id,
             'status' => 'pending',
         ]);
 
-        // Enviar usando la plantilla de saludo de WhatsApp
+        // Construir componentes de la plantilla
+        $components = [];
+        if (!empty($templateParams)) {
+            $bodyParams = array_map(fn($val) => ['type' => 'text', 'text' => $val ?: ''], $templateParams);
+            $components[] = [
+                'type' => 'body',
+                'parameters' => $bodyParams,
+            ];
+        }
+
+        // Enviar usando la plantilla seleccionada
         if ($whatsappService->isConfigured()) {
-            $result = $whatsappService->sendGreetingTemplate(
+            $result = $whatsappService->sendTemplate(
                 $phoneNumber,
-                $advisorName
+                $whatsappTemplate->meta_template_name,
+                $whatsappTemplate->language,
+                $components
             );
 
             if ($result && $result['success']) {

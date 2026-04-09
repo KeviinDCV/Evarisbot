@@ -651,13 +651,16 @@ class BulkSendController extends Controller
             'name' => ['required', 'string', 'max:512', 'regex:/^[a-z][a-z0-9_]*$/'],
             'category' => 'required|in:MARKETING,UTILITY,AUTHENTICATION',
             'language' => 'required|string|max:10',
+            'header_format' => 'nullable|in:TEXT,IMAGE,VIDEO,DOCUMENT',
             'header_text' => 'nullable|string|max:60',
+            'header_media_url' => 'nullable|url|max:2048',
             'body_text' => 'required|string|max:1024',
             'footer_text' => 'nullable|string|max:60',
             'display_name' => 'required|string|max:255',
         ], [
             'name.regex' => 'El nombre debe empezar con letra minúscula y solo contener letras minúsculas, números y guiones bajos.',
             'body_text.required' => 'El cuerpo del mensaje es obligatorio.',
+            'header_media_url.url' => 'La URL del medio debe ser una URL válida.',
         ]);
 
         $businessAccountId = Setting::get('whatsapp_business_account_id');
@@ -680,11 +683,20 @@ class BulkSendController extends Controller
 
         $components = [];
 
-        if ($request->filled('header_text')) {
+        $headerFormat = $request->input('header_format');
+        if ($headerFormat === 'TEXT' && $request->filled('header_text')) {
             $components[] = [
                 'type' => 'HEADER',
                 'format' => 'TEXT',
                 'text' => $request->input('header_text'),
+            ];
+        } elseif (in_array($headerFormat, ['IMAGE', 'VIDEO', 'DOCUMENT']) && $request->filled('header_media_url')) {
+            $components[] = [
+                'type' => 'HEADER',
+                'format' => $headerFormat,
+                'example' => [
+                    'header_handle' => [$request->input('header_media_url')],
+                ],
             ];
         }
 
@@ -736,7 +748,9 @@ class BulkSendController extends Controller
                     'category' => $request->input('category'),
                     'status' => $data['status'] ?? 'PENDING',
                     'meta_template_id' => $data['id'] ?? null,
-                    'header_text' => $request->input('header_text'),
+                    'header_text' => $headerFormat === 'TEXT' ? $request->input('header_text') : null,
+                    'header_format' => $headerFormat,
+                    'header_media_url' => in_array($headerFormat, ['IMAGE', 'VIDEO', 'DOCUMENT']) ? $request->input('header_media_url') : null,
                     'footer_text' => $request->input('footer_text'),
                     'default_params' => $defaultParams,
                     'is_active' => false,
