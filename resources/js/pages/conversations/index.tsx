@@ -4359,7 +4359,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     setNewChatError('');
                 }
             }}>
-                <DialogContent className="sm:max-w-lg card-gradient border-0 shadow-[0_4px_12px_rgba(46,63,132,0.15),0_8px_24px_rgba(46,63,132,0.2)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3),0_8px_24px_rgba(0,0,0,0.4)]">
+                <DialogContent className="sm:max-w-lg card-gradient border-0 shadow-[0_4px_12px_rgba(46,63,132,0.15),0_8px_24px_rgba(46,63,132,0.2)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3),0_8px_24px_rgba(0,0,0,0.4)] max-h-[85vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Plus className="w-6 h-6 text-primary dark:text-[hsl(231,55%,70%)]" />
@@ -4403,7 +4403,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 setIsCreatingChat(false);
                             },
                         });
-                    }} className="space-y-4 py-4">
+                    }} className="space-y-4 py-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
                                 {t('conversations.phoneNumber')} *
