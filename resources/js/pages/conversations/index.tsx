@@ -178,6 +178,7 @@ interface WhatsappTemplate {
     meta_template_name: string;
     preview_text: string;
     language: string;
+    category?: string | null;
     header_text?: string | null;
     header_format?: string | null;
     header_media_url?: string | null;
@@ -1687,14 +1688,26 @@ export default function ConversationsIndex({ conversations: initialConversations
     const friendlyError = (msg?: string | null): string => {
         if (!msg) return 'No se pudo enviar el mensaje.';
         const lower = msg.toLowerCase();
+        if (lower.includes('131049') || lower.includes('healthy ecosystem'))
+            return 'Meta bloqueó la entrega de esta plantilla para este usuario. Esto ocurre cuando la plantilla es clasificada como Marketing y el destinatario ya alcanzó su límite de mensajes de marketing, o nunca ha interactuado con este número. Recomendación: usar una plantilla de categoría "Utilidad" con contenido transaccional (citas, confirmaciones, etc.).';
         if (lower.includes('24 hora') || lower.includes('re-engage') || lower.includes('131047') || lower.includes('window'))
             return 'Han pasado más de 24 horas desde el último mensaje del paciente. Para volver a escribirle, debe usar una plantilla de mensaje aprobada.';
+        if (lower.includes('131030'))
+            return 'El destinatario no aceptó recibir mensajes de marketing. Solo se pueden enviar plantillas de categoría "Utilidad" o "Autenticación" a este número.';
+        if (lower.includes('132015') || lower.includes('parameter'))
+            return 'Los parámetros de la plantilla no coinciden con lo esperado. Verifique que llenó todos los campos requeridos.';
+        if (lower.includes('132012') || lower.includes('paused'))
+            return 'Esta plantilla fue pausada por Meta debido a baja calidad. Debe ir a la configuración de plantillas y corregirla.';
+        if (lower.includes('132016') || lower.includes('disabled'))
+            return 'Esta plantilla fue desactivada por Meta por violar las políticas de contenido. Debe crear una nueva plantilla.';
         if (lower.includes('rate limit') || lower.includes('throttl') || lower.includes('80007'))
             return 'Se ha superado el límite de mensajes. Intente de nuevo en unos minutos.';
         if (lower.includes('media') && (lower.includes('download') || lower.includes('upload') || lower.includes('size')))
             return 'No se pudo enviar el archivo multimedia. Verifique que el archivo no sea muy grande y que el formato sea compatible.';
         if (lower.includes('recipient') || lower.includes('phone') || lower.includes('131026'))
             return 'El número de teléfono del destinatario no es válido o no tiene WhatsApp.';
+        if (lower.includes('132001') || lower.includes('not exist') || lower.includes('not found'))
+            return 'La plantilla no existe en Meta o fue eliminada. Sincronice las plantillas desde "Envíos Masivos".';
         if (lower.includes('template'))
             return 'Error con la plantilla de mensaje. Verifique que la plantilla esté aprobada y los parámetros sean correctos.';
         return msg;
@@ -4179,7 +4192,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <option value="">Seleccionar plantilla...</option>
                                 {whatsappTemplates.map((tpl) => (
                                     <option key={tpl.id} value={tpl.id}>
-                                        {tpl.name} ({tpl.meta_template_name})
+                                        {tpl.name} ({tpl.meta_template_name}) — {tpl.category === 'MARKETING' ? '📢 Marketing' : tpl.category === 'UTILITY' ? '⚙️ Utilidad' : tpl.category || 'Sin categoría'}
                                     </option>
                                 ))}
                             </select>
@@ -4188,6 +4201,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     No hay plantillas aprobadas. Créelas desde Envíos Masivos.
                                 </p>
                             )}
+                            {(() => {
+                                const sel = whatsappTemplates.find(t => t.id === waTemplateId);
+                                if (sel?.category === 'MARKETING') return (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+                                        ⚠️ Esta plantilla es de tipo <strong>Marketing</strong>. Meta puede bloquear su entrega a usuarios que no han interactuado antes o que alcanzaron su límite de marketing. Use plantillas de <strong>Utilidad</strong> para mayor confiabilidad.
+                                    </p>
+                                );
+                                return null;
+                            })()}
                         </div>
 
                         {/* Parámetros */}
@@ -4488,7 +4510,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <option value="">Seleccionar plantilla...</option>
                                 {whatsappTemplates.map((tpl) => (
                                     <option key={tpl.id} value={tpl.id}>
-                                        {tpl.name} ({tpl.meta_template_name})
+                                        {tpl.name} ({tpl.meta_template_name}) — {tpl.category === 'MARKETING' ? '📢 Marketing' : tpl.category === 'UTILITY' ? '⚙️ Utilidad' : tpl.category || 'Sin categoría'}
                                     </option>
                                 ))}
                             </select>
@@ -4497,6 +4519,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     No hay plantillas aprobadas disponibles. Cree y apruebe plantillas desde Envíos Masivos.
                                 </p>
                             )}
+                            {(() => {
+                                const sel = whatsappTemplates.find(t => t.id === newChatData.whatsapp_template_id);
+                                if (sel?.category === 'MARKETING') return (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+                                        ⚠️ Esta plantilla es de tipo <strong>Marketing</strong>. Meta puede bloquear su entrega a usuarios que no han interactuado antes o que alcanzaron su límite de marketing. Use plantillas de <strong>Utilidad</strong> para mayor confiabilidad.
+                                    </p>
+                                );
+                                return null;
+                            })()}
                         </div>
 
                         {/* Template params */}

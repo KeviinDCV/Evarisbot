@@ -839,6 +839,7 @@ class BulkSendController extends Controller
                 if ($local) {
                     $local->update([
                         'status' => $mt['status'],
+                        'category' => $mt['category'] ?? $local->category,
                         'meta_template_id' => $mt['id'],
                         'is_active' => $mt['status'] === 'APPROVED',
                     ]);

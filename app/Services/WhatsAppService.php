@@ -548,15 +548,25 @@ class WhatsAppService
 
             $errorJson = $response->json();
             $errorMsg = $errorJson['error']['message'] ?? 'Error desconocido';
+            $errorCode = $errorJson['error']['code'] ?? null;
+            $errorSubcode = $errorJson['error']['error_subcode'] ?? null;
+            $errorDetail = $errorJson['error']['error_data']['details'] ?? null;
+
+            $fullError = $errorMsg;
+            if ($errorCode) $fullError .= " (code: {$errorCode}";
+            if ($errorSubcode) $fullError .= ", subcode: {$errorSubcode}";
+            if ($errorCode) $fullError .= ')';
+            if ($errorDetail) $fullError .= " - {$errorDetail}";
 
             Log::error('Error enviando plantilla', [
                 'to' => $to,
                 'template' => $templateName,
                 'status' => $response->status(),
-                'error' => $errorMsg,
+                'error' => $fullError,
+                'response_body' => $response->body(),
             ]);
 
-            return ['success' => false, 'error' => $errorMsg];
+            return ['success' => false, 'error' => $fullError];
         } catch (\Exception $e) {
             Log::error('Excepción enviando plantilla', [
                 'error' => $e->getMessage(),
