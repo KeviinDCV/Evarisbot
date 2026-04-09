@@ -206,6 +206,13 @@ export default function ConversationsIndex({ conversations: initialConversations
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
 
+    // Helper: detectar cantidad de variables {{N}} en el texto de una plantilla
+    const getTemplateParamCount = (tpl: WhatsappTemplate): number => {
+        if (tpl.default_params && tpl.default_params.length > 0) return tpl.default_params.length;
+        const matches = tpl.preview_text.match(/\{\{(\d+)\}\}/g);
+        return matches ? matches.length : 0;
+    };
+
     const [search, setSearch] = useState(filters.search || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -4120,7 +4127,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     const templateId = e.target.value ? Number(e.target.value) : null;
                                     const selectedTpl = whatsappTemplates.find(t => t.id === templateId);
                                     setWaTemplateId(templateId);
-                                    setWaTemplateParams(selectedTpl?.default_params ? selectedTpl.default_params.map(() => '') : []);
+                                    setWaTemplateParams(selectedTpl ? Array(getTemplateParamCount(selectedTpl)).fill('') : []);
                                 }}
                                 className="w-full h-10 px-3 settings-input rounded-xl"
                             >
@@ -4141,13 +4148,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                         {/* Parámetros */}
                         {(() => {
                             const selectedTpl = whatsappTemplates.find(t => t.id === waTemplateId);
-                            if (!selectedTpl?.default_params || selectedTpl.default_params.length === 0) return null;
+                            const paramCount = selectedTpl ? getTemplateParamCount(selectedTpl) : 0;
+                            if (!selectedTpl || paramCount === 0) return null;
                             return (
                                 <div className="space-y-3">
                                     <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
                                         Variables de la plantilla
                                     </label>
-                                    {selectedTpl.default_params.map((_, idx) => (
+                                    {Array.from({ length: paramCount }).map((_, idx) => (
                                         <div key={idx} className="space-y-1">
                                             <span className="text-xs text-muted-foreground">{`{{${idx + 1}}}`}</span>
                                             <Input
@@ -4427,7 +4435,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     setNewChatData({
                                         ...newChatData,
                                         whatsapp_template_id: templateId,
-                                        template_params: selectedTpl?.default_params ? selectedTpl.default_params.map(() => '') : [],
+                                        template_params: selectedTpl ? Array(getTemplateParamCount(selectedTpl)).fill('') : [],
                                     });
                                 }}
                                 className="w-full h-10 px-3 settings-input rounded-xl"
@@ -4449,13 +4457,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                         {/* Template params */}
                         {(() => {
                             const selectedTpl = whatsappTemplates.find(t => t.id === newChatData.whatsapp_template_id);
-                            if (!selectedTpl?.default_params || selectedTpl.default_params.length === 0) return null;
+                            const paramCount = selectedTpl ? getTemplateParamCount(selectedTpl) : 0;
+                            if (!selectedTpl || paramCount === 0) return null;
                             return (
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
                                         Parámetros de la plantilla
                                     </label>
-                                    {selectedTpl.default_params.map((_, idx) => (
+                                    {Array.from({ length: paramCount }).map((_, idx) => (
                                         <Input
                                             key={idx}
                                             type="text"
