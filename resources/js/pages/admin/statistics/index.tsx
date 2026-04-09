@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { BarChart3, Download, Calendar, MessageSquare, FileText, Users, Clock, CheckCircle2, XCircle, Calendar as CalendarIcon, Send, AlertCircle, Filter, Table2, ChevronDown, ChevronUp, Timer, TrendingUp } from 'lucide-react';
+import { BarChart3, Download, Calendar, MessageSquare, FileText, Users, Clock, CheckCircle2, XCircle, Calendar as CalendarIcon, Send, AlertCircle, Filter, Table2, ChevronDown, ChevronUp, Timer, TrendingUp, CalendarCheck2 } from 'lucide-react';
 import { useState, FormEventHandler, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ interface AdvisorDetail {
         messages_sent: number;
         total_conversations: number;
         resolved_conversations: number;
+        scheduled_conversations: number;
         active_conversations: number;
         pending_conversations: number;
         resolution_rate: number;
@@ -55,6 +56,7 @@ interface Statistics {
         in_progress: number;
         resolved: number;
         closed: number;
+        scheduled: number;
         unread: number;
     };
     templates: {
@@ -72,6 +74,7 @@ interface Statistics {
         total_advisors: number;
         total_conversations: number;
         total_resolved: number;
+        total_scheduled: number;
         total_active: number;
         total_with_unread: number;
         total_messages_sent: number;
@@ -81,6 +84,7 @@ interface Statistics {
             name: string;
             total_conversations: number;
             resolved_conversations: number;
+            scheduled_conversations: number;
             active_conversations: number;
             conversations_with_unread: number;
             messages_sent: number;
@@ -91,6 +95,7 @@ interface Statistics {
             name: string;
             total_conversations: number;
             resolved_conversations: number;
+            scheduled_conversations: number;
             active_conversations: number;
             conversations_with_unread: number;
             messages_sent: number;
@@ -229,6 +234,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
         { name: t('statistics.conversations.inProgress'), value: statistics.conversations.in_progress },
         { name: t('statistics.conversations.resolved'), value: statistics.conversations.resolved },
         { name: t('statistics.conversations.closed'), value: statistics.conversations.closed },
+        { name: t('statistics.conversations.scheduled'), value: statistics.conversations.scheduled },
     ];
 
     const mainStatsData = [
@@ -473,7 +479,8 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     <StatRow icon={Clock} label={t('statistics.conversations.inProgress')} value={statistics.conversations.in_progress} index={3} />
                                     <StatRow icon={CheckCircle2} label={t('statistics.conversations.resolved')} value={statistics.conversations.resolved} index={4} />
                                     <StatRow icon={XCircle} label={t('statistics.conversations.closed')} value={statistics.conversations.closed} index={5} />
-                                    <StatRow icon={AlertCircle} label={t('statistics.conversations.unread')} value={statistics.conversations.unread} index={6} />
+                                    <StatRow icon={CalendarCheck2} label={t('statistics.conversations.scheduled')} value={statistics.conversations.scheduled} index={6} />
+                                    <StatRow icon={AlertCircle} label={t('statistics.conversations.unread')} value={statistics.conversations.unread} index={7} />
                                 </div>
                             </div>
 
@@ -534,6 +541,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                                         </span>
                                                         <span className="settings-subtitle" style={{ fontSize: '10px' }}>
                                                             {advisor.resolved_conversations} resueltas
+                                                        </span>
+                                                        <span className="settings-subtitle" style={{ fontSize: '10px' }}>
+                                                            {advisor.scheduled_conversations} agendadas
                                                         </span>
                                                         <span className="settings-subtitle" style={{ fontSize: '10px' }}>
                                                             {advisor.messages_sent} msgs
@@ -602,7 +612,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                                         ) : advisorDetail ? (
                                                             <div className="space-y-3">
                                                                 {/* Summary cards */}
-                                                                <div className="grid grid-cols-4 gap-2">
+                                                                <div className="grid grid-cols-5 gap-2">
                                                                     <div className="rounded-lg bg-card p-2 text-center border border-border/30">
                                                                         <div className="text-lg font-bold settings-title">{advisorDetail.summary.messages_sent}</div>
                                                                         <div className="text-[10px] settings-subtitle">Mensajes enviados</div>
@@ -618,6 +628,12 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                                                                 : 'N/A'}
                                                                         </div>
                                                                         <div className="text-[10px] settings-subtitle">Resp. promedio</div>
+                                                                    </div>
+                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
+                                                                        <div className="text-lg font-bold settings-title">
+                                                                            {advisorDetail.summary.scheduled_conversations}
+                                                                        </div>
+                                                                        <div className="text-[10px] settings-subtitle">Agendadas</div>
                                                                     </div>
                                                                     <div className="rounded-lg bg-card p-2 text-center border border-border/30">
                                                                         <div className="text-lg font-bold settings-title">

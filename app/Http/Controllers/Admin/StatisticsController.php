@@ -201,6 +201,7 @@ class StatisticsController extends Controller
                 SUM(CASE WHEN status = "in_progress" THEN 1 ELSE 0 END) as in_progress,
                 SUM(CASE WHEN status = "resolved" THEN 1 ELSE 0 END) as resolved,
                 SUM(CASE WHEN status = "closed" THEN 1 ELSE 0 END) as closed,
+                SUM(CASE WHEN status = "scheduled" THEN 1 ELSE 0 END) as scheduled,
                 SUM(CASE WHEN unread_count > 0 THEN 1 ELSE 0 END) as unread
             ');
 
@@ -217,6 +218,7 @@ class StatisticsController extends Controller
             'in_progress' => (int) ($result->in_progress ?? 0),
             'resolved' => (int) ($result->resolved ?? 0),
             'closed' => (int) ($result->closed ?? 0),
+            'scheduled' => (int) ($result->scheduled ?? 0),
             'unread' => (int) ($result->unread ?? 0),
         ];
     }
@@ -291,6 +293,7 @@ class StatisticsController extends Controller
             // Clonar queries para diferentes conteos
             $totalConversations = (clone $convQuery)->count();
             $resolvedConversations = (clone $convQuery)->whereIn('status', ['resolved', 'closed'])->count();
+            $scheduledConversations = (clone $convQuery)->where('status', 'scheduled')->count();
             $activeConversations = (clone $convQuery)->where('status', 'active')->count();
             $conversationsWithUnread = (clone $convQuery)->where('unread_count', '>', 0)->count();
 
@@ -315,6 +318,7 @@ class StatisticsController extends Controller
                 'name' => $advisor->name,
                 'total_conversations' => $totalConversations,
                 'resolved_conversations' => $resolvedConversations,
+                'scheduled_conversations' => $scheduledConversations,
                 'active_conversations' => $activeConversations,
                 'conversations_with_unread' => $conversationsWithUnread,
                 'messages_sent' => $messagesSent,
@@ -326,6 +330,7 @@ class StatisticsController extends Controller
         $totalAdvisors = count($advisorStats);
         $totalConversations = array_sum(array_column($advisorStats, 'total_conversations'));
         $totalResolved = array_sum(array_column($advisorStats, 'resolved_conversations'));
+        $totalScheduled = array_sum(array_column($advisorStats, 'scheduled_conversations'));
         $totalActive = array_sum(array_column($advisorStats, 'active_conversations'));
         $totalUnread = array_sum(array_column($advisorStats, 'conversations_with_unread'));
         $totalMessages = array_sum(array_column($advisorStats, 'messages_sent'));
@@ -341,6 +346,7 @@ class StatisticsController extends Controller
             'total_advisors' => $totalAdvisors,
             'total_conversations' => $totalConversations,
             'total_resolved' => $totalResolved,
+            'total_scheduled' => $totalScheduled,
             'total_active' => $totalActive,
             'total_with_unread' => $totalUnread,
             'total_messages_sent' => $totalMessages,
@@ -409,6 +415,7 @@ class StatisticsController extends Controller
 
         $totalConversations = (clone $convQuery)->count();
         $resolvedConversations = (clone $convQuery)->whereIn('status', ['resolved', 'closed'])->count();
+        $scheduledConversations = (clone $convQuery)->where('status', 'scheduled')->count();
         $activeConversations = (clone $convQuery)->where('status', 'active')->count();
         $pendingConversations = (clone $convQuery)->where('status', 'pending')->count();
 
@@ -457,6 +464,7 @@ class StatisticsController extends Controller
                 'messages_sent' => $messagesSent,
                 'total_conversations' => $totalConversations,
                 'resolved_conversations' => $resolvedConversations,
+                'scheduled_conversations' => $scheduledConversations,
                 'active_conversations' => $activeConversations,
                 'pending_conversations' => $pendingConversations,
                 'resolution_rate' => $totalConversations > 0

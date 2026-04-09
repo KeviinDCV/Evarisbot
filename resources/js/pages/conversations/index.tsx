@@ -3134,13 +3134,58 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Especialidad */}
                                 <div className="border-t border-border my-1"></div>
                                 {!showSpecialtyInput ? (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setShowSpecialtyInput(true); }}
-                                        className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent flex items-center gap-2"
-                                    >
-                                        <Stethoscope className="w-3.5 h-3.5" />
-                                        Especialidad
-                                    </button>
+                                    <>
+                                        {conversation.specialty ? (
+                                            <div className="px-3 py-1.5">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <Stethoscope className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                                                    <span className="text-sm font-medium text-teal-700 dark:text-teal-300 truncate">{conversation.specialty}</span>
+                                                </div>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setSpecialtyName(conversation.specialty || ''); setShowSpecialtyInput(true); }}
+                                                        className="flex-1 py-1 text-xs hover:bg-accent rounded flex items-center justify-center gap-1"
+                                                    >
+                                                        <Pencil className="w-3 h-3" />
+                                                        Editar
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            fetch(`/admin/chat/${conversation.id}/specialty`, {
+                                                                method: 'POST',
+                                                                headers: {
+                                                                    'Content-Type': 'application/json',
+                                                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                                                },
+                                                                body: JSON.stringify({ specialty: null }),
+                                                            }).then(() => {
+                                                                setLocalConversations(prev => prev.map(c =>
+                                                                    c.id === conversation.id ? { ...c, specialty: null } : c
+                                                                ));
+                                                                toast.success('Especialidad eliminada');
+                                                            }).catch(() => {
+                                                                toast.error('Error al eliminar la especialidad');
+                                                            });
+                                                            setContextMenu(null);
+                                                        }}
+                                                        className="flex-1 py-1 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 rounded flex items-center justify-center gap-1"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                        Eliminar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setShowSpecialtyInput(true); }}
+                                                className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent flex items-center gap-2"
+                                            >
+                                                <Stethoscope className="w-3.5 h-3.5" />
+                                                Especialidad
+                                            </button>
+                                        )}
+                                    </>
                                 ) : (
                                     <div className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                                         <input

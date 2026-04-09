@@ -414,6 +414,7 @@
       "inProgress": "En progreso",
       "resolved": "Resueltas",
       "closed": "Cerradas",
+      "scheduled": "Agendadas",
       "unread": "Con mensajes sin leer",
       "byStatus": "Por estado"
     },

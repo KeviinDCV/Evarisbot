@@ -414,6 +414,7 @@
       "inProgress": "In Progress",
       "resolved": "Resolved",
       "closed": "Closed",
+      "scheduled": "Scheduled",
       "unread": "Unread Messages",
       "byStatus": "By Status"
     },

@@ -144,6 +144,7 @@ class StatisticsExport
             ['En progreso', $this->statistics['conversations']['in_progress'] ?? 0],
             ['Resueltas', $this->statistics['conversations']['resolved'] ?? 0],
             ['Cerradas', $this->statistics['conversations']['closed'] ?? 0],
+            ['Agendadas', $this->statistics['conversations']['scheduled'] ?? 0],
             ['Con mensajes sin leer', $this->statistics['conversations']['unread']],
         ], self::COLOR_SUCCESS);
         $row += 11;
@@ -306,6 +307,7 @@ class StatisticsExport
             ['En progreso', $this->statistics['conversations']['in_progress'] ?? 0],
             ['Resueltas', $this->statistics['conversations']['resolved'] ?? 0],
             ['Cerradas', $this->statistics['conversations']['closed'] ?? 0],
+            ['Agendadas', $this->statistics['conversations']['scheduled'] ?? 0],
             ['Con mensajes sin leer', $this->statistics['conversations']['unread']],
         ];
 
