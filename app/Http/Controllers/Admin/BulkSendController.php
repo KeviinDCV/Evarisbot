@@ -837,12 +837,23 @@ class BulkSendController extends Controller
                     ->first();
 
                 if ($local) {
-                    $local->update([
+                    $updateData = [
                         'status' => $mt['status'],
                         'category' => $mt['category'] ?? $local->category,
                         'meta_template_id' => $mt['id'],
                         'is_active' => $mt['status'] === 'APPROVED',
-                    ]);
+                    ];
+
+                    // Sincronizar header_format desde los componentes de Meta
+                    $components = $mt['components'] ?? [];
+                    foreach ($components as $component) {
+                        if (($component['type'] ?? '') === 'HEADER' && isset($component['format'])) {
+                            $updateData['header_format'] = $component['format'];
+                            break;
+                        }
+                    }
+
+                    $local->update($updateData);
                     $updated++;
                 }
             }

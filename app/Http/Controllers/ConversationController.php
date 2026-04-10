@@ -1311,6 +1311,27 @@ class ConversationController extends Controller
 
         // Construir componentes de la plantilla
         $components = [];
+
+        // Header de documento/imagen/video
+        if (in_array($whatsappTemplate->header_format, ['DOCUMENT', 'IMAGE', 'VIDEO']) && $whatsappTemplate->header_media_url) {
+            $mediaUrl = $whatsappTemplate->header_media_url;
+            if (str_starts_with($mediaUrl, '/')) {
+                $mediaUrl = config('app.url') . $mediaUrl;
+            }
+            $headerType = strtolower($whatsappTemplate->header_format);
+            $headerParam = [
+                'type' => $headerType,
+                $headerType => ['link' => $mediaUrl],
+            ];
+            if ($whatsappTemplate->header_format === 'DOCUMENT') {
+                $headerParam[$headerType]['filename'] = basename($whatsappTemplate->header_media_url);
+            }
+            $components[] = [
+                'type' => 'header',
+                'parameters' => [$headerParam],
+            ];
+        }
+
         if (!empty($templateParams)) {
             $bodyParams = array_map(fn($val) => ['type' => 'text', 'text' => $val ?: ''], $templateParams);
             $components[] = [
@@ -1446,6 +1467,27 @@ class ConversationController extends Controller
 
         // Construir componentes de la plantilla
         $components = [];
+
+        // Header de documento/imagen/video
+        if (in_array($whatsappTemplate->header_format, ['DOCUMENT', 'IMAGE', 'VIDEO']) && $whatsappTemplate->header_media_url) {
+            $mediaUrl = $whatsappTemplate->header_media_url;
+            if (str_starts_with($mediaUrl, '/')) {
+                $mediaUrl = config('app.url') . $mediaUrl;
+            }
+            $headerType = strtolower($whatsappTemplate->header_format);
+            $headerParam = [
+                'type' => $headerType,
+                $headerType => ['link' => $mediaUrl],
+            ];
+            if ($whatsappTemplate->header_format === 'DOCUMENT') {
+                $headerParam[$headerType]['filename'] = basename($whatsappTemplate->header_media_url);
+            }
+            $components[] = [
+                'type' => 'header',
+                'parameters' => [$headerParam],
+            ];
+        }
+
         if (!empty($templateParams)) {
             $bodyParams = array_map(fn($val) => ['type' => 'text', 'text' => $val ?: ''], $templateParams);
             $components[] = [

@@ -4299,7 +4299,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <option value="">Seleccionar plantilla...</option>
                                 {whatsappTemplates.map((tpl) => (
                                     <option key={tpl.id} value={tpl.id}>
-                                        {tpl.name} ({tpl.meta_template_name}) — {tpl.category === 'MARKETING' ? '📢 Marketing' : tpl.category === 'UTILITY' ? '⚙️ Utilidad' : tpl.category || 'Sin categoría'}
+                                        {tpl.name} ({tpl.meta_template_name}) — {tpl.header_format === 'DOCUMENT' ? '📎 ' : ''}{tpl.category === 'MARKETING' ? '📢 Marketing' : tpl.category === 'UTILITY' ? '⚙️ Utilidad' : tpl.category || 'Sin categoría'}
                                     </option>
                                 ))}
                             </select>
@@ -4367,6 +4367,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </div>
                                     <div className="p-3 bg-green-50/60 dark:bg-green-950/20">
                                         <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 text-sm">
+                                            {selectedTpl.header_format === 'DOCUMENT' && selectedTpl.header_media_url && (
+                                                <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200/60 dark:border-blue-800/40">
+                                                    <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                                    <span className="text-xs font-medium text-blue-700 dark:text-blue-300">📎 {selectedTpl.header_media_url.split('/').pop()}</span>
+                                                </div>
+                                            )}
                                             {selectedTpl.header_text && (
                                                 <p className="font-bold text-foreground mb-1">{selectedTpl.header_text}</p>
                                             )}
@@ -4617,7 +4623,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <option value="">Seleccionar plantilla...</option>
                                 {whatsappTemplates.map((tpl) => (
                                     <option key={tpl.id} value={tpl.id}>
-                                        {tpl.name} ({tpl.meta_template_name}) — {tpl.category === 'MARKETING' ? '📢 Marketing' : tpl.category === 'UTILITY' ? '⚙️ Utilidad' : tpl.category || 'Sin categoría'}
+                                        {tpl.name} ({tpl.meta_template_name}) — {tpl.header_format === 'DOCUMENT' ? '📎 ' : ''}{tpl.category === 'MARKETING' ? '📢 Marketing' : tpl.category === 'UTILITY' ? '⚙️ Utilidad' : tpl.category || 'Sin categoría'}
                                     </option>
                                 ))}
                             </select>
