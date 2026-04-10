@@ -123,6 +123,11 @@ class ConversationController extends Controller
             $query->whereIn('status', ['active', 'pending']);
         }
 
+        // Excluir conversaciones bloqueadas del listado general (solo se ven con filtro "blocked")
+        if (!$request->has('status') || $request->status !== 'blocked') {
+            $query->where('is_blocked', false);
+        }
+
         // Excluir conversaciones de oncología del listado general (solo se ven con filtro "oncology")
         if (!$request->has('status') || $request->status !== 'oncology') {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
@@ -178,7 +183,7 @@ class ConversationController extends Controller
         }
 
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
             ->limit($perPage)
             ->get();
         
@@ -232,7 +237,7 @@ class ConversationController extends Controller
             'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])
-                ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
+                ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'category', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
                 ->get(),
         ]);
     }
@@ -315,12 +320,21 @@ class ConversationController extends Controller
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
+            } elseif ($request->status === 'blocked') {
+                // Bloqueados: conversaciones bloqueadas
+                $query->where('is_blocked', true)
+                      ->orderBy('blocked_at', 'desc');
             } else {
                 $query->where('status', $request->status);
             }
         } elseif (!$filteringByTag) {
             // Sin filtro de estado explícito y sin etiqueta: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
+        }
+
+        // Excluir conversaciones bloqueadas del listado general
+        if (!$request->has('status') || $request->status !== 'blocked') {
+            $query->where('is_blocked', false);
         }
 
         // Excluir conversaciones de oncología del listado general
@@ -362,8 +376,7 @@ class ConversationController extends Controller
         // Paginación: cargar solo 50 conversaciones
         $perPage = 50;
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty'])
-            ->limit($perPage)
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
             ->get();
         
         $hasMore = $conversations->count() === $perPage;
@@ -422,7 +435,7 @@ class ConversationController extends Controller
             'templates' => $templates,
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])
-                ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
+                ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'category', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
                 ->get(),
         ]);
     }
@@ -1072,6 +1085,27 @@ class ConversationController extends Controller
     }
 
     /**
+     * Bloquear o desbloquear una conversación
+     */
+    public function toggleBlock(Conversation $conversation)
+    {
+        $wasBlocked = $conversation->is_blocked;
+
+        $conversation->update([
+            'is_blocked' => !$wasBlocked,
+            'blocked_at' => !$wasBlocked ? now() : null,
+            'blocked_by' => !$wasBlocked ? auth()->id() : null,
+        ]);
+
+        ConversationActivity::log($conversation->id, $wasBlocked ? 'unblocked' : 'blocked', auth()->id());
+
+        return response()->json([
+            'success' => true,
+            'is_blocked' => $conversation->is_blocked,
+        ]);
+    }
+
+    /**
      * Obtener historial de actividades de una conversación
      */
     public function activities(Conversation $conversation)
@@ -1583,6 +1617,11 @@ class ConversationController extends Controller
             $query->whereIn('status', ['active', 'pending']);
         }
 
+        // Excluir conversaciones bloqueadas del poll general
+        if (!$request->has('status') || $request->status !== 'blocked') {
+            $query->where('is_blocked', false);
+        }
+
         // Excluir conversaciones de oncología del listado general
         if (!$request->has('status') || $request->status !== 'oncology') {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
@@ -1612,7 +1651,7 @@ class ConversationController extends Controller
         }
 
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
             ->limit(50)
             ->get();
 

@@ -23,6 +23,9 @@ class Conversation extends Model
         'specialty',
         'is_pinned',
         'pinned_at',
+        'is_blocked',
+        'blocked_at',
+        'blocked_by',
         'welcome_flow_step',
         'welcome_flow_completed',
         'welcome_flow_data',
@@ -33,6 +36,8 @@ class Conversation extends Model
         'resolved_at' => 'datetime',
         'pinned_at' => 'datetime',
         'is_pinned' => 'boolean',
+        'is_blocked' => 'boolean',
+        'blocked_at' => 'datetime',
         'welcome_flow_completed' => 'boolean',
         'welcome_flow_data' => 'array',
     ];
@@ -67,6 +72,14 @@ class Conversation extends Model
     public function resolvedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'resolved_by');
+    }
+
+    /**
+     * Usuario que bloqueó la conversación
+     */
+    public function blockedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'blocked_by');
     }
 
     /**

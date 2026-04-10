@@ -51,6 +51,7 @@ import {
     Stethoscope,
     FileText,
     Loader2,
+    ShieldBan,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -132,6 +133,7 @@ interface Conversation {
     tags?: TagItem[];
     notes?: string | null;
     specialty?: string | null;
+    is_blocked?: boolean;
     welcome_flow_data?: Record<string, { text?: string; button_id?: string; timestamp?: string }> | null;
 }
 
@@ -957,9 +959,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }
                         return conv;
                     }).filter(conv => {
-                        if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
+                        if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
+                            if (conv.is_blocked && filters.status !== 'blocked') return false;
                         }
                         return true;
                     });
@@ -967,9 +970,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                     // Detect new conversations
                     const existingIds = new Set(prev.map(c => c.id));
                     const newConvs = freshConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
-                        if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
+                        if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
+                            if (conv.is_blocked && filters.status !== 'blocked') return false;
                         }
                         return true;
                     });
@@ -1253,7 +1257,8 @@ export default function ConversationsIndex({ conversations: initialConversations
         return `${dateStr} ${time}`;
     };
 
-    const getStatusColor = (status: string) => {
+    const getStatusColor = (status: string, isBlocked?: boolean) => {
+        if (isBlocked) return 'bg-red-600';
         switch (status) {
             case 'active':
                 return 'bg-green-500';
@@ -1268,7 +1273,8 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
     };
 
-    const getStatusLabel = (status: string) => {
+    const getStatusLabel = (status: string, isBlocked?: boolean) => {
+        if (isBlocked) return 'Bloqueado';
         const labels: Record<string, string> = {
             active: t('conversations.statusLabels.active'),
             pending: 'Pendiente',
@@ -2585,6 +2591,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 { value: 'resolved', label: 'Resueltos' },
                                 { value: 'scheduled', label: 'Agendados' },
                                 { value: 'oncology', label: 'Oncología' },
+                                { value: 'blocked', label: 'Bloqueados' },
                             ].map((pill) => (
                                 <button
                                     key={pill.value}
@@ -2709,8 +2716,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </p>
                                             <div className="flex items-center justify-between mt-1.5">
                                                 <div className="flex items-center gap-1.5">
-                                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status)}`}></span>
-                                                    <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-neutral-400">{getStatusLabel(conversation.status)}</span>
+                                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status, conversation.is_blocked)}`}></span>
+                                                    <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-neutral-400">{getStatusLabel(conversation.status, conversation.is_blocked)}</span>
                                                 </div>
                                                 {/* Mostrar quién resolvió la conversación */}
                                                 {conversation.status === 'resolved' && conversation.resolved_by_user && (() => {
@@ -3284,6 +3291,41 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         Marcar como Agendado
                                     </button>
                                 )}
+
+                                {/* Bloquear / Desbloquear */}
+                                <div className="border-t border-border my-1"></div>
+                                <button
+                                    onClick={() => {
+                                        fetch(`/admin/chat/${conversation.id}/block`, {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                            },
+                                        }).then(res => res.json()).then(data => {
+                                            if (data.success) {
+                                                setLocalConversations(prev => prev.map(c =>
+                                                    c.id === conversation.id ? { ...c, is_blocked: data.is_blocked } : c
+                                                ));
+                                                if (selectedConversation?.id === conversation.id) {
+                                                    router.reload({ only: ['selectedConversation'] });
+                                                }
+                                                toast.success(data.is_blocked ? 'Contacto bloqueado' : 'Contacto desbloqueado');
+                                            }
+                                        }).catch(() => {
+                                            toast.error('Error al cambiar estado de bloqueo');
+                                        });
+                                        setContextMenu(null);
+                                    }}
+                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                        conversation.is_blocked
+                                            ? 'hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400'
+                                            : 'hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400'
+                                    }`}
+                                >
+                                    <ShieldBan className="w-4 h-4" />
+                                    {conversation.is_blocked ? 'Desbloquear' : 'Bloquear'}
+                                </button>
                             </div>
                         );
                     })()}
@@ -3345,8 +3387,8 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                 {/* Estado */}
                                 <div className="hidden lg:flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-[#dee1ff]/60 dark:bg-neutral-800">
-                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(selectedConversation.status)}`}></span>
-                                    <span className="text-sm text-[#16235e] dark:text-neutral-300 font-medium">{getStatusLabel(selectedConversation.status)}</span>
+                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)}`}></span>
+                                    <span className="text-sm text-[#16235e] dark:text-neutral-300 font-medium">{getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}</span>
                                 </div>
 
                                 {/* Asignación */}
@@ -3421,6 +3463,38 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 Marcar como Agendado
                                             </DropdownMenuItem>
                                         )}
+
+                                        {/* Bloquear / Desbloquear */}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            onClick={() => {
+                                                fetch(`/admin/chat/${selectedConversation.id}/block`, {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                                    },
+                                                }).then(res => res.json()).then(data => {
+                                                    if (data.success) {
+                                                        setLocalConversations(prev => prev.map(c =>
+                                                            c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c
+                                                        ));
+                                                        router.reload({ only: ['selectedConversation'] });
+                                                        toast.success(data.is_blocked ? 'Contacto bloqueado' : 'Contacto desbloqueado');
+                                                    }
+                                                }).catch(() => {
+                                                    toast.error('Error al cambiar estado de bloqueo');
+                                                });
+                                            }}
+                                            className={`cursor-pointer ${
+                                                selectedConversation.is_blocked
+                                                    ? 'hover:bg-green-50 text-green-600'
+                                                    : 'hover:bg-red-50 text-red-600'
+                                            }`}
+                                        >
+                                            <ShieldBan className="w-4 h-4 mr-2" />
+                                            {selectedConversation.is_blocked ? 'Desbloquear' : 'Bloquear'}
+                                        </DropdownMenuItem>
 
                                         {/* Eliminar chat - Solo administradores */}
                                         {isAdmin && (
@@ -3886,6 +3960,38 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 }
                             </div>
                         )}
+                        {selectedConversation.is_blocked ? (
+                            <div className="px-3 md:px-6 py-4 bg-red-50/80 dark:bg-red-950/20 backdrop-blur-md border-t border-red-200 dark:border-red-800/30">
+                                <div className="flex items-center justify-center gap-3">
+                                    <ShieldBan className="w-5 h-5 text-red-500" />
+                                    <span className="text-sm font-medium text-red-600 dark:text-red-400">Este contacto está bloqueado</span>
+                                    <button
+                                        onClick={() => {
+                                            fetch(`/admin/chat/${selectedConversation.id}/block`, {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                                                },
+                                            }).then(res => res.json()).then(data => {
+                                                if (data.success) {
+                                                    setLocalConversations(prev => prev.map(c =>
+                                                        c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c
+                                                    ));
+                                                    router.reload({ only: ['selectedConversation'] });
+                                                    toast.success('Contacto desbloqueado');
+                                                }
+                                            }).catch(() => {
+                                                toast.error('Error al desbloquear');
+                                            });
+                                        }}
+                                        className="px-3 py-1 text-xs font-medium bg-white dark:bg-neutral-800 border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 rounded-full hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                                    >
+                                        Desbloquear
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
                         <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md">
                             {/* Preview del archivo seleccionado */}
                             {selectedFile && (
@@ -4050,6 +4156,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {t('conversations.sendHint')}
                             </p>
                         </form>
+                        )}
                         </>
                         )}
                     </div>

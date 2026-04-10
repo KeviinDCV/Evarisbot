@@ -165,6 +165,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/{conversation}/pin', 'togglePin')->name('chat.pin');
         Route::post('/{conversation}/notes', 'updateNotes')->name('chat.notes');
         Route::post('/{conversation}/specialty', 'updateSpecialty')->name('chat.specialty');
+        Route::post('/{conversation}/block', 'toggleBlock')->name('chat.block');
         Route::get('/{conversation}/activities', 'activities')->name('chat.activities');
         Route::post('/{conversation}/typing', 'typing')->name('chat.typing');
         Route::post('/{conversation}/viewing', 'viewing')->name('chat.viewing');

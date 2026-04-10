@@ -1491,6 +1491,16 @@ class WhatsAppService
                 $conversation->update(['contact_name' => $contactName]);
             }
 
+            // Si la conversación está bloqueada, ignorar el mensaje entrante
+            if ($conversation->is_blocked) {
+                Log::info('Message from blocked conversation ignored', [
+                    'conversation_id' => $conversation->id,
+                    'phone' => $from,
+                    'message_id' => $messageId,
+                ]);
+                return null;
+            }
+
             // Si la conversación estaba resuelta, reactivarla cuando llega un mensaje nuevo
             // Quitar asignación para que entre al pool compartido de asesores de turno
             if (in_array($conversation->status, ['resolved', 'scheduled'])) {
