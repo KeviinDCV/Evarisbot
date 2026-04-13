@@ -81,6 +81,9 @@ class BulkSendController extends Controller
                 'preview_text' => $t->preview_text,
                 'language' => $t->language,
                 'default_params' => $t->default_params,
+                'category' => $t->category ?? 'UTILITY',
+                'header_format' => $t->header_format,
+                'header_media_url' => $t->header_media_url,
             ]);
 
         $allTemplates = WhatsappTemplate::orderByRaw("FIELD(status, 'PENDING', 'REJECTED', 'APPROVED', '') DESC")
@@ -350,6 +353,18 @@ class BulkSendController extends Controller
                 }
             }
 
+            // Desambiguar nombres de columna duplicados (ej: "fecha cita", "fecha cita (2)")
+            $colNameCounts = [];
+            foreach ($extraCols as $colIdx => $colName) {
+                if (!isset($colNameCounts[$colName])) {
+                    $colNameCounts[$colName] = 0;
+                }
+                $colNameCounts[$colName]++;
+                if ($colNameCounts[$colName] > 1) {
+                    $extraCols[$colIdx] = $colName . ' (' . $colNameCounts[$colName] . ')';
+                }
+            }
+
             if ($phoneCol === null) {
                 $phoneCol = 0;
                 $nameCol = count($headers) > 1 ? 1 : null;
@@ -430,6 +445,7 @@ class BulkSendController extends Controller
         $request->validate([
             'template_name' => 'required|string|max:255',
             'template_params' => 'nullable|array',
+            'column_mapping' => 'nullable|array',
             'name' => 'nullable|string|max:255',
             'recipients' => 'required|array|min:1',
             'recipients.*.phone' => 'required|string',
@@ -467,6 +483,7 @@ class BulkSendController extends Controller
                 'name' => $request->input('name') ?: 'Envío ' . now()->format('Y-m-d H:i'),
                 'template_name' => $request->input('template_name'),
                 'template_params' => $request->input('template_params'),
+                'column_mapping' => $request->input('column_mapping'),
                 'template_language' => $templateLang,
                 'status' => 'processing',
                 'total_recipients' => count($recipients),
@@ -830,8 +847,35 @@ class BulkSendController extends Controller
             }
 
             $updated = 0;
+            $created = 0;
 
             foreach ($allMetaTemplates as $mt) {
+                // Extraer info de componentes
+                $components = $mt['components'] ?? [];
+                $bodyText = null;
+                $headerFormat = null;
+                $headerText = null;
+                $headerMediaUrl = null;
+                $footerText = null;
+
+                foreach ($components as $component) {
+                    $type = $component['type'] ?? '';
+                    if ($type === 'BODY') {
+                        $bodyText = $component['text'] ?? null;
+                    } elseif ($type === 'HEADER') {
+                        $headerFormat = $component['format'] ?? null;
+                        if ($headerFormat === 'TEXT') {
+                            $headerText = $component['text'] ?? null;
+                        }
+                        // Para media headers, buscar el example handle
+                        if (in_array($headerFormat, ['DOCUMENT', 'IMAGE', 'VIDEO'])) {
+                            $headerMediaUrl = $component['example']['header_handle'][0] ?? null;
+                        }
+                    } elseif ($type === 'FOOTER') {
+                        $footerText = $component['text'] ?? null;
+                    }
+                }
+
                 $local = WhatsappTemplate::where('meta_template_name', $mt['name'])
                     ->where('language', $mt['language'])
                     ->first();
@@ -844,28 +888,69 @@ class BulkSendController extends Controller
                         'is_active' => $mt['status'] === 'APPROVED',
                     ];
 
-                    // Sincronizar header_format desde los componentes de Meta
-                    $components = $mt['components'] ?? [];
-                    foreach ($components as $component) {
-                        if (($component['type'] ?? '') === 'HEADER' && isset($component['format'])) {
-                            $updateData['header_format'] = $component['format'];
-                            break;
-                        }
+                    if ($headerFormat) {
+                        $updateData['header_format'] = $headerFormat;
+                    }
+                    if ($headerText) {
+                        $updateData['header_text'] = $headerText;
+                    }
+                    if ($headerMediaUrl) {
+                        $updateData['header_media_url'] = $headerMediaUrl;
+                    }
+                    if ($footerText !== null) {
+                        $updateData['footer_text'] = $footerText;
+                    }
+                    // Actualizar preview_text con el body de Meta (contiene los {{N}})
+                    if ($bodyText) {
+                        $updateData['preview_text'] = $bodyText;
                     }
 
                     $local->update($updateData);
                     $updated++;
+                } else {
+                    // Crear registro local para plantillas que solo existen en Meta
+                    $defaultParams = null;
+                    if ($bodyText) {
+                        preg_match_all('/\{\{(\d+)\}\}/', $bodyText, $matches);
+                        if (!empty($matches[1])) {
+                            $defaultParams = array_fill(0, count($matches[1]), '');
+                        }
+                    }
+
+                    WhatsappTemplate::create([
+                        'name' => ucfirst(str_replace('_', ' ', $mt['name'])),
+                        'meta_template_name' => $mt['name'],
+                        'preview_text' => $bodyText,
+                        'language' => $mt['language'],
+                        'category' => $mt['category'] ?? 'UTILITY',
+                        'status' => $mt['status'],
+                        'meta_template_id' => $mt['id'],
+                        'header_format' => $headerFormat,
+                        'header_text' => $headerText,
+                        'header_media_url' => $headerMediaUrl,
+                        'footer_text' => $footerText,
+                        'default_params' => $defaultParams,
+                        'is_active' => $mt['status'] === 'APPROVED',
+                    ]);
+                    $created++;
                 }
             }
 
             Log::info('Sincronización de plantillas completada', [
                 'meta_count' => count($allMetaTemplates),
                 'updated' => $updated,
+                'created' => $created,
             ]);
+
+            $msg = "Sincronización completada. {$updated} actualizada(s)";
+            if ($created > 0) {
+                $msg .= ", {$created} nueva(s) importada(s)";
+            }
+            $msg .= " de " . count($allMetaTemplates) . " en Meta.";
 
             return response()->json([
                 'success' => true,
-                'message' => "Sincronización completada. {$updated} plantilla(s) actualizada(s) de " . count($allMetaTemplates) . " en Meta.",
+                'message' => $msg,
             ]);
         } catch (\Exception $e) {
             Log::error('Error sincronizando plantillas', [

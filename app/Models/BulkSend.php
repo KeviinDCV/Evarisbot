@@ -13,6 +13,7 @@ class BulkSend extends Model
         'template_name',
         'template_params',
         'template_language',
+        'column_mapping',
         'status',
         'total_recipients',
         'sent_count',
@@ -23,6 +24,7 @@ class BulkSend extends Model
 
     protected $casts = [
         'template_params' => 'array',
+        'column_mapping' => 'array',
     ];
 
     /**

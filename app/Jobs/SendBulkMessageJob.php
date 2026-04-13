@@ -107,10 +107,53 @@ class SendBulkMessageJob implements ShouldQueue
             // Preparar componentes del template
             $components = [];
 
-            // Prioridad: params del recipient (dinámicos por Excel) > template_params (estáticos)
+            // Obtener el template para header_format
+            $template = WhatsappTemplate::where('meta_template_name', $bulkSend->template_name)->first();
+
+            // Header component para DOCUMENT/IMAGE/VIDEO
+            if ($template && in_array($template->header_format, ['DOCUMENT', 'IMAGE', 'VIDEO']) && $template->header_media_url) {
+                $headerType = strtolower($template->header_format);
+                $headerParam = ['type' => $headerType];
+
+                if ($headerType === 'document') {
+                    $headerParam[$headerType] = ['link' => $template->header_media_url, 'filename' => $template->name . '.pdf'];
+                } else {
+                    $headerParam[$headerType] = ['link' => $template->header_media_url];
+                }
+
+                $components[] = [
+                    'type' => 'header',
+                    'parameters' => [$headerParam],
+                ];
+            }
+
+            // Body params: usar column_mapping si existe, sino fallback al comportamiento anterior
             $paramValues = [];
-            if (!empty($recipient->params) && is_array($recipient->params)) {
-                // Params dinámicos: incluir nombre del recipient + extras del Excel
+            $columnMapping = $bulkSend->column_mapping;
+
+            if (!empty($columnMapping) && is_array($columnMapping)) {
+                // Mapeo explícito: { "1": { "source": "nombre" }, "2": { "source": "column", "column": "especialidad" }, "3": { "source": "static", "value": "Dr. Gómez" } }
+                $maxParam = max(array_map('intval', array_keys($columnMapping)));
+                for ($i = 1; $i <= $maxParam; $i++) {
+                    $mapping = $columnMapping[(string) $i] ?? null;
+                    if (!$mapping) {
+                        $paramValues[] = '';
+                        continue;
+                    }
+
+                    $source = $mapping['source'] ?? '';
+                    if ($source === 'nombre') {
+                        $paramValues[] = $recipient->contact_name ?? '';
+                    } elseif ($source === 'column' && isset($mapping['column'])) {
+                        $paramValues[] = $recipient->params[$mapping['column']] ?? '';
+                    } elseif ($source === 'static' && isset($mapping['value'])) {
+                        $paramValues[] = $mapping['value'];
+                    } else {
+                        $paramValues[] = '';
+                    }
+                }
+            } elseif (!empty($recipient->params) && is_array($recipient->params)) {
+                // Fallback: params dinámicos sin mapeo explícito (comportamiento anterior)
                 $paramValues[] = $recipient->contact_name ?? '';
                 foreach ($recipient->params as $value) {
                     $paramValues[] = $value;
@@ -151,7 +194,6 @@ class SendBulkMessageJob implements ShouldQueue
                 );
 
                 // Obtener el preview_text del template para mostrar en el chat
-                $template = WhatsappTemplate::where('meta_template_name', $bulkSend->template_name)->first();
                 $previewText = $template?->preview_text ?? '';
 
                 // Si hay params dinámicos, reemplazar {{1}}, {{2}}, etc. en el preview

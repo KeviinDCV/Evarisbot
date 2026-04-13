@@ -111,7 +111,8 @@
         "paths": {
             "@/*": ["./resources/js/*"]
         },
-        "jsx": "react-jsx"
+        "jsx": "react-jsx",
+        "ignoreDeprecations": "6.0"
     },
     "include": ["resources/js/**/*.ts", "resources/js/**/*.d.ts", "resources/js/**/*.tsx"]
 }

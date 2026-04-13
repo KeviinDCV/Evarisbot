@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2, RefreshCw, FilePlus2, Shield, Megaphone, Key, Globe, Image, Video, FileText } from 'lucide-react';
+import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2, RefreshCw, FilePlus2, Shield, Megaphone, Key, Globe, Image, Video, FileText, ArrowRight, Columns3 } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,17 @@ interface WhatsappTemplate {
     preview_text: string | null;
     language: string;
     default_params: string[] | null;
+    category: string;
+    header_format: string | null;
+    header_media_url: string | null;
+}
+
+interface ColumnMapping {
+    [paramIndex: string]: {
+        source: 'nombre' | 'column' | 'static';
+        column?: string;
+        value?: string;
+    };
 }
 
 interface TemplateRecord {
@@ -98,6 +109,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [selectedTemplate, setSelectedTemplate] = useState<WhatsappTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [extraColumns, setExtraColumns] = useState<string[]>([]);
+    const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
     const [historySearch, setHistorySearch] = useState('');
     const [searchResults, setSearchResults] = useState<BulkSendRecord[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
@@ -140,6 +152,36 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
     const filteredBulkSends = searchResults ?? bulkSends;
 
+    // Detect {{N}} placeholders in selected template's preview_text
+    const templatePlaceholders = useMemo(() => {
+        if (!selectedTemplate?.preview_text) return [];
+        const matches = selectedTemplate.preview_text.match(/\{\{(\d+)\}\}/g);
+        if (!matches) return [];
+        const indices = [...new Set(matches.map(m => parseInt(m.replace(/[{}]/g, ''))))].sort((a, b) => a - b);
+        return indices;
+    }, [selectedTemplate]);
+
+    // Auto-initialize column mapping when template or extra columns change
+    useEffect(() => {
+        if (templatePlaceholders.length === 0) {
+            setColumnMapping({});
+            return;
+        }
+        const newMapping: ColumnMapping = {};
+        templatePlaceholders.forEach((idx, i) => {
+            if (i === 0) {
+                // First placeholder defaults to nombre
+                newMapping[String(idx)] = { source: 'nombre' };
+            } else if (extraColumns.length > 0 && i - 1 < extraColumns.length) {
+                // Map to extra columns in order
+                newMapping[String(idx)] = { source: 'column', column: extraColumns[i - 1] };
+            } else {
+                newMapping[String(idx)] = { source: 'static', value: '' };
+            }
+        });
+        setColumnMapping(newMapping);
+    }, [templatePlaceholders, extraColumns]);
+
     const handleSelectTemplate = (templateId: string) => {
         const template = whatsappTemplates.find(t => t.id === Number(templateId));
         if (template) {
@@ -150,10 +192,12 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             } else {
                 setTemplateParams([]);
             }
+            setColumnMapping({});
         } else {
             setSelectedTemplate(null);
             setTemplateName('');
             setTemplateParams([]);
+            setColumnMapping({});
         }
     };
 
@@ -352,6 +396,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 body: JSON.stringify({
                     template_name: templateName,
                     template_params: templateParams.length > 0 ? templateParams : null,
+                    column_mapping: Object.keys(columnMapping).length > 0 ? columnMapping : null,
                     name: sendName || null,
                     recipients: recipients.map(r => ({
                         phone: r.phone,
@@ -374,6 +419,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setSelectedTemplate(null);
                 setShowPreview(false);
                 setExtraColumns([]);
+                setColumnMapping({});
                 setTimeout(() => setSuccess(''), 5000);
             } else {
                 setError(data.message || 'Error al iniciar el envío');
@@ -716,7 +762,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                             <option value="">— Seleccione una plantilla —</option>
                                                             {whatsappTemplates.map((t) => (
                                                                 <option key={t.id} value={t.id}>
-                                                                    {t.name}
+                                                                    {t.header_format && ['DOCUMENT', 'IMAGE', 'VIDEO'].includes(t.header_format) ? '📎 ' : ''}{t.name}
                                                                 </option>
                                                             ))}
                                                         </select>
@@ -739,6 +785,24 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                             {showPreview && (
                                                                 <div className="px-4 py-3 bg-green-50/60 dark:bg-green-950/20 border-t border-border/40">
                                                                     <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 max-w-sm">
+                                                                        {selectedTemplate.header_format === 'DOCUMENT' && (
+                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-2 flex items-center gap-2">
+                                                                                <FileText className="w-5 h-5 text-red-500" />
+                                                                                <span className="text-xs text-muted-foreground">Documento PDF adjunto</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {selectedTemplate.header_format === 'IMAGE' && (
+                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-2 flex items-center gap-2">
+                                                                                <Image className="w-5 h-5 text-blue-500" />
+                                                                                <span className="text-xs text-muted-foreground">Imagen adjunta</span>
+                                                                            </div>
+                                                                        )}
+                                                                        {selectedTemplate.header_format === 'VIDEO' && (
+                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-2 flex items-center gap-2">
+                                                                                <Video className="w-5 h-5 text-purple-500" />
+                                                                                <span className="text-xs text-muted-foreground">Video adjunto</span>
+                                                                            </div>
+                                                                        )}
                                                                         <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                                                                             {selectedTemplate.preview_text || 'Sin texto de previsualización disponible.'}
                                                                         </p>
@@ -764,8 +828,108 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             )}
                                         </div>
 
-                                        {/* Parámetros del template (solo si hay template seleccionado y tiene params) */}
-                                        {selectedTemplate && (
+                                        {/* Mapeo de columnas a parámetros del template */}
+                                        {selectedTemplate && templatePlaceholders.length > 0 && (
+                                            <div>
+                                                <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
+                                                    <Columns3 className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+                                                    Mapeo de parámetros
+                                                </label>
+                                                <p className="text-xs text-muted-foreground mb-3">
+                                                    Asigne el origen de cada parámetro {'{{N}}'} de la plantilla.
+                                                    {extraColumns.length === 0 && recipients.length === 0 && (
+                                                        <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                                                            Suba un archivo Excel para poder mapear columnas adicionales.
+                                                        </span>
+                                                    )}
+                                                </p>
+                                                <div className="space-y-2.5">
+                                                    {templatePlaceholders.map((idx) => {
+                                                        const mapping = columnMapping[String(idx)];
+                                                        const source = mapping?.source || 'nombre';
+                                                        return (
+                                                            <div key={idx} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2">
+                                                                <span className="text-xs font-mono font-semibold text-primary whitespace-nowrap w-10">
+                                                                    {`{{${idx}}}`}
+                                                                </span>
+                                                                <ArrowRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                                                <div className="relative flex-1">
+                                                                    <select
+                                                                        value={
+                                                                            source === 'nombre' ? '__nombre__' :
+                                                                            source === 'column' ? `__col__${mapping?.column || ''}` :
+                                                                            '__static__'
+                                                                        }
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value;
+                                                                            const newMapping = { ...columnMapping };
+                                                                            if (val === '__nombre__') {
+                                                                                newMapping[String(idx)] = { source: 'nombre' };
+                                                                            } else if (val.startsWith('__col__')) {
+                                                                                const col = val.replace('__col__', '');
+                                                                                newMapping[String(idx)] = { source: 'column', column: col };
+                                                                            } else {
+                                                                                newMapping[String(idx)] = { source: 'static', value: mapping?.value || '' };
+                                                                            }
+                                                                            setColumnMapping(newMapping);
+                                                                        }}
+                                                                        className="w-full settings-input rounded-lg border-gray-200 dark:border-gray-800 text-sm appearance-none pr-8 cursor-pointer"
+                                                                        style={{ height: '2rem', fontSize: '0.8125rem' }}
+                                                                    >
+                                                                        <option value="__nombre__">📋 Nombre del contacto</option>
+                                                                        {extraColumns.map((col) => (
+                                                                            <option key={col} value={`__col__${col}`}>
+                                                                                📊 Columna: {col}
+                                                                            </option>
+                                                                        ))}
+                                                                        <option value="__static__">✏️ Valor fijo</option>
+                                                                    </select>
+                                                                    <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                                                                </div>
+                                                                {source === 'static' && (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={mapping?.value || ''}
+                                                                        onChange={(e) => {
+                                                                            const newMapping = { ...columnMapping };
+                                                                            newMapping[String(idx)] = { source: 'static', value: e.target.value };
+                                                                            setColumnMapping(newMapping);
+                                                                        }}
+                                                                        placeholder="Escriba el valor..."
+                                                                        className="flex-1 settings-input rounded-lg border-gray-200 dark:border-gray-800 text-sm"
+                                                                        style={{ height: '2rem', fontSize: '0.8125rem', minWidth: '120px' }}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Preview con valores mapeados */}
+                                                {selectedTemplate.preview_text && Object.keys(columnMapping).length > 0 && (
+                                                    <div className="mt-3 bg-green-50/60 dark:bg-green-950/20 rounded-lg p-3 border border-green-200/40 dark:border-green-800/30">
+                                                        <p className="text-xs font-medium text-muted-foreground mb-1.5">Vista previa con mapeo:</p>
+                                                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                                                            {(() => {
+                                                                let text = selectedTemplate.preview_text || '';
+                                                                Object.entries(columnMapping).forEach(([paramIdx, map]) => {
+                                                                    const placeholder = `{{${paramIdx}}}`;
+                                                                    let replacement = '';
+                                                                    if (map.source === 'nombre') replacement = '[nombre]';
+                                                                    else if (map.source === 'column') replacement = `[${map.column}]`;
+                                                                    else if (map.source === 'static') replacement = map.value || '[vacío]';
+                                                                    text = text.replace(placeholder, replacement);
+                                                                });
+                                                                return text;
+                                                            })()}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Parámetros estáticos (solo si template sin placeholders detectados o para retrocompatibilidad) */}
+                                        {selectedTemplate && templatePlaceholders.length === 0 && (
                                             <div>
                                                 <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                                     Parámetros del Template (opcionales)
