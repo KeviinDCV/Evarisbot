@@ -524,8 +524,16 @@ class BulkSendController extends Controller
                 ->allowFailures()
                 ->finally(function ($batch) use ($bulkSend) {
                     $bs = BulkSend::find($bulkSend->id);
-                    if ($bs && $bs->status === 'processing') {
-                        $bs->update(['status' => 'completed']);
+                    if ($bs) {
+                        // Reconciliar contadores desde los recipients reales
+                        $actualSent = $bs->recipients()->where('status', 'sent')->count();
+                        $actualFailed = $bs->recipients()->where('status', 'failed')->count();
+
+                        $bs->update([
+                            'status' => 'completed',
+                            'sent_count' => $actualSent,
+                            'failed_count' => $actualFailed,
+                        ]);
                     }
                     Log::info('Batch de envío masivo completado', [
                         'bulk_send_id' => $bulkSend->id,

@@ -179,45 +179,54 @@ class SendBulkMessageJob implements ShouldQueue
             if (isset($response['messages'][0]['id'])) {
                 $messageId = $response['messages'][0]['id'];
 
-                // Marcar como enviado
+                // Marcar como enviado (esto es lo crítico - el mensaje ya salió)
                 $recipient->markAsSent();
                 $bulkSend->incrementSent();
 
-                // Crear/actualizar conversación y mensaje
-                $conversation = Conversation::firstOrCreate(
-                    ['phone_number' => '+' . $phoneNumber],
-                    [
-                        'contact_name' => $recipient->contact_name ?? 'Contacto',
-                        'status' => 'active',
-                        'last_message_at' => now(),
-                    ]
-                );
+                // Registrar en conversación local (no debe afectar el conteo si falla)
+                try {
+                    $conversation = Conversation::firstOrCreate(
+                        ['phone_number' => '+' . $phoneNumber],
+                        [
+                            'contact_name' => $recipient->contact_name ?? 'Contacto',
+                            'status' => 'active',
+                            'last_message_at' => now(),
+                        ]
+                    );
 
-                // Obtener el preview_text del template para mostrar en el chat
-                $previewText = $template?->preview_text ?? '';
+                    // Obtener el preview_text del template para mostrar en el chat
+                    $previewText = $template?->preview_text ?? '';
 
-                // Si hay params dinámicos, reemplazar {{1}}, {{2}}, etc. en el preview
-                if ($previewText && !empty($paramValues)) {
-                    foreach ($paramValues as $index => $paramValue) {
-                        $placeholder = '{{' . ($index + 1) . '}}';
-                        $previewText = str_replace($placeholder, (string) $paramValue, $previewText);
+                    // Si hay params dinámicos, reemplazar {{1}}, {{2}}, etc. en el preview
+                    if ($previewText && !empty($paramValues)) {
+                        foreach ($paramValues as $index => $paramValue) {
+                            $placeholder = '{{' . ($index + 1) . '}}';
+                            $previewText = str_replace($placeholder, (string) $paramValue, $previewText);
+                        }
                     }
+
+                    $bulkSendLabel = '[Envío masivo: ' . ($bulkSend->name ?? $bulkSend->template_name) . ']';
+                    $messageContent = $previewText
+                        ? $bulkSendLabel . "\n" . $previewText
+                        : $bulkSendLabel;
+
+                    Message::create([
+                        'conversation_id' => $conversation->id,
+                        'content' => $messageContent,
+                        'message_type' => 'text',
+                        'is_from_user' => false,
+                        'whatsapp_message_id' => $messageId,
+                        'status' => 'sent',
+                        'sent_by' => $bulkSend->created_by,
+                    ]);
+                } catch (\Exception $localErr) {
+                    Log::warning('Mensaje masivo enviado pero error al registrar localmente', [
+                        'recipient_id' => $this->recipientId,
+                        'phone' => $phoneNumber,
+                        'message_id' => $messageId,
+                        'error' => $localErr->getMessage(),
+                    ]);
                 }
-
-                $bulkSendLabel = '[Envío masivo: ' . ($bulkSend->name ?? $bulkSend->template_name) . ']';
-                $messageContent = $previewText
-                    ? $bulkSendLabel . "\n" . $previewText
-                    : $bulkSendLabel;
-
-                Message::create([
-                    'conversation_id' => $conversation->id,
-                    'content' => $messageContent,
-                    'message_type' => 'text',
-                    'is_from_user' => false,
-                    'whatsapp_message_id' => $messageId,
-                    'status' => 'sent',
-                    'sent_by' => $bulkSend->created_by,
-                ]);
 
                 Log::info('Mensaje masivo enviado', [
                     'recipient_id' => $this->recipientId,
@@ -231,7 +240,8 @@ class SendBulkMessageJob implements ShouldQueue
                 throw new \Exception($error);
             }
         } catch (\Exception $e) {
-            if ($recipient->status !== 'failed') {
+            // Solo marcar como fallido si NO fue enviado exitosamente
+            if ($recipient->status !== 'failed' && $recipient->status !== 'sent') {
                 $recipient->markAsFailed($e->getMessage());
                 $bulkSend->incrementFailed();
             }
@@ -248,7 +258,8 @@ class SendBulkMessageJob implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
         $recipient = BulkSendRecipient::find($this->recipientId);
-        if ($recipient && $recipient->status !== 'failed') {
+        // No marcar como fallido si ya fue enviado exitosamente
+        if ($recipient && $recipient->status !== 'failed' && $recipient->status !== 'sent') {
             $recipient->markAsFailed($exception->getMessage());
             
             $bulkSend = BulkSend::find($this->bulkSendId);
