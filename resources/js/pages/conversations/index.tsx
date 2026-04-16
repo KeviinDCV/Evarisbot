@@ -1257,6 +1257,17 @@ export default function ConversationsIndex({ conversations: initialConversations
         return `${dateStr} ${time}`;
     };
 
+    const formatDateLabel = (date: string) => {
+        const d = new Date(date);
+        const now = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        if (d.toDateString() === now.toDateString()) return 'Hoy';
+        if (d.toDateString() === yesterday.toDateString()) return 'Ayer';
+        return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
+
     const getStatusColor = (status: string, isBlocked?: boolean) => {
         if (isBlocked) return 'bg-red-600';
         switch (status) {
@@ -1724,25 +1735,25 @@ export default function ConversationsIndex({ conversations: initialConversations
             case 'pending':
                 return (
                     <span title={t('conversations.status.sending')}>
-                        <Clock className="w-4 h-4 text-muted-foreground animate-pulse" />
+                        <Clock className="w-3.5 h-3.5 text-[#667781] dark:text-[#8696a0] animate-pulse" />
                     </span>
                 );
             case 'sent':
                 return (
                     <span title={t('conversations.status.sent')}>
-                        <Check className="w-4 h-4 text-muted-foreground" />
+                        <Check className="w-3.5 h-3.5 text-[#667781] dark:text-[#8696a0]" />
                     </span>
                 );
             case 'delivered':
                 return (
                     <span title={t('conversations.status.delivered')}>
-                        <CheckCheck className="w-4 h-4 text-muted-foreground" />
+                        <CheckCheck className="w-3.5 h-3.5 text-[#667781] dark:text-[#8696a0]" />
                     </span>
                 );
             case 'read':
                 return (
                     <span title={t('conversations.status.read')}>
-                        <CheckCheck className="w-4 h-4 text-blue-500" />
+                        <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
                     </span>
                 );
             case 'failed': {
@@ -3684,30 +3695,47 @@ export default function ConversationsIndex({ conversations: initialConversations
                         {/* Área de Mensajes */}
                         <div
                             ref={messagesContainerRef}
-                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar"
+                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern"
 
                         >
                             {localMessages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-[#767681]">
-                                    <p>{t('conversations.noMessagesInConversation')}</p>
+                                    <div className="text-center">
+                                        <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-white/60 dark:bg-neutral-800/60 flex items-center justify-center">
+                                            <MessageSquare className="w-8 h-8 text-[#767681]/50" />
+                                        </div>
+                                        <p className="font-medium">{t('conversations.noMessagesInConversation')}</p>
+                                        <p className="text-xs mt-1 text-[#767681]/70">Envía el primer mensaje para iniciar</p>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="space-y-3 md:space-y-4">
-                                    {localMessages.map((message) => (
-                                        <div
-                                            key={message.id}
-                                            className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'}`}
-                                        >
+                                <div className="space-y-1">
+                                    {localMessages.map((message, index) => {
+                                        // Date separator logic
+                                        const msgDate = new Date(message.created_at).toDateString();
+                                        const prevDate = index > 0 ? new Date(localMessages[index - 1].created_at).toDateString() : null;
+                                        const showDateSeparator = index === 0 || msgDate !== prevDate;
+
+                                        return (
+                                            <div key={message.id}>
+                                                {showDateSeparator && (
+                                                    <div className="chat-date-separator">
+                                                        <span>{formatDateLabel(message.created_at)}</span>
+                                                    </div>
+                                                )}
+                                                <div
+                                                    className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'} ${message.is_from_user ? 'msg-animate-left' : 'msg-animate-right'}`}
+                                                >
                                           <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${message.is_from_user ? 'items-start' : 'items-end'}`}>
                                             <div
-                                                className={`px-3 pt-2 pb-2 flex flex-col relative ${message.is_from_user
-                                                    ? 'rounded-xl rounded-bl-sm bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-200 shadow-sm ring-1 ring-black/5'
-                                                    : 'rounded-xl rounded-br-sm bg-[#2e3a75] text-white shadow-md'
+                                                className={`px-3 pt-2 pb-1 flex flex-col relative ${message.is_from_user
+                                                    ? 'rounded-xl rounded-bl-sm bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-200 shadow-sm'
+                                                    : 'rounded-xl rounded-br-sm bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] shadow-sm'
                                                     }`}
                                             >
                                                 {/* Remitente (si es asesor) */}
                                                 {!message.is_from_user && message.sender && (
-                                                    <p className="text-[11px] font-bold text-[#dee1ff]/90 tracking-wide mb-1 flex items-center gap-1">
+                                                    <p className="text-[11px] font-bold text-[#1f7aad] dark:text-[#53bdeb] tracking-wide mb-1 flex items-center gap-1">
                                                         {message.sender.name}
                                                     </p>
                                                 )}
@@ -3857,50 +3885,52 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </p>
                                                 )}
 
-                                            </div>
-                                            {/* Hora y Estado - fuera de la burbuja */}
-                                            <div className={`flex items-center gap-1 mt-1 ${message.is_from_user ? 'ml-1' : 'mr-1'}`}>
-                                                <span className="text-[10px] text-[#5f5e5e] dark:text-neutral-500">{formatTime(message.created_at)}</span>
-                                                {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
+                                                {/* Hora y Estado - dentro de la burbuja */}
+                                                <div className={`flex items-center gap-1 justify-end mt-1 -mb-0.5 ${message.is_from_user ? '' : ''}`}>
+                                                    <span className={`text-[10px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-500' : 'text-[#1a7f37] dark:text-[#99ceb5]'}`}>{formatTime(message.created_at)}</span>
+                                                    {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
+                                                </div>
                                             </div>
                                           </div>
                                         </div>
-                                    ))}
+                                            </div>
+                                        );
+                                    })}
 
                                     {/* Mensajes optimistas (enviándose) */}
                                     {optimisticMessages.map((message) => (
                                         <div
                                             key={message.tempId}
-                                            className="flex justify-end"
+                                            className="flex justify-end msg-animate-right"
                                         >
                                           <div className="flex flex-col items-end max-w-[85%] md:max-w-[70%]">
                                             <div
-                                                className={`px-3 pt-2 pb-2 flex flex-col relative rounded-xl rounded-br-sm text-white ${message.status === 'error'
-                                                    ? 'bg-red-500 shadow-md'
-                                                    : 'bg-[#2e3a75] shadow-md opacity-70'
+                                                className={`px-3 pt-2 pb-1 flex flex-col relative rounded-xl rounded-br-sm ${message.status === 'error'
+                                                    ? 'bg-red-500 text-white shadow-md'
+                                                    : 'bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] shadow-sm opacity-70'
                                                     }`}
                                             >
                                                 {/* Remitente */}
                                                 {message.sender && (
-                                                    <p className="text-xs opacity-70 mb-1">
+                                                    <p className="text-[11px] font-bold text-[#1f7aad] dark:text-[#53bdeb] mb-1">
                                                         {message.sender.name}
                                                     </p>
                                                 )}
 
                                                 {/* Contenido */}
-                                                <p className="text-sm whitespace-pre-wrap break-words">
+                                                <p className="text-[15px] leading-snug whitespace-pre-wrap break-words">
                                                     {message.content}
                                                 </p>
 
-                                            </div>
-                                            {/* Estado del mensaje - fuera de la burbuja */}
-                                            <div className="flex items-center gap-1 mt-1 mr-1">
-                                                <span className="text-[10px] text-[#5f5e5e] dark:text-neutral-500">{formatTime(message.created_at)}</span>
-                                                {message.status === 'sending' ? (
-                                                    <Clock className="w-3 h-3 text-[#5f5e5e] animate-pulse" />
-                                                ) : (
-                                                    <span className="text-[10px] text-red-500">Error</span>
-                                                )}
+                                                {/* Estado del mensaje - dentro de la burbuja */}
+                                                <div className="flex items-center gap-1 justify-end mt-1 -mb-0.5">
+                                                    <span className={`text-[10px] ${message.status === 'error' ? 'text-white/70' : 'text-[#1a7f37] dark:text-[#99ceb5]'}`}>{formatTime(message.created_at)}</span>
+                                                    {message.status === 'sending' ? (
+                                                        <Clock className="w-3 h-3 text-[#667781] animate-pulse" />
+                                                    ) : (
+                                                        <span className="text-[10px] text-red-500">Error</span>
+                                                    )}
+                                                </div>
                                             </div>
                                           </div>
                                         </div>
