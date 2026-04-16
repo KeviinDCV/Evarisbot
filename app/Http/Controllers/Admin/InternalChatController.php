@@ -14,6 +14,43 @@ use Inertia\Inertia;
 class InternalChatController extends Controller
 {
     /**
+     * Formatear un mensaje para la respuesta JSON
+     */
+    private function formatMessage(InternalMessage $m, int $userId): array
+    {
+        $data = [
+            'id' => $m->id,
+            'body' => $m->body,
+            'type' => $m->type,
+            'file_url' => $m->file_url,
+            'file_name' => $m->file_name,
+            'file_mime' => $m->file_mime,
+            'file_size_human' => $m->file_size_human,
+            'user' => [
+                'id' => $m->user->id,
+                'name' => $m->user->name,
+            ],
+            'is_mine' => $m->user_id === $userId,
+            'created_at' => $m->created_at->format('H:i'),
+            'created_at_full' => $m->created_at->toISOString(),
+            'reply_to' => null,
+        ];
+
+        if ($m->reply_to_id && $m->replyTo) {
+            $r = $m->replyTo;
+            $data['reply_to'] = [
+                'id' => $r->id,
+                'body' => $r->body,
+                'type' => $r->type,
+                'file_name' => $r->file_name,
+                'user_name' => $r->user?->name ?? 'Usuario',
+            ];
+        }
+
+        return $data;
+    }
+
+    /**
      * Mostrar la interfaz del chat interno
      */
     public function index()
@@ -131,28 +168,13 @@ class InternalChatController extends Controller
             ->update(['last_read_at' => now()]);
 
         $messages = $chat->messages()
-            ->with('user')
+            ->with(['user', 'replyTo.user'])
             ->orderBy('created_at', 'desc')
             ->limit(200)
             ->get()
             ->reverse()
             ->values()
-            ->map(fn($m) => [
-                'id' => $m->id,
-                'body' => $m->body,
-                'type' => $m->type,
-                'file_url' => $m->file_url,
-                'file_name' => $m->file_name,
-                'file_mime' => $m->file_mime,
-                'file_size_human' => $m->file_size_human,
-                'user' => [
-                    'id' => $m->user->id,
-                    'name' => $m->user->name,
-                ],
-                'is_mine' => $m->user_id === $userId,
-                'created_at' => $m->created_at->format('H:i'),
-                'created_at_full' => $m->created_at->toISOString(),
-            ]);
+            ->map(fn($m) => $this->formatMessage($m, $userId));
 
         $chatData = [
             'id' => $chat->id,
@@ -244,6 +266,7 @@ class InternalChatController extends Controller
             'body' => 'nullable|string|max:5000',
             'content' => 'nullable|string|max:5000',
             'file' => 'nullable|file|max:25600', // Max 25MB
+            'reply_to_id' => 'nullable|integer|exists:internal_messages,id',
         ]);
 
         // Accept both 'body' and 'content' from frontend
@@ -289,9 +312,10 @@ class InternalChatController extends Controller
             'file_name' => $fileName,
             'file_mime' => $fileMime,
             'file_size' => $fileSize,
+            'reply_to_id' => $request->input('reply_to_id'),
         ]);
 
-        $message->load('user');
+        $message->load(['user', 'replyTo.user']);
 
         // Marcar como leído para el remitente
         InternalChatParticipant::where('internal_chat_id', $chat->id)
@@ -300,22 +324,7 @@ class InternalChatController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => [
-                'id' => $message->id,
-                'body' => $message->body,
-                'type' => $message->type,
-                'file_url' => $message->file_url,
-                'file_name' => $message->file_name,
-                'file_mime' => $message->file_mime,
-                'file_size_human' => $message->file_size_human,
-                'user' => [
-                    'id' => $message->user->id,
-                    'name' => $message->user->name,
-                ],
-                'is_mine' => true,
-                'created_at' => $message->created_at->format('H:i'),
-                'created_at_full' => $message->created_at->toISOString(),
-            ],
+            'message' => $this->formatMessage($message, $userId),
         ]);
     }
 
@@ -360,7 +369,7 @@ class InternalChatController extends Controller
 
         $since = $request->query('since');
 
-        $query = $chat->messages()->with('user');
+        $query = $chat->messages()->with(['user', 'replyTo.user']);
 
         if ($since) {
             $query->where('created_at', '>', $since);
@@ -368,22 +377,7 @@ class InternalChatController extends Controller
 
         $messages = $query->orderBy('created_at', 'asc')
             ->get()
-            ->map(fn($m) => [
-                'id' => $m->id,
-                'body' => $m->body,
-                'type' => $m->type,
-                'file_url' => $m->file_url,
-                'file_name' => $m->file_name,
-                'file_mime' => $m->file_mime,
-                'file_size_human' => $m->file_size_human,
-                'user' => [
-                    'id' => $m->user->id,
-                    'name' => $m->user->name,
-                ],
-                'is_mine' => $m->user_id === $userId,
-                'created_at' => $m->created_at->format('H:i'),
-                'created_at_full' => $m->created_at->toISOString(),
-            ]);
+            ->map(fn($m) => $this->formatMessage($m, $userId));
 
         // Actualizar last_read_at
         if ($messages->count() > 0) {

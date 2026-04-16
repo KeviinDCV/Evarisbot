@@ -26,6 +26,7 @@ import {
     RotateCcw,
     UserPlus,
     UserMinus,
+    Reply,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
@@ -62,6 +63,14 @@ interface ChatItem {
     latest_message: LatestMessage | null;
 }
 
+interface ReplyTo {
+    id: number;
+    body: string | null;
+    type: string;
+    file_name: string | null;
+    user_name: string;
+}
+
 interface MessageItem {
     id: number;
     body: string;
@@ -74,6 +83,7 @@ interface MessageItem {
     is_mine: boolean;
     created_at: string;
     created_at_full: string;
+    reply_to?: ReplyTo | null;
 }
 
 interface ReadReceipt {
@@ -98,6 +108,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const [searchQuery, setSearchQuery] = useState('');
     const [isUploading, setIsUploading] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+    const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
 
     // Read receipts: who has read the chat
     const [readReceipts, setReadReceipts] = useState<ReadReceipt[]>([]);
@@ -412,7 +423,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         if ((!inputText.trim() && !isUploading) || !activeChat) return;
 
         const originalText = inputText;
+        const replyMsg = replyingTo;
         setInputText('');
+        setReplyingTo(null);
 
         // Optimistic: add message locally before server confirms
         const tempId = Date.now();
@@ -428,6 +441,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             is_mine: true,
             created_at: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
             created_at_full: new Date().toISOString().slice(0, 16).replace('T', ' '),
+            reply_to: replyMsg ? {
+                id: replyMsg.id,
+                body: replyMsg.body,
+                type: replyMsg.type,
+                file_name: replyMsg.file_name,
+                user_name: replyMsg.is_mine ? auth.user.name : replyMsg.user.name,
+            } : null,
         };
         setMessages(prev => [...prev, optimisticMsg]);
         setTimeout(() => scrollToBottom(true), 50);
@@ -435,7 +455,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         try {
             const sendRes = await axios.post(`/admin/internal-chat/${activeChat.id}/send`, {
                 body: originalText,
-                type: 'text'
+                type: 'text',
+                ...(replyMsg ? { reply_to_id: replyMsg.id } : {}),
             });
 
             // Replace optimistic message with real one from server
@@ -470,6 +491,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             // Remove optimistic message and restore input on error
             setMessages(prev => prev.filter(m => m.id !== tempId));
             setInputText(originalText);
+            if (replyMsg) setReplyingTo(replyMsg);
         }
     };
 
@@ -558,6 +580,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const sendFileDirectly = async (file: File) => {
         if (!activeChat) return;
 
+        const replyMsg = replyingTo;
+        setReplyingTo(null);
+
         const formData = new FormData();
         formData.append('file', file);
 
@@ -567,6 +592,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         else if (file.type.startsWith('video/')) type = 'video';
         else type = 'document';
         formData.append('type', type);
+        if (replyMsg) formData.append('reply_to_id', String(replyMsg.id));
 
         const tempId = Date.now();
         const optimisticMsg: MessageItem = {
@@ -581,6 +607,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             is_mine: true,
             created_at: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
             created_at_full: new Date().toISOString().slice(0, 16).replace('T', ' '),
+            reply_to: replyMsg ? {
+                id: replyMsg.id,
+                body: replyMsg.body,
+                type: replyMsg.type,
+                file_name: replyMsg.file_name,
+                user_name: replyMsg.is_mine ? auth.user.name : replyMsg.user.name,
+            } : null,
         };
         setMessages(prev => [...prev, optimisticMsg]);
         setTimeout(() => scrollToBottom(true), 50);
@@ -941,14 +974,57 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         return (
                                             <div
                                                 key={msg.id}
-                                                className={`flex flex-col ${msg.is_mine ? 'items-end self-end' : 'items-start'} max-w-[75%]`}
+                                                id={`msg-${msg.id}`}
+                                                className={`group/msg flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 max-w-[75%] ${msg.is_mine ? 'self-end' : ''}`}
                                             >
+                                                {/* Reply action button - appears on hover */}
+                                                <button
+                                                    onClick={() => {
+                                                        setReplyingTo(msg);
+                                                        textareaRef.current?.focus();
+                                                    }}
+                                                    className={`opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#16235e] dark:hover:text-blue-300 self-center flex-shrink-0`}
+                                                    title="Responder"
+                                                >
+                                                    <Reply className="w-4 h-4" />
+                                                </button>
+
+                                                <div className="flex flex-col">
                                                 <div
                                                     className={`${msg.is_mine
                                                         ? 'bg-[#2e3a75] text-white px-5 py-3.5 rounded-xl rounded-br-sm shadow-md'
                                                         : 'bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 px-5 py-3.5 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10'
                                                         }`}
                                                 >
+                                                        {/* Reply quote bubble */}
+                                                        {msg.reply_to && (
+                                                            <div
+                                                                className={`mb-2 px-3 py-2 rounded-lg border-l-3 cursor-pointer transition-colors ${msg.is_mine
+                                                                    ? 'bg-white/10 border-blue-300 hover:bg-white/15'
+                                                                    : 'bg-[#16235e]/5 dark:bg-blue-500/10 border-[#16235e] dark:border-blue-400 hover:bg-[#16235e]/10 dark:hover:bg-blue-500/15'
+                                                                }`}
+                                                                onClick={() => {
+                                                                    const el = document.getElementById(`msg-${msg.reply_to!.id}`);
+                                                                    if (el) {
+                                                                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                        el.classList.add('ring-2', 'ring-[#16235e]/40', 'dark:ring-blue-400/40', 'rounded-xl');
+                                                                        setTimeout(() => el.classList.remove('ring-2', 'ring-[#16235e]/40', 'dark:ring-blue-400/40', 'rounded-xl'), 2000);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <p className={`text-[11px] font-bold mb-0.5 ${msg.is_mine ? 'text-blue-200' : 'text-[#16235e] dark:text-blue-400'}`}>
+                                                                    {msg.reply_to.user_name}
+                                                                </p>
+                                                                <p className={`text-xs truncate max-w-[250px] ${msg.is_mine ? 'text-white/70' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
+                                                                    {msg.reply_to.type === 'image' ? '📷 Foto'
+                                                                        : msg.reply_to.type === 'video' ? '🎥 Video'
+                                                                        : msg.reply_to.type === 'audio' ? '🎵 Audio'
+                                                                        : msg.reply_to.type === 'document' ? `📎 ${msg.reply_to.file_name || 'Archivo'}`
+                                                                        : msg.reply_to.body || ''}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
                                                         {/* Sender name (in groups show for all; in direct only for others) */}
                                                         {msg.user && (activeChat?.type === 'group' || !msg.is_mine) && (
                                                             <p className={`text-[11px] mb-1 font-bold ${msg.is_mine ? 'text-blue-200' : 'text-[#16235e] dark:text-blue-400'}`}>
@@ -1080,7 +1156,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                         )}
                                                     </div>
                                                 {/* Timestamp - outside bubble */}
-                                                <div className={`flex items-center gap-1 mt-1.5 ${msg.is_mine ? 'mr-1' : 'ml-1'}`}>
+                                                <div className={`flex items-center gap-1 mt-1.5 ${msg.is_mine ? 'mr-1 justify-end' : 'ml-1'}`}>
                                                     <span className="text-[10px] text-[#5f5e5e] dark:text-neutral-500">{msg.created_at}</span>
                                                     {msg.is_mine && (
                                                         <Check className="w-3 h-3 text-[#16235e] dark:text-blue-400" style={{ fontSize: '14px' }} />
@@ -1095,6 +1171,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                         </span>
                                                     </div>
                                                 )}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -1105,6 +1182,31 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                         {/* Input Area */}
                         <form onSubmit={handleSendMessage} className="p-6 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md">
+                            {/* Reply preview bar */}
+                            {replyingTo && (
+                                <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-muted dark:bg-neutral-800 rounded-xl border-l-3 border-[#16235e] dark:border-blue-400 animate-in slide-in-from-bottom-2 duration-200">
+                                    <Reply className="w-4 h-4 text-[#16235e] dark:text-blue-400 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-[#16235e] dark:text-blue-400">
+                                            {replyingTo.is_mine ? 'Tú' : replyingTo.user.name}
+                                        </p>
+                                        <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">
+                                            {replyingTo.type === 'image' ? '📷 Foto'
+                                                : replyingTo.type === 'video' ? '🎥 Video'
+                                                : replyingTo.type === 'audio' ? '🎵 Audio'
+                                                : replyingTo.type === 'document' ? `📎 ${replyingTo.file_name || 'Archivo'}`
+                                                : replyingTo.body || ''}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setReplyingTo(null)}
+                                        className="p-1 rounded-full hover:bg-background dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 transition-colors flex-shrink-0"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
                             <div className="flex items-center gap-3 bg-muted dark:bg-neutral-800 px-4 py-2 rounded-full ring-1 ring-black/5 dark:ring-white/10 focus-within:ring-[#16235e]/20 transition-all relative">
                                 {/* Hidden file input */}
                                 <input

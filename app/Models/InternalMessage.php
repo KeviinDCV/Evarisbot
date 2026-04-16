@@ -16,6 +16,7 @@ class InternalMessage extends Model
         'file_name',
         'file_mime',
         'file_size',
+        'reply_to_id',
     ];
 
     public function chat(): BelongsTo
@@ -26,6 +27,11 @@ class InternalMessage extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(InternalMessage::class, 'reply_to_id');
     }
 
     /**
