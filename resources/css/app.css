@@ -1369,3 +1369,18 @@ tr.table-row-hover:hover {
     background-color: hsl(30, 4%, 20%);
     color: hsl(30, 5%, 65%);
 }
+
+/* ============================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================ */
+
+/* GPU-accelerated scrolling for main containers */
+.chat-messages-scroll {
+    will-change: scroll-position;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Layout containment for conversation list items */
+.conv-list-item {
+    contain: layout style;
+}

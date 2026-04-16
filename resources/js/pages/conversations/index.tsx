@@ -218,6 +218,9 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const [search, setSearch] = useState(filters.search || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const inputValueRef = useRef(''); // Ref for message input (zero re-renders while typing)
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const [hasInputText, setHasInputText] = useState(false); // Only updates on empty↔non-empty transitions
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [templateMediaFiles, setTemplateMediaFiles] = useState<MediaFile[]>([]);
@@ -276,6 +279,11 @@ export default function ConversationsIndex({ conversations: initialConversations
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    // Ref para trackear mensajes ya renderizados (evitar re-animación)
+    const renderedMessageIdsRef = useRef<Set<number>>(new Set());
+    // Refs para throttle de scroll con RAF
+    const msgScrollRafRef = useRef<number | null>(null);
+    const convScrollRafRef = useRef<number | null>(null);
     // Ref para pausar polling mientras el usuario hace scroll en la lista de chats
     const isScrollingChatsRef = useRef(false);
     const scrollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -408,9 +416,9 @@ export default function ConversationsIndex({ conversations: initialConversations
     };
 
     // Filtrar plantillas basadas en el texto después de /
-    const filteredTemplates = templates.filter(template =>
+    const filteredTemplates = useMemo(() => templates.filter(template =>
         template.name.toLowerCase().includes(templateFilter.toLowerCase())
-    );
+    ), [templates, templateFilter]);
 
     // Manejar cambios en el input de mensaje
     const handleMessageChange = (value: string) => {
@@ -424,12 +432,18 @@ export default function ConversationsIndex({ conversations: initialConversations
             setLastCorrection({ original, corrected, timestamp: Date.now() });
             if (correctionTimeoutRef.current) clearTimeout(correctionTimeoutRef.current);
             correctionTimeoutRef.current = setTimeout(() => setLastCorrection(null), 2500);
+            // Update textarea DOM with corrected value
+            if (textareaRef.current) textareaRef.current.value = finalValue;
         }
 
-        setData('content', finalValue);
+        // Store in ref (no re-render)
+        inputValueRef.current = finalValue;
+
+        // Only trigger re-render on empty↔non-empty transition (for send button)
+        const hasText = finalValue.trim().length > 0;
+        if (hasText !== hasInputText) setHasInputText(hasText);
 
         // Detectar el comando /
-        const cursorPosition = finalValue.length;
         const lastSlashIndex = finalValue.lastIndexOf('/');
 
         if (lastSlashIndex !== -1) {
@@ -464,12 +478,15 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Seleccionar una plantilla
     const selectTemplate = (template: Template) => {
-        const currentValue = data.content;
+        const currentValue = inputValueRef.current;
         const lastSlashIndex = currentValue.lastIndexOf('/');
         const beforeSlash = currentValue.substring(0, lastSlashIndex);
 
         // Insertar el contenido de la plantilla
-        setData('content', beforeSlash + template.content);
+        const newValue = beforeSlash + template.content;
+        inputValueRef.current = newValue;
+        if (textareaRef.current) textareaRef.current.value = newValue;
+        setHasInputText(newValue.trim().length > 0);
 
         // Guardar el ID de la plantilla para incrementar el contador al enviar
         setSelectedTemplateId(template.id);
@@ -599,23 +616,31 @@ export default function ConversationsIndex({ conversations: initialConversations
         return () => el.removeEventListener('wheel', handler);
     }, []);
 
-    // Detectar scroll del usuario
+    // Detectar scroll del usuario (throttled con RAF)
     useEffect(() => {
         const container = messagesContainerRef.current;
         if (!container) return;
 
         const handleScroll = () => {
-            const atBottom = checkIfAtBottom();
-            setIsAtBottom(atBottom);
-
-            // Si el usuario llegó al final, limpiar contador de nuevos mensajes
-            if (atBottom) {
-                setNewMessagesCount(0);
-            }
+            if (msgScrollRafRef.current) return;
+            msgScrollRafRef.current = requestAnimationFrame(() => {
+                const atBottom = checkIfAtBottom();
+                setIsAtBottom(atBottom);
+                if (atBottom) {
+                    setNewMessagesCount(0);
+                }
+                msgScrollRafRef.current = null;
+            });
         };
 
-        container.addEventListener('scroll', handleScroll);
-        return () => container.removeEventListener('scroll', handleScroll);
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        return () => {
+            container.removeEventListener('scroll', handleScroll);
+            if (msgScrollRafRef.current) {
+                cancelAnimationFrame(msgScrollRafRef.current);
+                msgScrollRafRef.current = null;
+            }
+        };
     }, [checkIfAtBottom, selectedConversation?.id]);
 
     // Scroll automático al final SOLO si el usuario ya estaba al final
@@ -654,10 +679,16 @@ export default function ConversationsIndex({ conversations: initialConversations
         setNewMessagesCount(0);
         setIsAtBottom(true);
         setOptimisticMessages([]); // Limpiar mensajes optimistas al cambiar de conversación
+        inputValueRef.current = ''; // Limpiar input de mensaje
+        if (textareaRef.current) textareaRef.current.value = '';
+        setHasInputText(false);
+        previousTextRef.current = '';
         // Initialize local messages from server prop
         const msgs = selectedConversation?.messages || [];
         setLocalMessages(msgs);
         lastMessageIdRef.current = msgs.length > 0 ? Math.max(...msgs.map(m => m.id)) : 0;
+        // Marcar todos los mensajes iniciales como ya renderizados (sin animación)
+        renderedMessageIdsRef.current = new Set(msgs.map(m => m.id));
         // Sync notes
         setNotesText(selectedConversation?.notes || '');
         setShowNotes(false);
@@ -665,6 +696,10 @@ export default function ConversationsIndex({ conversations: initialConversations
         setActivities([]);
     }, [selectedConversation?.id]);
 
+    // Marcar mensajes como renderizados después de cada render (para que la siguiente vez no animen)
+    useEffect(() => {
+        localMessages.forEach(m => renderedMessageIdsRef.current.add(m.id));
+    }, [localMessages]);
 
     // Limpiar mensajes optimistas cuando llegan los mensajes reales (del poll o del servidor)
     useEffect(() => {
@@ -870,18 +905,28 @@ export default function ConversationsIndex({ conversations: initialConversations
                 isScrollingChatsRef.current = false;
             }, 3000);
 
-            const { scrollTop, scrollHeight, clientHeight } = container;
-            // Si llegamos al 80% del scroll, cargar más
-            if (scrollTop + clientHeight >= scrollHeight * 0.8 && hasMore && !isLoadingMore) {
-                loadMoreConversations();
+            // Throttle la verificación de scroll position con RAF
+            if (!convScrollRafRef.current) {
+                convScrollRafRef.current = requestAnimationFrame(() => {
+                    const { scrollTop, scrollHeight, clientHeight } = container;
+                    // Si llegamos al 80% del scroll, cargar más
+                    if (scrollTop + clientHeight >= scrollHeight * 0.8 && hasMore && !isLoadingMore) {
+                        loadMoreConversations();
+                    }
+                    convScrollRafRef.current = null;
+                });
             }
         };
 
-        container.addEventListener('scroll', handleScroll);
+        container.addEventListener('scroll', handleScroll, { passive: true });
         return () => {
             container.removeEventListener('scroll', handleScroll);
             if (scrollingTimeoutRef.current) {
                 clearTimeout(scrollingTimeoutRef.current);
+            }
+            if (convScrollRafRef.current) {
+                cancelAnimationFrame(convScrollRafRef.current);
+                convScrollRafRef.current = null;
             }
         };
     }, [hasMore, isLoadingMore, loadMoreConversations]);
@@ -1428,14 +1473,14 @@ export default function ConversationsIndex({ conversations: initialConversations
     ].filter(Boolean).length;
 
     // Filtrar asesores por búsqueda
-    const filteredAdvisors = users.filter(user =>
+    const filteredAdvisors = useMemo(() => users.filter(user =>
         user.name.toLowerCase().includes(advisorSearchQuery.toLowerCase())
-    );
+    ), [users, advisorSearchQuery]);
 
     // Filtrar asesores por búsqueda en menú de asignación masiva
-    const filteredBulkAdvisors = users.filter(user =>
+    const filteredBulkAdvisors = useMemo(() => users.filter(user =>
         user.name.toLowerCase().includes(bulkAssignSearchQuery.toLowerCase())
-    );
+    ), [users, bulkAssignSearchQuery]);
 
     // Función para aplicar filtros al backend
     const applyFilters = useCallback((newStatus: string, newAdvisor: number | null) => {
@@ -1841,7 +1886,8 @@ export default function ConversationsIndex({ conversations: initialConversations
             return;
         }
 
-        const hasContent = data.content && data.content.trim().length > 0;
+        const currentInput = inputValueRef.current;
+        const hasContent = currentInput && currentInput.trim().length > 0;
         const hasFile = selectedFile !== null;
 
         if ((!hasContent && !hasFile) || !selectedConversation) {
@@ -1857,7 +1903,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         const optimisticMessage: OptimisticMessage = {
             tempId,
-            content: data.content || (selectedFile ? `📎 ${selectedFile.name}` : ''),
+            content: currentInput || (selectedFile ? `📎 ${selectedFile.name}` : ''),
             message_type: hasFile ? 'document' : 'text',
             media_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
             is_from_user: false,
@@ -1870,12 +1916,16 @@ export default function ConversationsIndex({ conversations: initialConversations
         setOptimisticMessages(prev => [...prev, optimisticMessage]);
 
         // Guardar contenido para posible reintento
-        const messageContent = data.content;
+        const messageContent = currentInput;
         const messageFile = selectedFile;
         const messageTemplateMediaFiles = templateMediaFiles;
         const messageTemplateId = selectedTemplateId;
 
         // Limpiar formulario inmediatamente (mejor UX)
+        inputValueRef.current = '';
+        if (textareaRef.current) textareaRef.current.value = '';
+        setHasInputText(false);
+        previousTextRef.current = '';
         reset();
         setSelectedFile(null);
         setTemplateMediaFiles([]);
@@ -2657,7 +2707,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         onMouseDown={() => handleDragSelectStart(conversation.id)}
                                         onMouseEnter={() => handleDragSelectEnter(conversation.id)}
                                         onMouseUp={handleDragSelectEnd}
-                                        className={`w-full flex items-center gap-4 p-4 mb-1.5 rounded-xl transition-all text-left select-none group ${selectedConversations.includes(conversation.id)
+                                        className={`conv-list-item w-full flex items-center gap-4 p-4 mb-1.5 rounded-xl transition-all text-left select-none group ${selectedConversations.includes(conversation.id)
                                                 ? 'bg-green-50/80 dark:bg-green-900/20 border-l-4 border-green-500 shadow-sm'
                                                 : selectedConversation?.id === conversation.id
                                                     ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400 shadow-sm'
@@ -3695,7 +3745,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         {/* Área de Mensajes */}
                         <div
                             ref={messagesContainerRef}
-                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern"
+                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
 
                         >
                             {localMessages.length === 0 ? (
@@ -3724,7 +3774,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </div>
                                                 )}
                                                 <div
-                                                    className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'} ${message.is_from_user ? 'msg-animate-left' : 'msg-animate-right'}`}
+                                                    className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'} ${!renderedMessageIdsRef.current.has(message.id) ? (message.is_from_user ? 'msg-animate-left' : 'msg-animate-right') : ''}`}
                                                 >
                                           <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${message.is_from_user ? 'items-start' : 'items-end'}`}>
                                             <div
@@ -4110,7 +4160,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     {/* Campo de texto */}
                                     <div className="relative flex-1">
                                         <Textarea
-                                            value={data.content}
+                                            ref={textareaRef}
+                                            defaultValue=""
                                             onChange={(e) => handleMessageChange(e.target.value)}
                                             placeholder={t('conversations.messagePlaceholder')}
                                             className="flex-1 min-h-[44px] max-h-[120px] py-[10px] pr-4 pl-0 text-sm md:text-base resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-[#767681]"
@@ -4157,9 +4208,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         className="ml-0.5 text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded-sm hover:bg-accent"
                                                         onClick={() => {
                                                             // Deshacer la corrección
-                                                            const currentContent = data.content;
+                                                            const currentContent = inputValueRef.current;
                                                             const undone = currentContent.replace(lastCorrection.corrected, lastCorrection.original);
-                                                            setData('content', undone);
+                                                            inputValueRef.current = undone;
+                                                            if (textareaRef.current) textareaRef.current.value = undone;
                                                             previousTextRef.current = undone;
                                                             setLastCorrection(null);
                                                         }}
@@ -4176,7 +4228,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Botón de enviar */}
                                 <button
                                     type="submit"
-                                    disabled={(!(data.content?.trim()) && !selectedFile) || processing || isSubmitting}
+                                    disabled={(!hasInputText && !selectedFile) || processing || isSubmitting}
                                     className="flex-shrink-0 bg-gradient-to-br from-[#16235e] to-[#2e3a75] hover:from-[#1a2a6e] hover:to-[#364588] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
                                 >
                                     <Send className="w-5 h-5 ml-[2px]" />
