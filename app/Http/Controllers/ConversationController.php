@@ -377,6 +377,7 @@ class ConversationController extends Controller
         $perPage = 50;
         $conversations = $query
             ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
+            ->limit($perPage)
             ->get();
         
         $hasMore = $conversations->count() === $perPage;
