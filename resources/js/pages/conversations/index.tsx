@@ -52,6 +52,7 @@ import {
     FileText,
     Loader2,
     ShieldBan,
+    Reply,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -85,6 +86,16 @@ interface Message {
     status: string;
     error_message?: string | null;
     created_at: string;
+    whatsapp_message_id?: string | null;
+    reply_to_id?: number | null;
+    reply_to?: {
+        id: number;
+        content: string;
+        message_type: string;
+        media_url?: string | null;
+        is_from_user: boolean;
+        sender?: { name: string };
+    } | null;
     sender?: {
         name: string;
     };
@@ -223,6 +234,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [hasInputText, setHasInputText] = useState(false); // Only updates on empty↔non-empty transitions
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [replyingTo, setReplyingTo] = useState<Message | null>(null);
     const [templateMediaFiles, setTemplateMediaFiles] = useState<MediaFile[]>([]);
     const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
     const [contextMenu, setContextMenu] = useState<{ conversationId: number; x: number; y: number } | null>(null);
@@ -679,6 +691,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         setNewMessagesCount(0);
         setIsAtBottom(true);
         setOptimisticMessages([]); // Limpiar mensajes optimistas al cambiar de conversación
+        setReplyingTo(null); // Limpiar respuesta al cambiar de conversación
         inputValueRef.current = ''; // Limpiar input de mensaje
         if (textareaRef.current) textareaRef.current.value = '';
         setHasInputText(false);
@@ -1920,6 +1933,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         const messageFile = selectedFile;
         const messageTemplateMediaFiles = templateMediaFiles;
         const messageTemplateId = selectedTemplateId;
+        const messageReplyToId = replyingTo?.id ?? null;
 
         // Limpiar formulario inmediatamente (mejor UX)
         inputValueRef.current = '';
@@ -1928,6 +1942,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         previousTextRef.current = '';
         reset();
         setSelectedFile(null);
+        setReplyingTo(null);
         setTemplateMediaFiles([]);
         setSelectedTemplateId(null);
         if (fileInputRef.current) {
@@ -1950,6 +1965,10 @@ export default function ConversationsIndex({ conversations: initialConversations
         // Si se usó una plantilla, enviar su ID para incrementar el contador
         if (messageTemplateId) {
             formData.append('template_id', messageTemplateId.toString());
+        }
+        // Si se está respondiendo a un mensaje, enviar su ID
+        if (messageReplyToId) {
+            formData.append('reply_to_id', messageReplyToId.toString());
         }
 
         // Obtener token CSRF del meta tag
@@ -3776,13 +3795,57 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 <div
                                                     className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'} ${!renderedMessageIdsRef.current.has(message.id) ? (message.is_from_user ? 'msg-animate-left' : 'msg-animate-right') : ''}`}
                                                 >
-                                          <div className={`flex flex-col max-w-[85%] md:max-w-[70%] ${message.is_from_user ? 'items-start' : 'items-end'}`}>
+                                          <div className={`group/msg flex ${message.is_from_user ? 'flex-row' : 'flex-row-reverse'} items-start gap-1 max-w-[85%] md:max-w-[70%]`}>
+                                            {/* Reply button - visible on hover */}
+                                            {!isLockedByOther && (
+                                                <button
+                                                    onClick={() => {
+                                                        setReplyingTo(message);
+                                                        textareaRef.current?.focus();
+                                                    }}
+                                                    className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#16235e] dark:hover:text-blue-300 self-center flex-shrink-0"
+                                                    title="Responder"
+                                                >
+                                                    <Reply className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            <div className={`flex flex-col ${message.is_from_user ? 'items-start' : 'items-end'}`}>
                                             <div
+                                                id={`msg-${message.id}`}
                                                 className={`px-3 pt-2 pb-1 flex flex-col relative ${message.is_from_user
                                                     ? 'rounded-xl rounded-bl-sm bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-200 shadow-sm'
                                                     : 'rounded-xl rounded-br-sm bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] shadow-sm'
                                                     }`}
                                             >
+                                                {/* Reply quote bubble */}
+                                                {message.reply_to && (
+                                                    <div
+                                                        className={`mb-2 px-3 py-2 rounded-lg border-l-3 cursor-pointer transition-colors text-xs ${message.is_from_user
+                                                            ? 'bg-[#f0f0f0] dark:bg-neutral-700 border-[#06cf9c] hover:bg-[#e5e5e5] dark:hover:bg-neutral-600'
+                                                            : 'bg-[#c5efc0] dark:bg-[#025144] border-[#06cf9c] hover:bg-[#b5dfb0] dark:hover:bg-[#024a3d]'
+                                                        }`}
+                                                        onClick={() => {
+                                                            const el = document.getElementById(`msg-${message.reply_to!.id}`);
+                                                            if (el) {
+                                                                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                el.classList.add('ring-2', 'ring-[#06cf9c]/50');
+                                                                setTimeout(() => el.classList.remove('ring-2', 'ring-[#06cf9c]/50'), 2000);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <p className="font-bold text-[#06cf9c] mb-0.5">
+                                                            {message.reply_to.is_from_user ? (selectedConversation?.contact_name || 'Cliente') : (message.reply_to.sender?.name || 'Asesor')}
+                                                        </p>
+                                                        <p className={`truncate max-w-[250px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-400' : 'text-[#1a7f37] dark:text-[#99ceb5]'}`}>
+                                                            {message.reply_to.message_type === 'image' ? '📷 Foto'
+                                                                : message.reply_to.message_type === 'video' ? '🎥 Video'
+                                                                : message.reply_to.message_type === 'audio' ? '🎵 Audio'
+                                                                : message.reply_to.message_type === 'document' ? '📎 Documento'
+                                                                : message.reply_to.content || ''}
+                                                        </p>
+                                                    </div>
+                                                )}
+
                                                 {/* Remitente (si es asesor) */}
                                                 {!message.is_from_user && message.sender && (
                                                     <p className="text-[11px] font-bold text-[#1f7aad] dark:text-[#53bdeb] tracking-wide mb-1 flex items-center gap-1">
@@ -3941,6 +4004,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
                                                 </div>
                                             </div>
+                                            </div>
                                           </div>
                                         </div>
                                             </div>
@@ -4073,6 +4137,32 @@ export default function ConversationsIndex({ conversations: initialConversations
                             </div>
                         ) : (
                         <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md">
+                            {/* Reply preview bar */}
+                            {replyingTo && (
+                                <div className="mb-2 flex items-center gap-3 px-4 py-2.5 bg-muted dark:bg-neutral-800 rounded-xl border-l-3 border-[#06cf9c]">
+                                    <Reply className="w-4 h-4 text-[#06cf9c] flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-[#06cf9c]">
+                                            {replyingTo.is_from_user ? (selectedConversation?.contact_name || 'Cliente') : (replyingTo.sender?.name || 'Tú')}
+                                        </p>
+                                        <p className="text-xs text-[#667781] dark:text-neutral-400 truncate">
+                                            {replyingTo.message_type === 'image' ? '📷 Foto'
+                                                : replyingTo.message_type === 'video' ? '🎥 Video'
+                                                : replyingTo.message_type === 'audio' ? '🎵 Audio'
+                                                : replyingTo.message_type === 'document' ? '📎 Documento'
+                                                : replyingTo.content || ''}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setReplyingTo(null)}
+                                        className="p-1 rounded-full hover:bg-background dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 transition-colors flex-shrink-0"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+
                             {/* Preview del archivo seleccionado */}
                             {selectedFile && (
                                 <div className="mb-2 flex items-center gap-2 p-2 bg-[#dee1ff]/40 dark:bg-blue-900/20 rounded-lg">

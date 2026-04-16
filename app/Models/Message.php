@@ -17,6 +17,7 @@ class Message extends Model
         'transcription',
         'is_from_user',
         'whatsapp_message_id',
+        'reply_to_id',
         'status',
         'error_message',
         'sent_by',
@@ -40,6 +41,14 @@ class Message extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sent_by');
+    }
+
+    /**
+     * Mensaje al que se está respondiendo
+     */
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(Message::class, 'reply_to_id');
     }
 
     /**

@@ -386,6 +386,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     setShowRenameModal(false);
                 } else if (showCreateGroup) {
                     setShowCreateGroup(false);
+                } else if (replyingTo) {
+                    setReplyingTo(null);
                 } else if (activeChat) {
                     setActiveChat(null);
                     setMessages([]);
@@ -396,7 +398,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         };
         window.addEventListener('keydown', handleEsc);
         return () => window.removeEventListener('keydown', handleEsc);
-    }, [mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, activeChat]);
+    }, [mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, replyingTo, activeChat]);
 
     // Handle scroll wheel zoom in media viewer
     useEffect(() => {
@@ -416,6 +418,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
     const handleChatSelect = (chat: ChatItem) => {
         setActiveChat(chat);
+        setReplyingTo(null);
     };
 
     const handleSendMessage = async (e?: React.FormEvent) => {

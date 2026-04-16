@@ -24,7 +24,7 @@ class WhatsAppService
     /**
      * Enviar mensaje de texto
      */
-    public function sendTextMessage(string $to, string $message): array
+    public function sendTextMessage(string $to, string $message, ?string $replyToWamid = null): array
     {
         if (!$this->isConfigured()) {
             return [
@@ -34,15 +34,21 @@ class WhatsAppService
         }
 
         try {
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'text',
+                'text' => [
+                    'body' => $message,
+                ],
+            ];
+
+            if ($replyToWamid) {
+                $payload['context'] = ['message_id' => $replyToWamid];
+            }
+
             $response = Http::withToken($this->token)
-                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
-                    'messaging_product' => 'whatsapp',
-                    'to' => $this->formatPhoneNumber($to),
-                    'type' => 'text',
-                    'text' => [
-                        'body' => $message,
-                    ],
-                ]);
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -98,7 +104,7 @@ class WhatsAppService
     /**
      * Enviar mensaje con imagen
      */
-    public function sendImageMessage(string $to, string $imageUrl, ?string $caption = null): array
+    public function sendImageMessage(string $to, string $imageUrl, ?string $caption = null, ?string $replyToWamid = null): array
     {
         if (!$this->isConfigured()) {
             return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
@@ -116,6 +122,10 @@ class WhatsAppService
 
             if ($caption) {
                 $payload['image']['caption'] = $caption;
+            }
+
+            if ($replyToWamid) {
+                $payload['context'] = ['message_id' => $replyToWamid];
             }
 
             Log::info('Sending image to WhatsApp', [
@@ -165,7 +175,7 @@ class WhatsAppService
     /**
      * Enviar mensaje con documento
      */
-    public function sendDocumentMessage(string $to, string $documentUrl, string $filename, ?string $caption = null): array
+    public function sendDocumentMessage(string $to, string $documentUrl, string $filename, ?string $caption = null, ?string $replyToWamid = null): array
     {
         if (!$this->isConfigured()) {
             return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
@@ -185,6 +195,10 @@ class WhatsAppService
             // Agregar caption si existe
             if ($caption) {
                 $payload['document']['caption'] = $caption;
+            }
+
+            if ($replyToWamid) {
+                $payload['context'] = ['message_id' => $replyToWamid];
             }
 
             $response = Http::withToken($this->token)
@@ -224,7 +238,7 @@ class WhatsAppService
     /**
      * Enviar mensaje con video
      */
-    public function sendVideoMessage(string $to, string $videoUrl, ?string $caption = null): array
+    public function sendVideoMessage(string $to, string $videoUrl, ?string $caption = null, ?string $replyToWamid = null): array
     {
         if (!$this->isConfigured()) {
             return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
@@ -242,6 +256,10 @@ class WhatsAppService
 
             if ($caption) {
                 $payload['video']['caption'] = $caption;
+            }
+
+            if ($replyToWamid) {
+                $payload['context'] = ['message_id' => $replyToWamid];
             }
 
             $response = Http::withToken($this->token)
@@ -279,22 +297,28 @@ class WhatsAppService
     /**
      * Enviar mensaje con audio
      */
-    public function sendAudioMessage(string $to, string $audioUrl): array
+    public function sendAudioMessage(string $to, string $audioUrl, ?string $replyToWamid = null): array
     {
         if (!$this->isConfigured()) {
             return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
         }
 
         try {
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'audio',
+                'audio' => [
+                    'link' => $audioUrl,
+                ],
+            ];
+
+            if ($replyToWamid) {
+                $payload['context'] = ['message_id' => $replyToWamid];
+            }
+
             $response = Http::withToken($this->token)
-                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
-                    'messaging_product' => 'whatsapp',
-                    'to' => $this->formatPhoneNumber($to),
-                    'type' => 'audio',
-                    'audio' => [
-                        'link' => $audioUrl,
-                    ],
-                ]);
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
                 return [
@@ -1635,6 +1659,9 @@ class WhatsAppService
                 'is_from_user' => true,
                 'whatsapp_message_id' => $messageId,
                 'status' => 'delivered',
+                'reply_to_id' => isset($messageData['context']['id'])
+                    ? Message::where('whatsapp_message_id', $messageData['context']['id'])->value('id')
+                    : null,
             ]);
 
             // Si es audio, intentar transcribir en background

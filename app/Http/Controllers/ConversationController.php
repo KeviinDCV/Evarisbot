@@ -398,7 +398,7 @@ class ConversationController extends Controller
         })->values();
         
         // Cargar la conversación seleccionada con todos sus mensajes
-        $conversation->load(['messages.sender', 'assignedUser', 'resolvedByUser', 'tags']);
+        $conversation->load(['messages.sender', 'messages.replyTo', 'assignedUser', 'resolvedByUser', 'tags']);
         
         // Marcar mensajes como leídos
         $conversation->markAsRead();
@@ -469,6 +469,7 @@ class ConversationController extends Controller
             'template_media_url' => 'nullable|string', // URL de imagen de plantilla (legacy)
             'template_media_files' => 'nullable|string', // JSON array de archivos de plantilla
             'template_id' => 'nullable|integer|exists:templates,id', // ID de plantilla usada
+            'reply_to_id' => 'nullable|integer|exists:messages,id', // Responder a un mensaje
         ]);
 
         // Si se usó una plantilla, incrementar su contador de uso
@@ -563,6 +564,18 @@ class ConversationController extends Controller
             ]);
         }
 
+        // Resolve reply-to context
+        $replyToId = $validated['reply_to_id'] ?? null;
+        $replyToWamid = null;
+        if ($replyToId) {
+            $replyToMessage = Message::find($replyToId);
+            if ($replyToMessage && $replyToMessage->conversation_id === $conversation->id) {
+                $replyToWamid = $replyToMessage->whatsapp_message_id;
+            } else {
+                $replyToId = null; // Invalid reply target
+            }
+        }
+
         // Crear el mensaje en la base de datos
         $message = $conversation->messages()->create([
             'content' => $validated['content'] ?? ($mediaFilename ?? 'Media file'),
@@ -572,6 +585,7 @@ class ConversationController extends Controller
             'is_from_user' => false,
             'sent_by' => auth()->id(),
             'status' => 'pending',
+            'reply_to_id' => $replyToId,
         ]);
 
         // Auto-asignar al asesor que responde si el chat no tiene asignación
@@ -632,30 +646,35 @@ class ConversationController extends Controller
                 $result = $whatsappService->sendImageMessage(
                     $conversation->phone_number,
                     $absoluteMediaUrl,
-                    $validated['content']
+                    $validated['content'],
+                    $replyToWamid
                 );
             } elseif ($messageType === 'video' && $absoluteMediaUrl) {
                 $result = $whatsappService->sendVideoMessage(
                     $conversation->phone_number,
                     $absoluteMediaUrl,
-                    $validated['content'] ?? null
+                    $validated['content'] ?? null,
+                    $replyToWamid
                 );
             } elseif ($messageType === 'audio' && $absoluteMediaUrl) {
                 $result = $whatsappService->sendAudioMessage(
                     $conversation->phone_number,
-                    $absoluteMediaUrl
+                    $absoluteMediaUrl,
+                    $replyToWamid
                 );
             } elseif ($messageType === 'document' && $absoluteMediaUrl) {
                 $result = $whatsappService->sendDocumentMessage(
                     $conversation->phone_number,
                     $absoluteMediaUrl,
                     $mediaFilename,
-                    $validated['content'] ?? null
+                    $validated['content'] ?? null,
+                    $replyToWamid
                 );
             } else {
                 $result = $whatsappService->sendTextMessage(
                     $conversation->phone_number,
-                    $validated['content']
+                    $validated['content'],
+                    $replyToWamid
                 );
             }
 
@@ -679,13 +698,13 @@ class ConversationController extends Controller
         }
 
         // Emitir evento de broadcasting para actualización en tiempo real
-        broadcast(new MessageSent($message->fresh(['sender']), $conversation->fresh(['lastMessage', 'assignedUser'])))->toOthers();
+        broadcast(new MessageSent($message->fresh(['sender', 'replyTo']), $conversation->fresh(['lastMessage', 'assignedUser'])))->toOthers();
 
         // Si es petición AJAX/JSON, devolver JSON
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => $message->fresh(['sender']),
+                'message' => $message->fresh(['sender', 'replyTo']),
             ]);
         }
 
@@ -1740,7 +1759,7 @@ class ConversationController extends Controller
         $afterId = (int) $request->query('after', 0);
 
         $newMessages = $conversation->messages()
-            ->with('sender')
+            ->with(['sender', 'replyTo'])
             ->where('id', '>', $afterId)
             ->orderBy('id', 'asc')
             ->get();
