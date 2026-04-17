@@ -62,7 +62,15 @@ class BulkSendController extends Controller
                 try {
                     $batch = Bus::findBatch($activeSend->batch_id);
                     if ($batch && ($batch->finished() || $batch->cancelled())) {
-                        $activeSend->update(['status' => $batch->cancelled() ? 'cancelled' : 'completed']);
+                        // Reconciliar contadores desde recipients reales
+                        $actualSent = $activeSend->recipients()->where('status', 'sent')->count();
+                        $actualFailed = $activeSend->recipients()->where('status', 'failed')->count();
+
+                        $activeSend->update([
+                            'status' => $batch->cancelled() ? 'cancelled' : 'completed',
+                            'sent_count' => $actualSent,
+                            'failed_count' => $actualFailed,
+                        ]);
                         $activeProgress = null;
                     }
                 } catch (\Exception $e) {
@@ -178,6 +186,19 @@ class BulkSendController extends Controller
     public function show(BulkSend $bulkSend)
     {
         $bulkSend->load('creator');
+
+        // Reconciliar contadores si el envío ya está completado
+        if ($bulkSend->status === 'completed') {
+            $actualSent = $bulkSend->recipients()->where('status', 'sent')->count();
+            $actualFailed = $bulkSend->recipients()->where('status', 'failed')->count();
+
+            if ($actualSent !== $bulkSend->sent_count || $actualFailed !== $bulkSend->failed_count) {
+                $bulkSend->update([
+                    'sent_count' => $actualSent,
+                    'failed_count' => $actualFailed,
+                ]);
+            }
+        }
 
         // Obtener preview_text del template
         $template = WhatsappTemplate::where('meta_template_name', $bulkSend->template_name)->first();
@@ -599,12 +620,21 @@ class BulkSendController extends Controller
             try {
                 $batch = Bus::findBatch($activeSend->batch_id);
                 if ($batch && ($batch->finished() || $batch->cancelled())) {
-                    $activeSend->update(['status' => $batch->cancelled() ? 'cancelled' : 'completed']);
+                    // Reconciliar contadores desde recipients reales antes de marcar como completado
+                    $actualSent = $activeSend->recipients()->where('status', 'sent')->count();
+                    $actualFailed = $activeSend->recipients()->where('status', 'failed')->count();
+
+                    $activeSend->update([
+                        'status' => $batch->cancelled() ? 'cancelled' : 'completed',
+                        'sent_count' => $actualSent,
+                        'failed_count' => $actualFailed,
+                    ]);
+
                     return response()->json([
                         'processing' => false,
                         'completed' => true,
-                        'sent' => $activeSend->sent_count,
-                        'failed' => $activeSend->failed_count,
+                        'sent' => $actualSent,
+                        'failed' => $actualFailed,
                         'total' => $activeSend->total_recipients,
                     ]);
                 }

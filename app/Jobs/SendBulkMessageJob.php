@@ -163,6 +163,8 @@ class SendBulkMessageJob implements ShouldQueue
             }
 
             if (!empty($paramValues)) {
+                // Filtrar valores null/vacíos para evitar enviar parámetros inválidos
+                $paramValues = array_map(fn($v) => $v ?? '', $paramValues);
                 $bodyParams = [];
                 foreach ($paramValues as $param) {
                     $bodyParams[] = ['type' => 'text', 'text' => (string) $param];
@@ -286,7 +288,7 @@ class SendBulkMessageJob implements ShouldQueue
             throw new \Exception('WhatsApp no configurado');
         }
 
-        $url = "https://graph.facebook.com/v18.0/{$phoneNumberId}/messages";
+        $url = "https://graph.facebook.com/v21.0/{$phoneNumberId}/messages";
 
         $payload = [
             'messaging_product' => 'whatsapp',
@@ -305,6 +307,13 @@ class SendBulkMessageJob implements ShouldQueue
         }
 
         $response = Http::withToken($token)->post($url, $payload);
+
+        Log::info('WhatsApp API response for bulk send', [
+            'recipient' => $to,
+            'template' => $templateName,
+            'status' => $response->status(),
+            'body' => $response->json(),
+        ]);
 
         if (!$response->successful()) {
             throw new \Exception('Error en API de WhatsApp (Status: ' . $response->status() . '): ' . $response->body());
