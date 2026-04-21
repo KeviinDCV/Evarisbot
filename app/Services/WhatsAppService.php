@@ -27,10 +27,10 @@ class WhatsAppService
      */
     private function httpClient()
     {
-        return $this->httpClient()
-            ->timeout(20)
-            ->connectTimeout(10)
-            ->retry(3, 1000, function ($exception) {
+        return Http::withToken($this->token)
+            ->timeout(10)
+            ->connectTimeout(5)
+            ->retry(2, 500, function ($exception) {
                 // Solo reintentar en errores de conexión (timeouts, resets, DNS).
                 // NO reintentar errores de Meta (400/403/rate limit) — esos requieren intervención.
                 return $exception instanceof \Illuminate\Http\Client\ConnectionException;
