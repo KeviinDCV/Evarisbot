@@ -781,6 +781,9 @@ class BulkSendController extends Controller
 
         try {
             $response = Http::withToken($token)
+                ->timeout(30)
+                ->connectTimeout(10)
+                ->retry(2, 1000, fn ($e) => $e instanceof \Illuminate\Http\Client\ConnectionException, throw: false)
                 ->post("https://graph.facebook.com/v21.0/{$businessAccountId}/message_templates", [
                     'name' => $request->input('name'),
                     'category' => $request->input('category'),
@@ -870,7 +873,11 @@ class BulkSendController extends Controller
 
             // Paginate through all templates
             while ($url) {
-                $response = Http::withToken($token)->get($url);
+                $response = Http::withToken($token)
+                    ->timeout(30)
+                    ->connectTimeout(10)
+                    ->retry(3, 1500, fn ($e) => $e instanceof \Illuminate\Http\Client\ConnectionException, throw: false)
+                    ->get($url);
 
                 if (!$response->successful()) {
                     return response()->json([
@@ -1013,6 +1020,9 @@ class BulkSendController extends Controller
         if ($businessAccountId && $token && $template->meta_template_name) {
             try {
                 Http::withToken($token)
+                    ->timeout(20)
+                    ->connectTimeout(10)
+                    ->retry(2, 1000, fn ($e) => $e instanceof \Illuminate\Http\Client\ConnectionException, throw: false)
                     ->delete("https://graph.facebook.com/v21.0/{$businessAccountId}/message_templates", [
                         'name' => $template->meta_template_name,
                     ]);

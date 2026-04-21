@@ -22,6 +22,22 @@ class WhatsAppService
     }
 
     /**
+     * Cliente HTTP preconfigurado con timeout y reintentos automáticos
+     * para manejar errores de red transitorios (cURL 28 timeout, cURL 56 reset, etc.)
+     */
+    private function httpClient()
+    {
+        return $this->httpClient()
+            ->timeout(20)
+            ->connectTimeout(10)
+            ->retry(3, 1000, function ($exception) {
+                // Solo reintentar en errores de conexión (timeouts, resets, DNS).
+                // NO reintentar errores de Meta (400/403/rate limit) — esos requieren intervención.
+                return $exception instanceof \Illuminate\Http\Client\ConnectionException;
+            }, throw: false);
+    }
+
+    /**
      * Enviar mensaje de texto
      */
     public function sendTextMessage(string $to, string $message, ?string $replyToWamid = null): array
@@ -47,7 +63,7 @@ class WhatsAppService
                 $payload['context'] = ['message_id' => $replyToWamid];
             }
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
@@ -135,7 +151,7 @@ class WhatsAppService
                 'payload' => $payload,
             ]);
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             Log::info('WhatsApp image response', [
@@ -201,7 +217,7 @@ class WhatsAppService
                 $payload['context'] = ['message_id' => $replyToWamid];
             }
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
@@ -262,7 +278,7 @@ class WhatsAppService
                 $payload['context'] = ['message_id' => $replyToWamid];
             }
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
@@ -317,7 +333,7 @@ class WhatsAppService
                 $payload['context'] = ['message_id' => $replyToWamid];
             }
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
@@ -359,7 +375,7 @@ class WhatsAppService
         }
 
         try {
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
                     'messaging_product' => 'whatsapp',
                     'status' => 'read',
@@ -446,7 +462,7 @@ class WhatsAppService
     {
         try {
             // Paso 1: Obtener URL del media
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->get("{$this->apiUrl}/{$mediaId}");
 
             if (!$response->successful()) {
@@ -466,7 +482,7 @@ class WhatsAppService
             }
 
             // Paso 2: Descargar el archivo
-            $fileResponse = Http::withToken($this->token)
+            $fileResponse = $this->httpClient()
                 ->timeout(30)
                 ->get($mediaUrl);
 
@@ -558,7 +574,7 @@ class WhatsAppService
                 'language' => $language,
             ]);
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
@@ -636,7 +652,7 @@ class WhatsAppService
                 'advisor' => $advisorName,
             ]);
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
@@ -729,7 +745,7 @@ class WhatsAppService
                 'buttons_count' => count($buttons),
             ]);
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
@@ -828,7 +844,7 @@ class WhatsAppService
                 'total_rows' => $totalRows,
             ]);
 
-            $response = Http::withToken($this->token)
+            $response = $this->httpClient()
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
 
             if ($response->successful()) {
