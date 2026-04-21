@@ -1859,7 +1859,7 @@ class WhatsAppService
 
             // Verificar si el mensaje contiene palabras clave de respuesta
             $messageText = trim($messageText);
-            if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|✅|❌/i', $messageText)) {
+            if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|reprogramar|reprogramaci[oó]n|✅|❌/i', $messageText)) {
                 return $empty;
             }
 
@@ -2009,6 +2009,22 @@ class WhatsAppService
                     Log::info('Appointment confirmed by patient (sequential)', [
                         'appointment_id' => $a->id,
                         'remaining' => $remaining->pluck('id')->toArray(),
+                        'phone' => $from,
+                    ]);
+
+                } elseif (preg_match('/reprogramar|reprogramaci[oó]n/i', $messageText)) {
+                    // Reprogramación: marcar la cita como cancelada (pendiente de reprogramar)
+                    // y enviar instrucciones con documentos requeridos
+                    $a = $pendingAppointments->first();
+                    $a->update([
+                        'reminder_status' => 'cancelled',
+                        'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente solicitó reprogramación vía WhatsApp"
+                    ]);
+
+                    $responseMessage = "📅 *REPROGRAMACIÓN DE CITA*\n\nCordial saludo, para reprogramar la cita me regala la siguiente información:\n\n📄 Documento de identidad del paciente\n📝 Autorización Vigente\n🩺 Orden Médica\n📋 Historia Clínica\n👤 Nombre quien reprograma la cita y parentesco\n❓ Motivo de reprogramación de la cita\n\n⚠️ *ENVIAR EN UN SOLO PDF LA INFORMACIÓN*\n\n_HUV - Evaristo García_";
+
+                    Log::info('Appointment reschedule requested by patient', [
+                        'appointment_id' => $a->id,
                         'phone' => $from,
                     ]);
 
