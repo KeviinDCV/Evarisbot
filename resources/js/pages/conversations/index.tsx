@@ -2768,6 +2768,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     {conversation.is_pinned && (
                                                         <Pin className="w-3.5 h-3.5 text-[#16235e] dark:text-blue-400 flex-shrink-0 rotate-45" />
                                                     )}
+                                                    {isSelectionMode && conversation.unread_count > 0 && (
+                                                        <span
+                                                            className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 h-[18px] rounded-full bg-green-500 text-white text-[10px] font-bold shadow-sm"
+                                                            title={`${conversation.unread_count} mensaje(s) sin leer`}
+                                                        >
+                                                            <MessageSquare className="w-2.5 h-2.5" />
+                                                            {conversation.unread_count}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-[#16235e] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
                                                     }`}>
