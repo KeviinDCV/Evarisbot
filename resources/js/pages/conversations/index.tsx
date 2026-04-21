@@ -254,6 +254,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [isDragSelecting, setIsDragSelecting] = useState(false);
     const dragSelectionActionRef = useRef<'select' | 'deselect'>('select');
     const dragDidMoveRef = useRef(false);
+    const dragStartIdRef = useRef<number | null>(null);
     const [statusFilter, setStatusFilter] = useState<string>(filters.status || 'all');
     const [showStatusFilter, setShowStatusFilter] = useState(false);
     const [showBulkAssignMenu, setShowBulkAssignMenu] = useState(false);
@@ -1644,32 +1645,48 @@ export default function ConversationsIndex({ conversations: initialConversations
     };
 
     // --- Drag-to-select handlers ---
+    // IMPORTANTE: mousedown NO toca la selección — solo arma el drag.
+    // - Si el usuario suelta sin mover → dispara click → handleConversationSelect hace el toggle.
+    // - Si el usuario mueve → handleDragSelectEnter aplica la acción al ancla y a los siguientes,
+    //   y el click posterior se ignora (dragDidMoveRef = true).
     const handleDragSelectStart = (conversationId: number) => {
         if (!isSelectionMode) return;
         setIsDragSelecting(true);
         dragDidMoveRef.current = false;
-        // Si el chat ya está seleccionado, arrastrar para deseleccionar; sino, para seleccionar
+        dragStartIdRef.current = conversationId;
+        // Decidir acción según el estado actual del ancla
         const isAlreadySelected = selectedConversations.includes(conversationId);
         dragSelectionActionRef.current = isAlreadySelected ? 'deselect' : 'select';
-        setSelectedConversations(prev =>
-            isAlreadySelected ? prev.filter(id => id !== conversationId) : [...prev, conversationId]
-        );
     };
 
     const handleDragSelectEnter = (conversationId: number) => {
         if (!isDragSelecting || !isSelectionMode) return;
+        // Ignorar si seguimos sobre el ancla (no es movimiento real)
+        if (dragStartIdRef.current === conversationId && !dragDidMoveRef.current) return;
+        const firstMove = !dragDidMoveRef.current;
         dragDidMoveRef.current = true;
         setSelectedConversations(prev => {
+            let next = prev;
+            // En el primer movimiento, aplicar la acción también al ancla
+            if (firstMove && dragStartIdRef.current !== null) {
+                const startId = dragStartIdRef.current;
+                if (dragSelectionActionRef.current === 'select') {
+                    if (!next.includes(startId)) next = [...next, startId];
+                } else {
+                    next = next.filter(id => id !== startId);
+                }
+            }
             if (dragSelectionActionRef.current === 'select') {
-                return prev.includes(conversationId) ? prev : [...prev, conversationId];
+                return next.includes(conversationId) ? next : [...next, conversationId];
             } else {
-                return prev.filter(id => id !== conversationId);
+                return next.filter(id => id !== conversationId);
             }
         });
     };
 
     const handleDragSelectEnd = () => {
         setIsDragSelecting(false);
+        dragStartIdRef.current = null;
     };
 
     // Auto-scroll when dragging near edges of the conversation list
