@@ -1710,47 +1710,6 @@ class WhatsAppService
                 return $message;
             }
 
-            // --- Detección general de "reprogramar" en cualquier mensaje libre ---
-            // Responde automáticamente con los documentos requeridos aunque no haya recordatorio activo.
-            // Solo actúa si:
-            //  - El paciente NO está en medio de un flujo de bienvenida
-            //  - No se envió el mismo mensaje automático en los últimos 30 minutos (evita spam)
-            if ($messageType === 'text' && !empty($content) && !$conversation->welcome_flow_step) {
-                if (preg_match('/\breprogramar|reprogramaci[oó]n\b/iu', $content)) {
-                    $recentAutoReschedule = Message::where('conversation_id', $conversation->id)
-                        ->where('is_from_user', false)
-                        ->whereNull('sent_by')
-                        ->where('created_at', '>=', now()->subMinutes(30))
-                        ->where('content', 'LIKE', '%REPROGRAMACIÓN DE CITA%')
-                        ->exists();
-
-                    if (!$recentAutoReschedule) {
-                        $rescheduleMessage = "📅 *REPROGRAMACIÓN DE CITA*\n\nCordial saludo, para reprogramar la cita me regala la siguiente información:\n\n📄 Documento de identidad del paciente\n📝 Autorización Vigente\n🩺 Orden Médica\n📋 Historia Clínica\n👤 Nombre quien reprograma la cita y parentesco\n❓ Motivo de reprogramación de la cita\n\n⚠️ *ENVIAR EN UN SOLO PDF LA INFORMACIÓN*\n\n_HUV - Evaristo García_";
-
-                        $result = $this->sendTextMessage($from, $rescheduleMessage);
-
-                        if ($result['success'] ?? false) {
-                            Message::create([
-                                'conversation_id' => $conversation->id,
-                                'content' => $rescheduleMessage,
-                                'message_type' => 'text',
-                                'is_from_user' => false,
-                                'whatsapp_message_id' => $result['message_id'] ?? null,
-                                'status' => 'sent',
-                                'sent_by' => null,
-                            ]);
-
-                            Log::info('Auto-response for reschedule keyword sent', [
-                                'conversation_id' => $conversation->id,
-                                'phone' => $from,
-                            ]);
-                        }
-                        // NO retornar: dejar que el flujo de bienvenida u otros procesos continúen
-                        // si corresponde (ej: conversación nueva sin flow previo)
-                    }
-                }
-            }
-
             // --- Flujo de bienvenida ---
             // Refrescar la conversación para tener datos actualizados
             $conversation->refresh();
@@ -1900,7 +1859,7 @@ class WhatsAppService
 
             // Verificar si el mensaje contiene palabras clave de respuesta
             $messageText = trim($messageText);
-            if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|reprogramar|reprogramaci[oó]n|✅|❌/i', $messageText)) {
+            if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|✅|❌/i', $messageText)) {
                 return $empty;
             }
 
@@ -2050,22 +2009,6 @@ class WhatsAppService
                     Log::info('Appointment confirmed by patient (sequential)', [
                         'appointment_id' => $a->id,
                         'remaining' => $remaining->pluck('id')->toArray(),
-                        'phone' => $from,
-                    ]);
-
-                } elseif (preg_match('/reprogramar|reprogramaci[oó]n/i', $messageText)) {
-                    // Reprogramación: marcar la cita como cancelada (pendiente de reprogramar)
-                    // y enviar instrucciones con documentos requeridos
-                    $a = $pendingAppointments->first();
-                    $a->update([
-                        'reminder_status' => 'cancelled',
-                        'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente solicitó reprogramación vía WhatsApp"
-                    ]);
-
-                    $responseMessage = "📅 *REPROGRAMACIÓN DE CITA*\n\nCordial saludo, para reprogramar la cita me regala la siguiente información:\n\n📄 Documento de identidad del paciente\n📝 Autorización Vigente\n🩺 Orden Médica\n📋 Historia Clínica\n👤 Nombre quien reprograma la cita y parentesco\n❓ Motivo de reprogramación de la cita\n\n⚠️ *ENVIAR EN UN SOLO PDF LA INFORMACIÓN*\n\n_HUV - Evaristo García_";
-
-                    Log::info('Appointment reschedule requested by patient', [
-                        'appointment_id' => $a->id,
                         'phone' => $from,
                     ]);
 
