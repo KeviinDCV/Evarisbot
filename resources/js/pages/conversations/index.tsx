@@ -2678,8 +2678,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         {/* WhatsApp-style quick filter pills */}
                         <div
                             ref={filterPillsRef}
-                            className="flex items-center gap-1.5 px-1 pt-2 pb-0.5 overflow-x-auto scrollbar-none"
-                            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                            className="filter-pills-scroll flex items-center gap-1.5 px-1 pt-2 pb-2 overflow-x-auto"
                         >
                             {[
                                 { value: 'all', label: 'Todos' },

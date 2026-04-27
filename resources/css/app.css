@@ -389,6 +389,34 @@
     scrollbar-color: rgba(46, 63, 132, 0.25) rgba(221, 225, 240, 0.5);
 }
 
+/* Horizontal filter pills scrollbar (conversations list) */
+.filter-pills-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(46, 63, 132, 0.35) transparent;
+}
+.filter-pills-scroll::-webkit-scrollbar {
+    height: 6px;
+}
+.filter-pills-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.filter-pills-scroll::-webkit-scrollbar-thumb {
+    background: rgba(46, 63, 132, 0.3);
+    border-radius: 3px;
+}
+.filter-pills-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(46, 63, 132, 0.5);
+}
+.dark .filter-pills-scroll {
+    scrollbar-color: rgba(200, 195, 190, 0.3) transparent;
+}
+.dark .filter-pills-scroll::-webkit-scrollbar-thumb {
+    background: rgba(200, 195, 190, 0.25);
+}
+.dark .filter-pills-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(200, 195, 190, 0.45);
+}
+
 /* Dark mode scrollbar styles */
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
     background: rgba(180, 175, 170, 0.25);
