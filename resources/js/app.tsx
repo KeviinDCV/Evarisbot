@@ -49,7 +49,9 @@ createInertiaApp({
         );
     },
     progress: {
+        delay: 250,
         color: '#4B5563',
+        showSpinner: false,
     },
 });
 
