@@ -25,11 +25,19 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     const [unreadConversationsCount, setUnreadConversationsCount] = useState(initialUnreadCount);
     const [unreadInternalChatCount, setUnreadInternalChatCount] = useState(0);
 
-    // Actualizar el contador de conversaciones no leídas cada 5 segundos
+    // Actualizar el contador de conversaciones no leídas
+    // - Polling pausado cuando la pestaña no está visible (ahorra sockets en Windows/artisan serve)
+    // - Backoff exponencial cuando hay errores de red para evitar ERR_NO_BUFFER_SPACE
     useEffect(() => {
         const controller = new AbortController();
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let failures = 0;
 
         const updateUnreadCount = async () => {
+            if (document.hidden) {
+                timeoutId = setTimeout(updateUnreadCount, 15000);
+                return;
+            }
             try {
                 const response = await fetch('/admin/chat/unread-count', {
                     signal: controller.signal,
@@ -42,33 +50,50 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 if (response.ok) {
                     const data = await response.json();
                     setUnreadConversationsCount(data.count || 0);
+                    failures = 0;
+                } else {
+                    failures++;
                 }
             } catch (error) {
-                // Silenciar errores de red o cancelaciones
                 if (error instanceof Error && error.name !== 'AbortError') {
-                    // Solo loguear si NO es error de cancelación y NO es error de red simple
-                    // console.error('Error silencioso:', error);
+                    failures++;
                 }
+            } finally {
+                // Backoff: 15s normal, hasta 60s si hay errores consecutivos
+                const delay = Math.min(15000 * Math.pow(2, failures), 60000);
+                timeoutId = setTimeout(updateUnreadCount, delay);
             }
         };
 
-        // Actualizar inmediatamente
         updateUnreadCount();
 
-        // Actualizar cada 5 segundos
-        const interval = setInterval(updateUnreadCount, 5000);
+        const onVisibility = () => {
+            if (!document.hidden && timeoutId) {
+                clearTimeout(timeoutId);
+                failures = 0;
+                updateUnreadCount();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibility);
 
         return () => {
-            clearInterval(interval);
+            if (timeoutId) clearTimeout(timeoutId);
+            document.removeEventListener('visibilitychange', onVisibility);
             controller.abort();
         };
     }, []);
 
-    // Actualizar el contador de chat interno no leído
+    // Actualizar el contador de chat interno no leído (mismo patrón)
     useEffect(() => {
         const controller = new AbortController();
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let failures = 0;
 
         const updateInternalUnread = async () => {
+            if (document.hidden) {
+                timeoutId = setTimeout(updateInternalUnread, 20000);
+                return;
+            }
             try {
                 const response = await fetch('/admin/internal-chat/unread-count', {
                     signal: controller.signal,
@@ -80,20 +105,34 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 if (response.ok) {
                     const data = await response.json();
                     setUnreadInternalChatCount(data.count || 0);
+                    failures = 0;
+                } else {
+                    failures++;
                 }
             } catch (error) {
-                // Silenciar errores de red o cancelaciones
                 if (error instanceof Error && error.name !== 'AbortError') {
-                    // Solo loguear si NO es error de cancelación y NO es error de red simple
-                    // console.error('Error silencioso:', error);
+                    failures++;
                 }
+            } finally {
+                const delay = Math.min(20000 * Math.pow(2, failures), 60000);
+                timeoutId = setTimeout(updateInternalUnread, delay);
             }
         };
 
         updateInternalUnread();
-        const interval = setInterval(updateInternalUnread, 8000);
+
+        const onVisibility = () => {
+            if (!document.hidden && timeoutId) {
+                clearTimeout(timeoutId);
+                failures = 0;
+                updateInternalUnread();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+
         return () => {
-            clearInterval(interval);
+            if (timeoutId) clearTimeout(timeoutId);
+            document.removeEventListener('visibilitychange', onVisibility);
             controller.abort();
         };
     }, []);
