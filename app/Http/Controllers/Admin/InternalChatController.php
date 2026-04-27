@@ -26,6 +26,7 @@ class InternalChatController extends Controller
             'file_name' => $m->file_name,
             'file_mime' => $m->file_mime,
             'file_size_human' => $m->file_size_human,
+            'file_missing' => $m->file_missing,
             'user' => [
                 'id' => $m->user->id,
                 'name' => $m->user->name,

@@ -35,7 +35,10 @@ class InternalMessage extends Model
     }
 
     /**
-     * URL pública del archivo (si aplica)
+     * URL pública del archivo (si aplica).
+     * Devuelve null si el archivo físico no existe en disco,
+     * para que el frontend no genere requests 403/404 a archivos perdidos
+     * en la migración del servidor anterior.
      */
     public function getFileUrlAttribute(): ?string
     {
@@ -43,7 +46,21 @@ class InternalMessage extends Model
             return null;
         }
 
+        if (!\Storage::disk('public')->exists($this->file_path)) {
+            return null;
+        }
+
         return asset('storage/' . $this->file_path);
+    }
+
+    /**
+     * Indica si el archivo físico está disponible.
+     * Útil para que el frontend muestre placeholder "no disponible".
+     */
+    public function getFileMissingAttribute(): bool
+    {
+        return $this->file_path
+            && !\Storage::disk('public')->exists($this->file_path);
     }
 
     /**

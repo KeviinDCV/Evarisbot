@@ -79,6 +79,7 @@ interface MessageItem {
     file_name: string | null;
     file_mime: string | null;
     file_size_human: string | null;
+    file_missing?: boolean;
     user: { id: number; name: string };
     is_mine: boolean;
     created_at: string;
@@ -1040,7 +1041,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                             <div className="mb-2">
                                                                 <div
                                                                     className="relative cursor-pointer group"
-                                                                    onClick={() => {
+                                                                    onClick={(e) => {
+                                                                        // No abrir visor si la imagen no se cargó
+                                                                        if ((e.currentTarget as HTMLElement).dataset.unavailable === '1') return;
                                                                         setMediaViewer({
                                                                             url: msg.file_url!,
                                                                             type: 'image',
@@ -1055,6 +1058,19 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                         alt="Imagen"
                                                                         className="max-w-full max-h-96 rounded-xl object-cover"
                                                                         loading="lazy"
+                                                                        onError={(e) => {
+                                                                            const img = e.currentTarget;
+                                                                            img.onerror = null;
+                                                                            // Placeholder SVG: imagen no disponible
+                                                                            img.src = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 220' width='320' height='220'%3E%3Crect width='320' height='220' fill='%23e5e7eb'/%3E%3Cg fill='%239ca3af'%3E%3Cpath d='M120 80h80v60h-80z' fill='none' stroke='%239ca3af' stroke-width='3'/%3E%3Ccircle cx='140' cy='100' r='6'/%3E%3Cpath d='M125 135l20-20 20 15 15-25 25 30v5h-80z'/%3E%3C/g%3E%3Ctext x='160' y='175' text-anchor='middle' font-family='Arial, sans-serif' font-size='14' fill='%236b7280'%3EImagen no disponible%3C/text%3E%3Ctext x='160' y='195' text-anchor='middle' font-family='Arial, sans-serif' font-size='11' fill='%239ca3af'%3E(archivo previo a migraci%C3%B3n)%3C/text%3E%3C/svg%3E";
+                                                                            img.classList.add('opacity-80');
+                                                                            const wrapper = img.closest('.group') as HTMLElement | null;
+                                                                            if (wrapper) {
+                                                                                wrapper.dataset.unavailable = '1';
+                                                                                wrapper.classList.remove('cursor-pointer');
+                                                                                wrapper.classList.add('cursor-not-allowed');
+                                                                            }
+                                                                        }}
                                                                     />
                                                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
                                                                         <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
@@ -1115,6 +1131,17 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                     className="max-w-full"
                                                                     preload="metadata"
                                                                 />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Archivo no disponible (perdido en migración) */}
+                                                        {msg.file_missing && msg.type !== 'text' && (
+                                                            <div className="mb-2 flex items-center gap-3 bg-neutral-100 dark:bg-neutral-800/60 border border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg px-4 py-3 text-neutral-500 dark:text-neutral-400">
+                                                                <FileText className="w-5 h-5 flex-shrink-0 opacity-60" />
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-medium">Archivo no disponible</span>
+                                                                    <span className="text-xs opacity-75">{msg.file_name || 'Archivo previo a la migración'}</span>
+                                                                </div>
                                                             </div>
                                                         )}
 
