@@ -1665,6 +1665,35 @@ class WhatsAppService
                 }, $contacts);
                 $content = 'Contacto: ' . implode(', ', $contactNames);
                 $messageType = 'contact';
+            } elseif (isset($messageData['reaction'])) {
+                // Reacción a un mensaje (emoji). Si emoji está vacío significa que la reacción se removió.
+                $emoji = $messageData['reaction']['emoji'] ?? '';
+                $content = $emoji !== ''
+                    ? '↩️ Reaccionó con ' . $emoji
+                    : '↩️ Quitó su reacción';
+                $messageType = 'text';
+            } elseif (($messageData['type'] ?? null) === 'unsupported' || isset($messageData['errors'])) {
+                // WhatsApp marca como "unsupported" mensajes que su API no puede entregar
+                // (ej. encuestas, mensajes editados, ciertos formatos). Lo registramos descriptivo.
+                $errMsg = $messageData['errors'][0]['title'] ?? 'Tipo de mensaje no compatible';
+                $content = '⚠️ Mensaje no compatible con WhatsApp Business: ' . $errMsg;
+                $messageType = 'text';
+            }
+
+            // Guardia final: si no logramos extraer contenido ni media, NO persistir un mensaje vacío.
+            // Loggear el payload para diagnóstico y devolver null.
+            if ($content === '' && !$mediaUrl) {
+                Log::warning('Mensaje entrante con tipo no manejado, se ignora', [
+                    'conversation_id' => $conversation->id,
+                    'whatsapp_message_id' => $messageId,
+                    'whatsapp_type' => $messageData['type'] ?? null,
+                    'payload_keys' => array_keys($messageData),
+                ]);
+                // Marcar como leído en WhatsApp para evitar reintentos del webhook
+                if ($messageId) {
+                    $this->markAsRead($messageId);
+                }
+                return null;
             }
 
             // Crear mensaje

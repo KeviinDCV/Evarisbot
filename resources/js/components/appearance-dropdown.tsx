@@ -24,7 +24,7 @@ export default function AppearanceToggleDropdown({
     const CurrentIcon = currentOption.icon;
 
     return (
-        <div className={className} {...props}>
+        <div className={`w-full ${className}`} {...props}>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <button
