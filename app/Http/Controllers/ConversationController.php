@@ -80,6 +80,9 @@ class ConversationController extends Controller
 
         // Filtrar por estado (disponible para todos los usuarios)
         $filteringByTag = $request->has('tag') && is_numeric($request->tag);
+        // Si el usuario está buscando (search no vacío) NO aplicamos los filtros de exclusión
+        // por defecto (resueltas, bloqueadas, oncología) — debe poder encontrar cualquier conversación.
+        $hasSearchTerm = $request->filled('search');
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
@@ -118,18 +121,18 @@ class ConversationController extends Controller
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif (!$filteringByTag) {
-            // Sin filtro de estado explícito y sin etiqueta: excluir resueltas para todos
+        } elseif (!$filteringByTag && !$hasSearchTerm) {
+            // Sin filtro de estado explícito, sin etiqueta y sin búsqueda: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
         }
 
-        // Excluir conversaciones bloqueadas del listado general (solo se ven con filtro "blocked")
-        if (!$request->has('status') || $request->status !== 'blocked') {
+        // Excluir conversaciones bloqueadas del listado general (solo se ven con filtro "blocked" o al buscar)
+        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm) {
             $query->where('is_blocked', false);
         }
 
-        // Excluir conversaciones de oncología del listado general (solo se ven con filtro "oncology")
-        if (!$request->has('status') || $request->status !== 'oncology') {
+        // Excluir conversaciones de oncología del listado general (solo se ven con filtro "oncology" o al buscar)
+        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm) {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
@@ -285,6 +288,7 @@ class ConversationController extends Controller
 
         // Filtrar por estado (disponible para todos los usuarios)
         $filteringByTag = $request->has('tag') && is_numeric($request->tag);
+        $hasSearchTerm = $request->filled('search');
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
@@ -327,18 +331,18 @@ class ConversationController extends Controller
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif (!$filteringByTag) {
-            // Sin filtro de estado explícito y sin etiqueta: excluir resueltas para todos
+        } elseif (!$filteringByTag && !$hasSearchTerm) {
+            // Sin filtro de estado explícito, sin etiqueta y sin búsqueda: excluir resueltas
             $query->whereIn('status', ['active', 'pending']);
         }
 
-        // Excluir conversaciones bloqueadas del listado general
-        if (!$request->has('status') || $request->status !== 'blocked') {
+        // Excluir conversaciones bloqueadas del listado general (a menos que se busque)
+        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm) {
             $query->where('is_blocked', false);
         }
 
-        // Excluir conversaciones de oncología del listado general
-        if (!$request->has('status') || $request->status !== 'oncology') {
+        // Excluir conversaciones de oncología del listado general (a menos que se busque)
+        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm) {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
@@ -1640,6 +1644,7 @@ class ConversationController extends Controller
         }
 
         $filteringByTag = $request->has('tag') && is_numeric($request->tag);
+        $hasSearchTerm = $request->filled('search');
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
@@ -1675,17 +1680,17 @@ class ConversationController extends Controller
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif (!$filteringByTag) {
+        } elseif (!$filteringByTag && !$hasSearchTerm) {
             $query->whereIn('status', ['active', 'pending']);
         }
 
-        // Excluir conversaciones bloqueadas del poll general
-        if (!$request->has('status') || $request->status !== 'blocked') {
+        // Excluir conversaciones bloqueadas del poll general (a menos que se busque)
+        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm) {
             $query->where('is_blocked', false);
         }
 
-        // Excluir conversaciones de oncología del listado general
-        if (!$request->has('status') || $request->status !== 'oncology') {
+        // Excluir conversaciones de oncología del listado general (a menos que se busque)
+        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm) {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 

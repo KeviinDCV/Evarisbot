@@ -806,6 +806,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                 }
                 return conv; // No está en primera página, mantener
             }).filter(conv => {
+                // Si hay búsqueda activa, no filtrar por estado/bloqueo (el backend ya respeta search)
+                if (filters.search && filters.search.trim() !== '') return true;
                 // Ocultar conversaciones resueltas/cerradas/agendadas de "Todos"
                 // EXCEPTO si el filtro activo corresponde o hay filtro de etiqueta
                 if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
@@ -818,6 +820,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             // Detectar nuevas conversaciones que no existían
             const existingIds = new Set(prev.map(c => c.id));
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
+                if (filters.search && filters.search.trim() !== '') return true;
                 if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
                     if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
@@ -1018,6 +1021,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }
                         return conv;
                     }).filter(conv => {
+                        // Si hay búsqueda activa, no filtrar por estado/bloqueo (el backend ya respeta search)
+                        if (filters.search && filters.search.trim() !== '') return true;
                         if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
@@ -1029,6 +1034,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     // Detect new conversations
                     const existingIds = new Set(prev.map(c => c.id));
                     const newConvs = freshConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
+                        if (filters.search && filters.search.trim() !== '') return true;
                         if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;

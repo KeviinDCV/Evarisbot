@@ -145,7 +145,10 @@ class SendBulkMessageJob implements ShouldQueue
                     if ($source === 'nombre') {
                         $paramValues[] = $recipient->contact_name ?? '';
                     } elseif ($source === 'column' && isset($mapping['column'])) {
-                        $paramValues[] = $recipient->params[$mapping['column']] ?? '';
+                        $columnName = $mapping['column'];
+                        $rawValue = $recipient->params[$columnName] ?? '';
+                        // Si la columna mapea a una "hora", saneamos: si Excel envió "DD/MM/YYYY HH:MM AM/PM" dejamos solo la hora.
+                        $paramValues[] = $this->sanitizeParamValue($columnName, $rawValue);
                     } elseif ($source === 'static' && isset($mapping['value'])) {
                         $paramValues[] = $mapping['value'];
                     } else {
@@ -320,5 +323,49 @@ class SendBulkMessageJob implements ShouldQueue
         }
 
         return $response->json();
+    }
+
+    /**
+     * Sanea el valor de un parámetro según el nombre de la columna.
+     * Caso típico: Excel exporta celdas formateadas como "Hora" con la fecha pegada
+     * (p.ej. "30/04/2026 10:00 AM"). Si la columna se llama "hora ...", extraemos solo la hora.
+     * También limpia espacios redundantes y devuelve string.
+     */
+    private function sanitizeParamValue(string $columnName, $rawValue): string
+    {
+        if ($rawValue === null) {
+            return '';
+        }
+        $value = trim((string) $rawValue);
+        if ($value === '') {
+            return '';
+        }
+
+        $columnLower = mb_strtolower($columnName);
+        $isHoraColumn = str_contains($columnLower, 'hora');
+        $isFechaColumn = str_contains($columnLower, 'fecha');
+
+        // Si la columna es de hora pero el valor incluye una fecha al inicio (DD/MM/YYYY o YYYY-MM-DD), removerla.
+        if ($isHoraColumn && !$isFechaColumn) {
+            // Patrón: fecha + espacio + resto (la hora real)
+            if (preg_match('#^\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4}\s+(.+)$#u', $value, $m)) {
+                $value = trim($m[1]);
+            } elseif (preg_match('#^\d{4}[/\-]\d{1,2}[/\-]\d{1,2}\s+(.+)$#u', $value, $m)) {
+                $value = trim($m[1]);
+            }
+        }
+
+        // Si la columna es de fecha y trae también la hora pegada, dejar solo la fecha.
+        if ($isFechaColumn && !$isHoraColumn) {
+            if (preg_match('#^(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})\s+\d{1,2}:\d{2}#u', $value, $m)) {
+                $value = $m[1];
+            } elseif (preg_match('#^(\d{4}[/\-]\d{1,2}[/\-]\d{1,2})\s+\d{1,2}:\d{2}#u', $value, $m)) {
+                $value = $m[1];
+            }
+        }
+
+        // Colapsar espacios múltiples y saltos de línea (Meta no acepta \n en parámetros).
+        $value = preg_replace('/\s+/u', ' ', $value);
+        return trim($value);
     }
 }

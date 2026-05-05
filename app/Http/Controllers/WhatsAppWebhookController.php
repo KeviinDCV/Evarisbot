@@ -160,6 +160,45 @@ class WhatsAppWebhookController extends Controller
                         if ($bulkSend) {
                             $bulkSend->decrement('sent_count');
                             $bulkSend->increment('failed_count');
+
+                            // Buscar el destinatario correspondiente y marcarlo como fallido
+                            // con el motivo del error reportado por WhatsApp.
+                            $recipientPhone = $status['recipient_id'] ?? null;
+                            if ($recipientPhone) {
+                                $errorCodeMsg = $errorInfo[0]['code'] ?? null;
+                                $errorTitleMsg = $errorInfo[0]['title'] ?? 'Error desconocido';
+                                $errorDetail = $errorInfo[0]['error_data']['details'] ?? ($errorInfo[0]['message'] ?? null);
+                                $finalErrorMsg = $errorCodeMsg
+                                    ? "{$errorTitleMsg} (code: {$errorCodeMsg})"
+                                    : $errorTitleMsg;
+                                if ($errorDetail) {
+                                    $finalErrorMsg .= ' — ' . $errorDetail;
+                                }
+
+                                // El recipient phone puede venir sin prefijo "+" — comparar tolerante.
+                                $digits = preg_replace('/\D/', '', (string) $recipientPhone);
+                                $last10 = substr($digits, -10);
+
+                                $recipient = \App\Models\BulkSendRecipient::where('bulk_send_id', $bulkSend->id)
+                                    ->where(function ($q) use ($digits, $last10) {
+                                        $q->where('phone_number', $digits)
+                                          ->orWhere('phone_number', '+' . $digits)
+                                          ->orWhere('phone_number', 'like', '%' . $last10);
+                                    })
+                                    ->first();
+
+                                if ($recipient) {
+                                    $recipient->update([
+                                        'status' => 'failed',
+                                        'error' => $finalErrorMsg,
+                                    ]);
+                                } else {
+                                    Log::warning('No se encontró BulkSendRecipient para webhook failed', [
+                                        'bulk_send_id' => $bulkSend->id,
+                                        'recipient_phone' => $recipientPhone,
+                                    ]);
+                                }
+                            }
                         }
                     }
                 }
