@@ -829,7 +829,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col bg-background dark:bg-neutral-950 w-full md:w-auto relative">
+                    <div className="flex-1 min-w-0 flex flex-col bg-background dark:bg-neutral-950 w-full md:w-auto relative">
                         {/* Header del Chat */}
                         <header className="flex items-center justify-between w-full px-6 py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm z-10">
                             <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -951,7 +951,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         <div
                             ref={messagesContainerRef}
                             onScroll={handleMessagesScroll}
-                            className="flex-1 overflow-y-auto p-8 flex flex-col gap-6 custom-scrollbar-light"
+                            className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-8 flex flex-col gap-6 custom-scrollbar-light"
 
                         >
                             {messages.length === 0 ? (
@@ -979,7 +979,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             <div
                                                 key={msg.id}
                                                 id={`msg-${msg.id}`}
-                                                className={`group/msg flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 max-w-[75%] ${msg.is_mine ? 'self-end' : ''}`}
+                                                className={`group/msg flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[75%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
                                             >
                                                 {/* Reply action button - appears on hover */}
                                                 <button
@@ -993,9 +993,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     <Reply className="w-4 h-4" />
                                                 </button>
 
-                                                <div className="flex flex-col">
+                                                <div className="flex flex-col min-w-0">
                                                 <div
-                                                    className={`${msg.is_mine
+                                                    className={`min-w-0 ${msg.is_mine
                                                         ? 'bg-[#2e3a75] text-white px-5 py-3.5 rounded-xl rounded-br-sm shadow-md'
                                                         : 'bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 px-5 py-3.5 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10'
                                                         }`}
@@ -1147,7 +1147,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* Text Content (with @mention highlighting) */}
                                                         {msg.body && (
-                                                            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                                                            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                                                                 {(() => {
                                                                     const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
                                                                     const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);
