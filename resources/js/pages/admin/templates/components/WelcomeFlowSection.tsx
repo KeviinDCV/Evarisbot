@@ -7,28 +7,45 @@ import { Label } from '@/components/ui/label';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import {
+    ArrowRight,
     Bot,
-    Plus,
-    Trash2,
-    Power,
-    PowerOff,
-    Edit,
-    MessageSquare,
-    Sparkles,
-    MousePointerClick,
+    CheckCircle2,
     ChevronDown,
     ChevronUp,
+    CircleDot,
+    Edit3,
+    Keyboard,
+    MessageSquare,
+    MousePointerClick,
+    Plus,
+    Power,
+    PowerOff,
     Save,
+    Trash2,
+    Workflow,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 
 interface WelcomeFlowButton {
     id: string;
     title: string;
+}
+
+interface WelcomeFlowStep {
+    id: number | string;
+    step_key: string;
+    message: string;
+    message_type: 'interactive_buttons' | 'wait_response' | 'text' | string;
+    buttons?: WelcomeFlowButton[] | null;
+    next_steps?: Record<string, string> | null;
+    next_step_on_text?: string | null;
+    is_entry_point?: boolean;
 }
 
 interface WelcomeFlow {
@@ -43,12 +60,55 @@ interface WelcomeFlow {
     updated_by: number | null;
     creator?: { name: string } | null;
     updater?: { name: string } | null;
+    steps?: WelcomeFlowStep[] | null;
     created_at: string;
     updated_at: string;
 }
 
 interface WelcomeFlowSectionProps {
     welcomeFlows: WelcomeFlow[];
+}
+
+const triggerTypeLabels: Record<string, string> = {
+    first_contact: 'Primer contacto',
+    every_new_conversation: 'Cada conversación nueva',
+    always: 'Siempre',
+};
+
+const messageTypeLabels: Record<string, string> = {
+    interactive_buttons: 'Botones',
+    wait_response: 'Espera texto',
+    text: 'Texto',
+};
+
+function FlowStatusPill({ active }: { active: boolean }) {
+    return (
+        <span
+            className={cn(
+                'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold',
+                active
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-300'
+            )}
+        >
+            <span className={cn('h-2 w-2 rounded-full', active ? 'bg-emerald-500' : 'bg-slate-400')} />
+            {active ? 'Activo' : 'Inactivo'}
+        </span>
+    );
+}
+
+function MessagePreview({ children }: { children: string }) {
+    return (
+        <div className="max-w-2xl rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-sm leading-6 text-slate-700 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-neutral-200">
+            <p className="line-clamp-4 whitespace-pre-wrap [overflow-wrap:anywhere]">{children}</p>
+        </div>
+    );
+}
+
+function StepIcon({ type }: { type: string }) {
+    if (type === 'interactive_buttons') return <MousePointerClick className="h-3.5 w-3.5" />;
+    if (type === 'wait_response') return <Keyboard className="h-3.5 w-3.5" />;
+    return <MessageSquare className="h-3.5 w-3.5" />;
 }
 
 export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionProps) {
@@ -71,6 +131,12 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
         is_active: false,
         trigger_type: 'first_contact',
     });
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setEditingFlow(null);
+        reset();
+    };
 
     const openCreateModal = () => {
         reset();
@@ -99,64 +165,58 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
         setIsModalOpen(true);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = (event: FormEvent) => {
+        event.preventDefault();
 
         if (editingFlow) {
             put(`/admin/welcome-flows/${editingFlow.id}`, {
                 preserveScroll: true,
-                onSuccess: () => {
-                    setIsModalOpen(false);
-                    setEditingFlow(null);
-                    reset();
-                },
+                onSuccess: () => closeModal(),
             });
-        } else {
-            post('/admin/welcome-flows', {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setIsModalOpen(false);
-                    reset();
-                },
-            });
+            return;
         }
+
+        post('/admin/welcome-flows', {
+            preserveScroll: true,
+            onSuccess: () => closeModal(),
+        });
     };
 
     const addButton = () => {
-        if (data.buttons.length >= 3) return; // WhatsApp limit
+        if (data.buttons.length >= 3) return;
+
         const newId = `btn_${Date.now()}`;
         setData('buttons', [...data.buttons, { id: newId, title: '' }]);
     };
 
     const removeButton = (index: number) => {
         const buttonId = data.buttons[index].id;
-        const newButtons = data.buttons.filter((_, i) => i !== index);
-        const newResponses = { ...data.responses };
-        delete newResponses[buttonId];
-        setData((prev) => ({
-            ...prev,
-            buttons: newButtons,
-            responses: newResponses,
-        }));
+        const nextButtons = data.buttons.filter((_, buttonIndex) => buttonIndex !== index);
+        const nextResponses = { ...data.responses };
+        delete nextResponses[buttonId];
+
+        setData({ ...data, buttons: nextButtons, responses: nextResponses });
     };
 
     const updateButton = (index: number, field: 'id' | 'title', value: string) => {
-        const newButtons = [...data.buttons];
+        const nextButtons = [...data.buttons];
+
         if (field === 'title') {
-            newButtons[index] = { ...newButtons[index], title: value.slice(0, 20) };
-        } else {
-            // If changing id, update responses key as well
-            const oldId = newButtons[index].id;
-            newButtons[index] = { ...newButtons[index], id: value };
-            const newResponses = { ...data.responses };
-            if (newResponses[oldId]) {
-                newResponses[value] = newResponses[oldId];
-                delete newResponses[oldId];
-            }
-            setData((prev) => ({ ...prev, buttons: newButtons, responses: newResponses }));
+            nextButtons[index] = { ...nextButtons[index], title: value.slice(0, 20) };
+            setData('buttons', nextButtons);
             return;
         }
-        setData('buttons', newButtons);
+
+        const oldId = nextButtons[index].id;
+        nextButtons[index] = { ...nextButtons[index], id: value };
+        const nextResponses = { ...data.responses };
+
+        if (nextResponses[oldId]) {
+            nextResponses[value] = nextResponses[oldId];
+            delete nextResponses[oldId];
+        }
+
+        setData({ ...data, buttons: nextButtons, responses: nextResponses });
     };
 
     const updateResponse = (buttonId: string, value: string) => {
@@ -164,10 +224,15 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
     };
 
     const toggleFlowStatus = (flowId: number) => {
-        router.post(`/admin/welcome-flows/${flowId}/toggle`, {}, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Estado del flujo actualizado'),
-        });
+        router.post(
+            `/admin/welcome-flows/${flowId}/toggle`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Estado del flujo actualizado'),
+                onError: () => toast.error('Error al actualizar el flujo'),
+            }
+        );
     };
 
     const deleteFlow = (flowId: number) => {
@@ -180,550 +245,376 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
         }
     };
 
-    const triggerTypeLabels: Record<string, string> = {
-        first_contact: 'Primer contacto',
-        every_new_conversation: 'Cada conversación nueva',
-        always: 'Siempre',
-    };
+    const activeFlows = welcomeFlows.filter((flow) => flow.is_active).length;
 
     return (
         <>
-            {/* Sección Menú de Bienvenida */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="p-2.5 rounded-xl"
-                            style={{
-                                background: 'linear-gradient(135deg, var(--primary-base), var(--primary-darker))',
-                                boxShadow: '0 4px 12px rgba(46, 63, 132, 0.3)',
-                            }}
-                        >
-                            <Bot className="w-5 h-5 text-white" />
+            <section className="card-gradient rounded-lg border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                <div className="mb-4 flex flex-col gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                            <Bot className="h-4.5 w-4.5" />
                         </div>
-                        <div>
-                            <h2
-                                className="font-bold settings-title"
-                                style={{ fontSize: 'var(--text-lg)' }}
-                            >
-                                Menú de Bienvenida
-                            </h2>
-                            <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                                Respuesta automática cuando un contacto nuevo escribe por WhatsApp
+                        <div className="min-w-0">
+                            <h2 className="text-base font-bold leading-tight settings-title">Menú de bienvenida</h2>
+                            <p className="mt-1 text-xs settings-subtitle">
+                                {welcomeFlows.length} flujo{welcomeFlows.length === 1 ? '' : 's'} · {activeFlows} activo{activeFlows === 1 ? '' : 's'}
                             </p>
                         </div>
                     </div>
-                    <Button
-                        onClick={openCreateModal}
-                        className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
-                        style={{
-                            backgroundColor: 'var(--primary-base)',
-                            boxShadow: 'var(--shadow-md)',
-                            backgroundImage: 'var(--gradient-shine)',
-                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                            padding: '0 var(--space-lg)',
-                            fontSize: 'var(--text-sm)',
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                        }}
-                    >
-                        <Plus className="w-4 h-4 mr-2" />
+                    <Button onClick={openCreateModal} className="h-9 rounded-lg settings-btn-primary text-white">
+                        <Plus className="h-4 w-4" />
                         Nuevo flujo
                     </Button>
                 </div>
 
                 {welcomeFlows.length === 0 ? (
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-8 text-center">
-                        <Sparkles className="w-12 h-12 mx-auto mb-4 settings-subtitle opacity-40" />
-                        <h3
-                            className="font-bold mb-2 settings-title"
-                            style={{ fontSize: 'var(--text-lg)' }}
-                        >
-                            Sin flujos de bienvenida
-                        </h3>
-                        <p className="settings-subtitle mb-4" style={{ fontSize: 'var(--text-sm)' }}>
+                    <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed border-[#d4d8e8] p-6 text-center dark:border-white/10">
+                        <Workflow className="mb-3 h-10 w-10 settings-subtitle" />
+                        <h3 className="text-base font-bold settings-title">Sin flujos de bienvenida</h3>
+                        <p className="mt-2 max-w-lg text-sm settings-subtitle">
                             Crea un menú de bienvenida para responder automáticamente a los nuevos contactos.
                         </p>
-                        <Button
-                            onClick={openCreateModal}
-                            style={{ backgroundColor: 'var(--primary-base)', color: 'white' }}
-                            className="rounded-xl"
-                        >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Crear flujo de bienvenida
+                        <Button onClick={openCreateModal} className="mt-4 rounded-lg settings-btn-primary text-white">
+                            <Plus className="h-4 w-4" />
+                            Crear flujo
                         </Button>
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {welcomeFlows.map((flow) => (
-                            <div
-                                key={flow.id}
-                                className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 overflow-hidden transition-all duration-300"
-                            >
-                                {/* Header del flujo */}
-                                <div className="p-4 md:p-5 flex items-center justify-between">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div
-                                            className={`p-2 rounded-lg transition-colors ${flow.is_active
-                                                ? 'bg-green-100 dark:bg-green-900/30'
-                                                : 'bg-gray-100 dark:bg-gray-800/50'
-                                                }`}
-                                        >
-                                            <MessageSquare
-                                                className={`w-4 h-4 ${flow.is_active
-                                                    ? 'text-green-600 dark:text-green-400'
-                                                    : 'text-gray-400 dark:text-gray-500'
-                                                    }`}
-                                            />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <h3
-                                                    className="font-semibold settings-title truncate"
-                                                    style={{ fontSize: 'var(--text-base)' }}
-                                                >
-                                                    {flow.name}
-                                                </h3>
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${flow.is_active
-                                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                        : 'bg-gray-100 text-gray-500 dark:bg-gray-800/50 dark:text-gray-400'
-                                                        }`}
-                                                >
-                                                    {flow.is_active ? 'Activo' : 'Inactivo'}
-                                                </span>
-                                            </div>
-                                            <p
-                                                className="settings-subtitle truncate mt-0.5"
-                                                style={{ fontSize: 'var(--text-xs)' }}
+                    <div className="space-y-2">
+                        {welcomeFlows.map((flow) => {
+                            const steps = flow.steps || [];
+                            const buttons = flow.buttons || [];
+                            const totalInteractions = steps.length > 0 ? steps.length : buttons.length;
+                            const expanded = expandedFlowId === flow.id;
+
+                            return (
+                                <article key={flow.id} className="overflow-hidden rounded-lg border border-[#d4d8e8]/80 bg-white/45 dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <div
+                                                className={cn(
+                                                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
+                                                    flow.is_active
+                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                                        : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-300'
+                                                )}
                                             >
-                                                {triggerTypeLabels[flow.trigger_type]}
-                                                {(flow as any).steps?.length > 0
-                                                    ? ` · ${(flow as any).steps.length} paso(s)`
-                                                    : ` · ${flow.buttons?.length || 0} botón(es)`}
-                                                {flow.creator &&
-                                                    ` · Creado por ${flow.creator.name}`}
-                                            </p>
+                                                <MessageSquare className="h-4 w-4" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h3 className="truncate text-sm font-bold settings-title">{flow.name}</h3>
+                                                    <FlowStatusPill active={flow.is_active} />
+                                                </div>
+                                                <p className="mt-1 truncate text-xs settings-subtitle">
+                                                    {triggerTypeLabels[flow.trigger_type] || flow.trigger_type} · {totalInteractions} paso{totalInteractions === 1 ? '' : 's'}
+                                                    {flow.creator ? ` · creado por ${flow.creator.name}` : ''}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-end gap-1.5">
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="outline"
+                                                onClick={() => setExpandedFlowId(expanded ? null : flow.id)}
+                                                className="h-8 w-8 rounded-lg settings-btn-secondary"
+                                                title="Ver detalles"
+                                            >
+                                                {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="outline"
+                                                onClick={() => toggleFlowStatus(flow.id)}
+                                                className={cn(
+                                                    'h-8 w-8 rounded-lg',
+                                                    flow.is_active
+                                                        ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/10'
+                                                        : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-neutral-300 dark:hover:bg-white/[0.05]'
+                                                )}
+                                                title={flow.is_active ? 'Desactivar' : 'Activar'}
+                                            >
+                                                {flow.is_active ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="outline"
+                                                onClick={() => openEditModal(flow)}
+                                                className="h-8 w-8 rounded-lg settings-btn-secondary"
+                                                title="Editar"
+                                            >
+                                                <Edit3 className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="outline"
+                                                onClick={() => deleteFlow(flow.id)}
+                                                className="h-8 w-8 rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
+                                                title="Eliminar"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-2 ml-4">
-                                        <button
-                                            onClick={() =>
-                                                setExpandedFlowId(
-                                                    expandedFlowId === flow.id ? null : flow.id,
-                                                )
-                                            }
-                                            className="p-2 rounded-lg hover:bg-accent transition-colors settings-subtitle"
-                                            title="Ver detalles"
-                                        >
-                                            {expandedFlowId === flow.id ? (
-                                                <ChevronUp className="w-4 h-4" />
-                                            ) : (
-                                                <ChevronDown className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={() => toggleFlowStatus(flow.id)}
-                                            className={`p-2 rounded-lg transition-colors ${flow.is_active
-                                                ? 'hover:bg-red-50 dark:hover:bg-red-900/20 text-green-600 dark:text-green-400'
-                                                : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-gray-400 dark:text-gray-500'
-                                                }`}
-                                            title={flow.is_active ? 'Desactivar' : 'Activar'}
-                                        >
-                                            {flow.is_active ? (
-                                                <Power className="w-4 h-4" />
-                                            ) : (
-                                                <PowerOff className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={() => openEditModal(flow)}
-                                            className="p-2 rounded-lg hover:bg-accent transition-colors settings-subtitle"
-                                            title="Editar"
-                                        >
-                                            <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => deleteFlow(flow.id)}
-                                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-                                            title="Eliminar"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Detalle expandido */}
-                                {expandedFlowId === flow.id && (
-                                    <div className="border-t border-border dark:border-[hsl(231,20%,20%)] p-4 md:p-5 animate-in fade-in slide-in-from-top-1 duration-200">
-                                        {/* Si tiene steps, mostrar flujo multi-paso */}
-                                        {(flow as any).steps && (flow as any).steps.length > 0 ? (
-                                            <div className="space-y-4">
-                                                <Label className="settings-label mb-2 block font-semibold" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    Flujo conversacional ({(flow as any).steps.length} pasos)
-                                                </Label>
-                                                {(flow as any).steps.map((step: any, stepIdx: number) => (
-                                                    <div key={step.id}>
-                                                        {/* Step card */}
-                                                        <div className="relative p-4 rounded-xl border border-border dark:border-[hsl(231,20%,20%)] bg-background/50">
-                                                            {/* Step header */}
-                                                            <div className="flex items-center gap-2 mb-3">
-                                                                <div
-                                                                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${step.is_entry_point
-                                                                        ? 'bg-green-500'
-                                                                        : step.step_key === 'rejected' || step.step_key === '__complete__'
-                                                                            ? 'bg-red-400'
-                                                                            : 'bg-[var(--primary-base)]'
-                                                                        }`}
-                                                                    style={
-                                                                        !step.is_entry_point && step.step_key !== 'rejected'
-                                                                            ? { backgroundColor: 'var(--primary-base)' }
-                                                                            : {}
-                                                                    }
-                                                                >
-                                                                    {stepIdx + 1}
-                                                                </div>
-                                                                <div className="flex-1">
-                                                                    <span className="text-sm font-semibold settings-title">
-                                                                        {step.step_key}
-                                                                    </span>
-                                                                    <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-accent settings-subtitle">
-                                                                        {step.message_type === 'interactive_buttons'
-                                                                            ? '🔘 Botones'
-                                                                            : step.message_type === 'wait_response'
-                                                                                ? '⌨️ Espera texto'
-                                                                                : '💬 Texto'}
-                                                                    </span>
-                                                                    {step.is_entry_point && (
-                                                                        <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                                                                            Punto de entrada
-                                                                        </span>
+                                    {expanded && (
+                                        <div className="border-t border-[#d4d8e8]/80 p-4 dark:border-white/10">
+                                            {steps.length > 0 ? (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
+                                                        <Workflow className="h-4 w-4" />
+                                                        Flujo conversacional ({steps.length} pasos)
+                                                    </div>
+                                                    {steps.map((step, index) => (
+                                                        <div key={step.id} className="rounded-lg border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                                                                <span
+                                                                    className={cn(
+                                                                        'inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold text-white',
+                                                                        step.is_entry_point ? 'bg-emerald-500' : 'bg-[#2e3f84]'
                                                                     )}
-                                                                </div>
+                                                                >
+                                                                    {index + 1}
+                                                                </span>
+                                                                <span className="text-sm font-semibold settings-title">{step.step_key}</span>
+                                                                <span className="inline-flex items-center gap-1.5 rounded-md border border-[#d4d8e8] bg-white/60 px-2 py-0.5 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">
+                                                                    <StepIcon type={step.message_type} />
+                                                                    {messageTypeLabels[step.message_type] || step.message_type}
+                                                                </span>
+                                                                {step.is_entry_point && (
+                                                                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                                                        <CircleDot className="h-3 w-3" />
+                                                                        Entrada
+                                                                    </span>
+                                                                )}
                                                             </div>
 
-                                                            {/* Message bubble */}
-                                                            <div className="bg-[#e7f8d4] dark:bg-[#1b3a1a] p-3 rounded-2xl rounded-tl-none max-w-lg shadow-sm mb-3">
-                                                                <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                                                    {step.message.length > 200
-                                                                        ? step.message.slice(0, 200) + '...'
-                                                                        : step.message}
-                                                                </p>
-                                                            </div>
+                                                            <MessagePreview>{step.message}</MessagePreview>
 
-                                                            {/* Buttons preview */}
                                                             {step.buttons && step.buttons.length > 0 && (
-                                                                <div className="flex gap-2 flex-wrap mb-2">
-                                                                    {step.buttons.map((btn: any) => (
-                                                                        <div
-                                                                            key={btn.id}
-                                                                            className="px-3 py-1.5 rounded-lg border border-[#25D366]/30 bg-white dark:bg-gray-800 font-medium text-xs flex items-center gap-1.5"
-                                                                        >
-                                                                            <MousePointerClick className="w-3 h-3 text-[#25D366]" />
-                                                                            {btn.title}
-                                                                            {step.next_steps?.[btn.id] && (
-                                                                                <span className="text-[9px] text-muted-foreground ml-1">
-                                                                                    → {step.next_steps[btn.id]}
-                                                                                </span>
+                                                                <div className="mt-3 flex flex-wrap gap-2">
+                                                                    {step.buttons.map((button) => (
+                                                                        <span key={button.id} className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white/70 px-2.5 py-1 text-xs font-semibold settings-title dark:border-emerald-500/20 dark:bg-white/[0.04]">
+                                                                            <MousePointerClick className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
+                                                                            {button.title}
+                                                                            {step.next_steps?.[button.id] && (
+                                                                                <>
+                                                                                    <ArrowRight className="h-3 w-3 settings-subtitle" />
+                                                                                    <span className="settings-subtitle">{step.next_steps[button.id]}</span>
+                                                                                </>
                                                                             )}
-                                                                        </div>
+                                                                        </span>
                                                                     ))}
                                                                 </div>
                                                             )}
 
-                                                            {/* Wait response indicator */}
-                                                            {step.message_type === 'wait_response' && (
-                                                                <div className="flex items-center gap-2 text-xs settings-subtitle italic">
-                                                                    <span>⏳ Esperando respuesta de texto del usuario</span>
-                                                                    {step.next_step_on_text && (
-                                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent">
-                                                                            → {step.next_step_on_text === '__complete__' ? '✅ Fin' : step.next_step_on_text}
-                                                                        </span>
-                                                                    )}
+                                                            {step.message_type === 'wait_response' && step.next_step_on_text && (
+                                                                <div className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-[#d4d8e8] bg-white/60 px-2.5 py-1 text-xs font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">
+                                                                    <Keyboard className="h-3.5 w-3.5" />
+                                                                    Espera texto
+                                                                    <ArrowRight className="h-3 w-3" />
+                                                                    {step.next_step_on_text === '__complete__' ? 'Fin' : step.next_step_on_text}
                                                                 </div>
                                                             )}
                                                         </div>
-
-                                                        {/* Connection arrow */}
-                                                        {stepIdx < (flow as any).steps.length - 1 && (
-                                                            <div className="flex justify-center py-1">
-                                                                <div className="w-px h-4 bg-border dark:bg-[hsl(231,20%,25%)]" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            /* Fallback: flujo simple sin steps */
-                                            <>
-                                                <div className="mb-4">
-                                                    <Label className="settings-label mb-2 block font-semibold" style={{ fontSize: 'var(--text-xs)' }}>
-                                                        Mensaje de bienvenida
-                                                    </Label>
-                                                    <div className="bg-[#e7f8d4] dark:bg-[#1b3a1a] p-4 rounded-2xl rounded-tl-none max-w-lg shadow-sm">
-                                                        <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                                            {flow.message}
-                                                        </p>
-                                                    </div>
+                                                    ))}
                                                 </div>
-                                                {flow.buttons && flow.buttons.length > 0 && (
-                                                    <div className="mb-4">
-                                                        <Label className="settings-label mb-2 block font-semibold" style={{ fontSize: 'var(--text-xs)' }}>
-                                                            Botones interactivos
-                                                        </Label>
-                                                        <div className="flex gap-2 flex-wrap">
-                                                            {flow.buttons.map((btn) => (
-                                                                <div
-                                                                    key={btn.id}
-                                                                    className="px-4 py-2 rounded-xl border-2 border-[#25D366]/30 bg-white dark:bg-gray-800 font-medium text-sm flex items-center gap-2"
-                                                                >
-                                                                    <MousePointerClick className="w-3.5 h-3.5 text-[#25D366]" />
-                                                                    {btn.title}
-                                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
+                                                        <MessageSquare className="h-4 w-4" />
+                                                        Mensaje de bienvenida
+                                                    </div>
+                                                    <MessagePreview>{flow.message}</MessagePreview>
+                                                    {buttons.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {buttons.map((button) => (
+                                                                <span key={button.id} className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white/70 px-2.5 py-1 text-xs font-semibold settings-title dark:border-emerald-500/20 dark:bg-white/[0.04]">
+                                                                    <MousePointerClick className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
+                                                                    {button.title}
+                                                                </span>
                                                             ))}
                                                         </div>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </article>
+                            );
+                        })}
                     </div>
                 )}
-            </div>
+            </section>
 
-            {/* Modal Crear/Editar Flujo */}
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="card-gradient sm:max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar border border-white/40 dark:border-white/10">
-                    <DialogHeader>
-                        <DialogTitle className="settings-title flex items-center gap-2" style={{ fontSize: 'var(--text-xl)' }}>
-                            <Bot className="w-5 h-5" />
+            <Dialog open={isModalOpen} onOpenChange={(open) => (open ? setIsModalOpen(true) : closeModal())}>
+                <DialogContent className="card-gradient max-h-[90vh] gap-0 overflow-y-auto border border-white/40 p-0 shadow-xl dark:border-white/10 sm:max-w-2xl">
+                    <DialogHeader className="border-b border-[#d4d8e8]/80 px-6 py-4 dark:border-white/10">
+                        <DialogTitle className="flex items-center gap-2 text-lg font-bold settings-title">
+                            <Bot className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
                             {editingFlow ? 'Editar flujo de bienvenida' : 'Nuevo flujo de bienvenida'}
                         </DialogTitle>
+                        <DialogDescription className="text-xs settings-subtitle">
+                            Configura el mensaje, activación y botones del flujo.
+                        </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleSubmit} className="space-y-5 mt-2">
-                        {/* Nombre del flujo */}
-                        <div>
-                            <Label htmlFor="flow-name" className="settings-label font-semibold" style={{ fontSize: 'var(--text-sm)' }}>
+                    <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="flow-name" className="text-sm font-semibold settings-label">
                                 Nombre del flujo
                             </Label>
                             <Input
                                 id="flow-name"
                                 value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
+                                onChange={(event) => setData('name', event.target.value)}
                                 placeholder="Ej: Menú de Bienvenida HUV"
-                                className="mt-1.5 settings-input rounded-xl"
+                                className="h-9 rounded-lg settings-input"
                                 required
                             />
-                            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+                            {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
                         </div>
 
-                        {/* Tipo de activación */}
-                        <div>
-                            <Label htmlFor="flow-trigger" className="settings-label font-semibold" style={{ fontSize: 'var(--text-sm)' }}>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="flow-trigger" className="text-sm font-semibold settings-label">
                                 ¿Cuándo se envía?
                             </Label>
                             <select
                                 id="flow-trigger"
                                 value={data.trigger_type}
-                                onChange={(e) => setData('trigger_type', e.target.value)}
-                                className="mt-1.5 w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 cursor-pointer"
-                                style={{
-                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                    fontSize: 'var(--text-sm)',
-                                    padding: '0 2.5rem 0 var(--space-base)',
-                                    appearance: 'none',
-                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 0.75rem center',
-                                    backgroundSize: '1rem',
-                                }}
+                                onChange={(event) => setData('trigger_type', event.target.value)}
+                                className="h-9 w-full rounded-lg border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
                             >
-                                <option value="first_contact">Solo primer contacto (contacto nuevo)</option>
+                                <option value="first_contact">Solo primer contacto</option>
                                 <option value="every_new_conversation">Cada conversación nueva</option>
-                                <option value="always">Siempre (cada mensaje)</option>
+                                <option value="always">Siempre</option>
                             </select>
                         </div>
 
-                        {/* Mensaje de bienvenida */}
-                        <div>
-                            <Label htmlFor="flow-message" className="settings-label font-semibold" style={{ fontSize: 'var(--text-sm)' }}>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="flow-message" className="text-sm font-semibold settings-label">
                                 Mensaje de bienvenida
                             </Label>
                             <Textarea
                                 id="flow-message"
                                 value={data.message}
-                                onChange={(e) => setData('message', e.target.value)}
-                                placeholder="Escribe el mensaje que recibirá el usuario al escribir por primera vez..."
-                                className="mt-1.5 settings-input rounded-xl min-h-[150px]"
+                                onChange={(event) => setData('message', event.target.value)}
+                                placeholder="Escribe el mensaje que recibirá el usuario al iniciar la conversación..."
+                                className="min-h-[132px] rounded-lg settings-input"
                                 required
                             />
-                            <p className="text-xs settings-subtitle mt-1">
-                                Puedes usar emojis y formateo de WhatsApp: *negrita*, _cursiva_, ~tachado~
-                            </p>
-                            {errors.message && <p className="text-red-500 text-xs mt-1">{errors.message}</p>}
+                            {errors.message && <p className="text-xs text-red-500">{errors.message}</p>}
                         </div>
 
-                        {/* Botones interactivos */}
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <Label className="settings-label font-semibold" style={{ fontSize: 'var(--text-sm)' }}>
-                                    Botones interactivos (máx. 3)
-                                </Label>
-                                {data.buttons.length < 3 && (
-                                    <button
-                                        type="button"
-                                        onClick={addButton}
-                                        className="text-xs font-semibold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-accent transition-colors"
-                                        style={{ color: 'var(--primary-base)' }}
-                                    >
-                                        <Plus className="w-3 h-3" />
-                                        Añadir botón
-                                    </button>
-                                )}
+                        <div className="space-y-3 rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <Label className="text-sm font-semibold settings-label">Botones interactivos</Label>
+                                    <p className="mt-1 text-xs settings-subtitle">{data.buttons.length}/3 configurados</p>
+                                </div>
+                                <Button type="button" variant="outline" onClick={addButton} disabled={data.buttons.length >= 3} className="h-8 rounded-lg settings-btn-secondary">
+                                    <Plus className="h-4 w-4" />
+                                    Añadir
+                                </Button>
                             </div>
 
-                            {data.buttons.length === 0 && (
-                                <p className="text-xs settings-subtitle italic">
-                                    Sin botones. Se enviará como texto plano.
+                            {data.buttons.length === 0 ? (
+                                <p className="rounded-lg border border-dashed border-[#d4d8e8] p-3 text-sm settings-subtitle dark:border-white/10">
+                                    Sin botones configurados.
                                 </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {data.buttons.map((button, index) => (
+                                        <div key={`${button.id}-${index}`} className="rounded-lg border border-[#d4d8e8]/80 bg-white/60 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                            <div className="mb-3 flex items-center gap-2">
+                                                <MousePointerClick className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                                                <span className="text-sm font-semibold settings-title">Botón {index + 1}</span>
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    onClick={() => removeButton(index)}
+                                                    className="ml-auto h-7 w-7 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
+                                                    title="Eliminar botón"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold settings-label">Texto</Label>
+                                                    <Input
+                                                        value={button.title}
+                                                        onChange={(event) => updateButton(index, 'title', event.target.value)}
+                                                        placeholder="Ej: Acepto"
+                                                        maxLength={20}
+                                                        className="h-9 rounded-lg settings-input"
+                                                        required
+                                                    />
+                                                    <p className="text-[11px] settings-subtitle">{button.title.length}/20</p>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold settings-label">ID</Label>
+                                                    <Input
+                                                        value={button.id}
+                                                        onChange={(event) => updateButton(index, 'id', event.target.value)}
+                                                        placeholder="Ej: accept"
+                                                        className="h-9 rounded-lg settings-input"
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 space-y-1.5">
+                                                <Label className="text-xs font-semibold settings-label">Respuesta automática</Label>
+                                                <Textarea
+                                                    value={data.responses[button.id] || ''}
+                                                    onChange={(event) => updateResponse(button.id, event.target.value)}
+                                                    placeholder="Mensaje que se enviará cuando el usuario presione este botón..."
+                                                    className="min-h-[84px] rounded-lg settings-input"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
-
-                            <div className="space-y-3">
-                                {data.buttons.map((button, index) => (
-                                    <div
-                                        key={index}
-                                        className="p-4 rounded-xl border border-border dark:border-[hsl(231,20%,20%)] bg-background/50"
-                                    >
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <MousePointerClick className="w-4 h-4 text-[#25D366]" />
-                                            <span className="text-sm font-semibold settings-title">
-                                                Botón {index + 1}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeButton(index)}
-                                                className="ml-auto p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3 mb-3">
-                                            <div>
-                                                <Label className="settings-subtitle mb-1 block" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    Texto del botón (máx. 20 chars)
-                                                </Label>
-                                                <Input
-                                                    value={button.title}
-                                                    onChange={(e) =>
-                                                        updateButton(index, 'title', e.target.value)
-                                                    }
-                                                    placeholder="Ej: ✅ Acepto"
-                                                    maxLength={20}
-                                                    className="settings-input rounded-xl"
-                                                    required
-                                                />
-                                                <span className="text-[10px] settings-subtitle">{button.title.length}/20</span>
-                                            </div>
-                                            <div>
-                                                <Label className="settings-subtitle mb-1 block" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    ID del botón
-                                                </Label>
-                                                <Input
-                                                    value={button.id}
-                                                    onChange={(e) =>
-                                                        updateButton(index, 'id', e.target.value)
-                                                    }
-                                                    placeholder="Ej: accept"
-                                                    className="settings-input rounded-xl"
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Respuesta automática para este botón */}
-                                        <div>
-                                            <Label className="settings-subtitle mb-1 block" style={{ fontSize: 'var(--text-xs)' }}>
-                                                Respuesta automática al presionar este botón
-                                            </Label>
-                                            <Textarea
-                                                value={data.responses[button.id] || ''}
-                                                onChange={(e) =>
-                                                    updateResponse(button.id, e.target.value)
-                                                }
-                                                placeholder="Mensaje que se enviará al usuario cuando presione este botón..."
-                                                className="settings-input rounded-xl min-h-[80px]"
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
 
-                        {/* Toggle activo */}
-                        <div className="flex items-center justify-between p-4 rounded-xl border border-border dark:border-[hsl(231,20%,20%)] bg-background/50">
+                        <div className="flex items-center justify-between gap-4 rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                             <div>
-                                <p className="font-semibold settings-title" style={{ fontSize: 'var(--text-sm)' }}>
-                                    Activar flujo
-                                </p>
-                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                                    Solo puede haber un flujo activo a la vez
-                                </p>
+                                <p className="text-sm font-semibold settings-title">Activar flujo</p>
+                                <p className="mt-1 text-xs settings-subtitle">Solo puede haber un flujo activo a la vez</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setData('is_active', !data.is_active)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${data.is_active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                                    }`}
+                                className={cn(
+                                    'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200',
+                                    data.is_active ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+                                )}
+                                title={data.is_active ? 'Desactivar' : 'Activar'}
                             >
                                 <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${data.is_active ? 'translate-x-6' : 'translate-x-1'
-                                        }`}
+                                    className={cn(
+                                        'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200',
+                                        data.is_active ? 'translate-x-6' : 'translate-x-1'
+                                    )}
                                 />
                             </button>
                         </div>
 
-                        {/* Acciones */}
-                        <div className="flex justify-end gap-3 pt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    setIsModalOpen(false);
-                                    setEditingFlow(null);
-                                    reset();
-                                }}
-                                className="rounded-xl"
-                            >
+                        <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
+                            <Button type="button" variant="outline" onClick={closeModal} className="h-9 rounded-lg settings-btn-secondary">
                                 Cancelar
                             </Button>
-                            <Button
-                                type="submit"
-                                disabled={processing}
-                                className="font-semibold text-white rounded-xl transition-all duration-200"
-                                style={{
-                                    backgroundColor: 'var(--primary-base)',
-                                    boxShadow: 'var(--shadow-md)',
-                                }}
-                            >
-                                <Save className="w-4 h-4 mr-2" />
-                                {processing
-                                    ? 'Guardando...'
-                                    : editingFlow
-                                        ? 'Actualizar'
-                                        : 'Crear flujo'}
+                            <Button type="submit" disabled={processing} className="h-9 rounded-lg settings-btn-primary text-white">
+                                <Save className="h-4 w-4" />
+                                {processing ? 'Guardando...' : editingFlow ? 'Actualizar' : 'Crear flujo'}
                             </Button>
                         </div>
                     </form>

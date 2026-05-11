@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, Phone } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, Phone, type LucideIcon } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -69,6 +69,39 @@ interface AppointmentIndexProps {
     pageTitle?: string;
 }
 
+interface MetricCardProps {
+    icon: LucideIcon;
+    label: string;
+    value: string | number;
+    detail: string;
+    tone?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+}
+
+const toneClasses: Record<NonNullable<MetricCardProps['tone']>, string> = {
+    primary: 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100',
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
+    danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300',
+    info: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300',
+};
+
+function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
+    return (
+        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+            <div className="flex items-center gap-3">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
+                    <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                    <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
+                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/oncology-appointments', pageTitle = 'Citas de Oncología' }: AppointmentIndexProps) {
     const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
     const [showFlashMessage, setShowFlashMessage] = useState(true);
@@ -84,6 +117,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
     const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, pending_tomorrow: 0, failed: 0 });
     // Inicializar progreso con el valor del servidor si existe
     const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; pending: number; percentage: number } | null>(initialProgress);
+
+    const dashboardStats = useMemo(() => {
+        const recentSent = initialAppointments.filter((appointment) => appointment.reminder_sent).length;
+        const recentCancelled = initialAppointments.filter((appointment) => appointment.reminder_status === 'cancelled').length;
+
+        return { recentSent, recentCancelled };
+    }, [initialAppointments]);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         file: null as File | null,
@@ -585,130 +625,78 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         <AdminLayout>
             <Head title={pageTitle} />
 
-            <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-6">
-                        <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                            {pageTitle}
-                        </h1>
-                        <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                            Carga un archivo Excel con las citas programadas para enviar recordatorios automáticos
-                        </p>
-                    </div>
+            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
+                <div className="mx-auto flex max-w-7xl flex-col gap-5">
+                    <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                                <CalendarCheck className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
+                                    {pageTitle}
+                                </h1>
+                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                                    Carga citas, controla recordatorios y revisa el estado de envío.
+                                </p>
+                            </div>
+                        </div>
 
-                    {/* Mensaje Flash de Éxito/Error */}
+                        {initialAppointments.length > 0 && (
+                            <Button onClick={() => router.visit(`${routePrefix}/view`)} className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary">
+                                <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                                Ver todas las citas
+                            </Button>
+                        )}
+                    </header>
+
                     {showFlashMessage && (flash?.success || flash?.error) && (
                         <div
-                            className={`mb-6 p-4 rounded-2xl flex items-start gap-3 transition-all duration-300 ${flash?.success
-                                ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300'
-                                : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                            className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium shadow-sm ${flash?.success
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                : 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
                                 }`}
-                            style={{
-                                boxShadow: flash?.success
-                                    ? '0 2px 8px -2px rgba(16, 185, 129, 0.15)'
-                                    : '0 2px 8px -2px rgba(239, 68, 68, 0.15)',
-                            }}
                         >
                             {flash?.success ? (
-                                <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0 text-emerald-600" />
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0" />
                             ) : (
-                                <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-red-600" />
+                                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                             )}
                             <div className="flex-1">
-                                <p className="font-medium">{flash?.success || flash?.error}</p>
+                                <p>{flash?.success || flash?.error}</p>
                             </div>
                             <button
                                 onClick={() => setShowFlashMessage(false)}
-                                className="p-1 hover:bg-black/5 rounded-xl transition-colors"
+                                className="rounded-md p-1 transition-colors hover:bg-black/5"
                             >
-                                <X className="w-4 h-4" />
+                                <X className="h-4 w-4" />
                             </button>
                         </div>
                     )}
 
-                    {/* Resumen rápido */}
-                    {(remindersStats || localStats) && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                            {/* Enviados */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                        <Send className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-bold settings-title">
-                                            {localStats.sent.toLocaleString()}
-                                        </p>
-                                        <p className="text-sm settings-subtitle">Recordatorios enviados</p>
-                                    </div>
-                                </div>
-                            </div>
+                    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <MetricCard icon={CalendarCheck} label="Total citas" value={totalAppointments.toLocaleString()} detail={`${initialAppointments.length.toLocaleString()} recientes cargadas`} />
+                        <MetricCard icon={Send} label="Enviados" value={localStats.sent.toLocaleString()} detail={`${dashboardStats.recentSent} en la vista reciente`} tone="success" />
+                        <MetricCard icon={Clock} label="Por enviar" value={localStats.pending.toLocaleString()} detail={`${localStats.pending_tomorrow.toLocaleString()} para mañana`} tone="warning" />
+                        <MetricCard icon={XCircle} label="Fallidos" value={localStats.failed.toLocaleString()} detail={`${dashboardStats.recentCancelled} canceladas recientes`} tone="danger" />
+                    </section>
 
-                            {/* Pendientes */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                        <Clock className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-bold settings-title">
-                                            {localStats.pending.toLocaleString()}
-                                        </p>
-                                        <p className="text-sm settings-subtitle">Por enviar</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Fallidos */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                        <XCircle className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-bold settings-title">
-                                            {localStats.failed.toLocaleString()}
-                                        </p>
-                                        <p className="text-sm settings-subtitle">Fallidos</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Total citas */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                        <CalendarCheck className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-bold settings-title">
-                                            {totalAppointments.toLocaleString()}
-                                        </p>
-                                        <p className="text-sm settings-subtitle">Total citas</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Upload Section */}
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
+                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                     >
                         <form onSubmit={submit}>
-                            <div className="mb-6">
-                                <h2 className="text-lg font-semibold settings-title mb-4 flex items-center gap-2">
-                                    <FileSpreadsheet className="w-5 h-5" />
+                            <div className="mb-4">
+                                <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
+                                    <FileSpreadsheet className="h-4 w-4" />
                                     Cargar archivo de citas
                                 </h2>
+                                <p className="mb-4 text-sm settings-subtitle">Acepta archivos Excel o CSV y actualiza la base de citas del panel.</p>
 
-                                {/* File Upload Area */}
                                 <div
                                     onDrop={handleDrop}
                                     onDragOver={handleDragOver}
                                     onDragLeave={handleDragLeave}
                                     className={`
-                                    border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
+                                    cursor-pointer rounded-lg border border-dashed p-6 text-center
                                     upload-dropzone
                                     ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(30,5%,25%)]'}
                                     hover:border-primary hover:upload-dropzone-active
@@ -726,12 +714,12 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 onChange={handleFileChange}
                                                 disabled={processing}
                                             />
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="w-16 h-16 rounded-full flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)]">
-                                                    <Upload className="w-8 h-8 text-white" />
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20">
+                                                    <Upload className="h-5 w-5" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-lg font-medium settings-title mb-1">
+                                                    <p className="mb-1 text-sm font-semibold settings-title">
                                                         Arrastra y suelta tu archivo aquí
                                                     </p>
                                                     <p className="text-sm settings-subtitle">
@@ -744,13 +732,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             </div>
                                         </label>
                                     ) : (
-                                        <div className="flex items-center justify-between p-4 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]">
+                                        <div className="flex items-center justify-between rounded-lg border border-white/50 bg-white/55 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_6px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.15)]">
-                                                    <FileSpreadsheet className="w-6 h-6 text-white" />
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
+                                                    <FileSpreadsheet className="h-5 w-5" />
                                                 </div>
                                                 <div className="text-left">
-                                                    <p className="font-medium settings-title">{data.file.name}</p>
+                                                    <p className="font-semibold settings-title">{data.file.name}</p>
                                                     <p className="text-sm settings-subtitle">
                                                         {formatFileSize(data.file.size)}
                                                     </p>
@@ -759,51 +747,49 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             <button
                                                 type="button"
                                                 onClick={removeFile}
-                                                className="p-2 hover:bg-gradient-to-b hover:from-red-50 hover:to-red-100 rounded-xl transition-all duration-200"
+                                                className="rounded-lg p-2 text-red-500 transition-all duration-200 hover:bg-red-50 dark:hover:bg-red-500/10"
                                                 disabled={processing}
                                             >
-                                                <X className="w-5 h-5 text-red-500" />
+                                                <X className="h-4 w-4" />
                                             </button>
                                         </div>
                                     )}
                                 </div>
 
                                 {errors.file && (
-                                    <div className="mt-4 flex items-start gap-2 p-4 bg-gradient-to-b from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-900/10 rounded-2xl shadow-[0_1px_2px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
-                                        <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                                         <p className="text-sm text-red-600 dark:text-red-400">{errors.file}</p>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Upload Button */}
                             {data.file && (
                                 <div className="flex justify-end">
                                     <button
                                         type="submit"
                                         disabled={processing}
-                                        className="px-6 py-3 text-white rounded-xl font-medium chat-message-sent shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_12px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.2),0_6px_16px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                                        className="h-9 rounded-lg px-5 text-sm font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {processing ? 'Subiendo...' : 'Subir archivo'}
                                     </button>
                                 </div>
                             )}
                         </form>
-                    </div>
+                    </section>
 
-                    {/* Uploaded File Info */}
                     {uploadedFile && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
+                        <section className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                         >
                             <div className="flex items-start gap-4">
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-b from-emerald-400 to-emerald-500 shadow-[0_2px_8px_rgba(16,185,129,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                    <CheckCircle2 className="w-6 h-6 text-white" />
+                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                    <CheckCircle2 className="h-5 w-5" />
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="font-semibold settings-title mb-2">
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="mb-2 font-semibold settings-title">
                                         Archivo cargado exitosamente
                                     </h3>
-                                    <div className="space-y-1 text-sm settings-subtitle">
+                                    <div className="grid gap-2 text-sm settings-subtitle sm:grid-cols-2 lg:grid-cols-4">
                                         <p><span className="font-semibold settings-title">Nombre:</span> {uploadedFile.name}</p>
                                         <p><span className="font-semibold settings-title">Tamaño:</span> {formatFileSize(uploadedFile.size)}</p>
                                         <p><span className="font-semibold settings-title">Registros:</span> {uploadedFile.total_rows || initialAppointments.length} citas</p>
@@ -811,253 +797,110 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
                     )}
 
-                    {/* Control de Recordatorios */}
                     {(remindersStats || localStats) && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 mb-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                <div>
-                                    <h2 className="text-lg font-semibold settings-title mb-1 flex items-center gap-2">
-                                        <Send className="w-5 h-5" />
+                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="min-w-0 flex-1">
+                                    <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
+                                        <Send className="h-4 w-4" />
                                         Control de envío de recordatorios
                                     </h2>
-                                    <div className="text-sm space-y-1 settings-subtitle">
-                                        {localStats.pending > 0 ? (
-                                            <p>
-                                                <strong className="settings-title">{localStats.pending}</strong> recordatorios pendientes para <strong>pasado mañana</strong> (2 días)
-                                                {isProcessing && !isPaused && (
-                                                    <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 font-medium">
-                                                        <RefreshCw className="w-3 h-3 animate-spin" />
-                                                        Enviando...
-                                                    </span>
-                                                )}
-                                                {isProcessing && isPaused && (
-                                                    <span className="ml-2 inline-flex items-center gap-1 text-amber-600 font-medium">
-                                                        <Pause className="w-3 h-3" />
-                                                        Pausado
-                                                    </span>
-                                                )}
-                                            </p>
-                                        ) : (
-                                            <p className="text-amber-600">
-                                                No hay citas pendientes para pasado mañana.
-                                            </p>
-                                        )}
-                                        {localStats.pending_tomorrow > 0 && (
-                                            <p className="text-amber-600">
-                                                <CalendarCheck className="w-4 h-4 inline mr-1" />
-                                                <strong>{localStats.pending_tomorrow}</strong> citas para <strong>mañana</strong> sin recordatorio enviado (usa "Enviar Día Antes")
-                                            </p>
-                                        )}
+                                    <div className="flex flex-wrap gap-2 text-xs">
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                            <Clock className="h-3.5 w-3.5" />
+                                            {localStats.pending.toLocaleString()} para pasado mañana
+                                        </span>
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-semibold text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300">
+                                            <CalendarCheck className="h-3.5 w-3.5" />
+                                            {localStats.pending_tomorrow.toLocaleString()} para mañana
+                                        </span>
+                                        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${isProcessing ? (isPaused ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300') : 'border-[#d4d8e8] bg-white/60 text-[#6b7494] dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300'}`}>
+                                            {isProcessing && !isPaused ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : isPaused ? <Pause className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                                            {isProcessing ? (isPaused ? 'Pausado' : 'Enviando') : 'Sin proceso activo'}
+                                        </span>
                                     </div>
 
-                                    {/* Barra de progreso en tiempo real */}
-                                    {isProcessing && progress && progress.total > 0 && (
-                                        <div className="mt-4 space-y-2">
-                                            <div className="flex items-center justify-between text-xs settings-subtitle">
-                                                <span>Progreso del envío</span>
-                                                <span className="font-medium settings-title">
-                                                    {progress.percentage}% ({progress.sent + progress.failed} / {progress.total})
-                                                </span>
-                                            </div>
-                                            <div className="w-full bg-[#e5e7f0] dark:bg-[hsl(30,4%,20%)] rounded-full h-2.5 overflow-hidden">
-                                                <div
-                                                    className="h-full bg-gradient-to-r from-[#22c55e] to-[#16a34a] transition-all duration-500 ease-out rounded-full"
-                                                    style={{ width: `${Math.min(progress.percentage, 100)}%` }}
-                                                />
-                                            </div>
-                                            <div className="flex items-center justify-between text-xs">
-                                                <div className="flex items-center gap-4 flex-wrap">
-                                                    <span className="text-emerald-600 font-medium">
-                                                        ✓ Enviados: {progress.sent}
-                                                    </span>
-                                                    {progress.failed > 0 && (
-                                                        <span className="text-red-600 font-medium">
-                                                            ✗ Fallidos: {progress.failed}
-                                                        </span>
-                                                    )}
-                                                    <span className="settings-subtitle">
-                                                        ⏳ Pendientes: {progress.pending}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    {localStats.pending === 0 && localStats.pending_tomorrow === 0 && (
+                                        <p className="mt-3 text-sm settings-subtitle">No hay recordatorios pendientes para las fechas operativas.</p>
                                     )}
                                 </div>
-                                <div className="flex gap-3 flex-wrap">
-                                    {/* Botón para enviar citas de pasado mañana */}
+
+                                <div className="flex flex-wrap gap-2 lg:justify-end">
                                     {!isProcessing && !isPaused && localStats.pending > 0 && (
-                                        <Button
-                                            onClick={handleStartReminders}
-                                            disabled={isLoading || isProcessing}
-                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                            style={{
-                                                backgroundColor: 'var(--primary-base)',
-                                                boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                padding: '0 var(--space-lg)',
-                                                fontSize: 'var(--text-sm)',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!isLoading && !isProcessing) {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                            }}
-                                        >
-                                            <Play className="w-4 h-4 mr-2" />
-                                            {isLoading || isProcessing ? 'Iniciando...' : `Comenzar Envío (${localStats.pending})`}
+                                        <Button onClick={handleStartReminders} disabled={isLoading || isProcessing} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                            <Play className="mr-2 h-3.5 w-3.5" />
+                                            {isLoading || isProcessing ? 'Iniciando...' : `Comenzar (${localStats.pending})`}
                                         </Button>
                                     )}
-                                    {/* Botón para enviar citas de mañana - independiente */}
                                     {!isProcessing && !isPaused && localStats.pending_tomorrow > 0 && (
-                                        <Button
-                                            onClick={handleStartRemindersDayBefore}
-                                            disabled={isLoading || isProcessing}
-                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                            style={{
-                                                backgroundColor: 'var(--primary-base)',
-                                                boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                padding: '0 var(--space-lg)',
-                                                fontSize: 'var(--text-sm)',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!isLoading && !isProcessing) {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                            }}
-                                        >
-                                            <CalendarCheck className="w-4 h-4 mr-2" />
+                                        <Button onClick={handleStartRemindersDayBefore} disabled={isLoading || isProcessing} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                            <CalendarCheck className="mr-2 h-3.5 w-3.5" />
                                             Enviar Día Antes ({localStats.pending_tomorrow})
                                         </Button>
                                     )}
                                     {isProcessing && !isPaused && (
                                         <>
-                                            <Button
-                                                onClick={handlePauseReminders}
-                                                disabled={isLoading}
-                                                className="font-semibold text-white transition-all duration-200 border-0"
-                                                style={{
-                                                    backgroundColor: 'var(--primary-base)',
-                                                    boxShadow: 'var(--shadow-md)',
-                                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                    padding: '0 var(--space-lg)',
-                                                    fontSize: 'var(--text-sm)',
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                }}
-                                            >
-                                                <Pause className="w-4 h-4 mr-2" />
+                                            <Button onClick={handlePauseReminders} disabled={isLoading} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                                <Pause className="mr-2 h-3.5 w-3.5" />
                                                 {isLoading ? 'Pausando...' : 'Pausar'}
                                             </Button>
-                                            <Button
-                                                onClick={handleStopReminders}
-                                                disabled={isLoading}
-                                                className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                                style={{
-                                                    backgroundColor: '#EF4444',
-                                                    boxShadow: 'var(--shadow-md)',
-                                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                    padding: '0 var(--space-lg)',
-                                                    fontSize: 'var(--text-sm)',
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.backgroundColor = '#DC2626';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.backgroundColor = '#EF4444';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                }}
-                                            >
-                                                <Square className="w-4 h-4 mr-2" />
+                                            <Button onClick={handleStopReminders} disabled={isLoading} className="h-9 rounded-lg bg-red-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                                <Square className="mr-2 h-3.5 w-3.5" />
                                                 {isLoading ? 'Deteniendo...' : 'Detener'}
                                             </Button>
                                         </>
                                     )}
                                     {isProcessing && isPaused && (
-                                        <Button
-                                            onClick={handleResumeReminders}
-                                            disabled={isLoading}
-                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                            style={{
-                                                backgroundColor: '#10B981',
-                                                boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                padding: '0 var(--space-lg)',
-                                                fontSize: 'var(--text-sm)',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.backgroundColor = '#059669';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                e.currentTarget.style.transform = 'translateY(-2px)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = '#10B981';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                            }}
-                                        >
-                                            <Play className="w-4 h-4 mr-2" />
+                                        <Button onClick={handleResumeReminders} disabled={isLoading} className="h-9 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                            <Play className="mr-2 h-3.5 w-3.5" />
                                             {isLoading ? 'Reanudando...' : 'Reanudar'}
                                         </Button>
                                     )}
                                 </div>
                             </div>
+
+                            {isProcessing && progress && progress.total > 0 && (
+                                <div className="mt-4 rounded-lg border border-[#d4d8e8] bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="mb-2 flex items-center justify-between gap-3 text-xs settings-subtitle">
+                                        <span>Progreso del envío</span>
+                                        <span className="font-semibold settings-title">
+                                            {progress.percentage}% ({progress.sent + progress.failed} / {progress.total})
+                                        </span>
+                                    </div>
+                                    <div className="h-2 overflow-hidden rounded-full bg-[#e5e7f0] dark:bg-white/10">
+                                        <div className="h-full rounded-full bg-emerald-500 transition-all duration-500 ease-out" style={{ width: `${Math.min(progress.percentage, 100)}%` }} />
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
+                                        <span className="text-emerald-600 dark:text-emerald-300">Enviados: {progress.sent}</span>
+                                        {progress.failed > 0 && <span className="text-red-600 dark:text-red-300">Fallidos: {progress.failed}</span>}
+                                        <span className="settings-subtitle">Pendientes: {progress.pending}</span>
+                                    </div>
+                                </div>
+                            )}
+
                             {localStats.pending > 2000 && (
-                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl">
-                                    <p className="text-sm text-amber-800 dark:text-amber-300">
-                                        <AlertCircle className="w-4 h-4 inline mr-1" />
-                                        <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana.
-                                        El sistema respetará el límite de 2,000 mensajes por día según las políticas de Meta.
-                                    </p>
+                                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                    <AlertCircle className="mr-1 inline h-4 w-4" />
+                                    <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana. El sistema respetará el límite de 2,000 mensajes por día según las políticas de Meta.
                                 </div>
                             )}
                             {localStats.pending_tomorrow > 2000 && (
-                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl">
-                                    <p className="text-sm text-amber-800 dark:text-amber-300">
-                                        <AlertCircle className="w-4 h-4 inline mr-1" />
-                                        <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio.
-                                        El sistema respetará el límite de 2,000 mensajes por día.
-                                    </p>
+                                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                    <AlertCircle className="mr-1 inline h-4 w-4" />
+                                    <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio. El sistema respetará el límite de 2,000 mensajes por día.
                                 </div>
                             )}
-                        </div>
+                        </section>
                     )}
 
-                    {/* Tabla de Citas */}
                     {initialAppointments.length > 0 && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6">
-                            {/* Header con búsqueda */}
+                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
-                                    <h2 className="text-lg font-semibold settings-title">
+                                    <h2 className="text-base font-semibold settings-title">
                                         Citas en base de datos ({totalAppointments})
                                     </h2>
                                     <p className="text-sm settings-subtitle">
@@ -1066,10 +909,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                 </div>
 
                                 <div className="flex items-center gap-3">
-                                    {/* Buscador */}
-                                    <div className="relative">
+                                    <div className="relative w-full md:w-80">
                                         <label htmlFor="appointment-search" className="sr-only">Buscar citas</label>
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 settings-subtitle" />
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 settings-subtitle" />
                                         <input
                                             id="appointment-search"
                                             name="appointment-search"
@@ -1077,41 +919,23 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             placeholder="Buscar por paciente, teléfono, médico..."
                                             value={searchTerm}
                                             onChange={(e) => handleSearch(e.target.value)}
-                                            className="pl-10 pr-4 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 w-full md:w-80 text-sm settings-title"
+                                            className="h-9 w-full rounded-lg pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
                                         />
                                     </div>
 
-                                    {/* Botón para abrir página dedicada */}
                                     <Button
                                         onClick={() => router.visit(`${routePrefix}/view`)}
-                                        className="font-semibold text-white transition-all duration-200 border-0 flex items-center gap-2 rounded-xl"
-                                        style={{
-                                            backgroundColor: 'var(--primary-base)',
-                                            boxShadow: 'var(--shadow-md)',
-                                            padding: '0.5rem 1rem',
-                                            fontSize: 'var(--text-sm)',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                            e.currentTarget.style.transform = 'translateY(-2px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                        }}
+                                        className="h-9 shrink-0 rounded-lg px-4 text-xs font-semibold settings-btn-secondary"
                                     >
-                                        <ExternalLink className="w-4 h-4" />
+                                        <ExternalLink className="mr-2 h-3.5 w-3.5" />
                                         Ver todas las citas
                                     </Button>
                                 </div>
                             </div>
 
-                            {/* Tabla agilizada sin tanto scroll horizontal */}
-                            <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)]">
+                            <div className="overflow-x-auto rounded-lg border border-[#d4d8e8] dark:border-white/10">
                                 <table className="w-full text-left border-collapse">
-                                    <thead className="bg-black/5 dark:bg-white/5 border-b border-border dark:border-[hsl(30,5%,20%)]">
+                                    <thead className="border-b border-border bg-black/5 dark:border-white/10 dark:bg-white/5">
                                         <tr>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
                                                 #
@@ -1130,7 +954,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-border dark:divide-[hsl(30,5%,20%)]">
+                                    <tbody className="divide-y divide-border dark:divide-white/10">
                                         {paginatedAppointments.map((appointment, index) => (
                                             <tr
                                                 key={appointment.id}
@@ -1163,7 +987,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                                 {/* Fecha y Hora */}
                                                 <td className="px-4 py-4 whitespace-nowrap align-top">
                                                     <div className="flex flex-col gap-1.5">
-                                                        <div className="inline-flex items-center gap-1.5 settings-title font-medium bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-md w-fit" style={{ fontSize: 'var(--text-sm)' }}>
+                                                        <div className="inline-flex w-fit items-center gap-1.5 rounded-md bg-black/5 px-2.5 py-1 font-medium settings-title dark:bg-white/5" style={{ fontSize: 'var(--text-sm)' }}>
                                                             <CalendarCheck className="w-4 h-4 text-primary" />
                                                             {appointment.citfc || '-'}
                                                         </div>
@@ -1237,7 +1061,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
                             {/* Paginación */}
                             {totalPages > 1 && (
-                                <div className="mt-4 flex items-center justify-between">
+                                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <p className="text-sm settings-subtitle">
                                         Página {currentPage} de {totalPages}
                                     </p>
@@ -1245,7 +1069,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                             disabled={currentPage === 1}
-                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(30,4%,18%)] dark:hover:to-[hsl(30,4%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                            className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
                                             <ChevronLeft className="w-4 h-4" />
                                             Anterior
@@ -1253,7 +1077,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
-                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(30,4%,18%)] dark:hover:to-[hsl(30,4%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                            className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
                                             Siguiente
                                             <ChevronRight className="w-4 h-4" />
@@ -1261,53 +1085,51 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                                     </div>
                                 </div>
                             )}
-                        </div>
+                        </section>
                     )}
 
-                    {/* Instructions */}
                     {initialAppointments.length === 0 && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10"
+                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                         >
-                            <h3 className="font-semibold settings-title mb-4">
+                            <h3 className="mb-4 font-semibold settings-title">
                                 Formato del archivo excel
                             </h3>
                             <div className="space-y-3 text-sm settings-subtitle">
                                 <p className="settings-title font-medium">El archivo debe contener las siguientes columnas:</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citead</strong> - Código admisión
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Nom_paciente</strong> - Nombre paciente
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Pactel</strong> - Teléfono
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citfc</strong> - Fecha cita
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Cithor</strong> - Hora cita
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Mednom</strong> - Nombre médico
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Espnom</strong> - Especialidad
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citdoc</strong> - Documento
                                     </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
+                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citobsobs</strong> - Observaciones
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
                     )}
                 </div>
             </div>
         </AdminLayout>
     );
 }
-

@@ -1,9 +1,8 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2, Calendar, UserCircle, Send } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import {
     Dialog,
     DialogClose,
@@ -13,9 +12,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -24,6 +20,26 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import InputError from '@/components/input-error';
+import { cn } from '@/lib/utils';
+import {
+    Activity,
+    Calendar,
+    Edit3,
+    Headphones,
+    KeyRound,
+    Mail,
+    Plus,
+    Search,
+    Send,
+    ShieldCheck,
+    Trash2,
+    UserCircle,
+    Users,
+    X,
+    type LucideIcon,
+} from 'lucide-react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 interface User {
@@ -42,17 +58,101 @@ interface UsersIndexProps {
     users: User[];
 }
 
+interface UserFormData {
+    name: string;
+    email: string;
+    password: string;
+    password_confirmation: string;
+    role: User['role'];
+}
+
+interface MetricCardProps {
+    icon: LucideIcon;
+    label: string;
+    value: string | number;
+    detail: string;
+    active?: boolean;
+}
+
+type RoleFilter = 'all' | User['role'];
+
+function getInitials(name: string) {
+    return name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join('');
+}
+
+function MetricCard({ icon: Icon, label, value, detail, active = false }: MetricCardProps) {
+    return (
+        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+            <div className="flex items-center gap-3">
+                <div
+                    className={cn(
+                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border',
+                        active
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
+                            : 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100'
+                    )}
+                >
+                    <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                    <p className="mt-1 text-lg font-bold leading-tight settings-title">{value}</p>
+                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function RolePill({ role, label }: { role: User['role']; label: string }) {
+    const admin = role === 'admin';
+
+    return (
+        <span
+            className={cn(
+                'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold',
+                admin
+                    ? 'border-[#2e3f84]/20 bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/15 dark:bg-white/[0.06] dark:text-neutral-100'
+                    : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300'
+            )}
+        >
+            {admin ? <ShieldCheck className="h-3.5 w-3.5" /> : <Headphones className="h-3.5 w-3.5" />}
+            {label}
+        </span>
+    );
+}
+
+function OnlinePill({ online, label }: { online: boolean; label: string }) {
+    return (
+        <span
+            className={cn(
+                'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold',
+                online
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-300'
+            )}
+        >
+            <span className={cn('h-2 w-2 rounded-full', online ? 'bg-emerald-500' : 'bg-slate-400')} />
+            {label}
+        </span>
+    );
+}
+
 export default function UsersIndex({ users }: UsersIndexProps) {
     const { t } = useTranslation();
     const [search, setSearch] = useState('');
-    const [roleFilter, setRoleFilter] = useState('all');
+    const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
-
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [userToEdit, setUserToEdit] = useState<User | null>(null);
 
-    const createForm = useForm({
+    const createForm = useForm<UserFormData>({
         name: '',
         email: '',
         password: '',
@@ -60,7 +160,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         role: 'advisor',
     });
 
-    const editForm = useForm({
+    const editForm = useForm<UserFormData>({
         name: '',
         email: '',
         password: '',
@@ -68,63 +168,33 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         role: 'advisor',
     });
 
-    const filteredUsers = users.filter(user => {
-        const matchesSearch = user.name.toLowerCase().includes(search.toLowerCase()) ||
-            user.email.toLowerCase().includes(search.toLowerCase());
-        const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-        return matchesSearch && matchesRole;
-    });
+    const stats = useMemo(() => {
+        const admins = users.filter((user) => user.role === 'admin').length;
+        const advisors = users.filter((user) => user.role === 'advisor').length;
+        const online = users.filter((user) => user.is_online).length;
+        const bulkEnabled = users.filter((user) => user.role === 'advisor' && user.can_bulk_send).length;
 
-    const handleDelete = () => {
-        if (userToDelete) {
-            router.delete(`/admin/users/${userToDelete.id}`, {
-                onSuccess: () => {
-                    setUserToDelete(null);
-                    toast.success('Usuario eliminado');
-                },
-                onError: () => toast.error('Error al eliminar el usuario'),
-            });
-        }
-    };
+        return { admins, advisors, online, bulkEnabled };
+    }, [users]);
 
-    const handleCreate = (e: React.FormEvent) => {
-        e.preventDefault();
-        createForm.post('/admin/users', {
-            onSuccess: () => {
-                setShowCreateModal(false);
-                createForm.reset();
-                toast.success('Usuario creado exitosamente');
-            }
+    const filteredUsers = useMemo(() => {
+        const searchTerm = search.trim().toLowerCase();
+
+        return users.filter((user) => {
+            const matchesSearch = !searchTerm || `${user.name} ${user.email}`.toLowerCase().includes(searchTerm);
+            const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+
+            return matchesSearch && matchesRole;
         });
-    };
+    }, [roleFilter, search, users]);
 
-    const handleEdit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (userToEdit) {
-            editForm.put(`/admin/users/${userToEdit.id}`, {
-                onSuccess: () => {
-                    setShowEditModal(false);
-                    setUserToEdit(null);
-                    toast.success('Usuario actualizado');
-                }
-            });
-        }
-    };
+    const roleOptions: { value: RoleFilter; label: string }[] = [
+        { value: 'all', label: t('common.all') },
+        { value: 'admin', label: t('users.roleFilter.admins') },
+        { value: 'advisor', label: t('users.roleFilter.advisors') },
+    ];
 
-    const openEditModal = (user: User) => {
-        setUserToEdit(user);
-        editForm.setData({
-            name: user.name,
-            email: user.email,
-            password: '',
-            password_confirmation: '',
-            role: user.role,
-        });
-        editForm.clearErrors();
-        setShowEditModal(true);
-    };
-
-    const getRoleLabel = (role: string) => {
+    const getRoleLabel = (role: User['role']) => {
         return role === 'admin' ? t('users.roles.admin') : t('users.roles.advisor');
     };
 
@@ -149,7 +219,81 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             month: 'short',
             year: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+        });
+    };
+
+    const formatCreatedAt = (createdAt: string) => {
+        return new Date(createdAt).toLocaleDateString('es-ES', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        });
+    };
+
+    const handleDelete = () => {
+        if (!userToDelete) return;
+
+        router.delete(`/admin/users/${userToDelete.id}`, {
+            onSuccess: () => {
+                setUserToDelete(null);
+                toast.success('Usuario eliminado');
+            },
+            onError: () => toast.error('Error al eliminar el usuario'),
+        });
+    };
+
+    const handleCreate = (event: FormEvent) => {
+        event.preventDefault();
+        createForm.post('/admin/users', {
+            onSuccess: () => {
+                setShowCreateModal(false);
+                createForm.reset();
+                toast.success('Usuario creado exitosamente');
+            },
+        });
+    };
+
+    const handleEdit = (event: FormEvent) => {
+        event.preventDefault();
+        if (!userToEdit) return;
+
+        editForm.put(`/admin/users/${userToEdit.id}`, {
+            onSuccess: () => {
+                setShowEditModal(false);
+                setUserToEdit(null);
+                toast.success('Usuario actualizado');
+            },
+        });
+    };
+
+    const openEditModal = (user: User) => {
+        setUserToEdit(user);
+        editForm.setData({
+            name: user.name,
+            email: user.email,
+            password: '',
+            password_confirmation: '',
+            role: user.role,
+        });
+        editForm.clearErrors();
+        setShowEditModal(true);
+    };
+
+    const openCreateModal = () => {
+        createForm.reset();
+        createForm.clearErrors();
+        setShowCreateModal(true);
+    };
+
+    const toggleBulkSend = (user: User) => {
+        router.post(`/admin/users/${user.id}/toggle-bulk-send`, {}, {
+            preserveScroll: true,
+            onSuccess: () => toast.success(
+                user.can_bulk_send
+                    ? `Se removió el acceso a Envío masivo de ${user.name}`
+                    : `${user.name} ahora tiene acceso a Envío masivo`
+            ),
         });
     };
 
@@ -158,10 +302,12 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             <Head title={t('users.title')} />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-6" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
+                <div className="mx-auto flex max-w-7xl flex-col gap-5">
+                    <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                                <Users className="h-5 w-5" />
+                            </div>
                             <div>
                                 <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
                                     {t('users.title')}
@@ -170,230 +316,177 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     {t('users.subtitle')}
                                 </p>
                             </div>
-                            <Button
-                                onClick={() => {
-                                    createForm.reset();
-                                    createForm.clearErrors();
-                                    setShowCreateModal(true);
-                                }}
-                                className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
-                                style={{
-                                    backgroundColor: 'var(--primary-base)',
-                                    boxShadow: 'var(--shadow-md)',
-                                    backgroundImage: 'var(--gradient-shine)',
-                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                    padding: '0 var(--space-lg)',
-                                    fontSize: 'var(--text-sm)',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                }}
-                            >
-                                <Plus className="w-4 h-4 mr-2" />
-                                {t('users.newUser')}
-                            </Button>
                         </div>
 
-                        {/* Filtros */}
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 md:p-6 flex flex-wrap gap-4 items-end transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                            <div style={{ flex: '1 1 250px', minWidth: '200px' }}>
-                                <label htmlFor="user-search" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
+                        <Button onClick={openCreateModal} className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary">
+                            <Plus className="mr-2 h-3.5 w-3.5" />
+                            {t('users.newUser')}
+                        </Button>
+                    </header>
+
+                    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <MetricCard icon={Users} label="Usuarios" value={users.length} detail={`${filteredUsers.length} visibles`} />
+                        <MetricCard icon={Activity} label="En línea" value={stats.online} detail="actividad reciente" active={stats.online > 0} />
+                        <MetricCard icon={ShieldCheck} label="Administradores" value={stats.admins} detail="acceso completo" />
+                        <MetricCard icon={Headphones} label="Asesores" value={stats.advisors} detail={`${stats.bulkEnabled} con envío masivo`} />
+                    </section>
+
+                    <section className="card-gradient rounded-lg border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                            <div className="min-w-0 flex-1">
+                                <Label htmlFor="user-search" className="mb-2 block text-xs font-semibold settings-label">
                                     {t('common.search')}
-                                </label>
+                                </Label>
                                 <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 settings-subtitle" />
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 settings-subtitle" />
                                     <Input
                                         id="user-search"
                                         name="user-search"
                                         type="text"
                                         value={search}
-                                        onChange={(e) => setSearch(e.target.value)}
+                                        onChange={(event) => setSearch(event.target.value)}
                                         placeholder={t('users.searchPlaceholder')}
-                                        className="pl-10 settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        style={{
-                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                            fontSize: 'var(--text-sm)',
-                                        }}
+                                        className="h-10 rounded-lg pl-9 pr-9 text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                     />
+                                    {search && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearch('')}
+                                            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[#6b7494] transition-colors hover:bg-black/5 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100"
+                                            aria-label="Limpiar búsqueda"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
-                            <div style={{ flex: '0 1 150px' }}>
-                                <label htmlFor="role-filter" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                    {t('users.role')}
-                                </label>
-                                <select
-                                    id="role-filter"
-                                    name="role-filter"
-                                    value={roleFilter}
-                                    onChange={(e) => setRoleFilter(e.target.value)}
-                                    className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/30"
-                                    style={{
-                                        height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                        fontSize: 'var(--text-sm)',
-                                        padding: '0 2.5rem 0 var(--space-base)',
-                                        appearance: 'none',
-                                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                                        backgroundRepeat: 'no-repeat',
-                                        backgroundPosition: 'right 0.75rem center',
-                                        backgroundSize: '1rem',
-                                    }}
-                                >
-                                    <option value="all">{t('common.all')}</option>
-                                    <option value="admin">{t('users.roleFilter.admins')}</option>
-                                    <option value="advisor">{t('users.roleFilter.advisors')}</option>
-                                </select>
+                            <div className="min-w-0">
+                                <p className="mb-2 text-xs font-semibold settings-label">{t('users.role')}</p>
+                                <div className="inline-flex w-full rounded-lg border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:w-auto">
+                                    {roleOptions.map((option) => (
+                                        <button
+                                            key={option.value}
+                                            type="button"
+                                            onClick={() => setRoleFilter(option.value)}
+                                            className={cn(
+                                                'flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none',
+                                                roleFilter === option.value
+                                                    ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
+                                                    : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
+                                            )}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </section>
 
-                    {/* Lista de Usuarios */}
-                    {filteredUsers.length > 0 && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 overflow-hidden transition-all duration-300 mt-6">
+                    <section className="card-gradient overflow-hidden rounded-lg border border-white/40 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                        <div className="flex flex-col gap-2 border-b border-[#d4d8e8]/80 px-4 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h2 className="text-base font-bold settings-title">Directorio de usuarios</h2>
+                                <p className="mt-1 text-xs settings-subtitle">
+                                    {filteredUsers.length} de {users.length} usuarios
+                                </p>
+                            </div>
+                        </div>
+
+                        {filteredUsers.length > 0 ? (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
+                                <table className="w-full min-w-[900px] text-left">
                                     <thead>
-                                        <tr className="border-b border-border dark:border-[hsl(231,20%,20%)] bg-black/5 dark:bg-white/5">
-                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Usuario
-                                            </th>
-                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                {t('users.role')}
-                                            </th>
-                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Estado
-                                            </th>
-                                            <th className="p-4 font-semibold settings-title whitespace-nowrap text-center" style={{ fontSize: 'var(--text-sm)' }}>
-                                                <div className="flex items-center justify-center gap-1.5">
-                                                    <Send className="w-3.5 h-3.5" />
+                                        <tr className="border-b border-[#d4d8e8]/80 bg-[#f4f5f9]/70 dark:border-white/10 dark:bg-white/[0.04]">
+                                            <th className="px-4 py-3 text-xs font-semibold settings-title">Usuario</th>
+                                            <th className="px-4 py-3 text-xs font-semibold settings-title">{t('users.role')}</th>
+                                            <th className="px-4 py-3 text-xs font-semibold settings-title">Estado</th>
+                                            <th className="px-4 py-3 text-center text-xs font-semibold settings-title">
+                                                <span className="inline-flex items-center justify-center gap-1.5">
+                                                    <Send className="h-3.5 w-3.5" />
                                                     Envío masivo
-                                                </div>
+                                                </span>
                                             </th>
-                                            <th className="p-4 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Registro
-                                            </th>
-                                            <th className="p-4 font-semibold settings-title text-right whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Acciones
-                                            </th>
+                                            <th className="px-4 py-3 text-xs font-semibold settings-title">Registro</th>
+                                            <th className="px-4 py-3 text-right text-xs font-semibold settings-title">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredUsers.map((user) => (
-                                            <tr key={user.id} className="border-b border-border dark:border-[hsl(231,20%,20%)] last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors duration-200">
-                                                <td className="p-4 min-w-[200px]">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium bg-primary text-white flex-shrink-0 shadow-md">
-                                                            {user.name.charAt(0).toUpperCase()}
+                                            <tr key={user.id} className="border-b border-[#d4d8e8]/60 transition-colors last:border-0 hover:bg-white/55 dark:border-white/10 dark:hover:bg-white/[0.04]">
+                                                <td className="px-4 py-3">
+                                                    <div className="flex min-w-0 items-center gap-3">
+                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2e3f84] text-xs font-bold text-white shadow-sm shadow-[#2e3f84]/20">
+                                                            {getInitials(user.name)}
                                                         </div>
                                                         <div className="min-w-0">
-                                                            <h3 className="font-bold settings-title truncate" style={{ fontSize: 'var(--text-md)' }}>
-                                                                {user.name}
-                                                            </h3>
-                                                            <p className="settings-subtitle truncate" style={{ fontSize: 'var(--text-sm)' }}>
-                                                                {user.email}
-                                                            </p>
+                                                            <p className="truncate text-sm font-bold settings-title">{user.name}</p>
+                                                            <p className="truncate text-xs settings-subtitle">{user.email}</p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-4">
-                                                    <Badge
-                                                        className={
-                                                            user.role === 'admin'
-                                                                ? 'chat-message-sent text-white shadow-[0_1px_2px_rgba(46,63,132,0.2),0_2px_4px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.2)] whitespace-nowrap block w-fit'
-                                                                : 'status-badge shadow-[0_1px_2px_rgba(46,63,132,0.06),0_2px_3px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.6)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)] whitespace-nowrap block w-fit'
-                                                        }
-                                                    >
-                                                        {getRoleLabel(user.role)}
-                                                    </Badge>
+                                                <td className="px-4 py-3">
+                                                    <RolePill role={user.role} label={getRoleLabel(user.role)} />
                                                 </td>
-                                                <td className="p-4 whitespace-nowrap">
-                                                    <div className="flex flex-col gap-1">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <div
-                                                                className={`w-2 h-2 rounded-full flex-shrink-0 ${user.is_online
-                                                                    ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]'
-                                                                    : 'bg-gray-400'
-                                                                    }`}
-                                                            />
-                                                            <span className={user.is_online ? 'user-status-online font-medium' : 'user-status-offline'} style={{ fontSize: 'var(--text-sm)' }}>
-                                                                {user.is_online ? t('users.online') : t('users.offline')}
-                                                            </span>
-                                                        </div>
-                                                        {!user.is_online && user.last_activity_at && (
-                                                            <span className="user-last-activity text-muted-foreground" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                {formatLastActivity(user.last_activity_at)}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    {user.role === 'advisor' ? (
-                                                        <button
-                                                            onClick={() => {
-                                                                router.post(`/admin/users/${user.id}/toggle-bulk-send`, {}, {
-                                                                    preserveScroll: true,
-                                                                    onSuccess: () => toast.success(
-                                                                        user.can_bulk_send
-                                                                            ? `Se removió el acceso a Envío masivo de ${user.name}`
-                                                                            : `${user.name} ahora tiene acceso a Envío masivo`
-                                                                    ),
-                                                                });
-                                                            }}
-                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2e3f84]/30 ${
-                                                                user.can_bulk_send ? 'bg-[#2e3f84]' : 'bg-gray-300 dark:bg-gray-600'
-                                                            }`}
-                                                            title={user.can_bulk_send ? 'Desactivar envío masivo' : 'Activar envío masivo'}
-                                                        >
-                                                            <span
-                                                                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${
-                                                                    user.can_bulk_send ? 'translate-x-6' : 'translate-x-1'
-                                                                }`}
-                                                            />
-                                                        </button>
-                                                    ) : (
-                                                        <span className="text-xs text-muted-foreground">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 whitespace-nowrap">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Calendar className="w-4 h-4 settings-subtitle flex-shrink-0" />
-                                                        <span className="settings-subtitle" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            {new Date(user.created_at).toLocaleDateString('es-ES', {
-                                                                day: '2-digit',
-                                                                month: 'short',
-                                                                year: 'numeric'
-                                                            })}
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col gap-1.5">
+                                                        <OnlinePill online={user.is_online} label={user.is_online ? t('users.online') : t('users.offline')} />
+                                                        <span className="text-[11px] settings-subtitle">
+                                                            {user.is_online ? t('users.justNow') : formatLastActivity(user.last_activity_at)}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 text-right">
+                                                <td className="px-4 py-3 text-center">
+                                                    {user.role === 'advisor' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleBulkSend(user)}
+                                                            className={cn(
+                                                                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#2e3f84]/30 focus:ring-offset-2',
+                                                                user.can_bulk_send ? 'bg-[#2e3f84]' : 'bg-slate-300 dark:bg-neutral-700'
+                                                            )}
+                                                            aria-label={user.can_bulk_send ? 'Desactivar envío masivo' : 'Activar envío masivo'}
+                                                            title={user.can_bulk_send ? 'Desactivar envío masivo' : 'Activar envío masivo'}
+                                                        >
+                                                            <span
+                                                                className={cn(
+                                                                    'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
+                                                                    user.can_bulk_send ? 'translate-x-6' : 'translate-x-1'
+                                                                )}
+                                                            />
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-xs settings-subtitle">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2 text-xs settings-subtitle">
+                                                        <Calendar className="h-4 w-4 shrink-0" />
+                                                        <span>{formatCreatedAt(user.created_at)}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
                                                     <div className="flex items-center justify-end gap-2">
                                                         <Button
+                                                            type="button"
                                                             size="sm"
                                                             variant="outline"
                                                             onClick={() => openEditModal(user)}
-                                                            className="settings-btn-secondary rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-[#3e4f94] hover:!to-[#2e3f84] hover:shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_8px_rgba(46,63,132,0.25)] transition-all duration-200"
-                                                            style={{ padding: 'var(--space-xs) 0.5rem' }}
+                                                            className="h-8 w-8 rounded-lg p-0 settings-btn-secondary"
                                                             title={t('common.edit')}
                                                         >
-                                                            <Edit className="w-4 h-4" />
+                                                            <Edit3 className="h-3.5 w-3.5" />
                                                         </Button>
                                                         <Button
+                                                            type="button"
                                                             size="sm"
                                                             variant="outline"
                                                             onClick={() => setUserToDelete(user)}
-                                                            className="rounded-xl hover:!text-white hover:!bg-gradient-to-b hover:!from-red-500 hover:!to-red-600 hover:shadow-[0_2px_4px_rgba(239,68,68,0.2),0_4px_8px_rgba(239,68,68,0.25)] transition-all duration-200 border-gray-200 dark:border-gray-800"
-                                                            style={{ padding: 'var(--space-xs) 0.5rem', color: '#dc2626' }}
+                                                            className="h-8 w-8 rounded-lg border-red-200 p-0 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
                                                             title={t('common.delete')}
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            <Trash2 className="h-3.5 w-3.5" />
                                                         </Button>
                                                     </div>
                                                 </td>
@@ -402,26 +495,18 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    )}
-
-                    {/* Empty State */}
-                    {filteredUsers.length === 0 && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-12 text-center mt-6">
-                            <UserCircle className="w-16 h-16 mx-auto mb-4 settings-subtitle" />
-                            <h3 className="font-bold mb-2 settings-title" style={{ fontSize: 'var(--text-xl)' }}>
-                                {t('users.noUsers')}
-                            </h3>
-                            <p className="mb-6 settings-subtitle" style={{ fontSize: 'var(--text-sm)' }}>
-                                {t('users.noUsersFiltered')}
-                            </p>
-                        </div>
-                    )}
+                        ) : (
+                            <div className="px-4 py-12 text-center">
+                                <UserCircle className="mx-auto mb-4 h-14 w-14 settings-subtitle" />
+                                <h3 className="text-lg font-bold settings-title">{t('users.noUsers')}</h3>
+                                <p className="mx-auto mt-2 max-w-md text-sm settings-subtitle">{t('users.noUsersFiltered')}</p>
+                            </div>
+                        )}
+                    </section>
                 </div>
 
-                {/* Modal de Confirmación */}
-                <Dialog open={!!userToDelete} onOpenChange={() => setUserToDelete(null)}>
-                    <DialogContent className="card-gradient rounded-2xl sm:rounded-2xl border border-white/40 dark:border-white/10 shadow-2xl">
+                <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+                    <DialogContent className="card-gradient rounded-lg border border-white/40 shadow-2xl dark:border-white/10 sm:rounded-lg">
                         <DialogHeader>
                             <DialogTitle className="settings-title">{t('users.deleteConfirm')}</DialogTitle>
                             <DialogDescription className="settings-subtitle">
@@ -431,137 +516,122 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </DialogHeader>
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button variant="outline" className="settings-btn-secondary rounded-xl font-medium">
+                                <Button variant="outline" className="rounded-lg font-medium settings-btn-secondary">
                                     {t('common.cancel')}
                                 </Button>
                             </DialogClose>
-                            <Button
-                                onClick={handleDelete}
-                                className="bg-gradient-to-b from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md rounded-xl font-medium transition-all duration-200 border-0"
-                            >
+                            <Button onClick={handleDelete} className="rounded-lg border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md transition-all duration-200 hover:from-red-600 hover:to-red-700">
                                 {t('common.delete')}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-                {/* Modal de Creación */}
+
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-                    <DialogContent className="sm:max-w-xl card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)] overflow-hidden p-0 gap-0">
-                        <DialogHeader className="px-6 py-4 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                            <DialogTitle className="settings-title flex items-center gap-2 text-xl">
-                                <UserCircle className="w-5 h-5 text-primary" />
+                    <DialogContent className="card-gradient overflow-hidden rounded-lg border border-white/40 p-0 shadow-2xl dark:border-white/10 sm:max-w-xl sm:rounded-lg">
+                        <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
+                            <DialogTitle className="flex items-center gap-2 text-xl settings-title">
+                                <UserCircle className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
                                 {t('users.createTitle')}
                             </DialogTitle>
-                            <DialogDescription className="settings-subtitle text-xs">
+                            <DialogDescription className="text-xs settings-subtitle">
                                 {t('users.createSubtitle')}
                             </DialogDescription>
                         </DialogHeader>
 
-                        <form onSubmit={handleCreate} className="px-6 py-4 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Nombre */}
+                        <form onSubmit={handleCreate} className="space-y-4 px-5 py-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="create-name" className="text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-name" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <UserCircle className="h-3.5 w-3.5" />
                                         {t('users.fullName')}
                                     </Label>
                                     <Input
                                         id="create-name"
                                         type="text"
                                         value={createForm.data.name}
-                                        onChange={(e) => createForm.setData('name', e.target.value)}
+                                        onChange={(event) => createForm.setData('name', event.target.value)}
                                         placeholder={t('users.fullNamePlaceholder')}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={createForm.errors.name} />
                                 </div>
 
-                                {/* Email */}
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="create-email" className="text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-email" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <Mail className="h-3.5 w-3.5" />
                                         {t('auth.email')}
                                     </Label>
                                     <Input
                                         id="create-email"
                                         type="email"
                                         value={createForm.data.email}
-                                        onChange={(e) => createForm.setData('email', e.target.value)}
+                                        onChange={(event) => createForm.setData('email', event.target.value)}
                                         placeholder={t('users.emailPlaceholder')}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={createForm.errors.email} />
                                 </div>
 
-                                {/* Contraseña */}
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="create-password" className="text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-password" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <KeyRound className="h-3.5 w-3.5" />
                                         {t('auth.password')}
                                     </Label>
                                     <Input
                                         id="create-password"
                                         type="password"
                                         value={createForm.data.password}
-                                        onChange={(e) => createForm.setData('password', e.target.value)}
+                                        onChange={(event) => createForm.setData('password', event.target.value)}
                                         placeholder={t('users.passwordPlaceholder')}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={createForm.errors.password} />
                                 </div>
 
-                                {/* Confirmar Contraseña */}
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="create-password-confirm" className="text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-password-confirm" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <KeyRound className="h-3.5 w-3.5" />
                                         {t('users.confirmPassword')}
                                     </Label>
                                     <Input
                                         id="create-password-confirm"
                                         type="password"
                                         value={createForm.data.password_confirmation}
-                                        onChange={(e) => createForm.setData('password_confirmation', e.target.value)}
+                                        onChange={(event) => createForm.setData('password_confirmation', event.target.value)}
                                         placeholder={t('users.confirmPasswordPlaceholder')}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={createForm.errors.password_confirmation} />
                                 </div>
 
-                                {/* Rol */}
                                 <div className="space-y-1.5 md:col-span-2">
-                                    <Label htmlFor="create-role" className="text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-role" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <ShieldCheck className="h-3.5 w-3.5" />
                                         {t('users.role')}
                                     </Label>
-                                    <Select
-                                        value={createForm.data.role}
-                                        onValueChange={(value) => createForm.setData('role', value as 'admin' | 'advisor')}
-                                    >
-                                        <SelectTrigger className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30 h-10 w-full sm:w-1/2">
+                                    <Select value={createForm.data.role} onValueChange={(value) => createForm.setData('role', value as User['role'])}>
+                                        <SelectTrigger className="h-10 w-full rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
-                                        <SelectContent className="card-gradient shadow-lg rounded-xl border border-white/40 dark:border-white/10 p-1">
-                                            <SelectItem value="advisor" className="hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer rounded-lg text-sm">{t('users.roles.advisor')}</SelectItem>
-                                            <SelectItem value="admin" className="hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer rounded-lg text-sm">{t('users.roles.admin')}</SelectItem>
+                                        <SelectContent className="card-gradient rounded-lg border border-white/40 p-1 shadow-lg dark:border-white/10">
+                                            <SelectItem value="advisor" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
+                                            <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <InputError message={createForm.errors.role} />
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-2 pt-4 mt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setShowCreateModal(false)}
-                                    className="settings-btn-secondary rounded-xl text-sm"
-                                >
+                            <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
+                                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)} className="rounded-lg text-sm settings-btn-secondary">
                                     {t('common.cancel')}
                                 </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={createForm.processing}
-                                    className="settings-btn-primary rounded-xl text-sm chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]"
-                                >
+                                <Button type="submit" disabled={createForm.processing} className="rounded-lg text-sm settings-btn-primary disabled:opacity-50">
                                     {createForm.processing ? t('users.creating') : t('users.createUser')}
                                 </Button>
                             </div>
@@ -569,130 +639,116 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     </DialogContent>
                 </Dialog>
 
-                {/* Modal de Edición */}
                 <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-                    <DialogContent className="sm:max-w-xl card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)] overflow-hidden p-0 gap-0">
-                        <DialogHeader className="px-6 py-4 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                            <DialogTitle className="settings-title flex items-center gap-2 text-xl">
-                                <Edit className="w-5 h-5 text-primary" />
+                    <DialogContent className="card-gradient overflow-hidden rounded-lg border border-white/40 p-0 shadow-2xl dark:border-white/10 sm:max-w-xl sm:rounded-lg">
+                        <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
+                            <DialogTitle className="flex items-center gap-2 text-xl settings-title">
+                                <Edit3 className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
                                 {t('users.editTitle')}
                             </DialogTitle>
-                            <DialogDescription className="settings-subtitle text-xs">
+                            <DialogDescription className="text-xs settings-subtitle">
                                 {t('users.editSubtitle')} para {userToEdit?.name}
                             </DialogDescription>
                         </DialogHeader>
 
-                        <form onSubmit={handleEdit} className="px-6 py-4 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Nombre */}
+                        <form onSubmit={handleEdit} className="space-y-4 px-5 py-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="edit-name" className="text-xs font-semibold settings-label">
+                                    <Label htmlFor="edit-name" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <UserCircle className="h-3.5 w-3.5" />
                                         {t('users.fullName')}
                                     </Label>
                                     <Input
                                         id="edit-name"
                                         type="text"
                                         value={editForm.data.name}
-                                        onChange={(e) => editForm.setData('name', e.target.value)}
+                                        onChange={(event) => editForm.setData('name', event.target.value)}
                                         placeholder={t('users.fullNamePlaceholder')}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={editForm.errors.name} />
                                 </div>
 
-                                {/* Email */}
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="edit-email" className="text-xs font-semibold settings-label">
+                                    <Label htmlFor="edit-email" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <Mail className="h-3.5 w-3.5" />
                                         {t('auth.email')}
                                     </Label>
                                     <Input
                                         id="edit-email"
                                         type="email"
                                         value={editForm.data.email}
-                                        onChange={(e) => editForm.setData('email', e.target.value)}
+                                        onChange={(event) => editForm.setData('email', event.target.value)}
                                         placeholder={t('users.emailPlaceholder')}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={editForm.errors.email} />
                                 </div>
 
-                                {/* Contraseña */}
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="edit-password" className="text-xs font-semibold settings-label">
-                                        {t('users.newPassword')} <span className="opacity-60 text-[10px] ml-1">(Opcional)</span>
+                                    <Label htmlFor="edit-password" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <KeyRound className="h-3.5 w-3.5" />
+                                        {t('users.newPassword')} <span className="text-[10px] opacity-60">(Opcional)</span>
                                     </Label>
                                     <Input
                                         id="edit-password"
                                         type="password"
                                         value={editForm.data.password}
-                                        onChange={(e) => editForm.setData('password', e.target.value)}
+                                        onChange={(event) => editForm.setData('password', event.target.value)}
                                         placeholder={t('users.newPasswordPlaceholder')}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                     />
                                     <InputError message={editForm.errors.password} />
                                 </div>
 
-                                {/* Confirmar Contraseña */}
-                                <div className={`space-y-1.5 ${!editForm.data.password && 'opacity-30 pointer-events-none'}`}>
-                                    <Label htmlFor="edit-password-confirm" className="text-xs font-semibold settings-label">
+                                <div className={cn('space-y-1.5 transition-opacity', !editForm.data.password && 'pointer-events-none opacity-35')}>
+                                    <Label htmlFor="edit-password-confirm" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <KeyRound className="h-3.5 w-3.5" />
                                         {t('users.confirmNewPassword')}
                                     </Label>
                                     <Input
                                         id="edit-password-confirm"
                                         type="password"
                                         value={editForm.data.password_confirmation}
-                                        onChange={(e) => editForm.setData('password_confirmation', e.target.value)}
+                                        onChange={(event) => editForm.setData('password_confirmation', event.target.value)}
                                         placeholder={t('users.confirmNewPasswordPlaceholder')}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required={!!editForm.data.password}
                                     />
                                     <InputError message={editForm.errors.password_confirmation} />
                                 </div>
 
-                                {/* Rol */}
                                 <div className="space-y-1.5 md:col-span-2">
-                                    <Label htmlFor="edit-role" className="text-xs font-semibold settings-label">
+                                    <Label htmlFor="edit-role" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                        <ShieldCheck className="h-3.5 w-3.5" />
                                         {t('users.role')}
                                     </Label>
-                                    <Select
-                                        value={editForm.data.role}
-                                        onValueChange={(value) => editForm.setData('role', value as 'admin' | 'advisor')}
-                                    >
-                                        <SelectTrigger className="settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm focus:ring-2 focus:ring-[#2e3f84]/30 h-10 w-full sm:w-1/2">
+                                    <Select value={editForm.data.role} onValueChange={(value) => editForm.setData('role', value as User['role'])}>
+                                        <SelectTrigger className="h-10 w-full rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
-                                        <SelectContent className="card-gradient shadow-lg rounded-xl border border-white/40 dark:border-white/10 p-1">
-                                            <SelectItem value="advisor" className="hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer rounded-lg text-sm">{t('users.roles.advisor')}</SelectItem>
-                                            <SelectItem value="admin" className="hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer rounded-lg text-sm">{t('users.roles.admin')}</SelectItem>
+                                        <SelectContent className="card-gradient rounded-lg border border-white/40 p-1 shadow-lg dark:border-white/10">
+                                            <SelectItem value="advisor" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
+                                            <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <InputError message={editForm.errors.role} />
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-2 pt-4 mt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setShowEditModal(false)}
-                                    className="settings-btn-secondary rounded-xl text-sm"
-                                >
+                            <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
+                                <Button type="button" variant="outline" onClick={() => setShowEditModal(false)} className="rounded-lg text-sm settings-btn-secondary">
                                     {t('common.cancel')}
                                 </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={editForm.processing}
-                                    className="settings-btn-primary rounded-xl text-sm chat-message-sent text-white shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]"
-                                >
+                                <Button type="submit" disabled={editForm.processing} className="rounded-lg text-sm settings-btn-primary disabled:opacity-50">
                                     {editForm.processing ? t('common.saving') : t('users.saveChanges')}
                                 </Button>
                             </div>
                         </form>
                     </DialogContent>
                 </Dialog>
-
             </div>
         </AdminLayout>
     );

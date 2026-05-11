@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2, RefreshCw, FilePlus2, Shield, Megaphone, Key, Globe, Image, Video, FileText, ArrowRight, Columns3 } from 'lucide-react';
+import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2, RefreshCw, FilePlus2, Shield, Megaphone, Key, Globe, Image, Video, FileText, ArrowRight, Columns3, type LucideIcon } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -88,6 +88,39 @@ interface BulkSendsProps {
     allTemplates: TemplateRecord[];
 }
 
+interface MetricCardProps {
+    icon: LucideIcon;
+    label: string;
+    value: string | number;
+    detail: string;
+    tone?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+}
+
+const toneClasses: Record<NonNullable<MetricCardProps['tone']>, string> = {
+    primary: 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100',
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
+    danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300',
+    info: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300',
+};
+
+function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
+    return (
+        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+            <div className="flex items-center gap-3">
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
+                    <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                    <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
+                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgress, whatsappTemplates, allTemplates }: BulkSendsProps) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'send' | 'templates'>('send');
@@ -111,6 +144,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [extraColumns, setExtraColumns] = useState<string[]>([]);
     const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
     const [historySearch, setHistorySearch] = useState('');
+    const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'processing' | 'completed' | 'failed' | 'cancelled'>('all');
     const [searchResults, setSearchResults] = useState<BulkSendRecord[] | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,6 +185,45 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     }, [historySearch]);
 
     const filteredBulkSends = searchResults ?? bulkSends;
+    const visibleBulkSends = useMemo(() => {
+        if (historyStatusFilter === 'all') return filteredBulkSends;
+        return filteredBulkSends.filter((bulkSend) => bulkSend.status === historyStatusFilter);
+    }, [filteredBulkSends, historyStatusFilter]);
+
+    const sendMetrics = useMemo(() => {
+        const totalRecipients = bulkSends.reduce((sum, item) => sum + item.total_recipients, 0);
+        const sentRecipients = bulkSends.reduce((sum, item) => sum + item.sent_count, 0);
+        const failedRecipients = bulkSends.reduce((sum, item) => sum + item.failed_count, 0);
+        const pendingRecipients = Math.max(0, totalRecipients - sentRecipients - failedRecipients);
+        const completedSends = bulkSends.filter((item) => item.status === 'completed' || item.status === 'sent').length;
+        const processingSends = bulkSends.filter((item) => item.status === 'processing').length;
+        const blockedSends = bulkSends.filter((item) => item.status === 'failed' || item.status === 'cancelled').length;
+
+        return {
+            totalSends: bulkSends.length,
+            totalRecipients,
+            sentRecipients,
+            failedRecipients,
+            pendingRecipients,
+            completedSends,
+            processingSends,
+            blockedSends,
+            successRate: totalRecipients > 0 ? Math.round((sentRecipients / totalRecipients) * 100) : 0,
+        };
+    }, [bulkSends]);
+
+    const templateMetrics = useMemo(() => {
+        const approved = allTemplates.filter((template) => template.status === 'APPROVED' && template.is_active).length;
+        const pending = allTemplates.filter((template) => template.status === 'PENDING').length;
+        const rejected = allTemplates.filter((template) => template.status === 'REJECTED').length;
+
+        return { approved, pending, rejected, usable: whatsappTemplates.length };
+    }, [allTemplates, whatsappTemplates.length]);
+
+    const getProgress = useCallback((bulkSend: BulkSendRecord) => {
+        if (bulkSend.total_recipients === 0) return 0;
+        return Math.min(100, Math.round(((bulkSend.sent_count + bulkSend.failed_count) / bulkSend.total_recipients) * 100));
+    }, []);
 
     // Detect {{N}} placeholders in selected template's preview_text
     const templatePlaceholders = useMemo(() => {
@@ -603,115 +676,149 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             <Head title="Envío Masivo" />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header + Tabs */}
-                    <div className="mb-6 flex flex-col gap-[var(--space-md)]">
-                        <div>
-                            <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                                Envío Masivo
-                            </h1>
-                            <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                Envía mensajes de WhatsApp a múltiples números usando templates aprobados
-                            </p>
+                <div className="mx-auto flex max-w-7xl flex-col gap-5">
+                    <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                                <Send className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
+                                    Envío masivo
+                                </h1>
+                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                                    Campañas, plantillas aprobadas, progreso y resultados de destinatarios.
+                                </p>
+                            </div>
                         </div>
-                        <div className="flex gap-1 bg-muted/50 p-1 rounded-xl w-fit">
+
+                        <div className="flex w-full gap-1 rounded-lg border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:w-fit">
                             <button
                                 onClick={() => setActiveTab('send')}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 sm:flex-none ${
                                     activeTab === 'send'
-                                        ? 'bg-white dark:bg-gray-800 shadow-sm text-foreground'
-                                        : 'text-muted-foreground hover:text-foreground'
+                                        ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
+                                        : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
                                 }`}
                             >
-                                <Send className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+                                <Send className="h-4 w-4" />
                                 Enviar
                             </button>
                             <button
                                 onClick={() => setActiveTab('templates')}
-                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 sm:flex-none ${
                                     activeTab === 'templates'
-                                        ? 'bg-white dark:bg-gray-800 shadow-sm text-foreground'
-                                        : 'text-muted-foreground hover:text-foreground'
+                                        ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
+                                        : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
                                 }`}
                             >
-                                <MessageSquareText className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
+                                <MessageSquareText className="h-4 w-4" />
                                 Plantillas ({allTemplates.length})
                             </button>
                         </div>
+                    </header>
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <MetricCard
+                            icon={Clock}
+                            label="Campañas"
+                            value={sendMetrics.totalSends.toLocaleString()}
+                            detail={`${sendMetrics.completedSends} completadas · ${sendMetrics.processingSends} activas`}
+                        />
+                        <MetricCard
+                            icon={Phone}
+                            label="Destinatarios"
+                            value={sendMetrics.totalRecipients.toLocaleString()}
+                            detail={`${sendMetrics.sentRecipients.toLocaleString()} enviados · ${sendMetrics.pendingRecipients.toLocaleString()} pendientes`}
+                            tone="success"
+                        />
+                        <MetricCard
+                            icon={AlertCircle}
+                            label="Errores"
+                            value={sendMetrics.failedRecipients.toLocaleString()}
+                            detail={`${sendMetrics.blockedSends} campañas fallidas o canceladas`}
+                            tone="danger"
+                        />
+                        <MetricCard
+                            icon={MessageSquareText}
+                            label="Plantillas útiles"
+                            value={templateMetrics.usable.toLocaleString()}
+                            detail={`${templateMetrics.pending} en revisión · ${templateMetrics.rejected} rechazadas`}
+                            tone="info"
+                        />
                     </div>
 
-                    {/* Alertas */}
-                    <div className="mb-6 space-y-4">
+                    <div className="space-y-2">
                         {error && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-                                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                                <p className="text-sm text-red-700">{error}</p>
-                                <button onClick={() => setError('')} className="ml-auto">
-                                    <X className="w-4 h-4 text-red-500" />
+                            <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                <p className="text-sm font-medium">{error}</p>
+                                <button onClick={() => setError('')} className="ml-auto rounded-md p-1 hover:bg-red-100 dark:hover:bg-red-900/40">
+                                    <X className="h-4 w-4" />
                                 </button>
                             </div>
                         )}
 
                         {success && (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-                                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                                <p className="text-sm text-green-700">{success}</p>
-                                <button onClick={() => setSuccess('')} className="ml-auto">
-                                    <X className="w-4 h-4 text-green-500" />
+                            <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
+                                <p className="text-sm font-medium">{success}</p>
+                                <button onClick={() => setSuccess('')} className="ml-auto rounded-md p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900/40">
+                                    <X className="h-4 w-4" />
                                 </button>
                             </div>
                         )}
                     </div>
 
                     {activeTab === 'send' && (<>
-                    {/* Progreso activo */}
                     {isProcessing && activeProgress && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 mb-6 transition-all duration-300">
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                                    <h3 className="font-semibold settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                                        Envío en progreso: {activeProgress.name}
-                                    </h3>
+                        <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-4 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/25">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-300" />
+                                        <h3 className="truncate text-base font-bold text-sky-950 dark:text-sky-100">
+                                            {activeProgress.name || 'Envío en progreso'}
+                                        </h3>
+                                    </div>
+                                    <p className="mt-1 truncate text-xs font-medium text-sky-700 dark:text-sky-300">
+                                        {activeProgress.template_name} · {activeProgress.percentage}% procesado
+                                    </p>
                                 </div>
                                 <Button
                                     variant="destructive"
                                     size="sm"
                                     onClick={() => handleCancel(activeProgress.id)}
-                                    className="rounded-xl"
+                                    className="h-9 rounded-lg"
                                 >
-                                    <StopCircle className="w-4 h-4 mr-1" />
+                                    <StopCircle className="mr-1.5 h-4 w-4" />
                                     Cancelar
                                 </Button>
                             </div>
 
-                            <div className="space-y-2">
-                                <div className="w-full bg-blue-200 rounded-full h-3">
+                            <div className="mt-4 space-y-3">
+                                <div className="h-2.5 w-full overflow-hidden rounded-full bg-sky-200 dark:bg-sky-900/70">
                                     <div
-                                        className="bg-blue-600 h-3 rounded-full transition-all duration-500"
+                                        className="h-full rounded-full bg-sky-600 transition-all duration-500"
                                         style={{ width: `${activeProgress.percentage}%` }}
                                     />
                                 </div>
-                                <div className="flex justify-between text-sm text-blue-800 font-medium">
-                                    <span>Template: {activeProgress.template_name}</span>
-                                    <span>{activeProgress.percentage}%</span>
-                                </div>
-                                <div className="grid grid-cols-4 gap-3 mt-4">
-                                    <div className="text-center p-3 bg-blue-50/50 rounded">
-                                        <div className="text-xl font-bold text-blue-900">{activeProgress.total}</div>
-                                        <div className="text-xs text-blue-700 uppercase tracking-wide">Total</div>
+                                <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                                    <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-background/40">
+                                        <div className="text-lg font-bold text-sky-950 dark:text-sky-100">{activeProgress.total.toLocaleString()}</div>
+                                        <div className="text-xs font-semibold uppercase text-sky-700 dark:text-sky-300">Total</div>
                                     </div>
-                                    <div className="text-center p-3 bg-green-50/50 rounded">
-                                        <div className="text-xl font-bold text-green-700">{activeProgress.sent}</div>
-                                        <div className="text-xs text-green-600 uppercase tracking-wide">Enviados</div>
+                                    <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-background/40">
+                                        <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{activeProgress.sent.toLocaleString()}</div>
+                                        <div className="text-xs font-semibold uppercase text-muted-foreground">Enviados</div>
                                     </div>
-                                    <div className="text-center p-3 bg-red-50/50 rounded">
-                                        <div className="text-xl font-bold text-red-700">{activeProgress.failed}</div>
-                                        <div className="text-xs text-red-600 uppercase tracking-wide">Fallidos</div>
+                                    <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-background/40">
+                                        <div className="text-lg font-bold text-red-600 dark:text-red-300">{activeProgress.failed.toLocaleString()}</div>
+                                        <div className="text-xs font-semibold uppercase text-muted-foreground">Fallidos</div>
                                     </div>
-                                    <div className="text-center p-3 bg-yellow-50/50 rounded">
-                                        <div className="text-xl font-bold text-yellow-700">{activeProgress.pending}</div>
-                                        <div className="text-xs text-yellow-600 uppercase tracking-wide">Pendientes</div>
+                                    <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-background/40">
+                                        <div className="text-lg font-bold text-amber-700 dark:text-amber-300">{activeProgress.pending.toLocaleString()}</div>
+                                        <div className="text-xs font-semibold uppercase text-muted-foreground">Pendientes</div>
                                     </div>
                                 </div>
                             </div>
@@ -720,18 +827,20 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                     {/* Formulario de envío */}
                     {!isProcessing && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--space-lg)] mb-8">
+                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.72fr)]">
 
                             {/* Columna izquierda: Template y destinatarios */}
-                            <div className="space-y-[var(--space-lg)]">
+                            <div className="space-y-4">
                                 {/* Seleccionar Template */}
-                                <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                    <h2 className="font-semibold flex items-center gap-2 mb-4 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                                        <MessageSquareText className="w-5 h-5" />
-                                        Seleccionar Plantilla
+                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                    <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-800/60">
+                                            <MessageSquareText className="h-4 w-4" />
+                                        </span>
+                                        Plantilla y variables
                                     </h2>
 
-                                    <div className="space-y-4">
+                                    <div className="space-y-3">
                                         <div>
                                             <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                                 Nombre descriptivo del envío (opcional)
@@ -977,9 +1086,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
 
                                 {/* Subir archivo */}
-                                <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                    <h2 className="font-semibold flex items-center gap-2 mb-4 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                                        <Upload className="w-5 h-5" />
+                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                    <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:ring-sky-800/60">
+                                            <Upload className="h-4 w-4" />
+                                        </span>
                                         Cargar destinatarios
                                     </h2>
 
@@ -987,9 +1098,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         onDrop={handleDrop}
                                         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                                         onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-                                        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors space-y-3 ${isDragging
+                                        className={`cursor-pointer space-y-3 rounded-xl border border-dashed p-5 text-center transition-colors ${isDragging
                                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
-                                                : 'border-gray-300 hover:border-gray-400 dark:border-gray-600'
+                                            : 'border-border/70 bg-background/40 hover:border-primary/40 hover:bg-muted/30'
                                             }`}
                                         onClick={() => document.getElementById('bulk-file-input')?.click()}
                                     >
@@ -1008,7 +1119,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         ) : (
                                             <>
                                                 <div className="flex justify-center">
-                                                    <FileSpreadsheet className="w-10 h-10 text-muted-foreground" />
+                                                    <FileSpreadsheet className="h-9 w-9 text-muted-foreground" />
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-foreground">
@@ -1037,13 +1148,15 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
 
                                 {/* Agregar manual */}
-                                <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                    <h2 className="font-semibold flex items-center gap-2 mb-4 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                                        <Phone className="w-5 h-5" />
+                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                    <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-800/60">
+                                            <Phone className="h-4 w-4" />
+                                        </span>
                                         Agregar número
                                     </h2>
 
-                                    <div className="flex gap-2">
+                                    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                                         <input
                                             type="text"
                                             value={manualPhone}
@@ -1074,51 +1187,51 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             </div>
 
                             {/* Columna derecha: Vista previa de destinatarios */}
-                            <div className="space-y-[var(--space-lg)]">
-                                <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 h-full flex flex-col transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h2 className="font-semibold settings-title" style={{ fontSize: 'var(--text-lg)' }}>
+                            <div className="space-y-4">
+                                <div className="flex h-full min-h-[460px] flex-col rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <h2 className="text-base font-bold settings-title">
                                             Destinatarios ({recipients.length})
                                         </h2>
                                         {recipients.length > 0 && (
-                                            <Button variant="ghost" size="sm" onClick={clearRecipients} className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl">
-                                                <Trash2 className="w-4 h-4 mr-1" />
+                                            <Button variant="ghost" size="sm" onClick={clearRecipients} className="h-8 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30">
+                                                <Trash2 className="mr-1 h-4 w-4" />
                                                 Limpiar
                                             </Button>
                                         )}
                                     </div>
 
                                     {recipients.length === 0 ? (
-                                        <div className="text-center py-12 text-muted-foreground flex-1 flex flex-col items-center justify-center">
-                                            <Send className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                        <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/40 py-12 text-center text-muted-foreground">
+                                            <Send className="mx-auto mb-3 h-10 w-10 opacity-20" />
                                             <p className="text-sm">No hay destinatarios aún</p>
                                         </div>
                                     ) : (
-                                        <div className="flex-1 max-h-[500px] overflow-y-auto mb-4 border border-gray-200 dark:border-gray-800 rounded-xl bg-background/50">
+                                        <div className="mb-4 max-h-[520px] flex-1 overflow-y-auto rounded-xl border border-border/60 bg-background/50 custom-scrollbar-light">
                                             {recipients.map((r, index) => (
                                                 <div
                                                     key={index}
-                                                    className="flex items-center justify-between py-2 px-3 border-b border-gray-100 dark:border-gray-800 last:border-0 hover:bg-muted/50 text-sm"
+                                                    className="flex items-center justify-between gap-3 border-b border-border/40 px-3 py-2 text-sm last:border-0 hover:bg-muted/50"
                                                 >
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="text-xs text-muted-foreground w-6 text-right">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex min-w-0 items-center gap-2">
+                                                            <span className="w-6 text-right text-xs text-muted-foreground">
                                                             {index + 1}
-                                                        </span>
-                                                        <span className="font-mono font-medium">{r.phone}</span>
-                                                        {r.name && (
-                                                            <span className="text-muted-foreground">— {r.name}</span>
-                                                        )}
-                                                        {r.params && Object.keys(r.params).length > 0 && (
-                                                            <span className="text-xs text-blue-500 ml-1">
-                                                                ({Object.values(r.params).join(', ')})
                                                             </span>
+                                                            <span className="truncate font-mono font-medium">{r.phone}</span>
+                                                        </div>
+                                                        {r.name && <p className="ml-8 truncate text-xs text-muted-foreground">{r.name}</p>}
+                                                        {r.params && Object.keys(r.params).length > 0 && (
+                                                            <p className="ml-8 truncate text-xs text-blue-500">
+                                                                ({Object.values(r.params).join(', ')})
+                                                            </p>
                                                         )}
                                                     </div>
                                                     <button
                                                         onClick={() => removeRecipient(index)}
-                                                        className="text-red-400 hover:text-red-600 p-1"
+                                                        className="rounded-md p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
                                                     >
-                                                        <X className="w-4 h-4" />
+                                                        <X className="h-4 w-4" />
                                                     </button>
                                                 </div>
                                             ))}
@@ -1174,107 +1287,171 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                         </div>
                     )}
 
-                    {/* Historial de envíos - Estilo Card Gradient */}
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-                            <h2 className="font-semibold flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                                <Clock className="w-5 h-5" />
-                                Historial de envíos ({filteredBulkSends.length})
-                            </h2>
-                            <div className="relative">
-                                {isSearching ? (
-                                    <Loader2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-primary animate-spin" />
-                                ) : (
-                                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                )}
-                                <Input
-                                    value={historySearch}
-                                    onChange={(e) => setHistorySearch(e.target.value)}
-                                    placeholder="Buscar por nombre, teléfono, template, destinatario..."
-                                    className="pl-9 h-9 text-sm rounded-xl w-full sm:w-80"
-                                />
+                    <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div>
+                                <h2 className="flex items-center gap-2 text-base font-bold settings-title">
+                                    <Clock className="h-4 w-4" />
+                                    Historial de envíos
+                                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                                        {visibleBulkSends.length.toLocaleString()}
+                                    </span>
+                                </h2>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {historySearch.trim() ? 'Resultados por campaña, plantilla, teléfono o destinatario.' : 'Ordenado desde el envío más reciente.'}
+                                </p>
+                            </div>
+                            <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                                <div className="flex flex-wrap gap-1 rounded-xl bg-muted/50 p-1">
+                                    {([
+                                        { value: 'all' as const, label: 'Todos', count: filteredBulkSends.length },
+                                        { value: 'processing' as const, label: 'En cola', count: filteredBulkSends.filter((item) => item.status === 'processing').length },
+                                        { value: 'completed' as const, label: 'Completados', count: filteredBulkSends.filter((item) => item.status === 'completed').length },
+                                        { value: 'failed' as const, label: 'Fallidos', count: filteredBulkSends.filter((item) => item.status === 'failed').length },
+                                        { value: 'cancelled' as const, label: 'Cancelados', count: filteredBulkSends.filter((item) => item.status === 'cancelled').length },
+                                    ]).map((filter) => (
+                                        <button
+                                            key={filter.value}
+                                            onClick={() => setHistoryStatusFilter(filter.value)}
+                                            className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                                                historyStatusFilter === filter.value
+                                                    ? 'bg-white text-foreground shadow-sm dark:bg-gray-800'
+                                                    : 'text-muted-foreground hover:text-foreground'
+                                            }`}
+                                        >
+                                            {filter.label} {filter.count > 0 ? filter.count : ''}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="relative min-w-0 md:w-80">
+                                    {isSearching ? (
+                                        <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-primary" />
+                                    ) : (
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                    )}
+                                    <Input
+                                        value={historySearch}
+                                        onChange={(e) => setHistorySearch(e.target.value)}
+                                        placeholder="Buscar nombre, teléfono o plantilla"
+                                        className="h-9 w-full rounded-xl pl-9 text-sm"
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        {filteredBulkSends.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-6">
-                                {isSearching ? 'Buscando...' : historySearch.trim() ? 'No se encontraron resultados' : 'No hay envíos masivos registrados'}
-                            </p>
+                        {visibleBulkSends.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-border/70 bg-background/40 py-10 text-center">
+                                <Search className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    {isSearching ? 'Buscando...' : historySearch.trim() ? 'No se encontraron resultados' : 'No hay envíos masivos registrados'}
+                                </p>
+                            </div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
+                            <div className="overflow-x-auto rounded-xl border border-border/60">
+                                <table className="w-full min-w-[980px] text-sm">
+                                    <thead className="bg-muted/40">
                                         <tr className="border-b border-border/50">
-                                            <th className="text-left py-3 px-3 font-semibold text-foreground/70">Nombre</th>
-                                            <th className="text-left py-3 px-3 font-semibold text-foreground/70">Template</th>
-                                            <th className="text-center py-3 px-3 font-semibold text-foreground/70">Estado</th>
-                                            <th className="text-center py-3 px-3 font-semibold text-foreground/70">Total</th>
-                                            <th className="text-center py-3 px-3 font-semibold text-foreground/70">Enviados</th>
-                                            <th className="text-center py-3 px-3 font-semibold text-foreground/70">Fallidos</th>
-                                            <th className="text-left py-3 px-3 font-semibold text-foreground/70">Creado por</th>
-                                            <th className="text-left py-3 px-3 font-semibold text-foreground/70">Fecha</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Envío</th>
+                                            <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Estado</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Progreso</th>
+                                            <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Resultado</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Responsable</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Fecha</th>
+                                            <th className="px-3 py-2.5 text-right text-xs font-bold uppercase text-muted-foreground">Acción</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredBulkSends.map((bs) => {
+                                        {visibleBulkSends.map((bs) => {
                                             const status = statusLabel(bs.status);
+                                            const progress = getProgress(bs);
+                                            const pending = Math.max(0, bs.total_recipients - bs.sent_count - bs.failed_count);
                                             const hasMatches = bs.matching_recipients && bs.matching_recipients.length > 0;
                                             return (
                                                 <React.Fragment key={bs.id}>
                                                     <tr
-                                                        className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                                                        className="cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/30"
                                                         onClick={() => router.visit(`/admin/bulk-sends/${bs.id}`)}
                                                     >
-                                                        <td className="py-3 px-3 font-medium text-primary hover:underline">{bs.name || '—'}</td>
-                                                        <td className="py-3 px-3 font-mono text-xs text-muted-foreground">{bs.template_name}</td>
-                                                        <td className="py-3 px-3 text-center">
-                                                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${status.color}`}>
+                                                        <td className="px-3 py-3">
+                                                            <p className="max-w-[260px] truncate font-semibold text-primary hover:underline">{bs.name || 'Sin nombre'}</p>
+                                                            <p className="mt-0.5 max-w-[260px] truncate font-mono text-xs text-muted-foreground">{bs.template_name}</p>
+                                                        </td>
+                                                        <td className="px-3 py-3 text-center">
+                                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${status.color}`}>
                                                                 {status.text}
                                                             </span>
                                                         </td>
-                                                        <td className="py-3 px-3 text-center font-medium">{bs.total_recipients}</td>
-                                                        <td className="py-3 px-3 text-center text-green-600 font-bold">{bs.sent_count}</td>
-                                                        <td className="py-3 px-3 text-center text-red-600 font-bold">{bs.failed_count}</td>
-                                                        <td className="py-3 px-3 text-muted-foreground">{bs.created_by_name}</td>
-                                                        <td className="py-3 px-3 text-muted-foreground text-xs">{bs.created_at}</td>
+                                                        <td className="px-3 py-3">
+                                                            <div className="flex items-center justify-between gap-3 text-xs font-semibold text-muted-foreground">
+                                                                <span>{progress}%</span>
+                                                                <span>{bs.total_recipients.toLocaleString()} total</span>
+                                                            </div>
+                                                            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+                                                                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-3 text-center">
+                                                            <div className="inline-grid grid-cols-3 overflow-hidden rounded-lg border border-border/60 text-xs">
+                                                                <span className="bg-emerald-50 px-2 py-1 font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">{bs.sent_count}</span>
+                                                                <span className="bg-red-50 px-2 py-1 font-bold text-red-700 dark:bg-red-950/30 dark:text-red-300">{bs.failed_count}</span>
+                                                                <span className="bg-amber-50 px-2 py-1 font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">{pending}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-3 text-muted-foreground">{bs.created_by_name}</td>
+                                                        <td className="px-3 py-3 text-xs text-muted-foreground">{bs.created_at}</td>
+                                                        <td className="px-3 py-3 text-right">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-8 rounded-lg"
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    router.visit(`/admin/bulk-sends/${bs.id}`);
+                                                                }}
+                                                            >
+                                                                <Eye className="mr-1.5 h-4 w-4" />
+                                                                Ver
+                                                            </Button>
+                                                        </td>
                                                     </tr>
                                                     {hasMatches && (
                                                         <tr key={`${bs.id}-matches`}>
-                                                            <td colSpan={8} className="p-0">
-                                                                <div className="bg-muted/40 dark:bg-muted/20 border-b border-border/50 px-4 py-3">
-                                                                    <p className="text-xs font-semibold text-primary/80 mb-2 flex items-center gap-1.5">
-                                                                        <Eye className="w-3.5 h-3.5" />
+                                                            <td colSpan={7} className="border-b border-border/50 bg-muted/25 p-0">
+                                                                <div className="px-4 py-3">
+                                                                    <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-primary/80">
+                                                                        <Eye className="h-3.5 w-3.5" />
                                                                         {bs.matching_recipients!.length} destinatario{bs.matching_recipients!.length !== 1 ? 's' : ''} encontrado{bs.matching_recipients!.length !== 1 ? 's' : ''}
                                                                     </p>
-                                                                    <table className="w-full text-xs">
-                                                                        <thead>
-                                                                            <tr className="text-muted-foreground">
-                                                                                <th className="text-left py-1 px-2 font-medium">Nombre</th>
-                                                                                <th className="text-left py-1 px-2 font-medium">Teléfono</th>
-                                                                                <th className="text-center py-1 px-2 font-medium">Estado</th>
-                                                                                <th className="text-left py-1 px-2 font-medium">Enviado</th>
-                                                                                <th className="text-left py-1 px-2 font-medium">Error</th>
-                                                                            </tr>
-                                                                        </thead>
-                                                                        <tbody>
-                                                                            {bs.matching_recipients!.map((r) => {
-                                                                                const rStatus = statusLabel(r.status);
-                                                                                return (
-                                                                                    <tr key={r.id} className="border-t border-border/30">
-                                                                                        <td className="py-1.5 px-2 text-foreground">{r.contact_name || '—'}</td>
-                                                                                        <td className="py-1.5 px-2 font-mono text-foreground font-medium">{r.phone_number}</td>
-                                                                                        <td className="py-1.5 px-2 text-center">
-                                                                                            <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${rStatus.color}`}>
-                                                                                                {rStatus.text}
-                                                                                            </span>
-                                                                                        </td>
-                                                                                        <td className="py-1.5 px-2 text-muted-foreground">{r.sent_at || '—'}</td>
-                                                                                        <td className="py-1.5 px-2 text-red-500 max-w-[200px] truncate">{r.error || '—'}</td>
-                                                                                    </tr>
-                                                                                );
-                                                                            })}
-                                                                        </tbody>
-                                                                    </table>
+                                                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                                                        {bs.matching_recipients!.map((recipient) => {
+                                                                            const recipientStatus = statusLabel(recipient.status);
+                                                                            return (
+                                                                                <button
+                                                                                    key={recipient.id}
+                                                                                    type="button"
+                                                                                    onClick={() => router.visit(`/admin/bulk-sends/${bs.id}`)}
+                                                                                    className="rounded-lg border border-border/60 bg-background/70 p-3 text-left transition-colors hover:border-primary/40 hover:bg-background"
+                                                                                >
+                                                                                    <div className="flex items-start justify-between gap-2">
+                                                                                        <div className="min-w-0">
+                                                                                            <p className="truncate text-sm font-semibold text-foreground">{recipient.contact_name || 'Sin nombre'}</p>
+                                                                                            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{recipient.phone_number}</p>
+                                                                                        </div>
+                                                                                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${recipientStatus.color}`}>
+                                                                                            {recipientStatus.text}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="mt-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs">
+                                                                                        {recipient.error ? (
+                                                                                            <p className="line-clamp-2 text-red-600 dark:text-red-300" title={recipient.error}>{recipient.error}</p>
+                                                                                        ) : (
+                                                                                            <p className="text-muted-foreground">Sin error registrado · {recipient.sent_at || 'sin fecha de envío'}</p>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
                                                                 </div>
                                                             </td>
                                                         </tr>
@@ -1290,35 +1467,58 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     </>)}
 
                     {activeTab === 'templates' && (
-                        <div className="space-y-6">
-                            {/* Actions bar */}
-                            <div className="flex flex-wrap items-center gap-3">
+                        <div className="space-y-4">
+                            <div className="grid gap-3 md:grid-cols-4">
+                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Registradas</p>
+                                    <p className="mt-2 text-2xl font-bold text-foreground">{allTemplates.length.toLocaleString()}</p>
+                                </div>
+                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Aprobadas</p>
+                                    <p className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-300">{templateMetrics.approved.toLocaleString()}</p>
+                                </div>
+                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">En revisión</p>
+                                    <p className="mt-2 text-2xl font-bold text-amber-700 dark:text-amber-300">{templateMetrics.pending.toLocaleString()}</p>
+                                </div>
+                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Usables en envío</p>
+                                    <p className="mt-2 text-2xl font-bold text-foreground">{templateMetrics.usable.toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div>
+                                    <h2 className="text-base font-bold settings-title">Catálogo de plantillas</h2>
+                                    <p className="mt-1 text-xs text-muted-foreground">Estados de Meta y acciones de sincronización.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                     onClick={() => setShowCreateModal(true)}
-                                    className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
+                                    className="h-9 rounded-lg border-0 font-semibold text-white transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--primary-base)',
                                         backgroundImage: 'var(--gradient-shine)',
                                     }}
                                 >
-                                    <FilePlus2 className="w-4 h-4 mr-2" />
+                                    <FilePlus2 className="mr-2 h-4 w-4" />
                                     Crear Plantilla
                                 </Button>
                                 <Button
                                     variant="outline"
                                     onClick={handleSyncTemplates}
                                     disabled={isSyncing}
-                                    className="rounded-xl"
+                                    className="h-9 rounded-lg"
                                 >
-                                    <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                                    <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                                     {isSyncing ? 'Sincronizando...' : 'Sincronizar con Meta'}
                                 </Button>
+                                </div>
                             </div>
 
-                            {/* Templates list */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 transition-all duration-300">
-                                <h2 className="font-semibold flex items-center gap-2 mb-4 settings-title" style={{ fontSize: 'var(--text-lg)' }}>
-                                    <MessageSquareText className="w-5 h-5" />
+                            <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <h2 className="mb-4 flex items-center gap-2 text-base font-bold settings-title">
+                                    <MessageSquareText className="h-4 w-4" />
                                     Plantillas de WhatsApp ({allTemplates.length})
                                 </h2>
 
@@ -1329,18 +1529,18 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <p className="text-xs text-muted-foreground mt-1">Cree una nueva plantilla para enviarla a revisión en Meta.</p>
                                     </div>
                                 ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                            <thead>
+                                    <div className="overflow-x-auto rounded-xl border border-border/60">
+                                        <table className="w-full min-w-[980px] text-sm">
+                                            <thead className="bg-muted/40">
                                                 <tr className="border-b border-border/50">
-                                                    <th className="text-left py-3 px-3 font-semibold text-foreground/70">Nombre</th>
-                                                    <th className="text-left py-3 px-3 font-semibold text-foreground/70">Nombre Meta</th>
-                                                    <th className="text-center py-3 px-3 font-semibold text-foreground/70">Categoría</th>
-                                                    <th className="text-center py-3 px-3 font-semibold text-foreground/70">Idioma</th>
-                                                    <th className="text-center py-3 px-3 font-semibold text-foreground/70">Estado</th>
-                                                    <th className="text-left py-3 px-3 font-semibold text-foreground/70">Preview</th>
-                                                    <th className="text-left py-3 px-3 font-semibold text-foreground/70">Creada</th>
-                                                    <th className="text-center py-3 px-3 font-semibold text-foreground/70">Acciones</th>
+                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Nombre</th>
+                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Nombre Meta</th>
+                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Categoría</th>
+                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Idioma</th>
+                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Estado</th>
+                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Preview</th>
+                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Creada</th>
+                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Acciones</th>
                                                 </tr>
                                             </thead>
                                             <tbody>

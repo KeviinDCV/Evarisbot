@@ -1,12 +1,51 @@
 import AdminLayout from '@/layouts/admin-layout';
-import { Head, router } from '@inertiajs/react';
-import { BarChart3, Download, Calendar, MessageSquare, FileText, Users, Clock, CheckCircle2, XCircle, Calendar as CalendarIcon, Send, AlertCircle, Filter, Table2, ChevronDown, ChevronUp, Timer, TrendingUp, CalendarCheck2 } from 'lucide-react';
-import { useState, FormEventHandler, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+import { Head, router } from '@inertiajs/react';
 import axios from 'axios';
+import {
+    Activity,
+    AlertCircle,
+    BarChart3,
+    CalendarCheck2,
+    CalendarDays,
+    CheckCircle2,
+    ChevronDown,
+    ChevronUp,
+    Clock,
+    Download,
+    FileText,
+    Filter,
+    LineChart as LineChartIcon,
+    MessageSquare,
+    PieChart as PieChartIcon,
+    Send,
+    Table2,
+    Timer,
+    TrendingUp,
+    Users,
+    XCircle,
+    type LucideIcon,
+} from 'lucide-react';
+import { useCallback, useMemo, useState, type FormEventHandler } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+    Bar,
+    BarChart,
+    CartesianGrid,
+    Cell,
+    Legend,
+    Line,
+    LineChart,
+    Pie,
+    PieChart,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from 'recharts';
 
 interface AdvisorDetail {
     advisor: { id: number; name: string };
@@ -23,6 +62,18 @@ interface AdvisorDetail {
     daily_activity: Array<{ date: string; label: string; count: number }>;
     hourly_distribution: Array<{ hour: string; count: number }>;
     message_types: Record<string, number>;
+}
+
+interface AdvisorSummary {
+    id: number;
+    name: string;
+    total_conversations: number;
+    resolved_conversations: number;
+    scheduled_conversations: number;
+    active_conversations: number;
+    conversations_with_unread: number;
+    messages_sent: number;
+    resolution_rate: number;
 }
 
 interface Statistics {
@@ -45,9 +96,7 @@ interface Statistics {
         cancelled: number;
         pending: number;
         failed: number;
-        by_status: {
-            [key: string]: number;
-        };
+        by_status: Record<string, number>;
     };
     conversations: {
         total: number;
@@ -79,28 +128,8 @@ interface Statistics {
         total_with_unread: number;
         total_messages_sent: number;
         avg_resolution_rate: number;
-        top_performer: {
-            id: number;
-            name: string;
-            total_conversations: number;
-            resolved_conversations: number;
-            scheduled_conversations: number;
-            active_conversations: number;
-            conversations_with_unread: number;
-            messages_sent: number;
-            resolution_rate: number;
-        } | null;
-        advisors: Array<{
-            id: number;
-            name: string;
-            total_conversations: number;
-            resolved_conversations: number;
-            scheduled_conversations: number;
-            active_conversations: number;
-            conversations_with_unread: number;
-            messages_sent: number;
-            resolution_rate: number;
-        }>;
+        top_performer: AdvisorSummary | null;
+        advisors: AdvisorSummary[];
     };
     date_range: {
         start?: string;
@@ -113,30 +142,148 @@ interface StatisticsIndexProps {
     statistics: Statistics;
 }
 
+interface MetricCardProps {
+    icon: LucideIcon;
+    label: string;
+    value: string | number;
+    detail: string;
+    tone?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+}
+
+interface SectionCardProps {
+    icon: LucideIcon;
+    title: string;
+    subtitle?: string;
+    className?: string;
+    children: React.ReactNode;
+    action?: React.ReactNode;
+}
+
+interface StatLineProps {
+    icon: LucideIcon;
+    label: string;
+    value: number;
+    total?: number;
+    tone?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+}
+
 const COLORS = {
     primary: '#2E3F84',
-    primaryLight: '#3E4F94',
+    primaryLight: '#5162A8',
     success: '#10B981',
     warning: '#F59E0B',
     danger: '#EF4444',
     info: '#3B82F6',
+    slate: '#64748B',
 };
 
-const StatRow = ({ icon: Icon, label, value, index }: { icon: any; label: string; value: number; index?: number }) => (
-    <div
-        className={`flex items-center justify-between py-1.5 px-3 rounded-lg transition-colors stat-row-hover ${index !== undefined && index % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : ''}`}
-    >
-        <div className="flex items-center gap-2">
-            <Icon className="w-3 h-3 settings-title" />
-            <span className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                {label}
-            </span>
+const chartColors = [COLORS.primary, COLORS.success, COLORS.info, COLORS.warning, COLORS.danger, COLORS.primaryLight, COLORS.slate];
+
+const tooltipStyle = {
+    backgroundColor: 'var(--card)',
+    border: '1px solid var(--border)',
+    borderRadius: '8px',
+    boxShadow: '0 8px 24px rgba(46, 63, 132, 0.14)',
+    fontSize: '12px',
+    color: 'var(--foreground)',
+};
+
+function formatNumber(value: number | null | undefined) {
+    return Number(value ?? 0).toLocaleString('es-CO');
+}
+
+function safePercent(value: number, total: number) {
+    if (!total) return 0;
+    return Math.min(100, Math.round((value / total) * 100));
+}
+
+function toneClasses(tone: MetricCardProps['tone'] = 'primary') {
+    const classes = {
+        primary: 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100',
+        success: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
+        warning: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
+        danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300',
+        info: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300',
+    };
+
+    return classes[tone];
+}
+
+function barColor(tone: StatLineProps['tone'] = 'primary') {
+    return {
+        primary: 'bg-[#2e3f84]',
+        success: 'bg-emerald-500',
+        warning: 'bg-amber-500',
+        danger: 'bg-red-500',
+        info: 'bg-sky-500',
+    }[tone];
+}
+
+function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
+    return (
+        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+            <div className="flex items-center gap-3">
+                <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClasses(tone))}>
+                    <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                    <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
+                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                </div>
+            </div>
         </div>
-        <span className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-            {value.toLocaleString()}
-        </span>
-    </div>
-);
+    );
+}
+
+function SectionCard({ icon: Icon, title, subtitle, className, children, action }: SectionCardProps) {
+    return (
+        <section className={cn('card-gradient rounded-lg border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10', className)}>
+            <div className="mb-4 flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10">
+                <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                        <Icon className="h-4.5 w-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                        <h2 className="text-base font-bold leading-tight settings-title">{title}</h2>
+                        {subtitle && <p className="mt-1 text-xs settings-subtitle">{subtitle}</p>}
+                    </div>
+                </div>
+                {action}
+            </div>
+            {children}
+        </section>
+    );
+}
+
+function StatLine({ icon: Icon, label, value, total, tone = 'primary' }: StatLineProps) {
+    const percent = total ? safePercent(value, total) : 0;
+
+    return (
+        <div className="rounded-lg border border-transparent bg-white/45 px-3 py-2.5 dark:bg-white/[0.03]">
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                    <Icon className="h-3.5 w-3.5 shrink-0 settings-subtitle" />
+                    <span className="truncate text-xs font-medium settings-subtitle">{label}</span>
+                </div>
+                <span className="shrink-0 text-sm font-bold settings-title">{formatNumber(value)}</span>
+            </div>
+            {typeof total === 'number' && (
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e8ebf3] dark:bg-white/10">
+                    <div className={cn('h-full rounded-full', barColor(tone))} style={{ width: `${percent}%` }} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+function EmptyChart({ message }: { message: string }) {
+    return (
+        <div className="flex h-[220px] items-center justify-center rounded-lg border border-dashed border-[#d4d8e8] text-sm settings-subtitle dark:border-white/10">
+            {message}
+        </div>
+    );
+}
 
 export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     const { t } = useTranslation();
@@ -149,24 +296,36 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     const [advisorPeriod, setAdvisorPeriod] = useState('all');
     const [advisorStartDate, setAdvisorStartDate] = useState('');
     const [advisorEndDate, setAdvisorEndDate] = useState('');
+    const [isExporting, setIsExporting] = useState(false);
+    const [showCharts, setShowCharts] = useState(false);
 
-    const fetchAdvisorDetail = useCallback(async (advisorId: number, p?: string, sd?: string, ed?: string) => {
+    const periodOptions = useMemo(() => [
+        { value: 'today', label: t('statistics.filters.periods.today') },
+        { value: 'week', label: t('statistics.filters.periods.week') },
+        { value: 'month', label: t('statistics.filters.periods.month') },
+        { value: 'year', label: t('statistics.filters.periods.year') },
+        { value: 'all', label: t('statistics.filters.periods.all') },
+    ], [t]);
+
+    const fetchAdvisorDetail = useCallback(async (advisorId: number, selectedPeriod?: string, selectedStart?: string, selectedEnd?: string) => {
         setLoadingAdvisor(true);
         try {
-            const usePeriod = p ?? advisorPeriod;
-            const useStart = sd ?? advisorStartDate;
-            const useEnd = ed ?? advisorEndDate;
+            const usePeriod = selectedPeriod ?? advisorPeriod;
+            const useStart = selectedStart ?? advisorStartDate;
+            const useEnd = selectedEnd ?? advisorEndDate;
             const params: Record<string, string> = { period: usePeriod };
+
             if (useStart) params.start_date = useStart;
             if (useEnd) params.end_date = useEnd;
-            const res = await axios.get(`/admin/statistics/advisor/${advisorId}`, { params });
-            setAdvisorDetail(res.data);
+
+            const response = await axios.get(`/admin/statistics/advisor/${advisorId}`, { params });
+            setAdvisorDetail(response.data);
         } catch {
             setAdvisorDetail(null);
         } finally {
             setLoadingAdvisor(false);
         }
-    }, [advisorPeriod, advisorStartDate, advisorEndDate]);
+    }, [advisorEndDate, advisorPeriod, advisorStartDate]);
 
     const toggleAdvisorDetail = useCallback(async (advisorId: number) => {
         if (expandedAdvisor === advisorId) {
@@ -174,17 +333,16 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
             setAdvisorDetail(null);
             return;
         }
+
         setExpandedAdvisor(advisorId);
         setAdvisorPeriod('all');
         setAdvisorStartDate('');
         setAdvisorEndDate('');
         await fetchAdvisorDetail(advisorId, 'all', '', '');
     }, [expandedAdvisor, fetchAdvisorDetail]);
-    const [isExporting, setIsExporting] = useState(false);
-    const [showCharts, setShowCharts] = useState(false);
 
-    const handleFilterSubmit: FormEventHandler = (e) => {
-        e.preventDefault();
+    const handleFilterSubmit: FormEventHandler = (event) => {
+        event.preventDefault();
         router.get('/admin/statistics', {
             period,
             start_date: startDate || undefined,
@@ -204,11 +362,9 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
         });
 
         window.location.href = `/admin/statistics/export?${params.toString()}`;
-
         setTimeout(() => setIsExporting(false), 2000);
     };
 
-    // Preparar datos para gráficos
     const deliveryStatusLabels: Record<string, string> = {
         pending: 'En cola',
         sent: 'Enviado',
@@ -217,43 +373,80 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
         failed: 'Error',
     };
 
+    const deliveryItems = [
+        { key: 'pending', icon: Clock, label: 'En cola', value: statistics.messages.delivery_status.pending, tone: 'warning' as const },
+        { key: 'sent', icon: Send, label: 'Enviados', value: statistics.messages.delivery_status.sent, tone: 'info' as const },
+        { key: 'delivered', icon: CheckCircle2, label: 'Entregados', value: statistics.messages.delivery_status.delivered, tone: 'success' as const },
+        { key: 'read', icon: CheckCircle2, label: 'Leídos', value: statistics.messages.delivery_status.read, tone: 'primary' as const },
+        { key: 'failed', icon: XCircle, label: 'Errores', value: statistics.messages.delivery_status.failed, tone: 'danger' as const },
+    ];
+
+    const appointmentItems = [
+        { icon: CalendarDays, label: 'Total cargadas', value: statistics.appointments.total, tone: 'primary' as const },
+        { icon: Send, label: 'Recordatorios enviados', value: statistics.appointments.reminder_sent, tone: 'info' as const },
+        { icon: CheckCircle2, label: 'Confirmadas', value: statistics.appointments.confirmed, tone: 'success' as const },
+        { icon: XCircle, label: 'Canceladas', value: statistics.appointments.cancelled, tone: 'danger' as const },
+        { icon: Clock, label: 'Pendientes', value: statistics.appointments.pending, tone: 'warning' as const },
+        { icon: AlertCircle, label: 'Fallidas', value: statistics.appointments.failed, tone: 'danger' as const },
+    ];
+
+    const conversationItems = [
+        { icon: Activity, label: t('statistics.conversations.active'), value: statistics.conversations.active, tone: 'success' as const },
+        { icon: Clock, label: t('statistics.conversations.pending'), value: statistics.conversations.pending, tone: 'warning' as const },
+        { icon: Timer, label: t('statistics.conversations.inProgress'), value: statistics.conversations.in_progress, tone: 'info' as const },
+        { icon: CheckCircle2, label: t('statistics.conversations.resolved'), value: statistics.conversations.resolved, tone: 'success' as const },
+        { icon: XCircle, label: t('statistics.conversations.closed'), value: statistics.conversations.closed, tone: 'danger' as const },
+        { icon: CalendarCheck2, label: t('statistics.conversations.scheduled'), value: statistics.conversations.scheduled, tone: 'primary' as const },
+        { icon: AlertCircle, label: t('statistics.conversations.unread'), value: statistics.conversations.unread, tone: 'warning' as const },
+    ];
+
     const messagesStatusData = Object.entries(statistics.messages.delivery_status).map(([name, value]) => ({
         name: deliveryStatusLabels[name] || name,
         value,
-    }));
+    })).filter((item) => item.value > 0);
 
     const appointmentsData = [
         { name: t('statistics.appointments.confirmed'), value: statistics.appointments.confirmed, color: COLORS.success },
         { name: t('statistics.appointments.cancelled'), value: statistics.appointments.cancelled, color: COLORS.danger },
-        { name: t('statistics.appointments.pending'), value: statistics.appointments.pending, color: COLORS.info },
-    ];
+        { name: t('statistics.appointments.pending'), value: statistics.appointments.pending, color: COLORS.warning },
+        { name: t('statistics.appointments.failed'), value: statistics.appointments.failed, color: COLORS.info },
+    ].filter((item) => item.value > 0);
 
-    const conversationsStatusData = [
-        { name: t('statistics.conversations.active'), value: statistics.conversations.active },
-        { name: t('statistics.conversations.pending'), value: statistics.conversations.pending },
-        { name: t('statistics.conversations.inProgress'), value: statistics.conversations.in_progress },
-        { name: t('statistics.conversations.resolved'), value: statistics.conversations.resolved },
-        { name: t('statistics.conversations.closed'), value: statistics.conversations.closed },
-        { name: t('statistics.conversations.scheduled'), value: statistics.conversations.scheduled },
-    ];
+    const conversationsStatusData = conversationItems.map((item) => ({
+        name: item.label,
+        value: item.value,
+    }));
 
     const mainStatsData = [
-        { name: 'Total mensajes', value: statistics.messages.total },
-        { name: 'Enviados (sistema)', value: statistics.messages.sent_by_system },
-        { name: 'Recibidos (clientes)', value: statistics.messages.received_from_users },
-        { name: t('statistics.appointments.total'), value: statistics.appointments.total },
-        { name: t('statistics.conversations.total'), value: statistics.conversations.total },
+        { name: 'Mensajes', value: statistics.messages.total },
+        { name: 'Enviados', value: statistics.messages.sent_by_system },
+        { name: 'Recibidos', value: statistics.messages.received_from_users },
+        { name: 'Citas', value: statistics.appointments.total },
+        { name: 'Conversaciones', value: statistics.conversations.total },
+        { name: 'Plantillas', value: statistics.templates.total_sends },
     ];
+
+    const usersData = [
+        { name: t('statistics.users.admins'), value: statistics.users.admins },
+        { name: t('statistics.users.advisors'), value: statistics.users.advisors },
+    ].filter((item) => item.value > 0);
+
+    const periodLabel = periodOptions.find((option) => option.value === period)?.label ?? period;
+    const outboundTotal = Object.values(statistics.messages.delivery_status).reduce((sum, value) => sum + value, 0);
+    const appointmentTotalForBars = Math.max(statistics.appointments.total, 1);
+    const conversationTotalForBars = Math.max(statistics.conversations.total, 1);
 
     return (
         <AdminLayout>
             <Head title={t('statistics.title')} />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-6" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
+                <div className="mx-auto flex max-w-7xl flex-col gap-5">
+                    <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                                <BarChart3 className="h-5 w-5" />
+                            </div>
                             <div>
                                 <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
                                     {t('statistics.title')}
@@ -262,722 +455,471 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                                     {t('statistics.subtitle')}
                                 </p>
                             </div>
-                            <div style={{ display: 'flex', gap: 'var(--space-sm)', alignItems: 'center' }}>
-                                {/* Switch para gráficos */}
-                                <div className="flex items-center gap-3 card-gradient rounded-xl p-2 shadow-sm border border-white/40 dark:border-white/10">
-                                    <Table2 className={`w-4 h-4 transition-colors`} style={{ color: !showCharts ? '#2e3f84' : '#6b7494' }} />
-                                    <label htmlFor="show-charts-toggle" className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                            id="show-charts-toggle"
-                                            name="show-charts-toggle"
-                                            type="checkbox"
-                                            checked={showCharts}
-                                            onChange={(e) => setShowCharts(e.target.checked)}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-card after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-b peer-checked:from-[#3e4f94] peer-checked:to-[#2e3f84]"></div>
-                                    </label>
-                                    <BarChart3 className={`w-4 h-4 transition-colors`} style={{ color: showCharts ? '#2e3f84' : '#6b7494' }} />
-                                </div>
-                                <Button
-                                    onClick={handleExport}
-                                    disabled={isExporting}
-                                    className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
-                                    style={{
-                                        backgroundColor: 'var(--primary-base)',
-                                        boxShadow: 'var(--shadow-md)',
-                                        backgroundImage: 'var(--gradient-shine)',
-                                        height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                        padding: '0 var(--space-lg)',
-                                        fontSize: 'var(--text-sm)',
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                    }}
-                                >
-                                    <Download className="w-4 h-4 mr-2" />
-                                    {isExporting ? t('statistics.exporting') : t('statistics.export')}
-                                </Button>
-                            </div>
                         </div>
 
-                        {/* Filtros */}
-                        <form onSubmit={handleFilterSubmit}>
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 md:p-6 flex flex-wrap gap-4 items-end transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div style={{ flex: '1 1 200px', minWidth: '180px' }}>
-                                    <label htmlFor="stats-period" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                        {t('statistics.filters.period')}
-                                    </label>
-                                    <select
-                                        id="stats-period"
-                                        name="stats-period"
-                                        value={period}
-                                        onChange={(e) => setPeriod(e.target.value)}
-                                        className="settings-input w-full rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        style={{
-                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                            fontSize: 'var(--text-sm)',
-                                            padding: '0 2.5rem 0 var(--space-base)',
-                                            appearance: 'none',
-                                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%232e3f84' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                                            backgroundRepeat: 'no-repeat',
-                                            backgroundPosition: 'right 0.75rem center',
-                                            backgroundSize: '1rem',
-                                        }}
-                                    >
-                                        <option value="today">{t('statistics.filters.periods.today')}</option>
-                                        <option value="week">{t('statistics.filters.periods.week')}</option>
-                                        <option value="month">{t('statistics.filters.periods.month')}</option>
-                                        <option value="year">{t('statistics.filters.periods.year')}</option>
-                                        <option value="all">{t('statistics.filters.periods.all')}</option>
-                                    </select>
-                                </div>
-                                <div style={{ flex: '1 1 180px', minWidth: '160px' }}>
-                                    <label htmlFor="stats-start-date" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                        {t('statistics.filters.startDate')}
-                                    </label>
-                                    <Input
-                                        id="stats-start-date"
-                                        name="stats-start-date"
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(e) => setStartDate(e.target.value)}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        style={{
-                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                            fontSize: 'var(--text-sm)',
-                                        }}
-                                    />
-                                </div>
-                                <div style={{ flex: '1 1 180px', minWidth: '160px' }}>
-                                    <label htmlFor="stats-end-date" className="font-semibold block mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                        {t('statistics.filters.endDate')}
-                                    </label>
-                                    <Input
-                                        id="stats-end-date"
-                                        name="stats-end-date"
-                                        type="date"
-                                        value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
-                                        className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        style={{
-                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                            fontSize: 'var(--text-sm)',
-                                        }}
-                                    />
-                                </div>
-                                <div style={{ flex: '0 1 auto' }}>
-                                    <Button
-                                        type="submit"
-                                        className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                        style={{
-                                            backgroundColor: 'var(--primary-base)',
-                                            boxShadow: 'var(--shadow-md)',
-                                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                            padding: '0 var(--space-lg)',
-                                            fontSize: 'var(--text-sm)',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                            e.currentTarget.style.transform = 'translateY(-2px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                        }}
-                                    >
-                                        <Filter className="w-4 h-4 mr-2" />
-                                        {t('statistics.filters.apply')}
-                                    </Button>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="inline-flex rounded-lg border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04]">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCharts(false)}
+                                    className={cn(
+                                        'inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                                        !showCharts
+                                            ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
+                                            : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
+                                    )}
+                                >
+                                    <Table2 className="h-3.5 w-3.5" />
+                                    Tabla
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCharts(true)}
+                                    className={cn(
+                                        'inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors',
+                                        showCharts
+                                            ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
+                                            : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
+                                    )}
+                                >
+                                    <BarChart3 className="h-3.5 w-3.5" />
+                                    Gráficos
+                                </button>
+                            </div>
+
+                            <Button
+                                type="button"
+                                onClick={handleExport}
+                                disabled={isExporting}
+                                className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary disabled:opacity-50"
+                            >
+                                <Download className="mr-2 h-3.5 w-3.5" />
+                                {isExporting ? t('statistics.exporting') : t('statistics.export')}
+                            </Button>
+                        </div>
+                    </header>
+
+                    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        <MetricCard icon={MessageSquare} label="Mensajes" value={formatNumber(statistics.messages.total)} detail={`${formatNumber(statistics.messages.sent_by_system)} enviados`} />
+                        <MetricCard icon={CalendarCheck2} label="Citas" value={formatNumber(statistics.appointments.total)} detail={`${formatNumber(statistics.appointments.confirmed)} confirmadas`} tone="success" />
+                        <MetricCard icon={Activity} label="Conversaciones" value={formatNumber(statistics.conversations.total)} detail={`${formatNumber(statistics.conversations.unread)} sin leer`} tone={statistics.conversations.unread > 0 ? 'warning' : 'info'} />
+                        <MetricCard icon={Users} label="Asesores" value={formatNumber(statistics.advisors.total_advisors)} detail={`${statistics.advisors.avg_resolution_rate}% resolución promedio`} tone="primary" />
+                    </section>
+
+                    <form onSubmit={handleFilterSubmit} className="card-gradient rounded-lg border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto] xl:items-end">
+                            <div>
+                                <Label className="mb-2 block text-xs font-semibold settings-label">{t('statistics.filters.period')}</Label>
+                                <div className="grid grid-cols-2 gap-1 rounded-lg border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:grid-cols-5">
+                                    {periodOptions.map((option) => (
+                                        <button
+                                            key={option.value}
+                                            type="button"
+                                            onClick={() => setPeriod(option.value)}
+                                            className={cn(
+                                                'rounded-md px-3 py-2 text-xs font-semibold transition-colors',
+                                                period === option.value && !startDate && !endDate
+                                                    ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
+                                                    : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
+                                            )}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
-                        </form>
-                    </div>
+
+                            <div>
+                                <Label htmlFor="stats-start-date" className="mb-2 block text-xs font-semibold settings-label">
+                                    {t('statistics.filters.startDate')}
+                                </Label>
+                                <Input
+                                    id="stats-start-date"
+                                    name="stats-start-date"
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(event) => setStartDate(event.target.value)}
+                                    className="h-10 rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                />
+                            </div>
+
+                            <div>
+                                <Label htmlFor="stats-end-date" className="mb-2 block text-xs font-semibold settings-label">
+                                    {t('statistics.filters.endDate')}
+                                </Label>
+                                <Input
+                                    id="stats-end-date"
+                                    name="stats-end-date"
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(event) => setEndDate(event.target.value)}
+                                    className="h-10 rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                />
+                            </div>
+
+                            <Button type="submit" className="h-10 rounded-lg px-5 text-xs font-semibold settings-btn-primary">
+                                <Filter className="mr-2 h-3.5 w-3.5" />
+                                {t('statistics.filters.apply')}
+                            </Button>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs settings-subtitle">
+                            <span className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 font-semibold dark:border-white/10 dark:bg-white/[0.04]">
+                                {startDate && endDate ? `${startDate} a ${endDate}` : periodLabel}
+                            </span>
+                            {(startDate || endDate) && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStartDate('');
+                                        setEndDate('');
+                                    }}
+                                    className="rounded-md px-2.5 py-1 font-semibold text-[#2e3f84] transition-colors hover:bg-[#2e3f84]/10 dark:text-neutral-100 dark:hover:bg-white/10"
+                                >
+                                    Limpiar rango
+                                </button>
+                            )}
+                        </div>
+                    </form>
 
                     {!showCharts ? (
-                        /* Vista de Estadísticas - Bento Grid */
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Mensajes */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <MessageSquare className="w-3.5 h-3.5 settings-title" />
-                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        {t('statistics.messages.title')}
-                                    </h2>
+                        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                            <SectionCard icon={MessageSquare} title={t('statistics.messages.title')} subtitle="Volumen, origen y entrega de mensajes">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <StatLine icon={MessageSquare} label="Total intercambiados" value={statistics.messages.total} />
+                                    <StatLine icon={Send} label="Enviados por asesores/sistema" value={statistics.messages.sent_by_system} total={statistics.messages.total} tone="info" />
+                                    <StatLine icon={MessageSquare} label="Recibidos de pacientes" value={statistics.messages.received_from_users} total={statistics.messages.total} tone="success" />
+                                    <StatLine icon={MessageSquare} label="Total de conversaciones" value={statistics.conversations.total} />
                                 </div>
-                                <div className="space-y-1">
-                                    <StatRow icon={MessageSquare} label="Total de Conversaciones (Chats)" value={statistics.conversations.total} index={0} />
-                                    <StatRow icon={MessageSquare} label="Total de Mensajes Intercambiados" value={statistics.messages.total} index={1} />
-                                    <StatRow icon={Send} label="Enviados por asesores/sistema" value={statistics.messages.sent_by_system} index={2} />
-                                    <StatRow icon={MessageSquare} label="Recibidos de clientes" value={statistics.messages.received_from_users} index={3} />
-                                </div>
-                                <div className="mt-2 pt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
-                                    <h3 className="font-semibold mb-1.5 settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        Calidad de Entrega (Mensajes salientes)
-                                    </h3>
-                                    <p className="text-[10px] text-muted-foreground mb-2">
-                                        Detalle del estado final de los mensajes enviados a los usuarios:
-                                    </p>
-                                    <div className="space-y-1">
-                                        <StatRow icon={Clock} label="En cola (Saliendo del sistema)" value={statistics.messages.delivery_status.pending} index={0} />
-                                        <StatRow icon={Send} label="Enviado (Recibido por WhatsApp)" value={statistics.messages.delivery_status.sent} index={1} />
-                                        <StatRow icon={CheckCircle2} label="Entregado (Llegó al celular)" value={statistics.messages.delivery_status.delivered} index={2} />
-                                        <StatRow icon={CheckCircle2} label="Leído (Usuario abrió el chat)" value={statistics.messages.delivery_status.read} index={3} />
-                                        <StatRow icon={XCircle} label="No enviado (Error técnico)" value={statistics.messages.delivery_status.failed} index={4} />
-                                    </div>
-                                </div>
-                            </div>
 
-                            {/* Citas */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <Calendar className="w-3.5 h-3.5 settings-title" />
-                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        {t('statistics.appointments.title')}
-                                    </h2>
-                                </div>
-                                <div className="space-y-1">
-                                    <StatRow icon={Calendar} label="Total de citas cargadas" value={statistics.appointments.total} index={0} />
-                                    <StatRow icon={Send} label="Recordatorios enviados" value={statistics.appointments.reminder_sent} index={1} />
-                                </div>
-                                <div className="mt-2 pt-2 border-t border-border dark:border-[hsl(231,20%,22%)]">
-                                    <h3 className="font-semibold mb-1.5 settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        Respuesta del paciente
-                                    </h3>
-                                    <div className="space-y-1">
-                                        <StatRow icon={CheckCircle2} label="Confirmaron asistencia" value={statistics.appointments.confirmed} index={0} />
-                                        <StatRow icon={XCircle} label="Cancelaron la cita" value={statistics.appointments.cancelled} index={1} />
-                                        <StatRow icon={Clock} label="Sin respuesta aún" value={statistics.appointments.pending} index={2} />
-                                        {/* @ts-ignore */}
-                                        <StatRow icon={Send} label="Enviado (Sin confirmación)" value={statistics.appointments.by_status.sent || 0} index={3} />
-                                        <StatRow icon={AlertCircle} label="Error al enviar" value={statistics.appointments.failed} index={4} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Conversaciones */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <MessageSquare className="w-3.5 h-3.5 settings-title" />
-                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        {t('statistics.conversations.title')}
-                                    </h2>
-                                </div>
-                                <div className="space-y-1">
-                                    <StatRow icon={MessageSquare} label={t('statistics.conversations.total')} value={statistics.conversations.total} index={0} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.conversations.active')} value={statistics.conversations.active} index={1} />
-                                    <StatRow icon={Clock} label={t('statistics.conversations.pending')} value={statistics.conversations.pending} index={2} />
-                                    <StatRow icon={Clock} label={t('statistics.conversations.inProgress')} value={statistics.conversations.in_progress} index={3} />
-                                    <StatRow icon={CheckCircle2} label={t('statistics.conversations.resolved')} value={statistics.conversations.resolved} index={4} />
-                                    <StatRow icon={XCircle} label={t('statistics.conversations.closed')} value={statistics.conversations.closed} index={5} />
-                                    <StatRow icon={CalendarCheck2} label={t('statistics.conversations.scheduled')} value={statistics.conversations.scheduled} index={6} />
-                                    <StatRow icon={AlertCircle} label={t('statistics.conversations.unread')} value={statistics.conversations.unread} index={7} />
-                                </div>
-                            </div>
-
-
-                            {/* Usuarios */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <Users className="w-3.5 h-3.5 settings-title" />
-                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        {t('statistics.users.title')}
-                                    </h2>
-                                </div>
-                                <div className="space-y-1">
-                                    <StatRow icon={Users} label={t('statistics.users.total')} value={statistics.users.total} index={0} />
-                                    <StatRow icon={Users} label={t('statistics.users.admins')} value={statistics.users.admins} index={1} />
-                                    <StatRow icon={Users} label={t('statistics.users.advisors')} value={statistics.users.advisors} index={2} />
-                                </div>
-                            </div>
-
-                            {/* Asesores */}
-                            <div className="col-span-2 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border dark:border-[hsl(231,20%,22%)]">
-                                    <Users className="w-3.5 h-3.5 settings-title" />
-                                    <h2 className="font-bold settings-title" style={{ fontSize: 'var(--text-xs)' }}>
-                                        Rendimiento de Asesores
-                                    </h2>
-                                    <span className="text-[10px] settings-subtitle ml-auto">Click para ver detalle</span>
-                                </div>
-                                {statistics.advisors.advisors.length > 0 ? (
-                                    <div className="space-y-1 max-h-[600px] overflow-y-auto pr-1" style={{ scrollbarWidth: 'thin' }}>
-                                        {statistics.advisors.advisors.map((advisor, index) => (
-                                            <div key={advisor.id}>
-                                                <div
-                                                    onClick={() => toggleAdvisorDetail(advisor.id)}
-                                                    className={`py-1.5 px-3 mb-1 rounded-lg transition-colors cursor-pointer stat-row-hover ${index % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : ''} ${expandedAdvisor === advisor.id ? 'ring-1 ring-[#2e3f84]/30' : ''}`}
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            {expandedAdvisor === advisor.id ? (
-                                                                <ChevronUp className="w-3 h-3 settings-title" />
-                                                            ) : (
-                                                                <ChevronDown className="w-3 h-3 settings-subtitle" />
-                                                            )}
-                                                            <span className="font-semibold settings-title truncate" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                {advisor.name}
-                                                            </span>
-                                                        </div>
-                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{
-                                                            backgroundColor: advisor.resolution_rate >= 70 ? '#dcfce7' : advisor.resolution_rate >= 40 ? '#fef9c3' : '#fee2e2',
-                                                            color: advisor.resolution_rate >= 70 ? '#166534' : advisor.resolution_rate >= 40 ? '#854d0e' : '#991b1b',
-                                                        }}>
-                                                            {advisor.resolution_rate}% resueltas
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex gap-3 mt-0.5 ml-5">
-                                                        <span className="settings-subtitle" style={{ fontSize: '10px' }}>
-                                                            {advisor.total_conversations} conv.
-                                                        </span>
-                                                        <span className="settings-subtitle" style={{ fontSize: '10px' }}>
-                                                            {advisor.resolved_conversations} resueltas
-                                                        </span>
-                                                        <span className="settings-subtitle" style={{ fontSize: '10px' }}>
-                                                            {advisor.scheduled_conversations} agendadas
-                                                        </span>
-                                                        <span className="settings-subtitle" style={{ fontSize: '10px' }}>
-                                                            {advisor.messages_sent} msgs
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Detail panel */}
-                                                {expandedAdvisor === advisor.id && (
-                                                    <div className="mb-2 ml-5 mr-1 p-3 rounded-xl bg-black/[0.03] dark:bg-white/[0.03] border border-border/50">
-                                                        {/* Filtro por fecha del asesor */}
-                                                        <div className="flex flex-wrap items-center gap-2 mb-3 pb-3 border-b border-border/30">
-                                                            <span className="text-[10px] font-semibold settings-title">Filtrar:</span>
-                                                            {['today', 'week', 'month', 'year', 'all'].map((p) => (
-                                                                <button
-                                                                    key={p}
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setAdvisorPeriod(p);
-                                                                        setAdvisorStartDate('');
-                                                                        setAdvisorEndDate('');
-                                                                        if (expandedAdvisor) fetchAdvisorDetail(expandedAdvisor, p, '', '');
-                                                                    }}
-                                                                    className={`text-[10px] px-2.5 py-1 rounded-full font-medium transition-all duration-200 ${
-                                                                        advisorPeriod === p && !advisorStartDate
-                                                                            ? 'bg-[#2e3f84] text-white shadow-sm'
-                                                                            : 'bg-black/5 dark:bg-white/5 settings-subtitle hover:bg-black/10 dark:hover:bg-white/10'
-                                                                    }`}
-                                                                >
-                                                                    {{ today: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año', all: 'Todo' }[p]}
-                                                                </button>
-                                                            ))}
-                                                            <span className="text-[10px] settings-subtitle mx-1">|</span>
-                                                            <input
-                                                                type="date"
-                                                                value={advisorStartDate}
-                                                                onChange={(e) => {
-                                                                    setAdvisorStartDate(e.target.value);
-                                                                    if (e.target.value && advisorEndDate && expandedAdvisor) {
-                                                                        setAdvisorPeriod('custom');
-                                                                        fetchAdvisorDetail(expandedAdvisor, 'custom', e.target.value, advisorEndDate);
-                                                                    }
-                                                                }}
-                                                                className="text-[10px] px-2 py-1 rounded-lg settings-input border border-border/50 w-[110px]"
-                                                            />
-                                                            <span className="text-[10px] settings-subtitle">a</span>
-                                                            <input
-                                                                type="date"
-                                                                value={advisorEndDate}
-                                                                onChange={(e) => {
-                                                                    setAdvisorEndDate(e.target.value);
-                                                                    if (advisorStartDate && e.target.value && expandedAdvisor) {
-                                                                        setAdvisorPeriod('custom');
-                                                                        fetchAdvisorDetail(expandedAdvisor, 'custom', advisorStartDate, e.target.value);
-                                                                    }
-                                                                }}
-                                                                className="text-[10px] px-2 py-1 rounded-lg settings-input border border-border/50 w-[110px]"
-                                                            />
-                                                        </div>
-
-                                                        {loadingAdvisor ? (
-                                                            <div className="flex items-center justify-center py-6">
-                                                                <div className="w-5 h-5 border-2 border-[#2e3f84] border-t-transparent rounded-full animate-spin" />
-                                                                <span className="ml-2 settings-subtitle text-xs">Cargando métricas...</span>
-                                                            </div>
-                                                        ) : advisorDetail ? (
-                                                            <div className="space-y-3">
-                                                                {/* Summary cards */}
-                                                                <div className="grid grid-cols-5 gap-2">
-                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
-                                                                        <div className="text-lg font-bold settings-title">{advisorDetail.summary.messages_sent}</div>
-                                                                        <div className="text-[10px] settings-subtitle">Mensajes enviados</div>
-                                                                    </div>
-                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
-                                                                        <div className="text-lg font-bold settings-title">{advisorDetail.summary.resolution_rate}%</div>
-                                                                        <div className="text-[10px] settings-subtitle">Tasa resolución</div>
-                                                                    </div>
-                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
-                                                                        <div className="text-lg font-bold settings-title">
-                                                                            {advisorDetail.summary.avg_response_time_minutes !== null
-                                                                                ? `${advisorDetail.summary.avg_response_time_minutes} min`
-                                                                                : 'N/A'}
-                                                                        </div>
-                                                                        <div className="text-[10px] settings-subtitle">Resp. promedio</div>
-                                                                    </div>
-                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
-                                                                        <div className="text-lg font-bold settings-title">
-                                                                            {advisorDetail.summary.scheduled_conversations}
-                                                                        </div>
-                                                                        <div className="text-[10px] settings-subtitle">Agendadas</div>
-                                                                    </div>
-                                                                    <div className="rounded-lg bg-card p-2 text-center border border-border/30">
-                                                                        <div className="text-lg font-bold settings-title">
-                                                                            {advisorDetail.summary.active_conversations + advisorDetail.summary.pending_conversations}
-                                                                        </div>
-                                                                        <div className="text-[10px] settings-subtitle">Conv. abiertas</div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Charts row */}
-                                                                <div className="grid grid-cols-2 gap-3">
-                                                                    {/* Daily activity */}
-                                                                    <div className="rounded-lg bg-card p-3 border border-border/30">
-                                                                        <h4 className="text-xs font-semibold settings-title mb-2 flex items-center gap-1">
-                                                                            <TrendingUp className="w-3 h-3" />
-                                                                            Actividad diaria
-                                                                        </h4>
-                                                                        <ResponsiveContainer width="100%" height={120}>
-                                                                            <BarChart data={advisorDetail.daily_activity}>
-                                                                                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                                                                <XAxis dataKey="label" tick={{ fontSize: 9 }} className="fill-muted-foreground" />
-                                                                                <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" allowDecimals={false} />
-                                                                                <Tooltip
-                                                                                    contentStyle={{
-                                                                                        backgroundColor: 'var(--card)',
-                                                                                        border: '1px solid var(--border)',
-                                                                                        borderRadius: '8px',
-                                                                                        fontSize: '11px',
-                                                                                        color: 'var(--foreground)',
-                                                                                    }}
-                                                                                    formatter={(value: any) => [value, 'Mensajes']}
-                                                                                />
-                                                                                <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
-                                                                            </BarChart>
-                                                                        </ResponsiveContainer>
-                                                                    </div>
-
-                                                                    {/* Hourly distribution */}
-                                                                    <div className="rounded-lg bg-card p-3 border border-border/30">
-                                                                        <h4 className="text-xs font-semibold settings-title mb-2 flex items-center gap-1">
-                                                                            <Timer className="w-3 h-3" />
-                                                                            Distribución por hora
-                                                                        </h4>
-                                                                        <ResponsiveContainer width="100%" height={120}>
-                                                                            <LineChart data={advisorDetail.hourly_distribution}>
-                                                                                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                                                                <XAxis
-                                                                                    dataKey="hour"
-                                                                                    tick={{ fontSize: 8 }}
-                                                                                    className="fill-muted-foreground"
-                                                                                    interval={2}
-                                                                                />
-                                                                                <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" allowDecimals={false} />
-                                                                                <Tooltip
-                                                                                    contentStyle={{
-                                                                                        backgroundColor: 'var(--card)',
-                                                                                        border: '1px solid var(--border)',
-                                                                                        borderRadius: '8px',
-                                                                                        fontSize: '11px',
-                                                                                        color: 'var(--foreground)',
-                                                                                    }}
-                                                                                    formatter={(value: any) => [value, 'Mensajes']}
-                                                                                />
-                                                                                <Line type="monotone" dataKey="count" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 2 }} />
-                                                                            </LineChart>
-                                                                        </ResponsiveContainer>
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Message types */}
-                                                                {Object.keys(advisorDetail.message_types).length > 0 && (
-                                                                    <div className="flex flex-wrap gap-2">
-                                                                        <span className="text-[10px] font-semibold settings-title">Tipos de mensaje:</span>
-                                                                        {Object.entries(advisorDetail.message_types).map(([type, count]) => (
-                                                                            <span key={type} className="text-[10px] px-2 py-0.5 rounded-full bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-[#2e3f84]/20 dark:text-blue-300">
-                                                                                {type}: {count}
-                                                                            </span>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-center py-4 text-xs settings-subtitle">
-                                                                Error al cargar métricas
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
+                                <div className="mt-4 rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                    <h3 className="mb-2 text-xs font-bold settings-title">Calidad de entrega saliente</h3>
+                                    <div className="space-y-2">
+                                        {deliveryItems.map((item) => (
+                                            <StatLine key={item.key} icon={item.icon} label={item.label} value={item.value} total={outboundTotal} tone={item.tone} />
                                         ))}
                                     </div>
-                                ) : (
-                                    <div className="text-center py-4 settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                                        No hay datos de asesores disponibles
+                                </div>
+                            </SectionCard>
+
+                            <SectionCard icon={CalendarDays} title={t('statistics.appointments.title')} subtitle="Recordatorios y respuesta del paciente">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {appointmentItems.map((item) => (
+                                        <StatLine key={item.label} icon={item.icon} label={item.label} value={item.value} total={appointmentTotalForBars} tone={item.tone} />
+                                    ))}
+                                </div>
+                            </SectionCard>
+
+                            <SectionCard icon={Activity} title={t('statistics.conversations.title')} subtitle="Estados operativos de la bandeja">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <StatLine icon={MessageSquare} label={t('statistics.conversations.total')} value={statistics.conversations.total} />
+                                    {conversationItems.map((item) => (
+                                        <StatLine key={item.label} icon={item.icon} label={item.label} value={item.value} total={conversationTotalForBars} tone={item.tone} />
+                                    ))}
+                                </div>
+                            </SectionCard>
+
+                            <SectionCard icon={FileText} title={t('statistics.templates.title')} subtitle="Plantillas y capacidad del equipo">
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    <StatLine icon={FileText} label={t('statistics.templates.total')} value={statistics.templates.total} />
+                                    <StatLine icon={Send} label={t('statistics.templates.totalSends')} value={statistics.templates.total_sends} />
+                                    <StatLine icon={CheckCircle2} label={t('statistics.templates.successfulSends')} value={statistics.templates.successful_sends} total={Math.max(statistics.templates.total_sends, 1)} tone="success" />
+                                    <StatLine icon={XCircle} label={t('statistics.templates.failedSends')} value={statistics.templates.failed_sends} total={Math.max(statistics.templates.total_sends, 1)} tone="danger" />
+                                    <StatLine icon={Users} label={t('statistics.users.admins')} value={statistics.users.admins} total={Math.max(statistics.users.total, 1)} tone="primary" />
+                                    <StatLine icon={Users} label={t('statistics.users.advisors')} value={statistics.users.advisors} total={Math.max(statistics.users.total, 1)} tone="info" />
+                                </div>
+                            </SectionCard>
+
+                            <SectionCard
+                                icon={Users}
+                                title="Rendimiento de asesores"
+                                subtitle="Conversaciones, mensajes enviados y resolución"
+                                className="xl:col-span-2"
+                                action={<span className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">Click para detalle</span>}
+                            >
+                                <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                                    <MetricCard icon={Users} label="Asesores" value={statistics.advisors.total_advisors} detail="en el equipo" />
+                                    <MetricCard icon={MessageSquare} label="Conversaciones" value={formatNumber(statistics.advisors.total_conversations)} detail="asignadas" tone="info" />
+                                    <MetricCard icon={CheckCircle2} label="Resueltas" value={formatNumber(statistics.advisors.total_resolved)} detail="cerradas/resueltas" tone="success" />
+                                    <MetricCard icon={Send} label="Mensajes" value={formatNumber(statistics.advisors.total_messages_sent)} detail="enviados" />
+                                    <MetricCard icon={TrendingUp} label="Promedio" value={`${statistics.advisors.avg_resolution_rate}%`} detail="resolución" tone="success" />
+                                </div>
+
+                                {statistics.advisors.top_performer && (
+                                    <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
+                                        <span className="font-bold">Mejor desempeño:</span> {statistics.advisors.top_performer.name} con {statistics.advisors.top_performer.resolved_conversations} conversaciones resueltas y {statistics.advisors.top_performer.resolution_rate}% de resolución.
                                     </div>
                                 )}
-                            </div>
+
+                                {statistics.advisors.advisors.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {statistics.advisors.advisors.map((advisor) => {
+                                            const expanded = expandedAdvisor === advisor.id;
+                                            const rateTone = advisor.resolution_rate >= 70 ? 'success' : advisor.resolution_rate >= 40 ? 'warning' : 'danger';
+
+                                            return (
+                                                <div key={advisor.id} className="overflow-hidden rounded-lg border border-[#d4d8e8]/80 bg-white/45 dark:border-white/10 dark:bg-white/[0.03]">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleAdvisorDetail(advisor.id)}
+                                                        className="flex w-full flex-col gap-3 px-4 py-3 text-left transition-colors hover:bg-white/75 dark:hover:bg-white/[0.04] lg:flex-row lg:items-center lg:justify-between"
+                                                    >
+                                                        <div className="flex min-w-0 items-center gap-3">
+                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2e3f84] text-xs font-bold text-white shadow-sm shadow-[#2e3f84]/20">
+                                                                {advisor.name.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    {expanded ? <ChevronUp className="h-4 w-4 settings-title" /> : <ChevronDown className="h-4 w-4 settings-subtitle" />}
+                                                                    <p className="truncate text-sm font-bold settings-title">{advisor.name}</p>
+                                                                </div>
+                                                                <p className="mt-1 text-xs settings-subtitle">
+                                                                    {formatNumber(advisor.total_conversations)} conv. · {formatNumber(advisor.messages_sent)} mensajes · {formatNumber(advisor.scheduled_conversations)} agendadas
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-2 text-right text-xs lg:w-[360px]">
+                                                            <div>
+                                                                <p className="font-bold settings-title">{formatNumber(advisor.resolved_conversations)}</p>
+                                                                <p className="settings-subtitle">resueltas</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-bold settings-title">{formatNumber(advisor.active_conversations)}</p>
+                                                                <p className="settings-subtitle">activas</p>
+                                                            </div>
+                                                            <div>
+                                                                <span className={cn('inline-flex rounded-md border px-2 py-1 text-[11px] font-bold', toneClasses(rateTone))}>
+                                                                    {advisor.resolution_rate}%
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </button>
+
+                                                    {expanded && (
+                                                        <div className="border-t border-[#d4d8e8]/80 p-4 dark:border-white/10">
+                                                            <div className="mb-4 flex flex-wrap items-center gap-2">
+                                                                {periodOptions.map((option) => (
+                                                                    <button
+                                                                        key={option.value}
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setAdvisorPeriod(option.value);
+                                                                            setAdvisorStartDate('');
+                                                                            setAdvisorEndDate('');
+                                                                            fetchAdvisorDetail(advisor.id, option.value, '', '');
+                                                                        }}
+                                                                        className={cn(
+                                                                            'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors',
+                                                                            advisorPeriod === option.value && !advisorStartDate && !advisorEndDate
+                                                                                ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
+                                                                                : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
+                                                                        )}
+                                                                    >
+                                                                        {option.label}
+                                                                    </button>
+                                                                ))}
+                                                                <Input
+                                                                    type="date"
+                                                                    value={advisorStartDate}
+                                                                    onChange={(event) => {
+                                                                        setAdvisorStartDate(event.target.value);
+                                                                        if (event.target.value && advisorEndDate) {
+                                                                            setAdvisorPeriod('custom');
+                                                                            fetchAdvisorDetail(advisor.id, 'custom', event.target.value, advisorEndDate);
+                                                                        }
+                                                                    }}
+                                                                    className="h-8 w-[145px] rounded-lg text-xs settings-input"
+                                                                />
+                                                                <Input
+                                                                    type="date"
+                                                                    value={advisorEndDate}
+                                                                    onChange={(event) => {
+                                                                        setAdvisorEndDate(event.target.value);
+                                                                        if (advisorStartDate && event.target.value) {
+                                                                            setAdvisorPeriod('custom');
+                                                                            fetchAdvisorDetail(advisor.id, 'custom', advisorStartDate, event.target.value);
+                                                                        }
+                                                                    }}
+                                                                    className="h-8 w-[145px] rounded-lg text-xs settings-input"
+                                                                />
+                                                            </div>
+
+                                                            {loadingAdvisor ? (
+                                                                <div className="flex items-center justify-center py-8">
+                                                                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#2e3f84] border-t-transparent" />
+                                                                    <span className="ml-2 text-xs settings-subtitle">Cargando métricas...</span>
+                                                                </div>
+                                                            ) : advisorDetail ? (
+                                                                <div className="space-y-4">
+                                                                    <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                                                                        <MetricCard icon={Send} label="Mensajes" value={advisorDetail.summary.messages_sent} detail="enviados" />
+                                                                        <MetricCard icon={TrendingUp} label="Resolución" value={`${advisorDetail.summary.resolution_rate}%`} detail="tasa" tone="success" />
+                                                                        <MetricCard icon={Timer} label="Resp. prom." value={advisorDetail.summary.avg_response_time_minutes !== null ? `${advisorDetail.summary.avg_response_time_minutes} min` : 'N/A'} detail="tiempo" tone="info" />
+                                                                        <MetricCard icon={CalendarCheck2} label="Agendadas" value={advisorDetail.summary.scheduled_conversations} detail="conversaciones" />
+                                                                        <MetricCard icon={Activity} label="Abiertas" value={advisorDetail.summary.active_conversations + advisorDetail.summary.pending_conversations} detail="activas/pendientes" tone="warning" />
+                                                                    </div>
+
+                                                                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                                                        <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                            <h4 className="mb-2 flex items-center gap-2 text-xs font-bold settings-title">
+                                                                                <TrendingUp className="h-3.5 w-3.5" />
+                                                                                Actividad diaria
+                                                                            </h4>
+                                                                            <ResponsiveContainer width="100%" height={150}>
+                                                                                <BarChart data={advisorDetail.daily_activity}>
+                                                                                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                                                                                    <XAxis dataKey="label" tick={{ fontSize: 10 }} className="fill-muted-foreground" />
+                                                                                    <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" allowDecimals={false} />
+                                                                                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [value, 'Mensajes']} />
+                                                                                    <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
+                                                                                </BarChart>
+                                                                            </ResponsiveContainer>
+                                                                        </div>
+
+                                                                        <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                            <h4 className="mb-2 flex items-center gap-2 text-xs font-bold settings-title">
+                                                                                <Timer className="h-3.5 w-3.5" />
+                                                                                Distribución por hora
+                                                                            </h4>
+                                                                            <ResponsiveContainer width="100%" height={150}>
+                                                                                <LineChart data={advisorDetail.hourly_distribution}>
+                                                                                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                                                                                    <XAxis dataKey="hour" tick={{ fontSize: 9 }} interval={2} className="fill-muted-foreground" />
+                                                                                    <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" allowDecimals={false} />
+                                                                                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [value, 'Mensajes']} />
+                                                                                    <Line type="monotone" dataKey="count" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 2 }} />
+                                                                                </LineChart>
+                                                                            </ResponsiveContainer>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {Object.keys(advisorDetail.message_types).length > 0 && (
+                                                                        <div className="flex flex-wrap gap-2">
+                                                                            <span className="text-xs font-bold settings-title">Tipos de mensaje:</span>
+                                                                            {Object.entries(advisorDetail.message_types).map(([type, count]) => (
+                                                                                <span key={type} className="rounded-md border border-[#2e3f84]/15 bg-[#2e3f84]/10 px-2 py-1 text-[11px] font-semibold text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.06] dark:text-neutral-100">
+                                                                                    {type}: {count}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="py-6 text-center text-xs settings-subtitle">Error al cargar métricas</div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="py-8 text-center text-sm settings-subtitle">No hay datos de asesores disponibles</div>
+                                )}
+                            </SectionCard>
                         </div>
                     ) : (
-                        /* Vista de Gráficos - Bento Grid */
-                        <div className="grid grid-cols-2 gap-4 auto-rows-fr">
-                            {/* Estadísticas Generales - Ocupa 2 columnas */}
-                            <div className="col-span-2 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-base)' }}>
-                                    <BarChart3 className="w-4 h-4" />
-                                    Estadísticas Generales
-                                </h2>
-                                <ResponsiveContainer width="100%" height={180}>
+                        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                            <SectionCard icon={BarChart3} title="Estadísticas generales" subtitle="Resumen comparativo del período" className="xl:col-span-2">
+                                <ResponsiveContainer width="100%" height={280}>
                                     <BarChart data={mainStatsData}>
                                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                        <XAxis
-                                            dataKey="name"
-                                            tick={{ fontSize: 10 }}
-                                            className="fill-muted-foreground"
-                                            angle={-45}
-                                            textAnchor="end"
-                                            height={80}
-                                        />
-                                        <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: '0',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                fontSize: '12px',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        />
+                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
+                                        <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" allowDecimals={false} />
+                                        <Tooltip contentStyle={tooltipStyle} />
                                         <Bar dataKey="value" fill={COLORS.primary} radius={[6, 6, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
-                            </div>
+                            </SectionCard>
 
-                            {/* Mensajes por Estado */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
-                                    <MessageSquare className="w-4 h-4" />
-                                    {t('statistics.messages.byStatus')}
-                                </h2>
-                                <ResponsiveContainer width="100%" height={200}>
-                                    <PieChart>
-                                        <Pie
-                                            data={messagesStatusData}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
-                                            outerRadius={70}
-                                            fill="#8884d8"
-                                            dataKey="value"
-                                        >
-                                            {messagesStatusData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={Object.values(COLORS)[index % Object.values(COLORS).length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: '0',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                fontSize: '12px',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
+                            <SectionCard icon={PieChartIcon} title={t('statistics.messages.byStatus')} subtitle="Mensajes salientes por estado">
+                                {messagesStatusData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height={250}>
+                                        <PieChart>
+                                            <Pie data={messagesStatusData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={82} dataKey="value">
+                                                {messagesStatusData.map((entry, index) => (
+                                                    <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip contentStyle={tooltipStyle} />
+                                            <Legend wrapperStyle={{ fontSize: '11px' }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                ) : <EmptyChart message="No hay mensajes salientes en este período" />}
+                            </SectionCard>
 
-                            {/* Citas por Estado */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
-                                    <Calendar className="w-4 h-4" />
-                                    {t('statistics.appointments.title')}
-                                </h2>
-                                <ResponsiveContainer width="100%" height={200}>
-                                    <PieChart>
-                                        <Pie
-                                            data={appointmentsData.filter(item => item.value > 0)}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
-                                            outerRadius={70}
-                                            fill="#8884d8"
-                                            dataKey="value"
-                                        >
-                                            {appointmentsData.filter(item => item.value > 0).map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: '0',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                fontSize: '12px',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
+                            <SectionCard icon={CalendarDays} title={t('statistics.appointments.title')} subtitle="Respuesta de pacientes">
+                                {appointmentsData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height={250}>
+                                        <PieChart>
+                                            <Pie data={appointmentsData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={82} dataKey="value">
+                                                {appointmentsData.map((entry) => (
+                                                    <Cell key={entry.name} fill={entry.color} />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip contentStyle={tooltipStyle} />
+                                            <Legend wrapperStyle={{ fontSize: '11px' }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                ) : <EmptyChart message="No hay citas en este período" />}
+                            </SectionCard>
 
-                            {/* Conversaciones */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
-                                    <MessageSquare className="w-4 h-4" />
-                                    {t('statistics.conversations.title')}
-                                </h2>
-                                <ResponsiveContainer width="100%" height={200}>
+                            <SectionCard icon={LineChartIcon} title={t('statistics.conversations.title')} subtitle="Distribución por estado">
+                                <ResponsiveContainer width="100%" height={260}>
                                     <BarChart data={conversationsStatusData}>
                                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                        <XAxis
-                                            dataKey="name"
-                                            tick={{ fontSize: 9 }}
-                                            className="fill-muted-foreground"
-                                            angle={-15}
-                                            textAnchor="end"
-                                            height={60}
-                                        />
-                                        <YAxis tick={{ fontSize: 9 }} className="fill-muted-foreground" />
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: '0',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                fontSize: '12px',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        />
-                                        <Bar dataKey="value" fill={COLORS.primary} radius={[6, 6, 0, 0]} />
+                                        <XAxis dataKey="name" tick={{ fontSize: 10 }} className="fill-muted-foreground" angle={-15} textAnchor="end" height={60} />
+                                        <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" allowDecimals={false} />
+                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Bar dataKey="value" fill={COLORS.info} radius={[6, 6, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
-                            </div>
+                            </SectionCard>
 
+                            <SectionCard icon={Users} title={t('statistics.users.title')} subtitle="Composición del equipo">
+                                {usersData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height={260}>
+                                        <PieChart>
+                                            <Pie data={usersData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={82} dataKey="value">
+                                                <Cell fill={COLORS.primaryLight} />
+                                                <Cell fill={COLORS.success} />
+                                            </Pie>
+                                            <Tooltip contentStyle={tooltipStyle} />
+                                            <Legend wrapperStyle={{ fontSize: '11px' }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                ) : <EmptyChart message="No hay usuarios registrados" />}
+                            </SectionCard>
 
-                            {/* Usuarios */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
-                                    <Users className="w-4 h-4" />
-                                    {t('statistics.users.title')}
-                                </h2>
-                                <ResponsiveContainer width="100%" height={200}>
-                                    <PieChart>
-                                        <Pie
-                                            data={[
-                                                { name: t('statistics.users.admins'), value: statistics.users.admins },
-                                                { name: t('statistics.users.advisors'), value: statistics.users.advisors },
-                                            ]}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}
-                                            outerRadius={70}
-                                            fill="#8884d8"
-                                            dataKey="value"
-                                        >
-                                            <Cell fill={COLORS.primaryLight} />
-                                            <Cell fill={COLORS.success} />
-                                        </Pie>
-                                        <Tooltip
-                                            contentStyle={{
-                                                backgroundColor: 'var(--card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: '0',
-                                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                fontSize: '12px',
-                                                color: 'var(--foreground)'
-                                            }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-
-                            {/* Asesores - Top Performers */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-5 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <h2 className="font-bold mb-3 flex items-center gap-2 settings-title" style={{ fontSize: 'var(--text-sm)' }}>
-                                    <Users className="w-4 h-4" />
-                                    Rendimiento de Asesores
-                                </h2>
+                            <SectionCard icon={Users} title="Rendimiento de asesores" subtitle="Resueltas, activas y mensajes enviados" className="xl:col-span-2">
                                 {statistics.advisors.advisors.length > 0 ? (
-                                    <div className="max-h-[300px] overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-                                        <div style={{ height: Math.max(200, statistics.advisors.advisors.length * 45) }}>
+                                    <div className="max-h-[360px] overflow-y-auto pr-1 custom-scrollbar-light">
+                                        <div style={{ height: Math.max(260, statistics.advisors.advisors.length * 48) }}>
                                             <ResponsiveContainer width="100%" height="100%">
-                                                <BarChart
-                                                    data={statistics.advisors.advisors}
-                                                    layout="vertical"
-                                                    margin={{ left: 10, right: 20, top: 5, bottom: 5 }}
-                                                >
-                                            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                                            <XAxis
-                                                type="number"
-                                                tick={{ fontSize: 10 }}
-                                                className="fill-muted-foreground"
-                                                allowDecimals={false}
-                                            />
-                                            <YAxis
-                                                type="category"
-                                                dataKey="name"
-                                                tick={{ fontSize: 10 }}
-                                                className="fill-muted-foreground"
-                                                width={110}
-                                            />
-                                            <Tooltip
-                                                contentStyle={{
-                                                    backgroundColor: 'var(--card)',
-                                                    border: '1px solid var(--border)',
-                                                    borderRadius: '0',
-                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                                    fontSize: '12px',
-                                                    color: 'var(--foreground)'
-                                                }}
-                                                formatter={(value: any, name: string) => [
-                                                    value,
-                                                    name === 'resolved_conversations' ? 'Resueltas' :
-                                                        name === 'active_conversations' ? 'Activas' :
-                                                            name === 'messages_sent' ? 'Mensajes' : name
-                                                ]}
-                                            />
-                                            <Legend
-                                                wrapperStyle={{ fontSize: '11px' }}
-                                                formatter={(value) =>
-                                                    value === 'resolved_conversations' ? 'Resueltas' :
-                                                        value === 'active_conversations' ? 'Activas' :
-                                                            value === 'messages_sent' ? 'Mensajes' : value
-                                                }
-                                            />
-                                            <Bar dataKey="resolved_conversations" fill={COLORS.success} radius={[0, 4, 4, 0]} />
-                                            <Bar dataKey="active_conversations" fill={COLORS.info} radius={[0, 4, 4, 0]} />
-                                            <Bar dataKey="messages_sent" fill={COLORS.primaryLight} radius={[0, 4, 4, 0]} />
-                                        </BarChart>
+                                                <BarChart data={statistics.advisors.advisors} layout="vertical" margin={{ left: 10, right: 20, top: 5, bottom: 5 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                                                    <XAxis type="number" tick={{ fontSize: 10 }} className="fill-muted-foreground" allowDecimals={false} />
+                                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} className="fill-muted-foreground" width={130} />
+                                                    <Tooltip
+                                                        contentStyle={tooltipStyle}
+                                                        formatter={(value, name) => [
+                                                            value,
+                                                            name === 'resolved_conversations' ? 'Resueltas' : name === 'active_conversations' ? 'Activas' : name === 'messages_sent' ? 'Mensajes' : name,
+                                                        ]}
+                                                    />
+                                                    <Legend
+                                                        wrapperStyle={{ fontSize: '11px' }}
+                                                        formatter={(value) => value === 'resolved_conversations' ? 'Resueltas' : value === 'active_conversations' ? 'Activas' : value === 'messages_sent' ? 'Mensajes' : value}
+                                                    />
+                                                    <Bar dataKey="resolved_conversations" fill={COLORS.success} radius={[0, 4, 4, 0]} />
+                                                    <Bar dataKey="active_conversations" fill={COLORS.info} radius={[0, 4, 4, 0]} />
+                                                    <Bar dataKey="messages_sent" fill={COLORS.primaryLight} radius={[0, 4, 4, 0]} />
+                                                </BarChart>
                                             </ResponsiveContainer>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="flex items-center justify-center h-48 settings-subtitle">
-                                        <p>No hay datos de asesores disponibles</p>
-                                    </div>
-                                )}
-                            </div>
+                                ) : <EmptyChart message="No hay datos de asesores disponibles" />}
+                            </SectionCard>
                         </div>
                     )}
                 </div>

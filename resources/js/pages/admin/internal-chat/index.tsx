@@ -99,6 +99,8 @@ interface Props {
     users: UserInfo[];
 }
 
+type ChatFilter = 'all' | 'unread' | 'groups' | 'directs';
+
 export default function InternalChat({ auth, chats: serverChats, users: serverUsers }: Props) {
     const [chats, setChats] = useState<ChatItem[]>(serverChats || []);
     const [availableUsers] = useState<UserInfo[]>(serverUsers || []);
@@ -107,6 +109,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const [messages, setMessages] = useState<MessageItem[]>([]);
     const [inputText, setInputText] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [chatFilter, setChatFilter] = useState<ChatFilter>('all');
     const [isUploading, setIsUploading] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
@@ -159,16 +162,40 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     // --- Derived State ---
 
     const filteredChats = useMemo(() => {
-        return chats.filter(chat =>
-            chat.name?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [chats, searchQuery]);
+        const searchTerm = searchQuery.trim().toLowerCase();
+
+        return chats.filter(chat => {
+            const matchesSearch = !searchTerm || chat.name?.toLowerCase().includes(searchTerm);
+            const matchesFilter = chatFilter === 'all'
+                || (chatFilter === 'unread' && chat.unread > 0)
+                || (chatFilter === 'groups' && chat.type === 'group')
+                || (chatFilter === 'directs' && chat.type === 'direct');
+
+            return matchesSearch && matchesFilter;
+        });
+    }, [chatFilter, chats, searchQuery]);
 
     const filteredUsers = useMemo(() => {
         return availableUsers.filter(u =>
             u.name.toLowerCase().includes(userSearchQuery.toLowerCase())
         );
     }, [availableUsers, userSearchQuery]);
+
+    const chatSummary = useMemo(() => {
+        const unreadChats = chats.filter(chat => chat.unread > 0).length;
+        const groupChats = chats.filter(chat => chat.type === 'group').length;
+        const directChats = chats.filter(chat => chat.type === 'direct').length;
+        const onlineUsers = availableUsers.filter(user => user.is_online && user.id !== auth.user.id).length;
+
+        return { unreadChats, groupChats, directChats, onlineUsers };
+    }, [availableUsers, auth.user.id, chats]);
+
+    const quickChatFilters = useMemo<{ value: ChatFilter; label: string; count: number }[]>(() => [
+        { value: 'all', label: 'Todos', count: chats.length },
+        { value: 'unread', label: 'No leídos', count: chatSummary.unreadChats },
+        { value: 'groups', label: 'Grupos', count: chatSummary.groupChats },
+        { value: 'directs', label: 'Directos', count: chatSummary.directChats },
+    ], [chatSummary.directChats, chatSummary.groupChats, chatSummary.unreadChats, chats.length]);
 
     // Users available for @mention in the active chat
     const mentionUsers = useMemo(() => {
@@ -725,17 +752,22 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     isSidebarVisible ? 'w-full md:w-80 lg:w-96' : 'hidden md:w-0 md:overflow-hidden'
                 )}>
                     {/* Header */}
-                    <div className="p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h1 className="text-2xl font-extrabold text-[#16235e] dark:text-blue-200 tracking-tight">Mensajes</h1>
+                    <div className="px-4 pt-4 pb-3">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="min-w-0">
+                                <h1 className="text-2xl font-extrabold text-[#16235e] dark:text-blue-200 tracking-tight">Chat interno</h1>
+                                <p className="mt-0.5 text-xs text-[#5f5e5e] dark:text-neutral-400">
+                                    {chats.length} conversaciones · {chatSummary.onlineUsers} en línea
+                                </p>
+                            </div>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <button
                                     onClick={() => setShowCreateGroup(true)}
-                                    className="w-10 h-10 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
+                                    className="w-9 h-9 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
                                     title="Nuevo chat o grupo"
                                 >
-                                    <Plus className="w-5 h-5" />
+                                    <Plus className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
@@ -747,9 +779,27 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 type="text"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-11 pr-4 py-3 bg-muted dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
+                                className="w-full pl-11 pr-4 py-2.5 bg-muted dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
                                 placeholder="Buscar conversaciones"
                             />
+                        </div>
+
+                        <div className="flex items-center gap-1.5 px-1 pt-2 overflow-x-auto custom-scrollbar-light">
+                            {quickChatFilters.map(filter => (
+                                <button
+                                    key={filter.value}
+                                    type="button"
+                                    onClick={() => setChatFilter(filter.value)}
+                                    className={cn(
+                                        'flex-shrink-0 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-all duration-200',
+                                        chatFilter === filter.value
+                                            ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300 font-semibold'
+                                            : 'bg-muted dark:bg-neutral-800 text-[#5f5e5e] dark:text-neutral-400 hover:bg-muted/80 dark:hover:bg-neutral-700 font-medium'
+                                    )}
+                                >
+                                    {filter.label} {filter.count}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -760,7 +810,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 <MessageSquare className="w-16 h-16 mb-4 text-[#767681]/50" />
                                 <p className="text-center text-sm">No hay conversaciones</p>
                                 <p className="text-center text-xs text-[#767681] mt-2">
-                                    Crea una nueva conversación o grupo
+                                    {searchQuery || chatFilter !== 'all' ? 'Intenta cambiar la búsqueda o el filtro activo' : 'Crea una nueva conversación o grupo'}
                                 </p>
                             </div>
                         ) : (
@@ -771,9 +821,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <button
                                         key={chat.id}
                                         onClick={() => handleChatSelect(chat)}
-                                        className={`w-full flex items-center gap-4 p-4 mb-1 rounded-xl transition-all text-left select-none ${isActive
-                                                ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400'
-                                                : 'hover:bg-muted/60 dark:hover:bg-neutral-800/50 border-l-4 border-transparent'
+                                        className={`w-full flex items-center gap-4 p-4 mb-1.5 rounded-xl transition-all text-left select-none ${isActive
+                                            ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400 shadow-sm'
+                                            : 'bg-card dark:bg-neutral-800/60 hover:bg-muted/60 dark:hover:bg-neutral-800/80 border-l-4 border-transparent shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
                                             }`}
                                     >
                                         {/* Avatar */}
@@ -807,6 +857,19 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             <p className={`text-sm truncate ${chat.unread > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
                                                 {getLastMessagePreview(chat)}
                                             </p>
+                                            <div className="flex items-center justify-between mt-1.5">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={cn('w-2 h-2 rounded-full', chat.type === 'group' ? 'bg-[#16235e] dark:bg-blue-400' : 'bg-emerald-500')}></span>
+                                                    <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-neutral-400">
+                                                        {chat.type === 'group' ? `${chat.participants.length} participantes` : 'Directo'}
+                                                    </span>
+                                                </div>
+                                                {chat.type === 'direct' && chat.participants.some(p => p.id !== auth.user.id && p.is_online) && (
+                                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                                        En línea
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </button>
                                 );
@@ -829,10 +892,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 min-w-0 flex flex-col bg-background dark:bg-neutral-950 w-full md:w-auto relative">
+                    <div className="flex-1 min-w-0 flex flex-col bg-background dark:bg-neutral-900 w-full md:w-auto relative">
                         {/* Header del Chat */}
-                        <header className="flex items-center justify-between w-full px-6 py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm z-10">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <header className="flex items-center justify-between w-full px-4 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm z-10">
+                            <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
                                 {/* Botón volver (mobile) / toggle sidebar (desktop) */}
                                 <button
                                     onClick={() => {
@@ -842,7 +905,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             setIsSidebarVisible(!isSidebarVisible);
                                         }
                                     }}
-                                    className="p-2 rounded-full hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-blue-300 flex-shrink-0"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300 flex-shrink-0"
                                     title={isSidebarVisible ? 'Ocultar lista' : 'Mostrar lista'}
                                 >
                                     {isSidebarVisible ? (
@@ -854,7 +917,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                 {/* Avatar e Info */}
                                 <div className="relative flex-shrink-0">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-[14px] font-bold ${activeChat.type === 'group' ? 'bg-[#2e3a75]' : 'bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94]'}`}>
+                                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white text-sm md:text-base font-bold ${activeChat.type === 'group' ? 'bg-[#2e3a75]' : 'bg-gradient-to-br from-[#16235e] to-[#2e3a75]'}`}>
                                         {activeChat.type === 'group' ? (
                                             <Users className="w-5 h-5" />
                                         ) : (
@@ -866,10 +929,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     )}
                                 </div>
                                 <div className="min-w-0 flex-1 overflow-hidden">
-                                    <h2 className="font-semibold text-md text-[#16235e] dark:text-blue-200 leading-tight truncate">
+                                    <h2 className="font-bold text-[#16235e] dark:text-neutral-200 text-sm md:text-base leading-tight truncate">
                                         {activeChat.name}
                                     </h2>
-                                    <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">
+                                    <p className="text-xs md:text-sm text-[#5f5e5e] dark:text-neutral-400 truncate">
                                         {activeChat.type === 'group'
                                             ? `${activeChat.participants.length} participantes`
                                             : (activeChatInfo?.participants?.find(p => p.id !== auth.user.id)?.is_online
@@ -882,10 +945,15 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                             {/* Acciones del header */}
                             <div className="flex items-center gap-1">
-                                <div className="w-px h-6 bg-border/30 mx-1"></div>
+                                <div className="hidden sm:flex items-center gap-2 mr-1 px-3 py-1 rounded-full bg-[#dee1ff]/60 dark:bg-neutral-800">
+                                    <span className={cn('w-2 h-2 rounded-full', activeChat.type === 'group' ? 'bg-[#16235e] dark:bg-blue-400' : 'bg-emerald-500')}></span>
+                                    <span className="text-xs font-medium text-[#16235e] dark:text-neutral-300">
+                                        {activeChat.type === 'group' ? 'Grupo' : 'Directo'}
+                                    </span>
+                                </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button className="p-2.5 rounded-full hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-blue-300 opacity-80 hover:opacity-100">
+                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300 opacity-80 hover:opacity-100">
                                             <MoreVertical className="w-5 h-5" />
                                         </button>
                                     </DropdownMenuTrigger>
@@ -951,16 +1019,21 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         <div
                             ref={messagesContainerRef}
                             onScroll={handleMessagesScroll}
-                            className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-8 flex flex-col gap-6 custom-scrollbar-light"
+                            className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
 
                         >
                             {messages.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full text-[#5f5e5e]">
-                                    <MessageSquare className="w-16 h-16 mb-4 text-[#c6c5d1]" />
-                                    <p className="text-sm">No hay mensajes aún. ¡Envía el primero!</p>
+                                <div className="flex items-center justify-center h-full text-[#767681]">
+                                    <div className="text-center">
+                                        <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-white/60 dark:bg-neutral-800/60 flex items-center justify-center">
+                                            <MessageSquare className="w-8 h-8 text-[#767681]/50" />
+                                        </div>
+                                        <p className="font-medium">No hay mensajes aún</p>
+                                        <p className="text-xs mt-1 text-[#767681]/70">Envía el primer mensaje para iniciar</p>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-6">
+                                <div className="flex flex-col gap-1">
                                     {messages.map((msg, idx) => {
                                         // Show "Visto por" only on the last message
                                         const isLastMessage = idx === messages.length - 1;
@@ -979,7 +1052,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             <div
                                                 key={msg.id}
                                                 id={`msg-${msg.id}`}
-                                                className={`group/msg flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[75%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
+                                                className={`group/msg flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[85%] md:max-w-[70%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
                                             >
                                                 {/* Reply action button - appears on hover */}
                                                 <button
@@ -993,11 +1066,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     <Reply className="w-4 h-4" />
                                                 </button>
 
-                                                <div className="flex flex-col min-w-0">
+                                                <div className={`flex flex-col min-w-0 ${msg.is_mine ? 'items-end' : 'items-start'}`}>
                                                 <div
-                                                    className={`min-w-0 ${msg.is_mine
-                                                        ? 'bg-[#2e3a75] text-white px-5 py-3.5 rounded-xl rounded-br-sm shadow-md'
-                                                        : 'bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 px-5 py-3.5 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                                                    className={`min-w-0 px-3 pt-2 pb-1 flex flex-col relative ${msg.is_mine
+                                                        ? 'bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] rounded-xl rounded-br-sm shadow-sm'
+                                                        : 'bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10'
                                                         }`}
                                                 >
                                                         {/* Reply quote bubble */}
@@ -1031,7 +1104,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* Sender name (in groups show for all; in direct only for others) */}
                                                         {msg.user && (activeChat?.type === 'group' || !msg.is_mine) && (
-                                                            <p className={`text-[11px] mb-1 font-bold ${msg.is_mine ? 'text-blue-200' : 'text-[#16235e] dark:text-blue-400'}`}>
+                                                            <p className={`text-[11px] mb-1 font-bold ${msg.is_mine ? 'text-[#1f7aad] dark:text-[#53bdeb]' : 'text-[#16235e] dark:text-blue-400'}`}>
                                                                 {msg.is_mine ? 'Tú' : msg.user.name}
                                                             </p>
                                                         )}
@@ -1147,7 +1220,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* Text Content (with @mention highlighting) */}
                                                         {msg.body && (
-                                                            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                                            <p className="text-[15px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] pr-3">
                                                                 {(() => {
                                                                     const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
                                                                     const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);
@@ -1186,7 +1259,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                         )}
                                                     </div>
                                                 {/* Timestamp - outside bubble */}
-                                                <div className={`flex items-center gap-1 mt-1.5 ${msg.is_mine ? 'mr-1 justify-end' : 'ml-1'}`}>
+                                                <div className={`flex items-center gap-1 mt-1 ${msg.is_mine ? 'mr-1 justify-end' : 'ml-1'}`}>
                                                     <span className="text-[10px] text-[#5f5e5e] dark:text-neutral-500">{msg.created_at}</span>
                                                     {msg.is_mine && (
                                                         <Check className="w-3 h-3 text-[#16235e] dark:text-blue-400" style={{ fontSize: '14px' }} />
@@ -1211,7 +1284,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         </div>
 
                         {/* Input Area */}
-                        <form onSubmit={handleSendMessage} className="p-6 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md">
+                        <form onSubmit={handleSendMessage} className="px-3 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md border-t border-border/70 dark:border-neutral-800">
                             {/* Reply preview bar */}
                             {replyingTo && (
                                 <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-muted dark:bg-neutral-800 rounded-xl border-l-3 border-[#16235e] dark:border-blue-400 animate-in slide-in-from-bottom-2 duration-200">
@@ -1237,7 +1310,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     </button>
                                 </div>
                             )}
-                            <div className="flex items-center gap-3 bg-muted dark:bg-neutral-800 px-4 py-2 rounded-full ring-1 ring-black/5 dark:ring-white/10 focus-within:ring-[#16235e]/20 transition-all relative">
+                            <div className="flex items-end gap-2 md:gap-3 bg-muted dark:bg-neutral-800 px-3 md:px-4 py-2 rounded-2xl ring-1 ring-black/5 dark:ring-white/10 focus-within:ring-[#16235e]/20 transition-all relative">
                                 {/* Hidden file input */}
                                 <input
                                     type="file"

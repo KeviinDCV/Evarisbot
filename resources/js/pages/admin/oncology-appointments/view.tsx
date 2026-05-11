@@ -209,124 +209,71 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         <AdminLayout>
             <Head title={pageTitle} />
 
-            <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-6 md:mb-8">
-                        <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
-                            <Button
-                                onClick={() => router.get(`${routePrefix}`)}
-                                className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                style={{
-                                    backgroundColor: 'var(--primary-base)',
-                                    boxShadow: 'var(--shadow-md)',
-                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                    padding: '0 var(--space-lg)',
-                                    fontSize: 'var(--text-sm)',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                }}
-                            >
-                                <ArrowLeft className="w-4 h-4 mr-2" />
-                                Volver a Citas
-                            </Button>
-
-                            <a
-                                href={`${routePrefix}/export?filter=${filter}&search=${searchTerm || ''}&date_from=${dateFrom || ''}&date_to=${dateTo || ''}`}
-                                style={{
-                                    backgroundColor: 'var(--primary-base)',
-                                    backgroundImage: 'var(--gradient-shine)',
-                                    color: 'white',
-                                    padding: '0.5rem 1rem',
-                                    fontSize: 'var(--text-sm)',
-                                    fontWeight: '600',
-                                    borderRadius: '0.75rem',
-                                    boxShadow: 'var(--shadow-md)',
-                                    transition: 'all 0.2s',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    cursor: 'pointer',
-                                    textDecoration: 'none',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                }}
-                                onMouseDown={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                }}
-                                onMouseUp={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                }}
-                            >
-                                <Download className="w-4 h-4" />
-                                Exportar Excel
-                            </a>
-                        </div>
-                        <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                            Gestión de Citas
-                        </h1>
-                        <p className="text-sm md:text-base settings-subtitle mt-1">
-                            Visualiza y filtra todas las citas con sus estados de recordatorio
-                        </p>
-                    </div>
-
-                    {/* Filtros */}
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6">
-                        <div className="mb-4">
-                            <h2 className="text-lg font-semibold settings-title mb-3 flex items-center gap-2">
-                                <Filter className="w-5 h-5" />
-                                Filtros
-                            </h2>
-                            <div className="flex flex-wrap gap-2">
-                                {filterButtons.map(({ key, label, icon: Icon, count }) => (
-                                    <button
-                                        key={key}
-                                        onClick={() => handleFilterChange(key)}
-                                        className={`
-                                        flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200
-                                        ${filter === key
-                                                ? 'chat-message-sent text-white shadow-[0_2px_8px_rgba(46,63,132,0.25)]'
-                                                : 'filter-btn-inactive'
-                                            }
-                                    `}
-                                    >
-                                        <Icon className="w-4 h-4" />
-                                        <span>{label}</span>
-                                        <span
-                                            className={`
-                                            px-2 py-0.5 rounded-xl text-xs
-                                            ${filter === key ? 'bg-white/20 text-white' : 'filter-badge-inactive'}
-                                        `}
-                                        >
-                                            {count.toLocaleString()}
-                                        </span>
-                                    </button>
-                                ))}
+            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
+                <div className="mx-auto flex max-w-7xl flex-col gap-5">
+                    <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                                <CalendarCheck className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
+                                    {pageTitle}
+                                </h1>
+                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
+                                    Visualiza, filtra y exporta las citas con sus estados de recordatorio.
+                                </p>
                             </div>
                         </div>
 
-                        {/* Filtro por Fecha */}
+                        <div className="flex flex-wrap gap-2">
+                            <Button onClick={() => router.get(`${routePrefix}`)} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-secondary">
+                                <ArrowLeft className="mr-2 h-3.5 w-3.5" />
+                                Volver a Citas
+                            </Button>
+                            <a href={`${routePrefix}/export?filter=${filter}&search=${searchTerm || ''}&date_from=${dateFrom || ''}&date_to=${dateTo || ''}`} className="inline-flex h-9 items-center rounded-lg px-4 text-xs font-semibold settings-btn-primary">
+                                <Download className="mr-2 h-3.5 w-3.5" />
+                                Exportar Excel
+                            </a>
+                        </div>
+                    </header>
+
+                    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                        {filterButtons.map(({ key, label, icon: Icon, count }) => (
+                            <button
+                                key={key}
+                                onClick={() => handleFilterChange(key)}
+                                className={`card-gradient rounded-lg border p-4 text-left shadow-sm shadow-[#2e3f84]/5 transition-colors ${filter === key
+                                    ? 'border-[#2e3f84]/40 bg-[#2e3f84]/10 dark:border-white/20 dark:bg-white/[0.06]'
+                                    : 'border-white/50 hover:border-[#d4d8e8] dark:border-white/10 dark:hover:border-white/20'
+                                    }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/60 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                                        <Icon className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                                        <p className="mt-1 text-lg font-bold leading-tight settings-title">{count.toLocaleString()}</p>
+                                        <p className="mt-1 text-xs settings-subtitle">{key === filter ? 'Filtro activo' : 'Aplicar filtro'}</p>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </section>
+
+                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="mb-4">
-                            <h3 className="text-sm font-semibold settings-title mb-2 flex items-center gap-2">
-                                <Calendar className="w-4 h-4" />
+                            <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
+                                <Filter className="h-4 w-4" />
+                                Filtros
+                            </h2>
+                            <p className="text-sm settings-subtitle">Busca por datos del paciente, fecha, profesional o especialidad.</p>
+                        </div>
+
+                        <div className="mb-4">
+                            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold settings-title">
+                                <Calendar className="h-4 w-4" />
                                 Filtrar por Fecha de Cita
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -338,7 +285,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         type="date"
                                         value={dateFrom}
                                         onChange={(e) => handleDateChange('from', e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
+                                        className="h-9 w-full rounded-lg px-3 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
                                     />
                                 </div>
                                 <div>
@@ -349,14 +296,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         type="date"
                                         value={dateTo}
                                         onChange={(e) => handleDateChange('to', e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
+                                        className="h-9 w-full rounded-lg px-3 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
                                     />
                                 </div>
                                 <div className="flex items-end">
                                     <button
                                         onClick={handleClearDates}
                                         disabled={!dateFrom && !dateTo}
-                                        className="w-full px-4 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-[#6b7494] dark:text-[hsl(231,15%,60%)] bg-white dark:bg-[hsl(231,25%,14%)] hover:bg-[#f8f9fc] dark:hover:bg-[hsl(231,25%,18%)] dark:hover:text-[hsl(231,55%,70%)] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
+                                        className="h-9 w-full rounded-lg border border-[#d4d8e8] bg-white px-4 text-sm font-medium text-[#6b7494] transition-all duration-200 hover:border-[#2e3f84] hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300 dark:hover:bg-white/5"
                                     >
                                         Limpiar Fechas
                                     </button>
@@ -373,7 +320,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         {/* Buscador */}
                         <div className="relative">
                             <label htmlFor="view-search" className="sr-only">Buscar citas</label>
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494] dark:text-[hsl(231,15%,60%)]" />
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6b7494] dark:text-neutral-400" />
                             <input
                                 id="view-search"
                                 name="view-search"
@@ -381,15 +328,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
                                 value={searchTerm}
                                 onChange={(e) => handleSearch(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
+                                className="h-9 w-full rounded-lg pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
                             />
                         </div>
-                    </div>
+                    </section>
 
-                    {/* Tabla */}
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="mb-4">
-                            <h2 className="text-lg font-semibold settings-title">
+                            <h2 className="text-base font-semibold settings-title">
                                 Resultados ({appointments.total})
                             </h2>
                             <p className="text-sm settings-subtitle">
@@ -397,12 +343,11 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                             </p>
                         </div>
 
-                        {/* Tabla con scroll horizontal */}
-                        <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
+                        <div className="overflow-x-auto rounded-lg border border-[#d4d8e8] dark:border-white/10">
                             <table className="w-full text-left border-collapse">
-                                <thead className="bg-black/5 dark:bg-white/5 border-b border-border dark:border-[hsl(231,20%,20%)]">
+                                <thead className="border-b border-border bg-black/5 dark:border-white/10 dark:bg-white/5">
                                     <tr>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('id')} style={{ fontSize: 'var(--text-sm)' }}>
+                                        <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('id')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
                                                 #
                                                 {sortField === 'id' ? (
@@ -412,7 +357,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                 )}
                                             </div>
                                         </th>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('nom_paciente')} style={{ fontSize: 'var(--text-sm)' }}>
+                                        <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('nom_paciente')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
                                                 Paciente
                                                 {sortField === 'nom_paciente' || sortField === 'citide' ? (
@@ -422,7 +367,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                 )}
                                             </div>
                                         </th>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('citfc')} style={{ fontSize: 'var(--text-sm)' }}>
+                                        <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('citfc')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
                                                 Detalles de Cita
                                                 {sortField === 'citfc' || sortField === 'cithor' ? (
@@ -432,7 +377,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                 )}
                                             </div>
                                         </th>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('mednom')} style={{ fontSize: 'var(--text-sm)' }}>
+                                        <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('mednom')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
                                                 Profesional
                                                 {sortField === 'mednom' || sortField === 'espnom' ? (
@@ -442,7 +387,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                 )}
                                             </div>
                                         </th>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('reminder_status')} style={{ fontSize: 'var(--text-sm)' }}>
+                                        <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('reminder_status')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
                                                 Estado Envío
                                                 {sortField === 'reminder_status' ? (
@@ -454,7 +399,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-border dark:divide-[hsl(231,20%,20%)]">
+                                <tbody className="divide-y divide-border dark:divide-white/10">
                                     {appointments.data.length > 0 ? (
                                         appointments.data.map((appointment, index) => (
                                             <tr
@@ -491,7 +436,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                 {/* Fecha y Hora */}
                                                 <td className="px-4 py-4 whitespace-nowrap align-top">
                                                     <div className="flex flex-col gap-1.5">
-                                                        <div className="inline-flex items-center gap-1.5 settings-title font-medium bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-md w-fit" style={{ fontSize: 'var(--text-sm)' }}>
+                                                        <div className="inline-flex w-fit items-center gap-1.5 rounded-md bg-black/5 px-2.5 py-1 font-medium settings-title dark:bg-white/5" style={{ fontSize: 'var(--text-sm)' }}>
                                                             <CalendarCheck className="w-4 h-4 text-primary" />
                                                             {appointment.citfc || '-'}
                                                         </div>
@@ -572,7 +517,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
 
                         {/* Paginación */}
                         {appointments.last_page > 1 && (
-                            <div className="mt-4 flex items-center justify-between">
+                            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <p className="text-sm settings-subtitle">
                                     Página {appointments.current_page} de {appointments.last_page}
                                 </p>
@@ -580,7 +525,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <button
                                         onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                         disabled={!appointments.prev_page_url}
-                                        className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                        className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                     >
                                         <ChevronLeft className="w-4 h-4" />
                                         Anterior
@@ -588,7 +533,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <button
                                         onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                         disabled={!appointments.next_page_url}
-                                        className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
+                                        className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                     >
                                         Siguiente
                                         <ChevronRight className="w-4 h-4" />
@@ -596,11 +541,10 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </section>
                 </div>
             </div>
         </AdminLayout>
     );
 }
-
 

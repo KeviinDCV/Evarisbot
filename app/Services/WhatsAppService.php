@@ -2055,7 +2055,7 @@ class WhatsAppService
                     $remaining = $pendingAppointments->slice(1);
 
                     if ($remaining->isEmpty()) {
-                        $responseMessage = "❌ *Cancelación registrada*\n\nSe ha cancelado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                        $responseMessage = "❌ *Cancelación*\n\nEstimado usuario/a, para hacer efectiva tu cancelación, por favor envíanos la siguiente información:\n\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\nHasta no enviar la información no se cancelará la consulta.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n🌐 *Página web de citas:* https://citas.huv.gov.co/login\n📞 *Teléfono:* 6206275\n\n_HUV - Evaristo García_";
                     } else {
                         $nextInfo = $remaining->map(function ($r) {
                             $h = $this->formatHoraForResponse($r->cithor);
