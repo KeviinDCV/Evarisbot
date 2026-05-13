@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head } from '@inertiajs/react';
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, type MouseEvent } from 'react';
 import {
     Send,
     Paperclip,
@@ -105,6 +105,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const [chats, setChats] = useState<ChatItem[]>(serverChats || []);
     const [availableUsers] = useState<UserInfo[]>(serverUsers || []);
     const [activeChat, setActiveChat] = useState<ChatItem | null>(null);
+    const [chatContextMenu, setChatContextMenu] = useState<{ chatId: number; x: number; y: number } | null>(null);
     const [activeChatInfo, setActiveChatInfo] = useState<{ name: string; type: string; participants: UserInfo[] } | null>(null);
     const [messages, setMessages] = useState<MessageItem[]>([]);
     const [inputText, setInputText] = useState('');
@@ -403,7 +404,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                if (mediaViewer) {
+                if (chatContextMenu) {
+                    setChatContextMenu(null);
+                } else if (mediaViewer) {
                     setMediaViewer(null);
                     setZoomLevel(1);
                     setImagePosition({ x: 0, y: 0 });
@@ -426,7 +429,22 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         };
         window.addEventListener('keydown', handleEsc);
         return () => window.removeEventListener('keydown', handleEsc);
-    }, [mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, replyingTo, activeChat]);
+    }, [chatContextMenu, mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, replyingTo, activeChat]);
+
+    useEffect(() => {
+        if (!chatContextMenu) return;
+
+        const closeContextMenu = () => setChatContextMenu(null);
+        window.addEventListener('click', closeContextMenu);
+        window.addEventListener('resize', closeContextMenu);
+        window.addEventListener('scroll', closeContextMenu, true);
+
+        return () => {
+            window.removeEventListener('click', closeContextMenu);
+            window.removeEventListener('resize', closeContextMenu);
+            window.removeEventListener('scroll', closeContextMenu, true);
+        };
+    }, [chatContextMenu]);
 
     // Handle scroll wheel zoom in media viewer
     useEffect(() => {
@@ -445,8 +463,60 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     // --- Handlers ---
 
     const handleChatSelect = (chat: ChatItem) => {
+        setChatContextMenu(null);
         setActiveChat(chat);
         setReplyingTo(null);
+    };
+
+    const handleChatContextMenu = (e: MouseEvent<HTMLButtonElement>, chatId: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setChatContextMenu({ chatId, x: e.clientX, y: e.clientY });
+    };
+
+    const handleRenameChat = (chat: ChatItem) => {
+        setChatContextMenu(null);
+        setActiveChat(chat);
+        setReplyingTo(null);
+        setRenameValue(chat.name);
+        setShowRenameModal(true);
+    };
+
+    const handleShowParticipants = (chat: ChatItem) => {
+        setChatContextMenu(null);
+        setActiveChat(chat);
+        setReplyingTo(null);
+        setShowParticipantsModal(true);
+    };
+
+    const getDeleteChatLabel = (chat: ChatItem) => chat.type === 'group'
+        ? (chat.participants.some(p => p.id === auth.user.id) ? 'Eliminar grupo' : 'Salir del grupo')
+        : 'Eliminar chat';
+
+    const handleDeleteChat = async (chat: ChatItem) => {
+        setChatContextMenu(null);
+        const label = getDeleteChatLabel(chat);
+        if (!confirm(`¿${label}? Esta acción no se puede deshacer.`)) return;
+
+        try {
+            const deletedId = chat.id;
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            await axios.delete(`/admin/internal-chat/${deletedId}`, {
+                headers: { 'X-CSRF-TOKEN': csrfToken }
+            });
+
+            lastChatPollRef.current = '';
+            if (activeChat?.id === deletedId) {
+                lastMessageIdRef.current = 0;
+                setMessages([]);
+                setActiveChat(null);
+            }
+            setChats(prev => prev.filter(c => c.id !== deletedId));
+            toast.success('Chat eliminado');
+        } catch (err) {
+            console.error('Error eliminando chat:', err);
+            toast.error('Error al eliminar el chat');
+        }
     };
 
     const handleSendMessage = async (e?: React.FormEvent) => {
@@ -821,6 +891,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <button
                                         key={chat.id}
                                         onClick={() => handleChatSelect(chat)}
+                                        onContextMenu={(e) => handleChatContextMenu(e, chat.id)}
                                         className={`w-full flex items-center gap-4 p-4 mb-1.5 rounded-xl transition-all text-left select-none ${isActive
                                             ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400 shadow-sm'
                                             : 'bg-card dark:bg-neutral-800/60 hover:bg-muted/60 dark:hover:bg-neutral-800/80 border-l-4 border-transparent shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
@@ -877,6 +948,60 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         )}
                     </div>
                 </div>
+
+                {chatContextMenu && (() => {
+                    const chat = chats.find(c => c.id === chatContextMenu.chatId);
+                    if (!chat) return null;
+
+                    const windowHeight = window.innerHeight;
+                    const windowWidth = window.innerWidth;
+                    const menuWidth = 224;
+                    const menuHeight = chat.type === 'group' ? 156 : 56;
+                    const adjustedX = windowWidth - chatContextMenu.x < menuWidth
+                        ? Math.max(12, windowWidth - menuWidth - 12)
+                        : chatContextMenu.x;
+                    const adjustedY = windowHeight - chatContextMenu.y < menuHeight
+                        ? Math.max(12, chatContextMenu.y - menuHeight)
+                        : chatContextMenu.y;
+
+                    return (
+                        <div
+                            className="fixed z-50 min-w-[224px] overflow-hidden rounded-xl border border-border card-gradient py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+                            style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {chat.type === 'group' && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRenameChat(chat)}
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-neutral-800"
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                        Renombrar grupo
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleShowParticipants(chat)}
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-neutral-800"
+                                    >
+                                        <Users className="h-4 w-4" />
+                                        Ver participantes ({chat.participants.length})
+                                    </button>
+                                    <div className="my-1 h-px bg-border" />
+                                </>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteChat(chat)}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                {getDeleteChatLabel(chat)}
+                            </button>
+                        </div>
+                    );
+                })()}
 
                 {/* Área de Chat - Derecha */}
                 {!activeChat ? (
@@ -960,10 +1085,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <DropdownMenuContent align="end" className="w-48">
                                         {activeChat.type === 'group' && (
                                             <DropdownMenuItem
-                                                onClick={() => {
-                                                    setRenameValue(activeChat.name);
-                                                    setShowRenameModal(true);
-                                                }}
+                                                onClick={() => handleRenameChat(activeChat)}
                                                 className="cursor-pointer"
                                             >
                                                 <Pencil className="w-4 h-4 mr-2" />
@@ -973,7 +1095,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         {activeChat.type === 'group' && (
                                             <DropdownMenuItem
                                                 className="cursor-pointer"
-                                                onClick={() => setShowParticipantsModal(true)}
+                                                onClick={() => handleShowParticipants(activeChat)}
                                             >
                                                 <Users className="w-4 h-4 mr-2" />
                                                 Ver participantes ({activeChat.participants.length})
@@ -982,33 +1104,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
                                             className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30"
-                                            onClick={async () => {
-                                                const label = activeChat.type === 'group'
-                                                    ? (activeChat.participants.some(p => p.id === auth.user.id) ? 'Eliminar grupo' : 'Salir del grupo')
-                                                    : 'Eliminar chat';
-                                                if (!confirm(`¿${label}? Esta acción no se puede deshacer.`)) return;
-                                                try {
-                                                    const deletedId = activeChat.id;
-                                                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-                                                    await axios.delete(`/admin/internal-chat/${deletedId}`, {
-                                                        headers: { 'X-CSRF-TOKEN': csrfToken }
-                                                    });
-                                                    // Immediately clean up local state to stop polling
-                                                    lastMessageIdRef.current = 0;
-                                                    lastChatPollRef.current = '';
-                                                    setMessages([]);
-                                                    setActiveChat(null);
-                                                    // Remove from local list immediately (optimistic)
-                                                    setChats(prev => prev.filter(c => c.id !== deletedId));
-                                                    toast.success('Chat eliminado');
-                                                } catch (err) {
-                                                    console.error('Error eliminando chat:', err);
-                                                    toast.error('Error al eliminar el chat');
-                                                }
-                                            }}
+                                            onClick={() => handleDeleteChat(activeChat)}
                                         >
                                             <Trash2 className="w-4 h-4 mr-2" />
-                                            {activeChat.type === 'group' ? 'Eliminar grupo' : 'Eliminar chat'}
+                                            {getDeleteChatLabel(activeChat)}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
