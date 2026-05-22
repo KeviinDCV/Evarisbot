@@ -61,7 +61,7 @@ interface WhatsappTemplate {
 
 interface ColumnMapping {
     [paramIndex: string]: {
-        source: 'nombre' | 'column' | 'static';
+        source: 'nombre' | 'column' | 'static' | 'unset';
         column?: string;
         value?: string;
     };
@@ -234,7 +234,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         return indices;
     }, [selectedTemplate]);
 
-    // Auto-initialize column mapping when template or extra columns change
+    // Auto-inicializa el mapeo al cambiar de plantilla. Solo {{1}} se asume "nombre";
+    // el resto queda sin asignar — adivinar la columna por posición provocaba envíos
+    // con datos equivocados (p. ej. {{2}} tomaba la primera columna del Excel, no la fecha).
     useEffect(() => {
         if (templatePlaceholders.length === 0) {
             setColumnMapping({});
@@ -242,18 +244,23 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         }
         const newMapping: ColumnMapping = {};
         templatePlaceholders.forEach((idx, i) => {
-            if (i === 0) {
-                // First placeholder defaults to nombre
-                newMapping[String(idx)] = { source: 'nombre' };
-            } else if (extraColumns.length > 0 && i - 1 < extraColumns.length) {
-                // Map to extra columns in order
-                newMapping[String(idx)] = { source: 'column', column: extraColumns[i - 1] };
-            } else {
-                newMapping[String(idx)] = { source: 'static', value: '' };
-            }
+            newMapping[String(idx)] = i === 0 ? { source: 'nombre' } : { source: 'unset' };
         });
         setColumnMapping(newMapping);
-    }, [templatePlaceholders, extraColumns]);
+    }, [templatePlaceholders]);
+
+    // El mapeo está completo cuando cada {{N}} de la plantilla tiene un origen válido.
+    const mappingComplete = useMemo(() => {
+        if (templatePlaceholders.length === 0) return true;
+        return templatePlaceholders.every((idx) => {
+            const m = columnMapping[String(idx)];
+            if (!m) return false;
+            if (m.source === 'nombre') return true;
+            if (m.source === 'column') return !!m.column && extraColumns.includes(m.column);
+            if (m.source === 'static') return !!m.value?.trim();
+            return false;
+        });
+    }, [templatePlaceholders, columnMapping, extraColumns]);
 
     const handleSelectTemplate = (templateId: string) => {
         const template = whatsappTemplates.find(t => t.id === Number(templateId));
@@ -451,6 +458,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         }
         if (recipients.length === 0) {
             setError('Agregue al menos un destinatario');
+            return;
+        }
+        if (!mappingComplete) {
+            setError('Asigne un origen a cada parámetro {{N}} de la plantilla antes de enviar.');
             return;
         }
 
@@ -955,7 +966,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 <div className="space-y-2.5">
                                                     {templatePlaceholders.map((idx) => {
                                                         const mapping = columnMapping[String(idx)];
-                                                        const source = mapping?.source || 'nombre';
+                                                        const source = mapping?.source || 'unset';
+                                                        const columnMissing = source === 'column' && !extraColumns.includes(mapping?.column || '');
+                                                        const isUnset = source === 'unset' || columnMissing;
                                                         return (
                                                             <div key={idx} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2">
                                                                 <span className="text-xs font-mono font-semibold text-primary whitespace-nowrap w-10">
@@ -966,8 +979,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                     <select
                                                                         value={
                                                                             source === 'nombre' ? '__nombre__' :
-                                                                            source === 'column' ? `__col__${mapping?.column || ''}` :
-                                                                            '__static__'
+                                                                            source === 'column' && !columnMissing ? `__col__${mapping?.column}` :
+                                                                            source === 'static' ? '__static__' :
+                                                                            ''
                                                                         }
                                                                         onChange={(e) => {
                                                                             const val = e.target.value;
@@ -977,14 +991,15 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                             } else if (val.startsWith('__col__')) {
                                                                                 const col = val.replace('__col__', '');
                                                                                 newMapping[String(idx)] = { source: 'column', column: col };
-                                                                            } else {
+                                                                            } else if (val === '__static__') {
                                                                                 newMapping[String(idx)] = { source: 'static', value: mapping?.value || '' };
                                                                             }
                                                                             setColumnMapping(newMapping);
                                                                         }}
-                                                                        className="w-full settings-input rounded-lg border-gray-200 dark:border-gray-800 text-sm appearance-none pr-8 cursor-pointer"
+                                                                        className={`w-full settings-input rounded-lg text-sm appearance-none pr-8 cursor-pointer ${isUnset ? 'border-red-400 ring-1 ring-red-300/60 dark:border-red-500/70' : 'border-gray-200 dark:border-gray-800'}`}
                                                                         style={{ height: '2rem', fontSize: '0.8125rem' }}
                                                                     >
+                                                                        <option value="" disabled>— Selecciona el origen —</option>
                                                                         <option value="__nombre__">📋 Nombre del contacto</option>
                                                                         {extraColumns.map((col) => (
                                                                             <option key={col} value={`__col__${col}`}>
@@ -1014,24 +1029,41 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     })}
                                                 </div>
 
-                                                {/* Preview con valores mapeados */}
+                                                {/* Preview con valores reales del primer destinatario */}
                                                 {selectedTemplate.preview_text && Object.keys(columnMapping).length > 0 && (
                                                     <div className="mt-3 bg-green-50/60 dark:bg-green-950/20 rounded-lg p-3 border border-green-200/40 dark:border-green-800/30">
-                                                        <p className="text-xs font-medium text-muted-foreground mb-1.5">Vista previa con mapeo:</p>
+                                                        <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                                                            {recipients[0]
+                                                                ? `Así llegará el mensaje a ${recipients[0].name || recipients[0].phone}:`
+                                                                : 'Vista previa del mensaje:'}
+                                                        </p>
                                                         <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                                                             {(() => {
                                                                 let text = selectedTemplate.preview_text || '';
+                                                                const sample = recipients[0];
                                                                 Object.entries(columnMapping).forEach(([paramIdx, map]) => {
                                                                     const placeholder = `{{${paramIdx}}}`;
-                                                                    let replacement = '';
-                                                                    if (map.source === 'nombre') replacement = '[nombre]';
-                                                                    else if (map.source === 'column') replacement = `[${map.column}]`;
-                                                                    else if (map.source === 'static') replacement = map.value || '[vacío]';
-                                                                    text = text.replace(placeholder, replacement);
+                                                                    let replacement: string;
+                                                                    if (map.source === 'nombre') {
+                                                                        replacement = sample?.name || '[nombre del contacto]';
+                                                                    } else if (map.source === 'column') {
+                                                                        replacement = sample?.params?.[map.column || ''] ?? `[columna: ${map.column}]`;
+                                                                    } else if (map.source === 'static') {
+                                                                        replacement = map.value || '[valor fijo vacío]';
+                                                                    } else {
+                                                                        replacement = '⚠️[sin asignar]';
+                                                                    }
+                                                                    text = text.split(placeholder).join(replacement);
                                                                 });
                                                                 return text;
                                                             })()}
                                                         </p>
+                                                        {!mappingComplete && (
+                                                            <p className="mt-2 flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+                                                                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                                                                Faltan parámetros por asignar. Revisa el mapeo antes de enviar.
+                                                            </p>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -1243,7 +1275,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <div className="pt-4 mt-auto">
                                             <Button
                                                 onClick={handleStartSend}
-                                                disabled={isSending || !selectedTemplate}
+                                                disabled={isSending || !selectedTemplate || !mappingComplete}
                                                 className="w-full font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
                                                 style={{
                                                     backgroundColor: 'var(--primary-base)',
@@ -1278,6 +1310,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             {!selectedTemplate && (
                                                 <p className="text-xs text-red-500 mt-2 text-center font-medium">
                                                     Seleccione una plantilla antes de enviar
+                                                </p>
+                                            )}
+                                            {selectedTemplate && !mappingComplete && (
+                                                <p className="text-xs text-red-500 mt-2 text-center font-medium">
+                                                    Asigne un origen a cada parámetro {'{{N}}'} antes de enviar
                                                 </p>
                                             )}
                                         </div>

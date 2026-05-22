@@ -18,6 +18,117 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ConversationController extends Controller
 {
+    private const CHAT_FILTERS = [
+        'unanswered',
+    ];
+
+    private function getFilterCounts(Request $request): array
+    {
+        $counts = [];
+
+        foreach (self::CHAT_FILTERS as $filter) {
+            $counts[$filter] = $this->buildFilterCountQuery($request, $filter)->count();
+        }
+
+        return $counts;
+    }
+
+    private function buildFilterCountQuery(Request $request, string $filter)
+    {
+        $query = Conversation::query();
+        $user = auth()->user();
+        $hasSearchTerm = $request->filled('search');
+        $filteringByTag = $request->has('tag') && is_numeric($request->tag);
+        $skipAdvisorScope = $user->isAdvisor() && in_array($filter, ['resolved', 'scheduled', 'oncology'], true);
+
+        if ($user->isAdvisor() && !$skipAdvisorScope) {
+            if ($user->isOnDuty()) {
+                $query->where(function ($q) {
+                    $q->whereNull('assigned_to')
+                      ->orWhere('assigned_to', auth()->id());
+                });
+            } else {
+                $query->where('assigned_to', auth()->id());
+            }
+        }
+
+        if ($filter === 'all') {
+            if (!$filteringByTag && !$hasSearchTerm) {
+                $query->whereIn('status', ['active', 'pending']);
+            }
+        } elseif ($filter === 'unanswered') {
+            $query->where('unread_count', '>', 0)
+                  ->whereNull('assigned_to');
+        } elseif ($filter === 'pending_response') {
+            $query->where('assigned_to', auth()->id())
+                  ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
+                  ->whereIn('status', ['active', 'pending']);
+        } elseif ($filter === 'resolved') {
+            $query->where('status', 'resolved');
+        } elseif ($filter === 'scheduled') {
+            $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
+        } elseif ($filter === 'oncology') {
+            $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
+        } elseif ($filter === 'blocked') {
+            $query->where('is_blocked', true);
+        }
+
+        if ($filter !== 'blocked' && !$hasSearchTerm) {
+            $query->where('is_blocked', false);
+        }
+
+        if ($filter !== 'oncology' && !$hasSearchTerm) {
+            $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
+        }
+
+        if ($user->isAdmin() && $request->has('assigned')) {
+            if ($request->assigned === 'me') {
+                $query->where('assigned_to', auth()->id());
+            } elseif ($request->assigned === 'unassigned') {
+                $query->whereNull('assigned_to');
+            } elseif (is_numeric($request->assigned)) {
+                $query->where('assigned_to', (int) $request->assigned);
+            }
+        }
+
+        if ($request->has('tag') && is_numeric($request->tag)) {
+            $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
+        if ($request->filled('specialty')) {
+            $query->where('specialty', $request->input('specialty'));
+        }
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('contact_name', 'like', "%{$search}%")
+                  ->orWhere('phone_number', 'like', "%{$search}%")
+                  ->orWhereHas('messages', function ($messageQuery) use ($search) {
+                      $messageQuery->where('content', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        return $query;
+    }
+
+    /**
+     * Lista única de especialidades existentes con conteo de conversaciones por cada una.
+     */
+    private function getAllSpecialties(): array
+    {
+        return Conversation::query()
+            ->whereNotNull('specialty')
+            ->where('specialty', '!=', '')
+            ->selectRaw('specialty as name, COUNT(*) as count')
+            ->groupBy('specialty')
+            ->orderBy('specialty')
+            ->get()
+            ->map(fn ($row) => ['name' => $row->name, 'count' => (int) $row->count])
+            ->toArray();
+    }
+
     /**
      * Obtener el contador de conversaciones con mensajes no leídos
      */
@@ -118,6 +229,10 @@ class ConversationController extends Controller
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
+            } elseif ($request->status === 'blocked') {
+                // Bloqueados: conversaciones bloqueadas
+                $query->where('is_blocked', true)
+                      ->orderBy('blocked_at', 'desc');
             } else {
                 $query->where('status', $request->status);
             }
@@ -153,6 +268,11 @@ class ConversationController extends Controller
         // Filtrar por etiqueta
         if ($request->has('tag') && is_numeric($request->tag)) {
             $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
+        // Filtrar por especialidad (texto exacto de la columna `specialty`)
+        if ($request->filled('specialty')) {
+            $query->where('specialty', $request->input('specialty'));
         }
 
         // Buscar por nombre, teléfono o contenido de mensajes
@@ -237,7 +357,9 @@ class ConversationController extends Controller
             'hasMore' => $hasMore,
             'users' => $users,
             'allTags' => $allTags,
-            'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
+            'allSpecialties' => $this->getAllSpecialties(),
+            'filterCounts' => $this->getFilterCounts($request),
+            'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])
                 ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'category', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
@@ -365,6 +487,11 @@ class ConversationController extends Controller
             $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
         }
 
+        // Filtrar por especialidad
+        if ($request->filled('specialty')) {
+            $query->where('specialty', $request->input('specialty'));
+        }
+
         // Buscar por nombre, teléfono o contenido de mensajes
         if ($request->has('search') && !empty($request->search)) {
             $search = trim($request->search);
@@ -436,7 +563,9 @@ class ConversationController extends Controller
             'selectedConversation' => $conversation,
             'users' => $users,
             'allTags' => $allTags,
-            'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
+            'allSpecialties' => $this->getAllSpecialties(),
+            'filterCounts' => $this->getFilterCounts($request),
+            'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
             'templates' => $templates,
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])
@@ -1677,6 +1806,10 @@ class ConversationController extends Controller
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
+            } elseif ($request->status === 'blocked') {
+                // Bloqueados: conversaciones bloqueadas
+                $query->where('is_blocked', true)
+                      ->orderBy('blocked_at', 'desc');
             } else {
                 $query->where('status', $request->status);
             }
@@ -1706,6 +1839,10 @@ class ConversationController extends Controller
 
         if ($request->has('tag') && is_numeric($request->tag)) {
             $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
+        if ($request->filled('specialty')) {
+            $query->where('specialty', $request->input('specialty'));
         }
 
         if ($request->has('search') && !empty($request->search)) {
@@ -1738,6 +1875,7 @@ class ConversationController extends Controller
 
         return response()->json([
             'conversations' => $conversations,
+            'filterCounts' => $this->getFilterCounts($request),
         ]);
     }
 

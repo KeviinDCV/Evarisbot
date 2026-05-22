@@ -199,23 +199,39 @@ interface WhatsappTemplate {
     default_params?: string[] | null;
 }
 
+type ChatFilterKey = 'all' | 'unanswered' | 'pending_response' | 'resolved' | 'scheduled' | 'oncology' | 'blocked';
+type FilterCounts = Record<ChatFilterKey, number>;
+
+const DEFAULT_FILTER_COUNTS: FilterCounts = {
+    all: 0,
+    unanswered: 0,
+    pending_response: 0,
+    resolved: 0,
+    scheduled: 0,
+    oncology: 0,
+    blocked: 0,
+};
+
 interface ConversationsIndexProps {
     conversations: Conversation[];
     hasMore?: boolean;
     selectedConversation?: Conversation;
     users: User[];
     allTags?: TagItem[];
+    allSpecialties?: { name: string; count: number }[];
     filters: {
         search?: string;
         status?: string;
         assigned?: string;
         tag?: string;
+        specialty?: string;
     };
+    filterCounts?: Partial<FilterCounts>;
     templates?: Template[];
     whatsappTemplates?: WhatsappTemplate[];
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, allTags: initialAllTags = [], filters, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -312,6 +328,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Estados para etiquetas
     const [allTags, setAllTags] = useState<TagItem[]>(initialAllTags);
+    const [localFilterCounts, setLocalFilterCounts] = useState<FilterCounts>({ ...DEFAULT_FILTER_COUNTS, ...filterCounts });
     const [showTagSubmenu, setShowTagSubmenu] = useState(false);
     const [showSpecialtyInput, setShowSpecialtyInput] = useState(false);
     const [specialtyName, setSpecialtyName] = useState('');
@@ -325,6 +342,11 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [tagDropdownPosition, setTagDropdownPosition] = useState({ top: 0, right: 0 });
     const tagFilterButtonRef = useRef<HTMLButtonElement>(null);
     const [editingTag, setEditingTag] = useState<{ id: number; name: string; color: string } | null>(null);
+
+    // Filtro por especialidad (texto exacto)
+    const [allSpecialties] = useState<{ name: string; count: number }[]>(initialAllSpecialties);
+    const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(filters.specialty ?? null);
+    const [specialtySearchQuery, setSpecialtySearchQuery] = useState('');
 
     // Autocorrección
     const [lastCorrection, setLastCorrection] = useState<CorrectionEvent | null>(null);
@@ -378,7 +400,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 body: JSON.stringify({ tag_id: tagId }),
             });
-            router.reload({ only: ['conversations', 'selectedConversation', 'allTags'] });
+            router.reload({ only: ['conversations', 'selectedConversation', 'allTags', 'filterCounts'] });
         } catch { }
     };
 
@@ -388,7 +410,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 method: 'DELETE',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             });
-            router.reload({ only: ['conversations', 'selectedConversation', 'allTags'] });
+            router.reload({ only: ['conversations', 'selectedConversation', 'allTags', 'filterCounts'] });
         } catch { }
     };
 
@@ -405,7 +427,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 applyFiltersWithTag(statusFilter, filterByAdvisor, null);
             }
             setEditingTag(null);
-            router.reload({ only: ['conversations', 'selectedConversation'] });
+            router.reload({ only: ['conversations', 'selectedConversation', 'filterCounts'] });
         } catch { }
     };
 
@@ -423,7 +445,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 const updated = await res.json();
                 setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, name: updated.name, color: updated.color } : t));
                 setEditingTag(null);
-                router.reload({ only: ['conversations', 'selectedConversation'] });
+                router.reload({ only: ['conversations', 'selectedConversation', 'filterCounts'] });
             }
         } catch { }
     };
@@ -854,6 +876,10 @@ export default function ConversationsIndex({ conversations: initialConversations
         setAllTags(initialAllTags);
     }, [initialAllTags]);
 
+    useEffect(() => {
+        setLocalFilterCounts({ ...DEFAULT_FILTER_COUNTS, ...filterCounts });
+    }, [filterCounts]);
+
     // Función para cargar más conversaciones (scroll infinito)
     const loadMoreConversations = useCallback(async () => {
         if (isLoadingMore || !hasMore) return;
@@ -998,6 +1024,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                 if (!isActive) return;
 
                 const freshConversations: Conversation[] = res.data.conversations;
+                if (res.data.filterCounts) {
+                    setLocalFilterCounts({ ...DEFAULT_FILTER_COUNTS, ...res.data.filterCounts });
+                }
 
                 setLocalConversations(prev => {
                     if (prev.length === 0) return freshConversations;
@@ -1293,7 +1322,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 preserveState: true,
                 preserveScroll: true,
                 replace: true,
-                only: ['conversations', 'hasMore', 'filters'],
+                only: ['conversations', 'hasMore', 'filters', 'filterCounts'],
             });
         }, 400);
     };
@@ -1490,6 +1519,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         statusFilter !== 'all',
         tagFilterId !== null,
         filterByAdvisor !== null,
+        specialtyFilter !== null,
     ].filter(Boolean).length;
 
     // Filtrar asesores por búsqueda
@@ -1514,6 +1544,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (newStatus !== 'all') params.status = newStatus;
         if (newAdvisor !== null) params.assigned = String(newAdvisor);
         if (tagFilterId !== null) params.tag = String(tagFilterId);
+        if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
         // Si hay una conversación seleccionada, mantenerla abierta
         const url = selectedConversation
@@ -1524,9 +1555,9 @@ export default function ConversationsIndex({ conversations: initialConversations
             preserveState: true,
             preserveScroll: true,
             replace: true,
-            only: ['conversations', 'hasMore', 'filters'],
+            only: ['conversations', 'hasMore', 'filters', 'filterCounts'],
         });
-    }, [search, selectedConversation, tagFilterId]);
+    }, [search, selectedConversation, tagFilterId, specialtyFilter]);
 
     // Función para aplicar filtros incluyendo tag
     const applyFiltersWithTag = useCallback((newStatus: string, newAdvisor: number | null, newTagId: number | null) => {
@@ -1538,6 +1569,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (newStatus !== 'all') params.status = newStatus;
         if (newAdvisor !== null) params.assigned = String(newAdvisor);
         if (newTagId !== null) params.tag = String(newTagId);
+        if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
         const url = selectedConversation
             ? `/admin/chat/${selectedConversation.id}`
@@ -1547,9 +1579,33 @@ export default function ConversationsIndex({ conversations: initialConversations
             preserveState: true,
             preserveScroll: true,
             replace: true,
-            only: ['conversations', 'hasMore', 'filters', 'allTags'],
+            only: ['conversations', 'hasMore', 'filters', 'allTags', 'filterCounts'],
         });
-    }, [search, selectedConversation]);
+    }, [search, selectedConversation, specialtyFilter]);
+
+    // Aplicar filtros incluyendo especialidad (texto exacto). Pasa null para limpiar.
+    const applyFiltersWithSpecialty = useCallback((newSpecialty: string | null) => {
+        setCurrentPage(1);
+        hasLoadedExtraPagesRef.current = false;
+
+        const params: Record<string, string> = {};
+        if (search) params.search = search;
+        if (statusFilter !== 'all') params.status = statusFilter;
+        if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
+        if (tagFilterId !== null) params.tag = String(tagFilterId);
+        if (newSpecialty !== null) params.specialty = newSpecialty;
+
+        const url = selectedConversation
+            ? `/admin/chat/${selectedConversation.id}`
+            : '/admin/chat';
+
+        router.get(url, params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            only: ['conversations', 'hasMore', 'filters', 'filterCounts'],
+        });
+    }, [search, statusFilter, filterByAdvisor, tagFilterId, selectedConversation]);
 
     // Las conversaciones ya vienen filtradas del backend
     const displayedConversations = localConversations;
@@ -2227,6 +2283,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (statusFilter !== 'all') params.status = statusFilter;
             if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
             if (tagFilterId !== null) params.tag = String(tagFilterId);
+            if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
             router.post(`/admin/chat/${convId}/status`, { status }, {
                 preserveScroll: true,
@@ -2312,6 +2369,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (statusFilter !== 'all') params.status = statusFilter;
         if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
         if (tagFilterId !== null) params.tag = String(tagFilterId);
+        if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
         router.get('/admin/chat', params, {
             preserveState: true,
@@ -2560,6 +2618,87 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 )}
                                             </div>
 
+                                            <div className="border-t border-border my-0.5"></div>
+
+                                            {/* Sección: Especialidades (filtra por texto exacto de la columna specialty) */}
+                                            <div>
+                                                <button
+                                                    onClick={() => setExpandedFilterSection(expandedFilterSection === 'specialties' ? null : 'specialties')}
+                                                    className="w-full px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between hover:bg-accent"
+                                                >
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <Tag className="w-3.5 h-3.5" />
+                                                        <span>Especialidades</span>
+                                                        {specialtyFilter !== null && (
+                                                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 rounded truncate max-w-[140px]" title={specialtyFilter}>
+                                                                {specialtyFilter}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {expandedFilterSection === 'specialties' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                </button>
+                                                {expandedFilterSection === 'specialties' && (
+                                                    <div className="pb-1">
+                                                        <div className="px-3 py-2 border-b border-border">
+                                                            <div className="relative">
+                                                                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Buscar especialidad..."
+                                                                    className="w-full pl-7 pr-2 py-1 text-xs border border-border rounded bg-muted focus:outline-none focus:border-primary"
+                                                                    value={specialtySearchQuery}
+                                                                    onChange={(e) => setSpecialtySearchQuery(e.target.value)}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="max-h-[240px] overflow-y-auto custom-scrollbar">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSpecialtyFilter(null);
+                                                                    setSpecialtySearchQuery('');
+                                                                    applyFiltersWithSpecialty(null);
+                                                                }}
+                                                                className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between ${specialtyFilter === null ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                                            >
+                                                                <span>Todas</span>
+                                                                {specialtyFilter === null && <Check className="w-3.5 h-3.5 text-primary" />}
+                                                            </button>
+                                                            <div className="border-t border-border my-0.5"></div>
+                                                            {allSpecialties
+                                                                .filter(s => s.name.toLowerCase().includes(specialtySearchQuery.toLowerCase()))
+                                                                .map((s) => (
+                                                                    <button
+                                                                        key={s.name}
+                                                                        onClick={() => {
+                                                                            setSpecialtyFilter(s.name);
+                                                                            applyFiltersWithSpecialty(s.name);
+                                                                        }}
+                                                                        className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between gap-2 ${specialtyFilter === s.name ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                                                        title={s.name}
+                                                                    >
+                                                                        <span className="truncate flex items-center gap-2 min-w-0">
+                                                                            <span className="w-3 h-3 rounded-full flex-shrink-0 bg-teal-500"></span>
+                                                                            <span className="truncate">{s.name}</span>
+                                                                        </span>
+                                                                        <span className="text-xs text-muted-foreground flex-shrink-0">({s.count})</span>
+                                                                    </button>
+                                                                ))}
+                                                            {allSpecialties.length === 0 && (
+                                                                <div className="px-4 py-2 text-xs text-muted-foreground text-center">
+                                                                    Sin especialidades asignadas todavía.
+                                                                </div>
+                                                            )}
+                                                            {allSpecialties.length > 0 && allSpecialties.filter(s => s.name.toLowerCase().includes(specialtySearchQuery.toLowerCase())).length === 0 && (
+                                                                <div className="px-4 py-2 text-xs text-muted-foreground text-center">
+                                                                    No se encontraron especialidades.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
                                             {/* Sección: Asesor (solo admin) */}
                                             {isAdmin && availableAdvisors.length > 0 && (
                                                 <>
@@ -2643,10 +2782,24 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             setStatusFilter('all');
                                                             setTagFilterId(null);
                                                             setFilterByAdvisor(null);
+                                                            setSpecialtyFilter(null);
+                                                            setSpecialtySearchQuery('');
                                                             setEditingTag(null);
                                                             setShowFiltersPanel(false);
                                                             setExpandedFilterSection(null);
-                                                            applyFiltersWithTag('all', null, null);
+                                                            setCurrentPage(1);
+                                                            hasLoadedExtraPagesRef.current = false;
+                                                            const params: Record<string, string> = {};
+                                                            if (search) params.search = search;
+                                                            const url = selectedConversation
+                                                                ? `/admin/chat/${selectedConversation.id}`
+                                                                : '/admin/chat';
+                                                            router.get(url, params, {
+                                                                preserveState: true,
+                                                                preserveScroll: true,
+                                                                replace: true,
+                                                                only: ['conversations', 'hasMore', 'filters', 'allTags', 'filterCounts'],
+                                                            });
                                                         }}
                                                         className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                                                     >
@@ -2701,13 +2854,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         setStatusFilter(pill.value);
                                         applyFilters(pill.value, filterByAdvisor);
                                     }}
-                                    className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                                    className={`flex-shrink-0 inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                                         statusFilter === pill.value
                                             ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300 font-semibold'
                                             : 'bg-muted dark:bg-neutral-800 text-[#5f5e5e] dark:text-neutral-400 hover:bg-muted/80 dark:hover:bg-neutral-700'
                                     }`}
                                 >
-                                    {pill.label}
+                                    <span>{pill.label}</span>
+                                    {pill.value === 'unanswered' && (
+                                        <span className={`ml-1.5 inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full text-[11px] font-bold ${
+                                            statusFilter === pill.value
+                                                ? 'bg-white/70 dark:bg-blue-950/70 text-[#16235e] dark:text-blue-200'
+                                                : 'bg-background/80 dark:bg-neutral-900 text-[#5f5e5e] dark:text-neutral-300'
+                                        }`}>
+                                            {localFilterCounts.unanswered ?? 0}
+                                        </span>
+                                    )}
                                 </button>
                             ))}
                         </div>
