@@ -234,20 +234,30 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         return indices;
     }, [selectedTemplate]);
 
-    // Auto-inicializa el mapeo al cambiar de plantilla. Solo {{1}} se asume "nombre";
-    // el resto queda sin asignar — adivinar la columna por posición provocaba envíos
-    // con datos equivocados (p. ej. {{2}} tomaba la primera columna del Excel, no la fecha).
+    // Auto-mapea: {{1}} → columna nombre; {{2}}..{{N}} → columnas extras del Excel en orden.
+    // El usuario puede sobrescribir cualquier dropdown si el orden de su Excel no coincide,
+    // y la vista previa muestra valores reales antes de enviar.
     useEffect(() => {
         if (templatePlaceholders.length === 0) {
             setColumnMapping({});
             return;
         }
         const newMapping: ColumnMapping = {};
+        let extraIdx = 0;
         templatePlaceholders.forEach((idx, i) => {
-            newMapping[String(idx)] = i === 0 ? { source: 'nombre' } : { source: 'unset' };
+            if (i === 0) {
+                newMapping[String(idx)] = { source: 'nombre' };
+                return;
+            }
+            if (extraIdx < extraColumns.length) {
+                newMapping[String(idx)] = { source: 'column', column: extraColumns[extraIdx] };
+                extraIdx++;
+            } else {
+                newMapping[String(idx)] = { source: 'unset' };
+            }
         });
         setColumnMapping(newMapping);
-    }, [templatePlaceholders]);
+    }, [templatePlaceholders, extraColumns]);
 
     // El mapeo está completo cuando cada {{N}} de la plantilla tiene un origen válido.
     const mappingComplete = useMemo(() => {
