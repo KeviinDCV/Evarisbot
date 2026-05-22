@@ -1673,10 +1673,21 @@ class WhatsAppService
                     : '↩️ Quitó su reacción';
                 $messageType = 'text';
             } elseif (($messageData['type'] ?? null) === 'unsupported' || isset($messageData['errors'])) {
-                // WhatsApp marca como "unsupported" mensajes que su API no puede entregar
-                // (ej. encuestas, mensajes editados, ciertos formatos). Lo registramos descriptivo.
-                $errMsg = $messageData['errors'][0]['title'] ?? 'Tipo de mensaje no compatible';
-                $content = '⚠️ Mensaje no compatible con WhatsApp Business: ' . $errMsg;
+                $errorCode = $messageData['errors'][0]['code'] ?? null;
+                $errorTitle = $messageData['errors'][0]['title'] ?? null;
+                $errorDetails = $messageData['errors'][0]['error_data']['details'] ?? null;
+
+                Log::warning('WhatsApp envió mensaje unsupported', [
+                    'conversation_id' => $conversation->id,
+                    'whatsapp_message_id' => $messageId,
+                    'error_code' => $errorCode,
+                    'error_title' => $errorTitle,
+                    'error_details' => $errorDetails,
+                    'errors_payload' => $messageData['errors'] ?? null,
+                    'unsupported_payload' => $messageData['unsupported'] ?? null,
+                ]);
+
+                $content = "⚠️ El paciente envió un mensaje que WhatsApp Business no entrega (probablemente \"Ver una vez\", mensaje editado, o sticker no soportado). Pídale que lo reenvíe como imagen/PDF normal.";
                 $messageType = 'text';
             }
 
