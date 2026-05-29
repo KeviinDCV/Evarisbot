@@ -2,8 +2,9 @@ import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { Head, router } from '@inertiajs/react';
+import { Deferred, Head, router } from '@inertiajs/react';
 import axios from 'axios';
 import {
     Activity,
@@ -139,6 +140,12 @@ interface Statistics {
 }
 
 interface StatisticsIndexProps {
+    // statistics es opcional porque llega DIFERIDA (Inertia v2 deferred prop):
+    // está ausente en la respuesta inicial y el <Deferred> muestra el skeleton.
+    statistics?: Statistics;
+}
+
+interface StatisticsViewProps {
     statistics: Statistics;
 }
 
@@ -285,7 +292,7 @@ function EmptyChart({ message }: { message: string }) {
     );
 }
 
-export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
+function StatisticsView({ statistics }: StatisticsViewProps) {
     const { t } = useTranslation();
     const [period, setPeriod] = useState(statistics.date_range.period || 'all');
     const [startDate, setStartDate] = useState(statistics.date_range.start || '');
@@ -437,10 +444,7 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
     const conversationTotalForBars = Math.max(statistics.conversations.total, 1);
 
     return (
-        <AdminLayout>
-            <Head title={t('statistics.title')} />
-
-            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
+        <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex items-start gap-3">
@@ -924,6 +928,59 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
                     )}
                 </div>
             </div>
+    );
+}
+
+// Skeleton que imita el layout real (cabecera, métricas, filtros y paneles)
+// mientras Inertia trae la prop diferida `statistics` en la segunda petición.
+function StatisticsSkeleton() {
+    return (
+        <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
+            <div className="mx-auto flex max-w-7xl flex-col gap-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex items-start gap-3">
+                        <Skeleton className="h-11 w-11 rounded-lg" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-7 w-56" />
+                            <Skeleton className="h-4 w-72" />
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Skeleton className="h-9 w-44 rounded-lg" />
+                        <Skeleton className="h-9 w-28 rounded-lg" />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-[88px] rounded-lg" />
+                    ))}
+                </div>
+
+                <Skeleton className="h-[116px] rounded-lg" />
+
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-[240px] rounded-lg" />
+                    ))}
+                    <Skeleton className="h-[300px] rounded-lg xl:col-span-2" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
+    const { t } = useTranslation();
+
+    return (
+        <AdminLayout>
+            <Head title={t('statistics.title')} />
+            {/* El layout (sidebar/topbar) y este cascarón aparecen al instante.
+                <Deferred> muestra el skeleton hasta que llega la prop `statistics`. */}
+            <Deferred data="statistics" fallback={<StatisticsSkeleton />}>
+                <StatisticsView statistics={statistics as Statistics} />
+            </Deferred>
         </AdminLayout>
     );
 }

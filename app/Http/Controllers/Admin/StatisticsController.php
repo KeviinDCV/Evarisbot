@@ -36,25 +36,29 @@ class StatisticsController extends Controller
             'period' => $period,
         ]));
 
-        // Cachear estadísticas por 5 minutos para mejorar rendimiento
-        $statistics = Cache::remember($cacheKey, 300, function () use ($dateStart, $dateEnd, $period) {
-            return [
-                'messages' => $this->getMessageStatistics($dateStart, $dateEnd),
-                'appointments' => $this->getAppointmentStatistics($dateStart, $dateEnd),
-                'conversations' => $this->getConversationStatistics($dateStart, $dateEnd),
-                'templates' => $this->getTemplateStatistics($dateStart, $dateEnd),
-                'users' => $this->getUserStatistics(),
-                'advisors' => $this->getAdvisorStatistics($dateStart, $dateEnd),
-                'date_range' => [
-                    'start' => $dateStart?->format('Y-m-d'),
-                    'end' => $dateEnd?->format('Y-m-d'),
-                    'period' => $period,
-                ],
-            ];
-        });
-
+        // El layout (sidebar/topbar) y el cascarón de la página se entregan de inmediato.
+        // Las 6 agregaciones pesadas se DIFIEREN (Inertia v2 deferred props): viajan en
+        // una segunda petición automática y el frontend muestra un skeleton mientras tanto.
+        // Así el time-to-first-paint de la página ya no queda bloqueado por las consultas.
         return Inertia::render('admin/statistics/index', [
-            'statistics' => $statistics,
+            'statistics' => Inertia::defer(function () use ($dateStart, $dateEnd, $period, $cacheKey) {
+                // Cachear estadísticas por 5 minutos para mejorar rendimiento
+                return Cache::remember($cacheKey, 300, function () use ($dateStart, $dateEnd, $period) {
+                    return [
+                        'messages' => $this->getMessageStatistics($dateStart, $dateEnd),
+                        'appointments' => $this->getAppointmentStatistics($dateStart, $dateEnd),
+                        'conversations' => $this->getConversationStatistics($dateStart, $dateEnd),
+                        'templates' => $this->getTemplateStatistics($dateStart, $dateEnd),
+                        'users' => $this->getUserStatistics(),
+                        'advisors' => $this->getAdvisorStatistics($dateStart, $dateEnd),
+                        'date_range' => [
+                            'start' => $dateStart?->format('Y-m-d'),
+                            'end' => $dateEnd?->format('Y-m-d'),
+                            'period' => $period,
+                        ],
+                    ];
+                });
+            }),
         ]);
     }
 
