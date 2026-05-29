@@ -2861,13 +2861,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     }`}
                                 >
                                     <span>{pill.label}</span>
-                                    {pill.value === 'unanswered' && (
+                                    {(pill.value === 'unanswered' || pill.value === 'pending_response') && (
                                         <span className={`ml-1.5 inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full text-[11px] font-bold ${
                                             statusFilter === pill.value
                                                 ? 'bg-white/70 dark:bg-blue-950/70 text-[#16235e] dark:text-blue-200'
                                                 : 'bg-background/80 dark:bg-neutral-900 text-[#5f5e5e] dark:text-neutral-300'
                                         }`}>
-                                            {localFilterCounts.unanswered ?? 0}
+                                            {localFilterCounts[pill.value as 'unanswered' | 'pending_response'] ?? 0}
                                         </span>
                                     )}
                                 </button>

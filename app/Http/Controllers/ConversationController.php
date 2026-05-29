@@ -20,6 +20,7 @@ class ConversationController extends Controller
 {
     private const CHAT_FILTERS = [
         'unanswered',
+        'pending_response',
     ];
 
     private function getFilterCounts(Request $request): array

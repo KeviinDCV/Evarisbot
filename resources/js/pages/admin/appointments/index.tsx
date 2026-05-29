@@ -1,8 +1,9 @@
 import AdminLayout from '@/layouts/admin-layout';
-import { Head, useForm, router, usePage } from '@inertiajs/react';
+import { Deferred, Head, useForm, router, usePage } from '@inertiajs/react';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, Phone, type LucideIcon } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Appointment {
     id: number;
@@ -37,7 +38,9 @@ interface Appointment {
 }
 
 interface AppointmentIndexProps {
-    appointments: Appointment[];
+    // appointments llega DIFERIDA (Inertia v2 deferred prop): ausente en la respuesta
+    // inicial — el <Deferred> muestra el skeleton hasta que llega en la 2da petición.
+    appointments?: Appointment[];
     totalAppointments?: number;
     remindersStats?: {
         sent: number;
@@ -102,7 +105,7 @@ function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: Metr
     );
 }
 
-export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/appointments', pageTitle = 'Gestión de Citas' }: AppointmentIndexProps) {
+export default function AppointmentsIndex({ appointments: initialAppointments = [], totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/appointments', pageTitle = 'Gestión de Citas' }: AppointmentIndexProps) {
     const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
     const [showFlashMessage, setShowFlashMessage] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
@@ -674,12 +677,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                         </div>
                     )}
 
-                    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricCard icon={CalendarCheck} label="Total citas" value={totalAppointments.toLocaleString()} detail={`${initialAppointments.length.toLocaleString()} recientes cargadas`} />
-                        <MetricCard icon={Send} label="Enviados" value={localStats.sent.toLocaleString()} detail={`${dashboardStats.recentSent} en la vista reciente`} tone="success" />
-                        <MetricCard icon={Clock} label="Por enviar" value={localStats.pending.toLocaleString()} detail={`${localStats.pending_tomorrow.toLocaleString()} para mañana`} tone="warning" />
-                        <MetricCard icon={XCircle} label="Fallidos" value={localStats.failed.toLocaleString()} detail={`${dashboardStats.recentCancelled} canceladas recientes`} tone="danger" />
-                    </section>
+                    <Deferred data={['appointments', 'totalAppointments', 'remindersStats']} fallback={<AppointmentMetricsSkeleton />}>
+                        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            <MetricCard icon={CalendarCheck} label="Total citas" value={totalAppointments.toLocaleString()} detail={`${initialAppointments.length.toLocaleString()} recientes cargadas`} />
+                            <MetricCard icon={Send} label="Enviados" value={localStats.sent.toLocaleString()} detail={`${dashboardStats.recentSent} en la vista reciente`} tone="success" />
+                            <MetricCard icon={Clock} label="Por enviar" value={localStats.pending.toLocaleString()} detail={`${localStats.pending_tomorrow.toLocaleString()} para mañana`} tone="warning" />
+                            <MetricCard icon={XCircle} label="Fallidos" value={localStats.failed.toLocaleString()} detail={`${dashboardStats.recentCancelled} canceladas recientes`} tone="danger" />
+                        </section>
+                    </Deferred>
 
                     <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                     >
@@ -896,6 +901,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                         </section>
                     )}
 
+                    <Deferred data="appointments" fallback={<AppointmentsTableSkeleton />}>
                     {initialAppointments.length > 0 && (
                         <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -1128,8 +1134,37 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
                             </div>
                         </section>
                     )}
+                    </Deferred>
                 </div>
             </div>
         </AdminLayout>
+    );
+}
+
+// Skeletons que imitan el layout real mientras Inertia trae las props diferidas
+// (appointments, totalAppointments, remindersStats) en la segunda petición.
+function AppointmentMetricsSkeleton() {
+    return (
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-[88px] rounded-lg" />
+            ))}
+        </section>
+    );
+}
+
+function AppointmentsTableSkeleton() {
+    return (
+        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+            <div className="mb-4 flex flex-col gap-2">
+                <Skeleton className="h-5 w-64" />
+                <Skeleton className="h-4 w-48" />
+            </div>
+            <div className="space-y-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                ))}
+            </div>
+        </section>
     );
 }
