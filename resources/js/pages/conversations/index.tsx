@@ -1,4 +1,5 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,7 @@ import {
     Loader2,
     ShieldBan,
     Reply,
+    SmilePlus,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import axios from 'axios';
@@ -99,6 +101,7 @@ interface Message {
     sender?: {
         name: string;
     };
+    reactions?: { id: number; emoji: string; from_user: boolean }[];
 }
 
 interface OptimisticMessage {
@@ -347,6 +350,36 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [allSpecialties] = useState<{ name: string; count: number }[]>(initialAllSpecialties);
     const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(filters.specialty ?? null);
     const [specialtySearchQuery, setSpecialtySearchQuery] = useState('');
+
+    // Reacciones (emojis) a mensajes
+    const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+    const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
+
+    const handleReact = async (message: Message, emoji: string) => {
+        if (!selectedConversation) return;
+        const mine = message.reactions?.find(r => !r.from_user);
+        const newEmoji = mine && mine.emoji === emoji ? '' : emoji; // toggle: si repito mi emoji, lo quito
+        setReactionPickerFor(null);
+
+        // Actualización optimista (la del lado del negocio: from_user = false)
+        setLocalMessages(prev => prev.map(m => {
+            if (m.id !== message.id) return m;
+            const others = (m.reactions || []).filter(r => r.from_user);
+            return {
+                ...m,
+                reactions: newEmoji ? [...others, { id: -1, emoji: newEmoji, from_user: false }] : others,
+            };
+        }));
+
+        try {
+            await axios.post(`/admin/chat/${selectedConversation.id}/react`, {
+                message_id: message.id,
+                emoji: newEmoji,
+            });
+        } catch {
+            // Si falla, el polling/Reverb reconciliará el estado real desde el servidor
+        }
+    };
 
     // Autocorrección
     const [lastCorrection, setLastCorrection] = useState<CorrectionEvent | null>(null);
@@ -1126,6 +1159,27 @@ export default function ConversationsIndex({ conversations: initialConversations
         };
     }, [isAdmin, auth.user.id]);
 
+    // Escuchar reacciones (emojis) en tiempo real para la conversación abierta
+    useEffect(() => {
+        const channel = (window as any).Echo?.channel('conversations');
+        if (!channel) return;
+
+        channel.listen('.message.reaction', (data: { conversation_id: number; message_id: number; emoji: string | null; from_user: boolean; removed: boolean }) => {
+            if (!selectedConversation || data.conversation_id !== selectedConversation.id) return;
+            setLocalMessages(prev => prev.map(m => {
+                if (m.id !== data.message_id) return m;
+                // Reemplazar la reacción del mismo lado (paciente o negocio)
+                const others = (m.reactions || []).filter(r => r.from_user !== data.from_user);
+                if (data.removed || !data.emoji) return { ...m, reactions: others };
+                return { ...m, reactions: [...others, { id: -1, emoji: data.emoji, from_user: data.from_user }] };
+            }));
+        });
+
+        return () => {
+            channel.stopListening('.message.reaction');
+        };
+    }, [selectedConversation?.id]);
+
     // Cerrar dropdowns de filtro cuando se hace clic fuera
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -1236,6 +1290,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                             return m;
                         });
                         return changed ? updated : prev;
+                    });
+                }
+
+                // Reconciliar reacciones (fallback del broadcast en tiempo real)
+                const reactionUpdates: Array<{ message_id: number; reactions: { id: number; emoji: string; from_user: boolean }[] }> = res.data.reactionUpdates || [];
+                if (reactionUpdates.length > 0) {
+                    setLocalMessages(prev => {
+                        const map = new Map(reactionUpdates.map(r => [r.message_id, r.reactions]));
+                        return prev.map(m => map.has(m.id) ? { ...m, reactions: map.get(m.id) } : m);
                     });
                 }
 
@@ -4002,10 +4065,46 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <Reply className="w-4 h-4" />
                                                 </button>
                                             )}
+                                            {/* React button - visible on hover */}
+                                            {!isLockedByOther && (
+                                                <div className="relative self-center flex-shrink-0">
+                                                    <button
+                                                        onClick={() => setReactionPickerFor(reactionPickerFor === message.id ? null : message.id)}
+                                                        className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#16235e] dark:hover:text-blue-300"
+                                                        title="Reaccionar"
+                                                    >
+                                                        <SmilePlus className="w-4 h-4" />
+                                                    </button>
+                                                    {reactionPickerFor === message.id && (
+                                                        <motion.div
+                                                            initial={{ opacity: 0, scale: 0.6, y: 12 }}
+                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                            transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                                                            style={{ transformOrigin: 'bottom center' }}
+                                                            className={`absolute z-30 bottom-full mb-2 flex items-center gap-1 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2.5 py-2 ${message.is_from_user ? 'left-0' : 'right-0'}`}
+                                                        >
+                                                            {QUICK_REACTIONS.map((emoji, i) => (
+                                                                <motion.button
+                                                                    key={emoji}
+                                                                    initial={{ opacity: 0, scale: 0, y: 10 }}
+                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                    transition={{ delay: 0.05 + i * 0.045, type: 'spring', stiffness: 600, damping: 16 }}
+                                                                    whileHover={{ scale: 1.5, y: -6 }}
+                                                                    whileTap={{ scale: 0.8 }}
+                                                                    onClick={() => handleReact(message, emoji)}
+                                                                    className="cursor-pointer px-1 text-[28px] leading-none"
+                                                                >
+                                                                    {emoji}
+                                                                </motion.button>
+                                                            ))}
+                                                        </motion.div>
+                                                    )}
+                                                </div>
+                                            )}
                                             <div className={`flex flex-col ${message.is_from_user ? 'items-start' : 'items-end'}`}>
                                             <div
                                                 id={`msg-${message.id}`}
-                                                className={`px-3 pt-2 pb-1 flex flex-col relative ${message.is_from_user
+                                                className={`px-3 pt-2 flex flex-col relative ${message.reactions && message.reactions.length ? 'pb-4 mb-2.5' : 'pb-1'} ${message.is_from_user
                                                     ? 'rounded-xl rounded-bl-sm bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-200 shadow-sm'
                                                     : 'rounded-xl rounded-br-sm bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] shadow-sm'
                                                     }`}
@@ -4196,6 +4295,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <span className={`text-[10px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-500' : 'text-[#1a7f37] dark:text-[#99ceb5]'}`}>{formatTime(message.created_at)}</span>
                                                     {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
                                                 </div>
+                                                {message.reactions && message.reactions.length > 0 && (
+                                                    <div className="absolute left-2 -bottom-2.5 z-10 flex gap-1">
+                                                        {message.reactions.map(r => (
+                                                            <span
+                                                                key={`${r.from_user}-${r.id}-${r.emoji}`}
+                                                                className="inline-flex items-center rounded-full bg-white dark:bg-neutral-800 px-1.5 py-0.5 text-[13px] leading-none shadow-md ring-1 ring-black/5 dark:ring-white/10"
+                                                                title={r.from_user ? (selectedConversation?.contact_name || 'Cliente') : 'Asesor'}
+                                                            >
+                                                                {r.emoji}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                             </div>
                                           </div>

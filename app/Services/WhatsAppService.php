@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Events\MessageReactionUpdated;
 use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageReaction;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -114,6 +116,58 @@ class WhatsAppService
                 'success' => false,
                 'error' => $e->getMessage(),
             ];
+        }
+    }
+
+    /**
+     * Enviar una reacción (emoji) a un mensaje existente.
+     * Un emoji vacío ('') elimina la reacción previa, igual que en WhatsApp.
+     */
+    public function sendReaction(string $to, string $targetWamid, string $emoji): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'reaction',
+                'reaction' => [
+                    'message_id' => $targetWamid,
+                    'emoji' => $emoji, // '' = quitar reacción
+                ],
+            ];
+
+            $response = $this->httpClient()
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return [
+                    'success' => true,
+                    'message_id' => $data['messages'][0]['id'] ?? null,
+                    'data' => $data,
+                ];
+            }
+
+            $errorJson = $response->json();
+            $errorMsg = $errorJson['error']['message'] ?? 'Error desconocido';
+            Log::error('WhatsApp reaction error', [
+                'to' => $to,
+                'target' => $targetWamid,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return ['success' => false, 'error' => $errorMsg];
+        } catch (\Exception $e) {
+            Log::error('WhatsApp send reaction exception', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
         }
     }
 
@@ -1666,12 +1720,11 @@ class WhatsAppService
                 $content = 'Contacto: ' . implode(', ', $contactNames);
                 $messageType = 'contact';
             } elseif (isset($messageData['reaction'])) {
-                // Reacción a un mensaje (emoji). Si emoji está vacío significa que la reacción se removió.
-                $emoji = $messageData['reaction']['emoji'] ?? '';
-                $content = $emoji !== ''
-                    ? '↩️ Reaccionó con ' . $emoji
-                    : '↩️ Quitó su reacción';
-                $messageType = 'text';
+                // Reacción entrante (emoji): se adjunta al mensaje original y se difunde en
+                // tiempo real, en vez de crearse como un mensaje de texto suelto. Retornamos
+                // null porque no se persiste ningún mensaje nuevo.
+                $this->handleIncomingReaction($conversation, $messageData);
+                return null;
             } elseif (($messageData['type'] ?? null) === 'unsupported' || isset($messageData['errors'])) {
                 $errorCode = $messageData['errors'][0]['code'] ?? null;
                 $errorTitle = $messageData['errors'][0]['title'] ?? null;
@@ -1948,6 +2001,54 @@ class WhatsAppService
      * Envía y guarda la respuesta automática del appointment
      * Soporta múltiples citas del mismo paciente en el mismo día
      */
+    /**
+     * Procesa una reacción entrante: la adjunta al mensaje original (o la elimina si el
+     * emoji viene vacío) y la difunde en tiempo real. No crea un mensaje de texto.
+     */
+    private function handleIncomingReaction(Conversation $conversation, array $messageData): void
+    {
+        $reaction = $messageData['reaction'] ?? [];
+        $targetWamid = $reaction['message_id'] ?? null;
+        $emoji = $reaction['emoji'] ?? '';
+        $reactionWamid = $messageData['id'] ?? null;
+
+        // Marcar el evento como leído para evitar reintentos del webhook
+        if ($reactionWamid) {
+            $this->markAsRead($reactionWamid);
+        }
+
+        if (!$targetWamid) {
+            return;
+        }
+
+        $target = Message::where('whatsapp_message_id', $targetWamid)
+            ->where('conversation_id', $conversation->id)
+            ->first();
+
+        if (!$target) {
+            Log::info('Reacción entrante sin mensaje destino en BD', [
+                'conversation_id' => $conversation->id,
+                'target_wamid' => $targetWamid,
+            ]);
+            return;
+        }
+
+        if ($emoji === '') {
+            // El paciente quitó su reacción
+            $target->reactions()->where('from_user', true)->delete();
+            broadcast(new MessageReactionUpdated($conversation->id, $target->id, null, true, true));
+            return;
+        }
+
+        // Crear o actualizar la reacción del paciente (máximo una por lado)
+        MessageReaction::updateOrCreate(
+            ['message_id' => $target->id, 'from_user' => true],
+            ['emoji' => $emoji, 'whatsapp_message_id' => $reactionWamid]
+        );
+
+        broadcast(new MessageReactionUpdated($conversation->id, $target->id, $emoji, true, false));
+    }
+
     private function sendAppointmentAutoResponse(string $from, array $messageData, \Illuminate\Database\Eloquent\Collection $appointments, \App\Models\Conversation $conversation): void
     {
         try {

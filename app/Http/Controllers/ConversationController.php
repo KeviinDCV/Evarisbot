@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\MessageReactionUpdated;
 use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\ConversationActivity;
 use App\Models\Message;
+use App\Models\MessageReaction;
 use App\Models\Tag;
 use App\Models\Template;
 use App\Models\User;
@@ -340,9 +342,6 @@ class ConversationController extends Controller
         // Obtener todos los usuarios (asesores) disponibles para asignación
         $users = User::select('id', 'name', 'role')->get();
 
-        // Obtener todas las etiquetas disponibles
-        $allTags = \App\Models\Tag::withCount('conversations')->orderBy('name')->get();
-
         // Si es una petición de paginación (AJAX), devolver solo las conversaciones
         if ($request->wantsJson() || $request->has('page') || $request->has('cursor')) {
             return response()->json([
@@ -357,9 +356,13 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'hasMore' => $hasMore,
             'users' => $users,
-            'allTags' => $allTags,
+            // Metadata secundaria DIFERIDA (Inertia v2): no bloquea el render de la lista de chats.
+            // El frontend ya las maneja async (estado local + sincronización), así que llegan en
+            // una 2da petición sin romper nada. allSpecialties queda instantánea porque su estado
+            // en el frontend no tiene sincronización. Ahorra ~45 ms en la carga inicial.
+            'allTags' => Inertia::defer(fn () => \App\Models\Tag::withCount('conversations')->orderBy('name')->get()),
             'allSpecialties' => $this->getAllSpecialties(),
-            'filterCounts' => $this->getFilterCounts($request),
+            'filterCounts' => Inertia::defer(fn () => $this->getFilterCounts($request)),
             'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])
@@ -530,7 +533,7 @@ class ConversationController extends Controller
         })->values();
         
         // Cargar la conversación seleccionada con todos sus mensajes
-        $conversation->load(['messages.sender', 'messages.replyTo', 'assignedUser', 'resolvedByUser', 'tags']);
+        $conversation->load(['messages.sender', 'messages.replyTo', 'messages.reactions', 'assignedUser', 'resolvedByUser', 'tags']);
         
         // Marcar mensajes como leídos
         $conversation->markAsRead();
@@ -843,6 +846,73 @@ class ConversationController extends Controller
         }
 
         return back();
+    }
+
+    /**
+     * Reaccionar a un mensaje (emoji) desde el panel. Un emoji vacío quita la reacción.
+     * Envía la reacción por la API de WhatsApp y la persiste/difunde en tiempo real.
+     */
+    public function react(Request $request, Conversation $conversation, WhatsAppService $whatsappService)
+    {
+        $validated = $request->validate([
+            'message_id' => 'required|integer|exists:messages,id',
+            'emoji' => 'nullable|string|max:16',
+        ]);
+
+        $message = Message::find($validated['message_id']);
+        if (!$message || $message->conversation_id !== $conversation->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El mensaje no pertenece a esta conversación.',
+            ], 422);
+        }
+
+        if (!$message->whatsapp_message_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede reaccionar a este mensaje (aún no tiene ID de WhatsApp).',
+            ], 422);
+        }
+
+        $emoji = trim($validated['emoji'] ?? '');
+
+        // Enviar la reacción por la API de WhatsApp (emoji '' = quitar)
+        $result = $whatsappService->sendReaction(
+            $conversation->phone_number,
+            $message->whatsapp_message_id,
+            $emoji
+        );
+
+        if (!($result['success'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'] ?? 'No se pudo enviar la reacción.',
+            ], 422);
+        }
+
+        if ($emoji === '') {
+            // Quitar la reacción del negocio/asesor
+            $message->reactions()->where('from_user', false)->delete();
+            broadcast(new MessageReactionUpdated($conversation->id, $message->id, null, false, true))->toOthers();
+        } else {
+            // Crear o reemplazar la reacción del negocio/asesor (máximo una por lado)
+            MessageReaction::updateOrCreate(
+                ['message_id' => $message->id, 'from_user' => false],
+                [
+                    'emoji' => $emoji,
+                    'reacted_by' => auth()->id(),
+                    'whatsapp_message_id' => $result['message_id'] ?? null,
+                ]
+            );
+            broadcast(new MessageReactionUpdated($conversation->id, $message->id, $emoji, false, false))->toOthers();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message_id' => $message->id,
+            'emoji' => $emoji !== '' ? $emoji : null,
+            'removed' => $emoji === '',
+        ]);
     }
 
     /**
@@ -1903,7 +1973,7 @@ class ConversationController extends Controller
         $afterId = (int) $request->query('after', 0);
 
         $newMessages = $conversation->messages()
-            ->with(['sender', 'replyTo'])
+            ->with(['sender', 'replyTo', 'reactions'])
             ->where('id', '>', $afterId)
             ->orderBy('id', 'asc')
             ->get();
@@ -1918,6 +1988,26 @@ class ConversationController extends Controller
                 ->select(['id', 'status', 'error_message'])
                 ->get()
                 ->toArray();
+        }
+
+        // Reconciliación de reacciones (fallback al broadcast en tiempo real): se devuelve
+        // el estado completo de reacciones de la ventana reciente para que el frontend
+        // refleje altas, cambios y bajas aunque se haya perdido un evento de Reverb.
+        $reactionUpdates = [];
+        if ($afterId > 0) {
+            $reactionUpdates = $conversation->messages()
+                ->where('id', '>', max(0, $afterId - 50))
+                ->with('reactions')
+                ->get(['id'])
+                ->map(fn ($m) => [
+                    'message_id' => $m->id,
+                    'reactions' => $m->reactions->map(fn ($r) => [
+                        'id' => $r->id,
+                        'emoji' => $r->emoji,
+                        'from_user' => $r->from_user,
+                    ])->values(),
+                ])
+                ->values();
         }
 
         // Mark as read if there are new incoming messages
@@ -1944,6 +2034,7 @@ class ConversationController extends Controller
         return response()->json([
             'messages' => $newMessages,
             'updatedStatuses' => $updatedStatuses,
+            'reactionUpdates' => $reactionUpdates,
             'unread_count' => $conversation->fresh()->unread_count,
             'typing' => $typingUsers,
             'viewing' => $viewingUsers,
