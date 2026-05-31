@@ -535,6 +535,10 @@ class ConversationController extends Controller
         // Cargar la conversación seleccionada con todos sus mensajes
         $conversation->load(['messages.sender', 'messages.replyTo', 'messages.reactions', 'assignedUser', 'resolvedByUser', 'tags']);
         
+        // Conteo de mensajes sin leer ANTES de marcarlos como leídos, para el divisor
+        // "Mensajes nuevos" (tipo WhatsApp) en el frontend.
+        $unreadOnOpen = (int) $conversation->unread_count;
+
         // Marcar mensajes como leídos
         $conversation->markAsRead();
 
@@ -565,6 +569,7 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'hasMore' => $hasMore,
             'selectedConversation' => $conversation,
+            'unreadOnOpen' => $unreadOnOpen,
             'users' => $users,
             'allTags' => $allTags,
             'allSpecialties' => $this->getAllSpecialties(),

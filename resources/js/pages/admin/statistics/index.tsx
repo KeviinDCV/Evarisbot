@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Deferred, Head, router } from '@inertiajs/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import axios from 'axios';
 import {
     Activity,
@@ -30,7 +31,7 @@ import {
     XCircle,
     type LucideIcon,
 } from 'lucide-react';
-import { useCallback, useMemo, useState, type FormEventHandler } from 'react';
+import { useCallback, useMemo, useState, type FormEventHandler, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Bar,
@@ -155,6 +156,8 @@ interface MetricCardProps {
     value: string | number;
     detail: string;
     tone?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+    onClick?: () => void;
+    layoutId?: string;
 }
 
 interface SectionCardProps {
@@ -226,21 +229,38 @@ function barColor(tone: StatLineProps['tone'] = 'primary') {
     }[tone];
 }
 
-function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
-    return (
-        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
-            <div className="flex items-center gap-3">
-                <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClasses(tone))}>
-                    <Icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
-                    <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
-                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
-                </div>
+function MetricCard({ icon: Icon, label, value, detail, tone = 'primary', onClick, layoutId }: MetricCardProps) {
+    const base = 'card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10';
+    const inner = (
+        <div className="flex items-center gap-3">
+            <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClasses(tone))}>
+                <Icon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
+                <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
             </div>
         </div>
     );
+
+    // Tarjeta interactiva: clic → morph a modal de detalle (shared layout con framer-motion)
+    if (layoutId) {
+        return (
+            <motion.div
+                layoutId={layoutId}
+                onClick={onClick}
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                className={cn(base, 'cursor-pointer hover:shadow-md hover:shadow-[#2e3f84]/10')}
+            >
+                {inner}
+            </motion.div>
+        );
+    }
+
+    return <div className={base}>{inner}</div>;
 }
 
 function SectionCard({ icon: Icon, title, subtitle, className, children, action }: SectionCardProps) {
@@ -304,6 +324,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
     const [advisorStartDate, setAdvisorStartDate] = useState('');
     const [advisorEndDate, setAdvisorEndDate] = useState('');
     const [isExporting, setIsExporting] = useState(false);
+    const [openMetric, setOpenMetric] = useState<'messages' | 'appointments' | 'conversations' | 'advisors' | 'templates' | null>(null);
     const [showCharts, setShowCharts] = useState(false);
 
     const periodOptions = useMemo(() => [
@@ -443,6 +464,115 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
     const appointmentTotalForBars = Math.max(statistics.appointments.total, 1);
     const conversationTotalForBars = Math.max(statistics.conversations.total, 1);
 
+    // Detalle de cada tarjeta de métrica para el modal (morph). Reutiliza datos ya calculados.
+    type MetricModalData = {
+        icon: LucideIcon;
+        title: string;
+        headlineLabel: string;
+        headlineValue: number;
+        lines: { icon: LucideIcon; label: string; value: number; total?: number; tone: 'primary' | 'success' | 'warning' | 'danger' | 'info' }[];
+        chart: ReactNode;
+    };
+    const metricModals: Record<'messages' | 'appointments' | 'conversations' | 'advisors' | 'templates', MetricModalData> = {
+        messages: {
+            icon: MessageSquare,
+            title: 'Mensajes',
+            headlineLabel: 'Total intercambiados',
+            headlineValue: statistics.messages.total,
+            lines: [
+                { icon: Send, label: 'Enviados por sistema/asesores', value: statistics.messages.sent_by_system, total: statistics.messages.total, tone: 'info' as const },
+                { icon: MessageSquare, label: 'Recibidos de pacientes', value: statistics.messages.received_from_users, total: statistics.messages.total, tone: 'success' as const },
+                ...deliveryItems.map((d) => ({ icon: d.icon, label: d.label, value: d.value, total: outboundTotal, tone: d.tone })),
+            ],
+            chart: messagesStatusData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                        <Pie data={messagesStatusData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={75} dataKey="value">
+                            {messagesStatusData.map((entry, index) => (<Cell key={entry.name} fill={chartColors[index % chartColors.length]} />))}
+                        </Pie>
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    </PieChart>
+                </ResponsiveContainer>
+            ) : null,
+        },
+        appointments: {
+            icon: CalendarCheck2,
+            title: 'Citas',
+            headlineLabel: 'Total cargadas',
+            headlineValue: statistics.appointments.total,
+            lines: appointmentItems.map((a) => ({ icon: a.icon, label: a.label, value: a.value, total: appointmentTotalForBars, tone: a.tone })),
+            chart: appointmentsData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                        <Pie data={appointmentsData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={75} dataKey="value">
+                            {appointmentsData.map((entry) => (<Cell key={entry.name} fill={entry.color} />))}
+                        </Pie>
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    </PieChart>
+                </ResponsiveContainer>
+            ) : null,
+        },
+        conversations: {
+            icon: Activity,
+            title: 'Conversaciones',
+            headlineLabel: 'Total',
+            headlineValue: statistics.conversations.total,
+            lines: conversationItems.map((c) => ({ icon: c.icon, label: c.label, value: c.value, total: conversationTotalForBars, tone: c.tone })),
+            chart: (
+                <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={conversationsStatusData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="name" tick={{ fontSize: 9 }} className="fill-muted-foreground" angle={-20} textAnchor="end" height={50} />
+                        <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" allowDecimals={false} />
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Bar dataKey="value" fill={COLORS.info} radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                </ResponsiveContainer>
+            ),
+        },
+        advisors: {
+            icon: Users,
+            title: 'Asesores',
+            headlineLabel: 'Asesores en el equipo',
+            headlineValue: statistics.advisors.total_advisors,
+            lines: [
+                { icon: MessageSquare, label: 'Conversaciones asignadas', value: statistics.advisors.total_conversations, total: undefined, tone: 'info' as const },
+                { icon: CheckCircle2, label: 'Resueltas', value: statistics.advisors.total_resolved, total: Math.max(statistics.advisors.total_conversations, 1), tone: 'success' as const },
+                { icon: CalendarCheck2, label: 'Agendadas', value: statistics.advisors.total_scheduled, total: undefined, tone: 'primary' as const },
+                { icon: Send, label: 'Mensajes enviados', value: statistics.advisors.total_messages_sent, total: undefined, tone: 'info' as const },
+                { icon: TrendingUp, label: 'Resolución promedio (%)', value: statistics.advisors.avg_resolution_rate, total: 100, tone: 'success' as const },
+            ],
+            chart: null,
+        },
+        templates: {
+            icon: FileText,
+            title: 'Plantillas y equipo',
+            headlineLabel: 'Plantillas',
+            headlineValue: statistics.templates.total,
+            lines: [
+                { icon: Send, label: 'Envíos totales', value: statistics.templates.total_sends, total: undefined, tone: 'info' as const },
+                { icon: CheckCircle2, label: 'Envíos exitosos', value: statistics.templates.successful_sends, total: Math.max(statistics.templates.total_sends, 1), tone: 'success' as const },
+                { icon: XCircle, label: 'Envíos fallidos', value: statistics.templates.failed_sends, total: Math.max(statistics.templates.total_sends, 1), tone: 'danger' as const },
+                { icon: Users, label: 'Administradores', value: statistics.users.admins, total: Math.max(statistics.users.total, 1), tone: 'primary' as const },
+                { icon: Users, label: 'Asesores', value: statistics.users.advisors, total: Math.max(statistics.users.total, 1), tone: 'info' as const },
+            ],
+            chart: usersData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                        <Pie data={usersData} cx="50%" cy="50%" labelLine={false} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`} outerRadius={75} dataKey="value">
+                            <Cell fill={COLORS.primaryLight} />
+                            <Cell fill={COLORS.success} />
+                        </Pie>
+                        <Tooltip contentStyle={tooltipStyle} />
+                        <Legend wrapperStyle={{ fontSize: '11px' }} />
+                    </PieChart>
+                </ResponsiveContainer>
+            ) : null,
+        },
+    };
+
     return (
         <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -503,11 +633,12 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                         </div>
                     </header>
 
-                    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricCard icon={MessageSquare} label="Mensajes" value={formatNumber(statistics.messages.total)} detail={`${formatNumber(statistics.messages.sent_by_system)} enviados`} />
-                        <MetricCard icon={CalendarCheck2} label="Citas" value={formatNumber(statistics.appointments.total)} detail={`${formatNumber(statistics.appointments.confirmed)} confirmadas`} tone="success" />
-                        <MetricCard icon={Activity} label="Conversaciones" value={formatNumber(statistics.conversations.total)} detail={`${formatNumber(statistics.conversations.unread)} sin leer`} tone={statistics.conversations.unread > 0 ? 'warning' : 'info'} />
-                        <MetricCard icon={Users} label="Asesores" value={formatNumber(statistics.advisors.total_advisors)} detail={`${statistics.advisors.avg_resolution_rate}% resolución promedio`} tone="primary" />
+                    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                        <MetricCard icon={MessageSquare} label="Mensajes" value={formatNumber(statistics.messages.total)} detail={`${formatNumber(statistics.messages.sent_by_system)} enviados`} layoutId="metric-messages" onClick={() => setOpenMetric('messages')} />
+                        <MetricCard icon={CalendarCheck2} label="Citas" value={formatNumber(statistics.appointments.total)} detail={`${formatNumber(statistics.appointments.confirmed)} confirmadas`} tone="success" layoutId="metric-appointments" onClick={() => setOpenMetric('appointments')} />
+                        <MetricCard icon={Activity} label="Conversaciones" value={formatNumber(statistics.conversations.total)} detail={`${formatNumber(statistics.conversations.unread)} sin leer`} tone={statistics.conversations.unread > 0 ? 'warning' : 'info'} layoutId="metric-conversations" onClick={() => setOpenMetric('conversations')} />
+                        <MetricCard icon={Users} label="Asesores" value={formatNumber(statistics.advisors.total_advisors)} detail={`${statistics.advisors.avg_resolution_rate}% resolución promedio`} tone="primary" layoutId="metric-advisors" onClick={() => setOpenMetric('advisors')} />
+                        <MetricCard icon={FileText} label="Plantillas" value={formatNumber(statistics.templates.total)} detail={`${formatNumber(statistics.templates.total_sends)} envíos`} tone="info" layoutId="metric-templates" onClick={() => setOpenMetric('templates')} />
                     </section>
 
                     <form onSubmit={handleFilterSubmit} className="card-gradient rounded-lg border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
@@ -588,52 +719,6 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
 
                     {!showCharts ? (
                         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                            <SectionCard icon={MessageSquare} title={t('statistics.messages.title')} subtitle="Volumen, origen y entrega de mensajes">
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    <StatLine icon={MessageSquare} label="Total intercambiados" value={statistics.messages.total} />
-                                    <StatLine icon={Send} label="Enviados por asesores/sistema" value={statistics.messages.sent_by_system} total={statistics.messages.total} tone="info" />
-                                    <StatLine icon={MessageSquare} label="Recibidos de pacientes" value={statistics.messages.received_from_users} total={statistics.messages.total} tone="success" />
-                                    <StatLine icon={MessageSquare} label="Total de conversaciones" value={statistics.conversations.total} />
-                                </div>
-
-                                <div className="mt-4 rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                                    <h3 className="mb-2 text-xs font-bold settings-title">Calidad de entrega saliente</h3>
-                                    <div className="space-y-2">
-                                        {deliveryItems.map((item) => (
-                                            <StatLine key={item.key} icon={item.icon} label={item.label} value={item.value} total={outboundTotal} tone={item.tone} />
-                                        ))}
-                                    </div>
-                                </div>
-                            </SectionCard>
-
-                            <SectionCard icon={CalendarDays} title={t('statistics.appointments.title')} subtitle="Recordatorios y respuesta del paciente">
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    {appointmentItems.map((item) => (
-                                        <StatLine key={item.label} icon={item.icon} label={item.label} value={item.value} total={appointmentTotalForBars} tone={item.tone} />
-                                    ))}
-                                </div>
-                            </SectionCard>
-
-                            <SectionCard icon={Activity} title={t('statistics.conversations.title')} subtitle="Estados operativos de la bandeja">
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    <StatLine icon={MessageSquare} label={t('statistics.conversations.total')} value={statistics.conversations.total} />
-                                    {conversationItems.map((item) => (
-                                        <StatLine key={item.label} icon={item.icon} label={item.label} value={item.value} total={conversationTotalForBars} tone={item.tone} />
-                                    ))}
-                                </div>
-                            </SectionCard>
-
-                            <SectionCard icon={FileText} title={t('statistics.templates.title')} subtitle="Plantillas y capacidad del equipo">
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    <StatLine icon={FileText} label={t('statistics.templates.total')} value={statistics.templates.total} />
-                                    <StatLine icon={Send} label={t('statistics.templates.totalSends')} value={statistics.templates.total_sends} />
-                                    <StatLine icon={CheckCircle2} label={t('statistics.templates.successfulSends')} value={statistics.templates.successful_sends} total={Math.max(statistics.templates.total_sends, 1)} tone="success" />
-                                    <StatLine icon={XCircle} label={t('statistics.templates.failedSends')} value={statistics.templates.failed_sends} total={Math.max(statistics.templates.total_sends, 1)} tone="danger" />
-                                    <StatLine icon={Users} label={t('statistics.users.admins')} value={statistics.users.admins} total={Math.max(statistics.users.total, 1)} tone="primary" />
-                                    <StatLine icon={Users} label={t('statistics.users.advisors')} value={statistics.users.advisors} total={Math.max(statistics.users.total, 1)} tone="info" />
-                                </div>
-                            </SectionCard>
-
                             <SectionCard
                                 icon={Users}
                                 title="Rendimiento de asesores"
@@ -927,6 +1012,58 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                         </div>
                     )}
                 </div>
+
+                <AnimatePresence>
+                    {openMetric && (() => {
+                        const m = metricModals[openMetric];
+                        const MIcon = m.icon;
+                        return (
+                            <motion.div
+                                key="metric-modal"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                onClick={() => setOpenMetric(null)}
+                                className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+                            >
+                                <motion.div
+                                    layoutId={`metric-${openMetric}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="card-gradient max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/50 p-6 shadow-2xl dark:border-white/10"
+                                >
+                                    <div className="mb-4 flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                                                <MIcon className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-lg font-bold settings-title">{m.title}</h2>
+                                                <p className="text-xs settings-subtitle">{m.headlineLabel}: <span className="font-bold settings-title">{formatNumber(m.headlineValue)}</span></p>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setOpenMetric(null)} className="rounded-full p-2 settings-subtitle transition-colors hover:bg-[#2e3f84]/10 dark:hover:bg-white/10" title="Cerrar">
+                                            <XCircle className="h-5 w-5" />
+                                        </button>
+                                    </div>
+
+                                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="space-y-4">
+                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                            {m.lines.map((line, idx) => (
+                                                <StatLine key={idx} icon={line.icon} label={line.label} value={line.value} total={line.total} tone={line.tone} />
+                                            ))}
+                                        </div>
+                                        {m.chart && (
+                                            <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                {m.chart}
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                </motion.div>
+                            </motion.div>
+                        );
+                    })()}
+                </AnimatePresence>
             </div>
     );
 }

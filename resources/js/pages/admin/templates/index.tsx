@@ -1,4 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ import {
     Power,
     PowerOff,
     Search,
+    Send,
     Trash2,
     UserCheck,
     Users,
@@ -233,6 +235,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [templateToEdit, setTemplateToEdit] = useState<Template | null>(null);
+    const [openTemplate, setOpenTemplate] = useState<Template | null>(null);
 
     const stats = useMemo(() => {
         const active = templates.filter((template) => template.is_active).length;
@@ -458,29 +461,23 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                         {templates.length === 0 ? (
                             <EmptyState isAdmin={isAdmin} onCreate={() => setIsCreateModalOpen(true)} />
                         ) : (
-                            <div className="overflow-hidden rounded-lg border border-[#d4d8e8]/80 dark:border-white/10">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[920px] text-left">
-                                        <thead>
-                                            <tr className="border-b border-[#d4d8e8]/80 bg-black/[0.03] dark:border-white/10 dark:bg-white/[0.04]">
-                                                <th className="px-4 py-3 text-xs font-bold settings-title">Plantilla</th>
-                                                <th className="px-4 py-3 text-xs font-bold settings-title">Tipo</th>
-                                                <th className="px-4 py-3 text-xs font-bold settings-title">Alcance</th>
-                                                <th className="px-4 py-3 text-center text-xs font-bold settings-title">Envíos</th>
-                                                <th className="px-4 py-3 text-xs font-bold settings-title">Estado</th>
-                                                <th className="px-4 py-3 text-xs font-bold settings-title">Actualización</th>
-                                                {isAdmin && <th className="px-4 py-3 text-right text-xs font-bold settings-title">Acciones</th>}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                                             {templates.map((template) => {
                                                 const attachedFiles = template.media_files?.length ?? (template.media_url ? 1 : 0);
                                                 const assignedCount = template.assigned_users?.length ?? 0;
 
                                                 return (
-                                                    <tr key={template.id} className="border-b border-[#d4d8e8]/70 last:border-0 hover:bg-black/[0.025] dark:border-white/10 dark:hover:bg-white/[0.04]">
-                                                        <td className="px-4 py-3 align-top">
-                                                            <div className="min-w-0 max-w-[360px]">
+                                                    <motion.div
+                                                        key={template.id}
+                                                        layoutId={`template-${template.id}`}
+                                                        onClick={() => setOpenTemplate(template)}
+                                                        whileHover={{ y: -3 }}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                                                        className="card-gradient flex cursor-pointer flex-col gap-3 rounded-xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 hover:shadow-md hover:shadow-[#2e3f84]/10 dark:border-white/10"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="min-w-0 flex-1">
                                                                 <div className="flex min-w-0 items-center gap-2">
                                                                     <h3 className="truncate text-sm font-bold settings-title">{template.name}</h3>
                                                                     {attachedFiles > 0 && (
@@ -490,75 +487,25 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                                                         </span>
                                                                     )}
                                                                 </div>
-                                                                {template.subject && <p className="mt-1 truncate text-xs settings-subtitle">{template.subject}</p>}
-                                                                <p className="mt-2 line-clamp-2 text-xs leading-5 settings-subtitle [overflow-wrap:anywhere]">{template.content}</p>
+                                                                {template.subject && <p className="mt-0.5 truncate text-xs settings-subtitle">{template.subject}</p>}
                                                             </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 align-top">
-                                                            <TemplateTypePill type={template.message_type} label={getTypeLabel(template.message_type)} icon={getTypeIcon(template.message_type)} />
-                                                        </td>
-                                                        <td className="px-4 py-3 align-top">
-                                                            <ScopePill global={template.is_global} assignedCount={assignedCount} />
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center align-top">
-                                                            <span className="text-sm font-bold settings-title">{formatNumber(template.usage_stats?.total_sends)}</span>
-                                                        </td>
-                                                        <td className="px-4 py-3 align-top">
                                                             <StatusPill active={template.is_active} />
-                                                        </td>
-                                                        <td className="px-4 py-3 align-top">
-                                                            <p className="text-xs font-semibold settings-title">{formatDate(template.updated_at || template.created_at)}</p>
-                                                            <p className="mt-1 max-w-[160px] truncate text-[11px] settings-subtitle">
-                                                                {template.updated_by ? `por ${template.updated_by}` : `creada por ${template.created_by}`}
-                                                            </p>
-                                                        </td>
-                                                        {isAdmin && (
-                                                            <td className="px-4 py-3 text-right align-top">
-                                                                <div className="flex items-center justify-end gap-1.5">
-                                                                    <Button
-                                                                        size="icon"
-                                                                        variant="outline"
-                                                                        onClick={() => toggleStatus(template.id)}
-                                                                        className={cn(
-                                                                            'h-8 w-8 rounded-lg',
-                                                                            template.is_active
-                                                                                ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/10'
-                                                                                : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-neutral-300 dark:hover:bg-white/[0.05]'
-                                                                        )}
-                                                                        title={template.is_active ? 'Desactivar' : 'Activar'}
-                                                                    >
-                                                                        {template.is_active ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="icon"
-                                                                        variant="outline"
-                                                                        onClick={() => {
-                                                                            setTemplateToEdit(template);
-                                                                            setIsEditModalOpen(true);
-                                                                        }}
-                                                                        className="h-8 w-8 rounded-lg settings-btn-secondary"
-                                                                        title={t('common.edit')}
-                                                                    >
-                                                                        <Edit3 className="h-4 w-4" />
-                                                                    </Button>
-                                                                    <Button
-                                                                        size="icon"
-                                                                        variant="outline"
-                                                                        onClick={() => deleteTemplate(template.id)}
-                                                                        className="h-8 w-8 rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
-                                                                        title={t('common.delete')}
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </Button>
-                                                                </div>
-                                                            </td>
-                                                        )}
-                                                    </tr>
+                                                        </div>
+
+                                                        <p className="line-clamp-3 min-h-[3.75rem] text-xs leading-5 settings-subtitle [overflow-wrap:anywhere]">{template.content}</p>
+
+                                                        <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#d4d8e8]/60 pt-3 dark:border-white/10">
+                                                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                                                <TemplateTypePill type={template.message_type} label={getTypeLabel(template.message_type)} icon={getTypeIcon(template.message_type)} />
+                                                                <ScopePill global={template.is_global} assignedCount={assignedCount} />
+                                                            </div>
+                                                            <span className="shrink-0 text-xs settings-subtitle">
+                                                                <span className="font-bold settings-title">{formatNumber(template.usage_stats?.total_sends)}</span> envíos
+                                                            </span>
+                                                        </div>
+                                                    </motion.div>
                                                 );
                                             })}
-                                        </tbody>
-                                    </table>
-                                </div>
                             </div>
                         )}
                     </SectionCard>
@@ -588,6 +535,102 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                     </div>
                 </div>
             </div>
+
+            <AnimatePresence>
+                {openTemplate && (
+                    <motion.div
+                        key="template-detail"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        onClick={() => setOpenTemplate(null)}
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            layoutId={`template-${openTemplate.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="card-gradient flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/50 shadow-2xl dark:border-white/10"
+                        >
+                            <div className="flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 p-5 dark:border-white/10">
+                                <div className="min-w-0">
+                                    <h2 className="truncate text-lg font-bold settings-title">{openTemplate.name}</h2>
+                                    {openTemplate.subject && <p className="mt-0.5 truncate text-xs settings-subtitle">{openTemplate.subject}</p>}
+                                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                        <TemplateTypePill type={openTemplate.message_type} label={getTypeLabel(openTemplate.message_type)} icon={getTypeIcon(openTemplate.message_type)} />
+                                        <ScopePill global={openTemplate.is_global} assignedCount={openTemplate.assigned_users?.length ?? 0} />
+                                        <StatusPill active={openTemplate.is_active} />
+                                    </div>
+                                </div>
+                                <button onClick={() => setOpenTemplate(null)} className="shrink-0 rounded-full p-2 settings-subtitle transition-colors hover:bg-[#2e3f84]/10 dark:hover:bg-white/10" title="Cerrar">
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="flex-1 space-y-4 overflow-y-auto p-5">
+                                <div>
+                                    <p className="mb-1.5 text-xs font-semibold settings-label">Contenido</p>
+                                    <div className="whitespace-pre-wrap rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 text-sm leading-6 settings-title [overflow-wrap:anywhere] dark:border-white/10 dark:bg-white/[0.03]">
+                                        {openTemplate.content}
+                                    </div>
+                                </div>
+
+                                {(openTemplate.media_files?.length || openTemplate.media_url) && (
+                                    <div>
+                                        <p className="mb-1.5 text-xs font-semibold settings-label">Adjuntos</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(openTemplate.media_files?.length
+                                                ? openTemplate.media_files
+                                                : [{ url: openTemplate.media_url!, filename: openTemplate.media_filename || 'archivo', type: (openTemplate.message_type === 'image' ? 'image' : openTemplate.message_type === 'video' ? 'video' : 'document') as MediaFile['type'] }]
+                                            ).map((file, i) => (
+                                                file.type === 'image' ? (
+                                                    <img key={i} src={file.url} alt={file.filename} className="h-28 w-28 rounded-lg border border-[#d4d8e8] object-cover dark:border-white/10" />
+                                                ) : file.type === 'video' ? (
+                                                    <video key={i} src={file.url} className="h-28 w-28 rounded-lg border border-[#d4d8e8] object-cover dark:border-white/10" />
+                                                ) : (
+                                                    <a key={i} href={file.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d4d8e8] bg-white/50 px-3 py-2 text-xs font-semibold settings-title dark:border-white/10 dark:bg-white/[0.04]">
+                                                        <FileText className="h-4 w-4" /> {file.filename}
+                                                    </a>
+                                                )
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                        <p className="text-[11px] settings-subtitle">Envíos registrados</p>
+                                        <p className="mt-0.5 text-lg font-bold settings-title">{formatNumber(openTemplate.usage_stats?.total_sends)}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                        <p className="text-[11px] settings-subtitle">Actualización</p>
+                                        <p className="mt-0.5 text-sm font-bold settings-title">{formatDate(openTemplate.updated_at || openTemplate.created_at)}</p>
+                                        <p className="text-[11px] settings-subtitle">{openTemplate.updated_by ? `por ${openTemplate.updated_by}` : `creada por ${openTemplate.created_by}`}</p>
+                                    </div>
+                                </div>
+                            </motion.div>
+
+                            {isAdmin && (
+                                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#d4d8e8]/80 p-4 dark:border-white/10">
+                                    <Button variant="outline" onClick={() => { deleteTemplate(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-lg border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10">
+                                        <Trash2 className="h-4 w-4" /> Eliminar
+                                    </Button>
+                                    <Button variant="outline" onClick={() => { toggleStatus(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-lg settings-btn-secondary">
+                                        {openTemplate.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
+                                        {openTemplate.is_active ? 'Desactivar' : 'Activar'}
+                                    </Button>
+                                    <Button variant="outline" onClick={() => { setTemplateToEdit(openTemplate); setIsEditModalOpen(true); setOpenTemplate(null); }} className="h-9 rounded-lg settings-btn-secondary">
+                                        <Edit3 className="h-4 w-4" /> Editar
+                                    </Button>
+                                    <Button onClick={() => router.get(`/admin/templates/${openTemplate.id}/send-form`)} className="h-9 rounded-lg settings-btn-primary text-white">
+                                        <Send className="h-4 w-4" /> Enviar
+                                    </Button>
+                                </div>
+                            )}
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             <TemplateCreateModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} users={users} />
 

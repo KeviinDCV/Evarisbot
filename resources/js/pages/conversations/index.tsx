@@ -219,6 +219,7 @@ interface ConversationsIndexProps {
     conversations: Conversation[];
     hasMore?: boolean;
     selectedConversation?: Conversation;
+    unreadOnOpen?: number;
     users: User[];
     allTags?: TagItem[];
     allSpecialties?: { name: string; count: number }[];
@@ -234,7 +235,7 @@ interface ConversationsIndexProps {
     whatsappTemplates?: WhatsappTemplate[];
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -639,6 +640,9 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Estados para control de scroll inteligente
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [newMessagesCount, setNewMessagesCount] = useState(0);
+    // Divisor "Mensajes nuevos" (tipo WhatsApp): ancla y visibilidad (se auto-oculta)
+    const [newMsgAnchorId, setNewMsgAnchorId] = useState<number | null>(null);
+    const [showNewDivider, setShowNewDivider] = useState(false);
     const lastMessageCountRef = useRef(0);
 
     // Local messages state — initialized from server, incrementally updated by lightweight poll
@@ -758,11 +762,35 @@ export default function ConversationsIndex({ conversations: initialConversations
         lastMessageIdRef.current = msgs.length > 0 ? Math.max(...msgs.map(m => m.id)) : 0;
         // Marcar todos los mensajes iniciales como ya renderizados (sin animación)
         renderedMessageIdsRef.current = new Set(msgs.map(m => m.id));
+
+        // Divisor "Mensajes nuevos": ancla en el primer mensaje entrante sin leer al abrir.
+        let dividerTimer: ReturnType<typeof setTimeout> | undefined;
+        if (unreadOnOpen > 0 && msgs.length > 0) {
+            const incoming = msgs.filter(m => m.is_from_user);
+            const anchor = incoming.length >= unreadOnOpen ? incoming[incoming.length - unreadOnOpen] : incoming[0];
+            if (anchor) {
+                setNewMsgAnchorId(anchor.id);
+                setShowNewDivider(true);
+                // Se auto-oculta a los 8s (se desvanece y el chat queda normal)
+                dividerTimer = setTimeout(() => setShowNewDivider(false), 8000);
+            } else {
+                setNewMsgAnchorId(null);
+                setShowNewDivider(false);
+            }
+        } else {
+            setNewMsgAnchorId(null);
+            setShowNewDivider(false);
+        }
+
         // Sync notes
         setNotesText(selectedConversation?.notes || '');
         setShowNotes(false);
         setShowActivity(false);
         setActivities([]);
+
+        return () => {
+            if (dividerTimer) clearTimeout(dividerTimer);
+        };
     }, [selectedConversation?.id]);
 
     // Marcar mensajes como renderizados después de cada render (para que la siguiente vez no animen)
@@ -2155,6 +2183,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                         )
                     );
                 } else {
+                    // El mensaje real llegará por polling/Reverb. Lo marcamos como "ya animado"
+                    // para que reemplace al optimista SIN re-animar: transición fluida, sin doble pop.
+                    if (serverMessage?.id) {
+                        renderedMessageIdsRef.current.add(serverMessage.id);
+                    }
                     // Marcar como enviado - se eliminará cuando llegue el mensaje real del servidor
                     setOptimisticMessages(prev =>
                         prev.map(m => m.tempId === tempId ? { ...m, status: 'sending' as const } : m)
@@ -4043,6 +4076,26 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                         return (
                                             <div key={message.id}>
+                                                <AnimatePresence>
+                                                    {showNewDivider && message.id === newMsgAnchorId && (
+                                                        <motion.div
+                                                            key="new-messages-divider"
+                                                            initial={{ opacity: 0, height: 0 }}
+                                                            animate={{ opacity: 1, height: 'auto' }}
+                                                            exit={{ opacity: 0, height: 0 }}
+                                                            transition={{ duration: 0.35, ease: 'easeInOut' }}
+                                                            className="overflow-hidden"
+                                                        >
+                                                            <div className="flex items-center gap-3 px-2 py-2">
+                                                                <div className="h-px flex-1 bg-[#16235e]/20 dark:bg-blue-400/20" />
+                                                                <span className="rounded-full bg-[#16235e] px-3 py-1 text-[11px] font-bold text-white shadow-sm dark:bg-blue-600">
+                                                                    Mensajes nuevos
+                                                                </span>
+                                                                <div className="h-px flex-1 bg-[#16235e]/20 dark:bg-blue-400/20" />
+                                                            </div>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
                                                 {showDateSeparator && (
                                                     <div className="chat-date-separator">
                                                         <span>{formatDateLabel(message.created_at)}</span>
@@ -4322,9 +4375,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     {optimisticMessages.map((message) => (
                                         <div
                                             key={message.tempId}
-                                            className="flex justify-end msg-animate-right"
+                                            className="flex justify-end"
                                         >
-                                          <div className="flex flex-col items-end max-w-[85%] md:max-w-[70%]">
+                                          <motion.div
+                                            initial={{ opacity: 0, scale: 0.8, y: 14 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            transition={{ type: 'spring', stiffness: 500, damping: 28, mass: 0.8 }}
+                                            style={{ transformOrigin: 'bottom right' }}
+                                            className="flex flex-col items-end max-w-[85%] md:max-w-[70%]">
                                             <div
                                                 className={`px-3 pt-2 pb-1 flex flex-col relative rounded-xl rounded-br-sm ${message.status === 'error'
                                                     ? 'bg-red-500 text-white shadow-md'
@@ -4353,7 +4411,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     )}
                                                 </div>
                                             </div>
-                                          </div>
+                                          </motion.div>
                                         </div>
                                     ))}
 
