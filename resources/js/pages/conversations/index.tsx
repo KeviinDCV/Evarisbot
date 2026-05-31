@@ -1,5 +1,5 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -278,7 +278,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [showStatusFilter, setShowStatusFilter] = useState(false);
     const [showBulkAssignMenu, setShowBulkAssignMenu] = useState(false);
     const [bulkAssignSearchQuery, setBulkAssignSearchQuery] = useState('');
-    const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'image' | 'video'; caption?: string } | null>(null);
+    const [mediaViewer, setMediaViewer] = useState<{ url: string; type: 'image' | 'video'; caption?: string; id?: number } | null>(null);
     const [zoomLevel, setZoomLevel] = useState(1);
     const [imageRotation, setImageRotation] = useState(0);
     const [showPatientData, setShowPatientData] = useState(false);
@@ -4154,12 +4154,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                 setMediaViewer({
                                                                     url: message.media_url!,
                                                                     type: 'image',
-                                                                    caption: message.content !== 'Imagen' ? message.content : undefined
+                                                                    caption: message.content !== 'Imagen' ? message.content : undefined,
+                                                                    id: message.id
                                                                 });
                                                                 setZoomLevel(1);
                                                             }}
                                                         >
-                                                            <img
+                                                            <motion.img
+                                                                layoutId={`media-${message.id}`}
                                                                 src={message.media_url}
                                                                 alt={message.content}
                                                                 className="max-w-full max-h-96 rounded-xl object-cover"
@@ -5232,8 +5234,14 @@ export default function ConversationsIndex({ conversations: initialConversations
             </Dialog>
 
             {/* Visor de medios fullscreen - estilo WhatsApp Web */}
+            <AnimatePresence>
             {mediaViewer && (
-                <div
+                <motion.div
+                    key="media-viewer"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
                     className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
                     onClick={() => setMediaViewer(null)}
                 >
@@ -5328,6 +5336,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                         onMouseLeave={() => setIsDragging(false)}
                     >
                         {mediaViewer.type === 'image' ? (
+                            <motion.div
+                                layoutId={mediaViewer.id ? `media-${mediaViewer.id}` : undefined}
+                                className="flex items-center justify-center w-full h-full"
+                            >
                             <img
                                 ref={imageRef}
                                 src={mediaViewer.url}
@@ -5353,6 +5365,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 onClick={(e) => e.stopPropagation()}
                                 draggable={false}
                             />
+                            </motion.div>
                         ) : (
                             <video
                                 src={mediaViewer.url}
@@ -5377,8 +5390,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                             </p>
                         </div>
                     )}
-                </div>
+                </motion.div>
             )}
+            </AnimatePresence>
         </AdminLayout>
     );
 }
