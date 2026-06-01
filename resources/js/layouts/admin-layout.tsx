@@ -8,6 +8,7 @@ import { useInitials } from '@/hooks/use-initials';
 import { LanguageSelector } from '@/components/language-selector';
 import { useTranslation } from 'react-i18next';
 import AppearanceToggleDropdown from '@/components/appearance-dropdown';
+import { MessageNotifications } from '@/components/message-notifications';
 import { Toaster } from 'sonner';
 
 interface AdminLayoutProps {
@@ -241,6 +242,9 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 <div className="mb-6 flex items-center justify-center">
                     <AppLogoIcon className="h-8 w-auto object-contain" />
                 </div>
+
+                {/* Notificaciones de mensajes nuevos en segundo plano (invisible, global) */}
+                <MessageNotifications />
 
                 {/* Navigation Icons */}
                 <nav className="flex flex-col gap-1.5 flex-grow w-full px-2">
