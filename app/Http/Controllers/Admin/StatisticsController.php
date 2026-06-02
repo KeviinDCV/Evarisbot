@@ -51,6 +51,7 @@ class StatisticsController extends Controller
                         'templates' => $this->getTemplateStatistics($dateStart, $dateEnd),
                         'users' => $this->getUserStatistics(),
                         'advisors' => $this->getAdvisorStatistics($dateStart, $dateEnd),
+                        'flowDemand' => $this->getFlowDemandStatistics($dateStart, $dateEnd),
                         'date_range' => [
                             'start' => $dateStart?->format('Y-m-d'),
                             'end' => $dateEnd?->format('Y-m-d'),
@@ -60,6 +61,50 @@ class StatisticsController extends Controller
                 });
             }),
         ]);
+    }
+
+    /**
+     * Demanda del menú de bienvenida: clasifica lo que pide cada usuario.
+     * Lista para informes (servicio, EPS, régimen, autoservicio vs asesor, embudo).
+     */
+    private function getFlowDemandStatistics(?\Carbon\Carbon $dateStart, ?\Carbon\Carbon $dateEnd): array
+    {
+        $base = \App\Models\FlowClassification::query();
+        if ($dateStart && $dateEnd) {
+            $base->whereBetween('created_at', [$dateStart, $dateEnd]);
+        }
+
+        $countsBy = fn (string $col) => (clone $base)
+            ->select($col, DB::raw('count(*) as total'))
+            ->whereNotNull($col)
+            ->groupBy($col)
+            ->pluck('total', $col)
+            ->toArray();
+
+        $topBy = fn (string $col) => (clone $base)
+            ->select($col, DB::raw('count(*) as total'))
+            ->whereNotNull($col)
+            ->groupBy($col)->orderByDesc('total')->limit(8)
+            ->get()
+            ->map(fn ($r) => ['name' => $r->{$col}, 'value' => (int) $r->total])
+            ->toArray();
+
+        $byOutcome = $countsBy('outcome');
+        $selfService = $byOutcome['self_service'] ?? 0;
+        $advisor = $byOutcome['advisor'] ?? 0;
+        $resolved = $selfService + $advisor;
+
+        return [
+            'total' => (clone $base)->count(),
+            'accepted_privacy' => (clone $base)->where('accepted_privacy', true)->count(),
+            'reached_menu' => (clone $base)->whereNotNull('service')->count(),
+            'by_service' => $countsBy('service'),
+            'by_outcome' => $byOutcome,
+            'by_regimen' => $countsBy('regimen'),
+            'top_eps' => $topBy('eps'),
+            'top_sub_service' => $topBy('sub_service'),
+            'automation_rate' => $resolved > 0 ? round($selfService / $resolved * 100, 1) : 0,
+        ];
     }
 
     /**

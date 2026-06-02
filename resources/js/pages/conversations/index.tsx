@@ -2485,13 +2485,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                     {/* Header */}
                     <div className="px-4 pt-4 pb-2">
                         <div className="flex items-center justify-between mb-3">
-                            <h1 className="text-2xl font-extrabold text-[#16235e] dark:text-blue-200 tracking-tight">{t('conversations.title')}</h1>
+                            <h1 className="text-2xl font-extrabold text-[#2e3f84] dark:text-blue-200 tracking-tight">{t('conversations.title')}</h1>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 {/* Botón para nueva conversación */}
                                 <button
                                     onClick={() => setShowNewChatModal(true)}
-                                    className="w-9 h-9 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
+                                    className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
                                     title={t('conversations.newConversation')}
                                 >
                                     <Plus className="w-4 h-4" />
@@ -2509,7 +2509,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         }}
                                         className={`w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all ${isSelectionMode
                                             ? 'bg-gradient-to-br from-[#22c55e] to-[#16a34a] text-white'
-                                            : 'bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white'
+                                            : 'bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] text-white'
                                             }`}
                                         title={isSelectionMode ? "Cancelar selección" : "Seleccionar múltiples"}
                                     >
@@ -2523,7 +2523,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         onClick={() => setShowFiltersPanel(!showFiltersPanel)}
                                         className={`w-9 h-9 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all relative ${activeFilterCount > 0
                                             ? 'bg-gradient-to-br from-[#f59e0b] to-[#d97706] text-white'
-                                            : 'bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white'
+                                            : 'bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] text-white'
                                             }`}
                                         title="Filtros"
                                     >
@@ -2926,7 +2926,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         e.preventDefault();
                                     }
                                 }}
-                                className="w-full pl-11 pr-4 py-2.5 bg-muted dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
+                                className="w-full pl-11 pr-4 py-2.5 bg-muted dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#2e3f84]/10 transition-all placeholder:text-[#767681]"
                             />
                         </div>
 
@@ -2952,7 +2952,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     }}
                                     className={`flex-shrink-0 inline-flex items-center px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
                                         statusFilter === pill.value
-                                            ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300 font-semibold'
+                                            ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#2e3f84] dark:text-blue-300 font-semibold'
                                             : 'bg-muted dark:bg-neutral-800 text-[#5f5e5e] dark:text-neutral-400 hover:bg-muted/80 dark:hover:bg-neutral-700'
                                     }`}
                                 >
@@ -2960,7 +2960,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     {(pill.value === 'unanswered' || pill.value === 'pending_response') && (
                                         <span className={`ml-1.5 inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full text-[11px] font-bold ${
                                             statusFilter === pill.value
-                                                ? 'bg-white/70 dark:bg-blue-950/70 text-[#16235e] dark:text-blue-200'
+                                                ? 'bg-white/70 dark:bg-blue-950/70 text-[#2e3f84] dark:text-blue-200'
                                                 : 'bg-background/80 dark:bg-neutral-900 text-[#5f5e5e] dark:text-neutral-300'
                                         }`}>
                                             {localFilterCounts[pill.value as 'unanswered' | 'pending_response'] ?? 0}
@@ -3009,7 +3009,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         className={`conv-list-item w-full flex items-center gap-4 p-4 mb-1.5 rounded-xl transition-all text-left select-none group ${selectedConversations.includes(conversation.id)
                                                 ? 'bg-green-50/80 dark:bg-green-900/20 border-l-4 border-green-500 shadow-sm'
                                                 : selectedConversation?.id === conversation.id
-                                                    ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400 shadow-sm'
+                                                    ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#2e3f84] dark:border-blue-400 shadow-sm'
                                                     : 'bg-card dark:bg-neutral-800/60 hover:bg-muted/60 dark:hover:bg-neutral-800/80 border-l-4 border-transparent shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
                                             }`}
                                     >
@@ -3046,7 +3046,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         {conversation.contact_name || 'Sin nombre'}
                                                     </h3>
                                                     {conversation.is_pinned && (
-                                                        <Pin className="w-3.5 h-3.5 text-[#16235e] dark:text-blue-400 flex-shrink-0 rotate-45" />
+                                                        <Pin className="w-3.5 h-3.5 text-[#2e3f84] dark:text-blue-400 flex-shrink-0 rotate-45" />
                                                     )}
                                                     {isSelectionMode && conversation.unread_count > 0 && (
                                                         <span
@@ -3058,7 +3058,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         </span>
                                                     )}
                                                 </div>
-                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-[#16235e] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
+                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-[#2e3f84] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
                                                     }`}>
                                                     {formatTime(conversation.last_message_at)}
                                                 </span>
@@ -3075,7 +3075,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         </span>
                                                     ) : (
                                                         <span title="Mensaje enviado">
-                                                            <CornerDownRight className="w-3 h-3 text-[#16235e] dark:text-blue-400 flex-shrink-0" />
+                                                            <CornerDownRight className="w-3 h-3 text-[#2e3f84] dark:text-blue-400 flex-shrink-0" />
                                                         </span>
                                                     )
                                                 )}
@@ -3141,7 +3141,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Indicador de carga de más conversaciones */}
                                 {isLoadingMore && (
                                     <div className="py-4 text-center">
-                                        <div className="inline-block w-5 h-5 border-2 border-[#16235e] border-t-transparent rounded-full animate-spin"></div>
+                                        <div className="inline-block w-5 h-5 border-2 border-[#2e3f84] border-t-transparent rounded-full animate-spin"></div>
                                     </div>
                                 )}
 
@@ -3157,7 +3157,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                     {/* Barra de acciones para selección múltiple */}
                     {selectedConversations.length > 0 && (
-                        <div className="p-3 bg-gradient-to-br from-[#16235e] to-[#2e3a75] border-t border-[#16235e]/30">
+                        <div className="p-3 bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] border-t border-[#2e3f84]/30">
                             <div className="flex items-center justify-between mb-2">
                                 <span className="text-white text-sm font-medium">
                                     {selectedConversations.length} seleccionada{selectedConversations.length > 1 ? 's' : ''}
@@ -3706,7 +3706,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     <div className="hidden md:flex flex-1 items-center justify-center bg-background dark:bg-neutral-900">
                         <div className="text-center p-8 md:p-12">
                             <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#767681]/40" />
-                            <h3 className="text-xl font-semibold text-[#16235e] dark:text-neutral-300 mb-2">
+                            <h3 className="text-xl font-semibold text-[#2e3f84] dark:text-neutral-300 mb-2">
                                 {t('conversations.selectConversation')}
                             </h3>
                             <p className="text-sm text-[#767681]">
@@ -3733,18 +3733,18 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     title={isSidebarVisible ? t('conversations.hideList') : t('conversations.showList')}
                                 >
                                     {isSidebarVisible ? (
-                                        <PanelLeftClose className="w-5 h-5 text-[#16235e] dark:text-neutral-300" />
+                                        <PanelLeftClose className="w-5 h-5 text-[#2e3f84] dark:text-neutral-300" />
                                     ) : (
-                                        <PanelLeftOpen className="w-5 h-5 text-[#16235e] dark:text-neutral-300" />
+                                        <PanelLeftOpen className="w-5 h-5 text-[#2e3f84] dark:text-neutral-300" />
                                     )}
                                 </button>
                                 {/* Avatar e Información */}
                                 <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] flex items-center justify-center text-white text-sm md:text-base font-bold flex-shrink-0">
+                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] flex items-center justify-center text-white text-sm md:text-base font-bold flex-shrink-0">
                                         {[...(selectedConversation.contact_name || '')][0]?.toUpperCase() || '?'}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h2 className="font-bold text-[#16235e] dark:text-neutral-200 text-sm md:text-base truncate">
+                                        <h2 className="font-bold text-[#2e3f84] dark:text-neutral-200 text-sm md:text-base truncate">
                                             {selectedConversation.contact_name || 'Sin nombre'}
                                         </h2>
                                         <div className="flex items-center gap-2 text-xs md:text-sm text-[#5f5e5e] dark:text-neutral-400">
@@ -3757,13 +3757,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Estado */}
                                 <div className="hidden lg:flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-[#dee1ff]/60 dark:bg-neutral-800">
                                     <span className={`w-2 h-2 rounded-full ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)}`}></span>
-                                    <span className="text-sm text-[#16235e] dark:text-neutral-300 font-medium">{getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}</span>
+                                    <span className="text-sm text-[#2e3f84] dark:text-neutral-300 font-medium">{getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}</span>
                                 </div>
 
                                 {/* Asignación */}
                                 {selectedConversation.assigned_user && (
                                     <div className="hidden xl:block text-sm text-[#5f5e5e] dark:text-neutral-400 ml-2">
-                                        {t('conversations.assignedTo')}: <span className="font-medium text-[#16235e] dark:text-neutral-300">{selectedConversation.assigned_user.name}</span>
+                                        {t('conversations.assignedTo')}: <span className="font-medium text-[#2e3f84] dark:text-neutral-300">{selectedConversation.assigned_user.name}</span>
                                     </div>
                                 )}
                             </div>
@@ -3774,7 +3774,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {isAdmin && (
                                     <button
                                         onClick={() => setShowAssignModal(true)}
-                                        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300"
+                                        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300"
                                         title={t('conversations.assignConversation')}
                                     >
                                         <UserPlus className="w-5 h-5" />
@@ -3784,7 +3784,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Menú de Tres Puntos */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300">
+                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300">
                                             <MoreVertical className="w-5 h-5" />
                                         </button>
                                     </DropdownMenuTrigger>
@@ -3873,7 +3873,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     onClick={() => {
                                                         window.open(`/admin/chat/${selectedConversation.id}/export-pdf`, '_blank');
                                                     }}
-                                                    className="cursor-pointer hover:bg-accent text-[#16235e] dark:text-neutral-300"
+                                                    className="cursor-pointer hover:bg-accent text-[#2e3f84] dark:text-neutral-300"
                                                 >
                                                     <Download className="w-4 h-4 mr-2" />
                                                     Exportar a PDF
@@ -3895,7 +3895,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {selectedConversation.welcome_flow_data && Object.keys(selectedConversation.welcome_flow_data).filter(k => !k.startsWith('_')).length > 0 && (
                                     <button
                                         onClick={() => setShowPatientData(!showPatientData)}
-                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showPatientData ? 'bg-[#16235e] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showPatientData ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
                                         title="Datos del paciente"
                                     >
                                         <ClipboardList className="w-5 h-5" />
@@ -3905,7 +3905,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Botón Notas Internas */}
                                 <button
                                     onClick={() => setShowNotes(!showNotes)}
-                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors relative ${showNotes ? 'bg-[#16235e] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors relative ${showNotes ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
                                     title="Notas internas"
                                 >
                                     <StickyNote className="w-5 h-5" />
@@ -3917,7 +3917,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Botón Historial de Actividad */}
                                 <button
                                     onClick={toggleActivityPanel}
-                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showActivity ? 'bg-[#16235e] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#16235e] dark:text-neutral-300'}`}
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showActivity ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
                                     title="Historial de actividad"
                                 >
                                     <History className="w-5 h-5" />
@@ -3926,7 +3926,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Botón Cerrar Chat */}
                                 <button
                                     onClick={handleCloseChat}
-                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-neutral-300"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300"
                                     title={t('conversations.closeChatHint')}
                                 >
                                     <X className="w-5 h-5" />
@@ -4087,11 +4087,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             className="overflow-hidden"
                                                         >
                                                             <div className="flex items-center gap-3 px-2 py-2">
-                                                                <div className="h-px flex-1 bg-[#16235e]/20 dark:bg-blue-400/20" />
-                                                                <span className="rounded-full bg-[#16235e] px-3 py-1 text-[11px] font-bold text-white shadow-sm dark:bg-blue-600">
+                                                                <div className="h-px flex-1 bg-[#2e3f84]/20 dark:bg-blue-400/20" />
+                                                                <span className="rounded-full bg-[#2e3f84] px-3 py-1 text-[11px] font-bold text-white shadow-sm dark:bg-blue-600">
                                                                     Mensajes nuevos
                                                                 </span>
-                                                                <div className="h-px flex-1 bg-[#16235e]/20 dark:bg-blue-400/20" />
+                                                                <div className="h-px flex-1 bg-[#2e3f84]/20 dark:bg-blue-400/20" />
                                                             </div>
                                                         </motion.div>
                                                     )}
@@ -4112,7 +4112,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         setReplyingTo(message);
                                                         textareaRef.current?.focus();
                                                     }}
-                                                    className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#16235e] dark:hover:text-blue-300 self-center flex-shrink-0"
+                                                    className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 self-center flex-shrink-0"
                                                     title="Responder"
                                                 >
                                                     <Reply className="w-4 h-4" />
@@ -4123,7 +4123,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 <div className="relative self-center flex-shrink-0">
                                                     <button
                                                         onClick={() => setReactionPickerFor(reactionPickerFor === message.id ? null : message.id)}
-                                                        className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#16235e] dark:hover:text-blue-300"
+                                                        className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
                                                         title="Reaccionar"
                                                     >
                                                         <SmilePlus className="w-4 h-4" />
@@ -4434,7 +4434,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             {/* Botón flotante para ir al final + indicador de nuevos mensajes */}
                             <button
                                 onClick={() => scrollToBottom()}
-                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 bg-white dark:bg-neutral-800 text-[#16235e] dark:text-neutral-300 px-3 py-2 rounded-full shadow-lg hover:shadow-xl z-10 transition-all duration-300 ${isAtBottom
+                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 bg-white dark:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300 px-3 py-2 rounded-full shadow-lg hover:shadow-xl z-10 transition-all duration-300 ${isAtBottom
                                     ? 'opacity-0 translate-y-4 pointer-events-none'
                                     : 'opacity-100 translate-y-0'
                                     }`}
@@ -4531,8 +4531,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                             {/* Preview del archivo seleccionado */}
                             {selectedFile && (
                                 <div className="mb-2 flex items-center gap-2 p-2 bg-[#dee1ff]/40 dark:bg-blue-900/20 rounded-lg">
-                                    <Paperclip className="w-4 h-4 text-[#16235e] dark:text-neutral-300" />
-                                    <span className="text-sm text-[#16235e] dark:text-neutral-300 flex-1 truncate">{selectedFile.name}</span>
+                                    <Paperclip className="w-4 h-4 text-[#2e3f84] dark:text-neutral-300" />
+                                    <span className="text-sm text-[#2e3f84] dark:text-neutral-300 flex-1 truncate">{selectedFile.name}</span>
                                     <button
                                         type="button"
                                         onClick={handleRemoveFile}
@@ -4590,12 +4590,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     className="hidden"
                                 />
 
-                                <div className="relative flex-1 flex items-end bg-muted dark:bg-neutral-800 ring-1 ring-black/5 dark:ring-white/5 rounded-full focus-within:ring-2 focus-within:ring-[#16235e]/30 transition-all duration-200 overflow-visible">
+                                <div className="relative flex-1 flex items-end bg-muted dark:bg-neutral-800 ring-1 ring-black/5 dark:ring-white/5 rounded-full focus-within:ring-2 focus-within:ring-[#2e3f84]/30 transition-all duration-200 overflow-visible">
 
                                     {/* Botón de adjuntar - Ahora integrado dentro de la burbuja */}
                                     <button
                                         type="button"
-                                        className="flex-shrink-0 h-[44px] w-12 p-0 rounded-l-full self-end text-[#767681] hover:text-[#16235e] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+                                        className="flex-shrink-0 h-[44px] w-12 p-0 rounded-l-full self-end text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
                                         onClick={() => fileInputRef.current?.click()}
                                         title="Adjuntar archivo"
                                     >
@@ -4605,7 +4605,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     {/* Botón enviar plantilla WhatsApp */}
                                     <button
                                         type="button"
-                                        className="flex-shrink-0 h-[44px] w-10 p-0 self-end text-[#767681] hover:text-[#16235e] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+                                        className="flex-shrink-0 h-[44px] w-10 p-0 self-end text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
                                         onClick={() => setShowWaTemplateModal(true)}
                                         title="Enviar plantilla de WhatsApp"
                                     >
@@ -4684,7 +4684,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <button
                                     type="submit"
                                     disabled={(!hasInputText && !selectedFile) || processing || isSubmitting}
-                                    className="flex-shrink-0 bg-gradient-to-br from-[#16235e] to-[#2e3a75] hover:from-[#1a2a6e] hover:to-[#364588] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
+                                    className="flex-shrink-0 bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] hover:from-[#1a2a6e] hover:to-[#364588] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
                                 >
                                     <Send className="w-5 h-5 ml-[2px]" />
                                 </button>

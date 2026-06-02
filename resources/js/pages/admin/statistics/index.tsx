@@ -133,6 +133,17 @@ interface Statistics {
         top_performer: AdvisorSummary | null;
         advisors: AdvisorSummary[];
     };
+    flowDemand?: {
+        total: number;
+        accepted_privacy: number;
+        reached_menu: number;
+        by_service: Record<string, number>;
+        by_outcome: Record<string, number>;
+        by_regimen: Record<string, number>;
+        top_eps: { name: string; value: number }[];
+        top_sub_service: { name: string; value: number }[];
+        automation_rate: number;
+    };
     date_range: {
         start?: string;
         end?: string;
@@ -719,6 +730,67 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
 
                     {!showCharts ? (
                         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                            <SectionCard icon={Activity} title="Demanda del menú de bienvenida" subtitle="Clasificación automática de lo que solicita cada usuario" className="xl:col-span-2">
+                                {(() => {
+                                    const fd = statistics.flowDemand;
+                                    if (!fd || fd.total === 0) {
+                                        return (
+                                            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[#d4d8e8] py-10 text-center dark:border-white/10">
+                                                <MessageSquare className="mb-3 h-10 w-10 settings-subtitle" />
+                                                <p className="text-sm font-semibold settings-title">Aún no hay datos de demanda</p>
+                                                <p className="mt-1 max-w-md text-xs settings-subtitle">Se llenará automáticamente cuando el menú de bienvenida esté activo y los pacientes lo recorran.</p>
+                                            </div>
+                                        );
+                                    }
+                                    const svcLabels: Record<string, string> = { agendamiento: 'Agendamiento', cancelacion: 'Cancelación', informacion: 'Información', asesor: 'Hablar con asesor' };
+                                    const outLabels: Record<string, string> = { self_service: 'Autoservicio', advisor: 'Pasó a asesor', rejected: 'Rechazó privacidad', in_progress: 'En proceso' };
+                                    return (
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                                <MetricCard icon={MessageSquare} label="Flujos" value={formatNumber(fd.total)} detail="iniciados" />
+                                                <MetricCard icon={CheckCircle2} label="Autoservicio" value={`${fd.automation_rate}%`} detail="resueltos sin asesor" tone="success" />
+                                                <MetricCard icon={Activity} label="Llegaron al menú" value={formatNumber(fd.reached_menu)} detail={`${formatNumber(fd.accepted_privacy)} aceptaron`} tone="info" />
+                                                <MetricCard icon={Users} label="A un asesor" value={formatNumber(fd.by_outcome.advisor ?? 0)} detail="requirieron agente" tone="warning" />
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                                <div>
+                                                    <h3 className="mb-2 text-xs font-bold settings-title">Por servicio solicitado</h3>
+                                                    <div className="space-y-2">
+                                                        {Object.entries(fd.by_service).map(([k, v]) => (
+                                                            <StatLine key={k} icon={MessageSquare} label={svcLabels[k] ?? k} value={v} total={fd.total} tone="primary" />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h3 className="mb-2 text-xs font-bold settings-title">Desenlace</h3>
+                                                    <div className="space-y-2">
+                                                        {Object.entries(fd.by_outcome).map(([k, v]) => (
+                                                            <StatLine key={k} icon={Activity} label={outLabels[k] ?? k} value={v} total={fd.total} tone={k === 'self_service' ? 'success' : k === 'advisor' ? 'warning' : k === 'rejected' ? 'danger' : 'info'} />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h3 className="mb-2 text-xs font-bold settings-title">Régimen</h3>
+                                                    <div className="space-y-2">
+                                                        {Object.entries(fd.by_regimen).map(([k, v]) => (
+                                                            <StatLine key={k} icon={Users} label={k === 'subsidiado' ? 'Subsidiado' : k === 'contributivo' ? 'Contributivo' : k} value={v} total={fd.total} tone="info" />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h3 className="mb-2 text-xs font-bold settings-title">Top EPS</h3>
+                                                    <div className="space-y-2">
+                                                        {fd.top_eps.length ? fd.top_eps.map((e) => (
+                                                            <StatLine key={e.name} icon={Users} label={e.name} value={e.value} total={fd.total} tone="primary" />
+                                                        )) : <EmptyChart message="Sin datos de EPS" />}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </SectionCard>
+
                             <SectionCard
                                 icon={Users}
                                 title="Rendimiento de asesores"

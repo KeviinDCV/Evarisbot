@@ -7,6 +7,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { initializeTheme } from './hooks/use-appearance';
 import { I18nextProvider } from 'react-i18next';
+import { MotionConfig } from 'framer-motion';
 import i18n from './i18n';
 import axios from 'axios';
 
@@ -44,7 +45,10 @@ createInertiaApp({
 
         root.render(
             <I18nextProvider i18n={i18n}>
-                <App {...props} />
+                {/* reducedMotion="user" → respeta "reducir movimiento" del SO en las animaciones de framer */}
+                <MotionConfig reducedMotion="user">
+                    <App {...props} />
+                </MotionConfig>
             </I18nextProvider>
         );
     },

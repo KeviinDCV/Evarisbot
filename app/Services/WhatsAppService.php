@@ -1130,6 +1130,7 @@ class WhatsAppService
                     'timestamp' => now()->toISOString(),
                 ];
                 $conversation->update(['welcome_flow_data' => $flowData]);
+                \App\Services\FlowClassificationService::sync($conversation);
 
                 Log::info('Welcome flow button pressed', [
                     'conversation_id' => $conversation->id,
@@ -1148,6 +1149,7 @@ class WhatsAppService
                     'timestamp' => now()->toISOString(),
                 ];
                 $conversation->update(['welcome_flow_data' => $flowData]);
+                \App\Services\FlowClassificationService::sync($conversation);
 
                 Log::info('Welcome flow text response', [
                     'conversation_id' => $conversation->id,

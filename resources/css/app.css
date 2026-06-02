@@ -64,23 +64,23 @@
 
 :root {
     --background: #f0f2f8; /* Fondo principal claro */
-    --foreground: #000000; /* Negro */
+    --foreground: #1c1f2e; /* Slate azulado oscuro (en vez de negro puro: más suave a la vista) */
     --card: #ffffff;
-    --card-foreground: #000000;
+    --card-foreground: #1c1f2e;
     --popover: #ffffff;
-    --popover-foreground: #000000;
+    --popover-foreground: #1c1f2e;
     --primary: #2e3f84; /* Color institucional */
     --primary-foreground: #ffffff;
     --secondary: #f0f0f0;
-    --secondary-foreground: #000000;
+    --secondary-foreground: #1c1f2e;
     --muted: #dde1f0;
     --muted-foreground: #6b7494;
     --accent: #e8ebf5;
-    --accent-foreground: #000000;
-    --destructive: #ff0000;
+    --accent-foreground: #1c1f2e;
+    --destructive: #e5484d; /* Rojo refinado (en vez de rojo puro #ff0000) */
     --destructive-foreground: #ffffff;
-    --border: #e0e0e0;
-    --input: #e0e0e0;
+    --border: #d9deec; /* Borde con tinte azul para armonizar con la paleta */
+    --input: #d9deec;
     --ring: #2e3f84;
     --chart-1: #2e3f84;
     --chart-2: #4a5bb5;
@@ -453,12 +453,10 @@
 
 /* Card con gradiente - soporta dark mode */
 .card-gradient {
-    background: linear-gradient(to bottom, #ffffff, #fafbfc);
-    box-shadow: 
+    background: linear-gradient(to bottom, #ffffff, #fcfcfd);
+    box-shadow:
         0 1px 2px rgba(46, 63, 132, 0.04),
-        0 2px 6px rgba(46, 63, 132, 0.06),
-        0 6px 16px rgba(46, 63, 132, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        0 3px 8px rgba(46, 63, 132, 0.05);
 }
 
 .dark .card-gradient {
@@ -1374,6 +1372,19 @@ tr.table-row-hover:hover {
 .msg-animate-right {
     animation: message-slide-in-right 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
     transform-origin: bottom right;
+}
+
+/* Accesibilidad: respetar "reducir movimiento" del sistema operativo
+   (evita mareo a usuarios sensibles; desactiva animaciones/transiciones CSS) */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* Date separator pill */
