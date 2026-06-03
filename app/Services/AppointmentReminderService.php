@@ -122,7 +122,11 @@ class AppointmentReminderService
             'patient' => $appointment->nom_paciente
         ]);
 
-        $templateName = Setting::get('reminder_template_name', 'appointment_reminder');
+        // Sede: las citas de Cartago se identifican porque su código citcon empieza por "W".
+        // Usan su propia plantilla (con la dirección de Cartago); el resto, la de Cali.
+        $templateName = $this->isCartago($appointment)
+            ? Setting::get('reminder_template_name_cartago', 'appointment_reminder_cartago')
+            : Setting::get('reminder_template_name', 'appointment_reminder');
         
         // Formatear número de teléfono (eliminar caracteres no numéricos)
         $phoneNumber = preg_replace('/[^0-9]/', '', $appointment->pactel);
@@ -284,6 +288,25 @@ class AppointmentReminderService
         return $text;
     }
 
+    /** Dirección de cada sede (la del mensaje real proviene de la plantilla de Meta). */
+    private const DIRECCION_CALI = 'Calle 5 #36-08, barrio San Fernando.';
+    private const DIRECCION_CARTAGO = 'Carrera 3b # 1a - 163, barrio Collarejo, Cartago.';
+
+    /**
+     * Una cita es de la sede CARTAGO si su código `citcon` empieza por "W".
+     * Todas las demás son de Cali.
+     */
+    protected function isCartago(Appointment $appointment): bool
+    {
+        return str_starts_with(strtoupper(ltrim((string) ($appointment->citcon ?? ''))), 'W');
+    }
+
+    /** Dirección de la sede según el código citcon. */
+    protected function sedeAddress(Appointment $appointment): string
+    {
+        return $this->isCartago($appointment) ? self::DIRECCION_CARTAGO : self::DIRECCION_CALI;
+    }
+
     /**
      * Prepara parámetros para el template
      */
@@ -333,7 +356,7 @@ class AppointmentReminderService
                "Hora: {$hora}\n" .
                "Médico: {$appointment->mednom}\n" .
                "Especialidad: {$appointment->espnom}\n\n" .
-               "Dirección: Calle 5 #36-08, barrio San Fernando.\n\n" .
+               "Dirección: " . $this->sedeAddress($appointment) . "\n\n" .
                "Le solicitamos presentarse con 40 minutos de anticipación y portar su documento de identificación, autorización de la eps, orden médica e historia clínica.\n\n" .
                "Para cualquier inquietud o si necesita reprogramar su cita, por favor comuníquese con nosotros.\n\n" .
                "Atentamente,\n" .
