@@ -540,7 +540,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             file_size_human: null,
             user: { id: auth.user.id, name: auth.user.name },
             is_mine: true,
-            created_at: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            created_at: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
             created_at_full: new Date().toISOString().slice(0, 16).replace('T', ' '),
             reply_to: replyMsg ? {
                 id: replyMsg.id,
@@ -706,7 +706,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             file_size_human: `${(file.size / 1024).toFixed(0)} KB`,
             user: { id: auth.user.id, name: auth.user.name },
             is_mine: true,
-            created_at: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            created_at: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
             created_at_full: new Date().toISOString().slice(0, 16).replace('T', ' '),
             reply_to: replyMsg ? {
                 id: replyMsg.id,

@@ -32,7 +32,7 @@ class InternalChatController extends Controller
                 'name' => $m->user->name,
             ],
             'is_mine' => $m->user_id === $userId,
-            'created_at' => $m->created_at->format('H:i'),
+            'created_at' => $m->created_at->format('g:i A'),
             'created_at_full' => $m->created_at->toISOString(),
             'reply_to' => null,
         ];
