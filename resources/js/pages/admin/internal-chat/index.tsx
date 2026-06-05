@@ -30,6 +30,7 @@ import {
     SmilePlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -1313,20 +1314,31 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                         {reactionPickerFor === msg.id && (
                                                             <>
                                                                 <div className="fixed inset-0 z-20" onClick={() => setReactionPickerFor(null)} />
-                                                                <div className={cn(
-                                                                    'absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-card dark:bg-neutral-800 border border-border dark:border-neutral-700 shadow-xl px-2 py-1.5 origin-bottom animate-in zoom-in-95 fade-in duration-150',
-                                                                    msg.is_mine ? 'right-0' : 'left-0'
-                                                                )}>
-                                                                    {QUICK_REACTIONS.map(emoji => (
-                                                                        <button
+                                                                <motion.div
+                                                                    initial={{ opacity: 0, scale: 0.6, y: 12 }}
+                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                    transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                                                                    style={{ transformOrigin: 'bottom center' }}
+                                                                    className={cn(
+                                                                        'absolute z-30 bottom-full mb-2 flex items-center gap-1 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2.5 py-2',
+                                                                        msg.is_mine ? 'right-0' : 'left-0'
+                                                                    )}
+                                                                >
+                                                                    {QUICK_REACTIONS.map((emoji, i) => (
+                                                                        <motion.button
                                                                             key={emoji}
+                                                                            initial={{ opacity: 0, scale: 0, y: 10 }}
+                                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                            transition={{ delay: 0.05 + i * 0.045, type: 'spring', stiffness: 600, damping: 16 }}
+                                                                            whileHover={{ scale: 1.5, y: -6 }}
+                                                                            whileTap={{ scale: 0.8 }}
                                                                             onClick={() => handleReact(msg, emoji)}
-                                                                            className="px-1 text-[24px] leading-none transition-transform hover:scale-[1.35] active:scale-95"
+                                                                            className="cursor-pointer px-1 text-[28px] leading-none"
                                                                         >
                                                                             {emoji}
-                                                                        </button>
+                                                                        </motion.button>
                                                                     ))}
-                                                                </div>
+                                                                </motion.div>
                                                             </>
                                                         )}
                                                     </div>
@@ -1540,23 +1552,23 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                             </p>
                                                         )}
                                                     </div>
-                                                {/* Reaction badges */}
+                                                {/* Reaction badges (estilo del chat principal) */}
                                                 {msg.reactions && msg.reactions.length > 0 && (
-                                                    <div className={`flex flex-wrap gap-1 mt-1 ${msg.is_mine ? 'justify-end mr-1' : 'ml-1'}`}>
+                                                    <div className={`flex flex-wrap gap-1 -mt-1.5 relative z-10 ${msg.is_mine ? 'justify-end mr-2' : 'ml-2'}`}>
                                                         {msg.reactions.map(r => (
                                                             <button
                                                                 key={r.emoji}
                                                                 onClick={() => handleReact(msg, r.emoji)}
                                                                 title={r.users.join(', ')}
                                                                 className={cn(
-                                                                    'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 border shadow-sm transition-colors',
+                                                                    'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[13px] leading-none shadow-md ring-1 transition-transform hover:scale-105 active:scale-95',
                                                                     r.mine
-                                                                        ? 'bg-[#2e3f84]/10 border-[#2e3f84]/40 dark:bg-blue-500/20 dark:border-blue-400/40'
-                                                                        : 'bg-card dark:bg-neutral-800 border-border dark:border-neutral-700 hover:bg-muted'
+                                                                        ? 'bg-[#2e3f84] text-white ring-[#2e3f84]/30'
+                                                                        : 'bg-white dark:bg-neutral-800 ring-black/5 dark:ring-white/10'
                                                                 )}
                                                             >
-                                                                <span className="text-[13px] leading-none">{r.emoji}</span>
-                                                                {r.count > 1 && <span className="text-[10px] font-semibold text-[#5f5e5e] dark:text-neutral-400">{r.count}</span>}
+                                                                <span>{r.emoji}</span>
+                                                                {r.count > 1 && <span className="text-[10px] font-semibold opacity-80">{r.count}</span>}
                                                             </button>
                                                         ))}
                                                     </div>
