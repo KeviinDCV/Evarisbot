@@ -70,6 +70,14 @@ Schedule::command('flow:check-timeouts')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Verificar inactividad en los chats con la IA cada minuto
+// 5 min → "¿Sigues ahí?", 10 min → reiniciar historial (umbrales configurables)
+Schedule::command('ai:check-timeouts')
+    ->everyMinute()
+    ->timezone('America/Bogota')
+    ->withoutOverlapping()
+    ->runInBackground();
+
 // Procesar cola de recordatorios cada minuto (SOLO para cPanel sin queue:work permanente)
 // DESACTIVADO cuando se usa `php artisan queue:work` ya que compite por el lock
 // y causa que los jobs se atasquen sin enviar realmente.

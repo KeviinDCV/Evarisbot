@@ -14,6 +14,11 @@ class User extends Authenticatable
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     /**
+     * Email reservado del usuario especial "IA - Prueba" (chatbot del chat interno).
+     */
+    public const AI_EMAIL = 'ia-prueba@evarisbot.local';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -72,6 +77,22 @@ class User extends Authenticatable
     public function isAdvisor(): bool
     {
         return $this->role === 'advisor';
+    }
+
+    /**
+     * ¿Es el usuario especial de IA (chatbot del chat interno)?
+     */
+    public function isAi(): bool
+    {
+        return $this->role === 'ai' || $this->email === self::AI_EMAIL;
+    }
+
+    /**
+     * Obtener el usuario de IA, si existe.
+     */
+    public static function aiUser(): ?self
+    {
+        return static::where('email', self::AI_EMAIL)->first();
     }
     
     /**

@@ -14,6 +14,11 @@ class InternalChat extends Model
         'name',
         'type',
         'created_by',
+        'ai_nudged_at',
+    ];
+
+    protected $casts = [
+        'ai_nudged_at' => 'datetime',
     ];
 
     public function creator(): BelongsTo

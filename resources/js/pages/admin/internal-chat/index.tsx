@@ -115,6 +115,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
 
+    // IA local (LM Studio): indicador "escribiendo…" mientras el chatbot genera su respuesta
+    const [aiTyping, setAiTyping] = useState(false);
+
     // Read receipts: who has read the chat
     const [readReceipts, setReadReceipts] = useState<ReadReceipt[]>([]);
     const readReceiptsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -307,6 +310,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         const pollMessages = async () => {
             try {
                 const res = await axios.get(`/admin/internal-chat/${activeChat.id}/poll?since=${lastMessageIdRef.current > 0 ? encodeURIComponent(new Date(Date.now() - 10000).toISOString()) : ''}`);
+                // La IA reinició la conversación por inactividad: limpiar la vista
+                if (res.data?.reset) {
+                    setMessages([]);
+                    lastMessageIdRef.current = 0;
+                    setReadReceipts([]);
+                    return;
+                }
                 if (res.data?.messages && Array.isArray(res.data.messages)) {
                     const newMessages: MessageItem[] = res.data.messages;
 
@@ -519,6 +529,38 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         }
     };
 
+    // ¿Es un chat directo con el usuario de IA local ("IA - Prueba", role='ai')?
+    const isAiChat = (chat: ChatItem | null | undefined): boolean =>
+        !!chat && chat.type === 'direct' && chat.participants.some(p => p.role === 'ai');
+
+    // Pedir al backend la respuesta del chatbot de IA local y agregarla al chat
+    const triggerAiReply = async (chat: ChatItem) => {
+        setAiTyping(true);
+        try {
+            const res = await axios.post(`/admin/internal-chat/${chat.id}/ai-reply`);
+            const aiMsg: MessageItem | undefined = res.data?.message;
+            if (aiMsg) {
+                lastMessageIdRef.current = Math.max(lastMessageIdRef.current, aiMsg.id);
+                setMessages(prev => (prev.some(m => m.id === aiMsg.id) ? prev : [...prev, aiMsg]));
+                setChats(prev => prev.map(c => c.id === chat.id ? {
+                    ...c,
+                    latest_message: {
+                        body: aiMsg.body || 'Mensaje',
+                        type: aiMsg.type,
+                        user_name: aiMsg.user.name,
+                        created_at: 'ahora',
+                    },
+                } : c));
+                setTimeout(() => scrollToBottom(true), 50);
+            }
+        } catch (e) {
+            console.error('AI reply error', e);
+            toast.error('La IA local no respondió. ¿LM Studio está corriendo?');
+        } finally {
+            setAiTyping(false);
+        }
+    };
+
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if ((!inputText.trim() && !isUploading) || !activeChat) return;
@@ -586,6 +628,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     const rest = updated.filter(c => c.id !== activeChat.id);
                     return active ? [active, ...rest] : updated;
                 });
+            }
+
+            // Si este chat es con la IA local, pedir su respuesta automática
+            if (isAiChat(activeChat)) {
+                void triggerAiReply(activeChat);
             }
         } catch (error) {
             console.error(error);
@@ -740,6 +787,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     const rest = updated.filter(c => c.id !== activeChat.id);
                     return active ? [active, ...rest] : updated;
                 });
+            }
+
+            // Si este chat es con la IA local, pedir su respuesta automática
+            if (isAiChat(activeChat)) {
+                void triggerAiReply(activeChat);
             }
         } catch (error) {
             console.error('Upload error', error);
@@ -1377,6 +1429,19 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             </div>
                                         );
                                     })}
+                                    {aiTyping && (
+                                        <div className="flex justify-start px-1">
+                                            <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-card dark:bg-neutral-800 border border-border/60 dark:border-neutral-700 px-3 py-2 shadow-sm">
+                                                <span className="text-base">🤖</span>
+                                                <span className="text-xs text-[#5f5e5e] dark:text-neutral-400">Evaris IA está escribiendo</span>
+                                                <span className="flex gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div ref={messagesEndRef} />
                                 </div>
                             )}
