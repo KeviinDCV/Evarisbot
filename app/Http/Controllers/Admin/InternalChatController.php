@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\InternalChat;
 use App\Models\InternalChatParticipant;
 use App\Models\InternalMessage;
+use App\Models\InternalMessageReaction;
 use App\Models\User;
 use App\Models\WelcomeFlow;
 use App\Services\LmStudioService;
@@ -36,6 +37,8 @@ class InternalChatController extends Controller
             'is_mine' => $m->user_id === $userId,
             'created_at' => $m->created_at->timezone('America/Bogota')->format('g:i A'),
             'created_at_full' => $m->created_at->toISOString(),
+            'edited' => (bool) $m->edited_at,
+            'reactions' => $this->formatReactions($m, $userId),
             'reply_to' => null,
         ];
 
@@ -51,6 +54,29 @@ class InternalChatController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * Agrupar las reacciones de un mensaje por emoji (emoji, cuántas, quiénes, y si yo reaccioné).
+     */
+    private function formatReactions(InternalMessage $m, int $userId): array
+    {
+        if (!$m->relationLoaded('reactions')) {
+            return [];
+        }
+
+        return $m->reactions
+            ->groupBy('emoji')
+            ->map(function ($group, $emoji) use ($userId) {
+                return [
+                    'emoji' => $emoji,
+                    'count' => $group->count(),
+                    'users' => $group->map(fn ($r) => $r->user?->name ?? 'Usuario')->values()->all(),
+                    'mine'  => $group->contains('user_id', $userId),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -171,7 +197,7 @@ class InternalChatController extends Controller
             ->update(['last_read_at' => now()]);
 
         $messages = $chat->messages()
-            ->with(['user', 'replyTo.user'])
+            ->with(['user', 'replyTo.user', 'reactions.user'])
             ->orderBy('created_at', 'desc')
             ->limit(200)
             ->get()
@@ -332,6 +358,91 @@ class InternalChatController extends Controller
     }
 
     /**
+     * Reaccionar (emoji) a un mensaje. Cada usuario tiene una sola reacción por mensaje:
+     * reaccionar con el mismo emoji la quita; con otro emoji la reemplaza.
+     */
+    public function react(Request $request, InternalChat $chat)
+    {
+        $userId = auth()->id();
+
+        if (!$chat->hasParticipant($userId)) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+
+        $request->validate([
+            'message_id' => 'required|integer|exists:internal_messages,id',
+            'emoji' => 'nullable|string|max:16',
+        ]);
+
+        $message = InternalMessage::find($request->input('message_id'));
+        if (!$message || $message->internal_chat_id !== $chat->id) {
+            return response()->json(['error' => 'El mensaje no pertenece a este chat'], 422);
+        }
+
+        $emoji = trim((string) $request->input('emoji'));
+        $existing = InternalMessageReaction::where('internal_message_id', $message->id)
+            ->where('user_id', $userId)
+            ->first();
+
+        if ($emoji === '' || ($existing && $existing->emoji === $emoji)) {
+            $existing?->delete(); // toggle: quitar
+        } else {
+            InternalMessageReaction::updateOrCreate(
+                ['internal_message_id' => $message->id, 'user_id' => $userId],
+                ['emoji' => $emoji]
+            );
+        }
+
+        $message->load('reactions.user');
+
+        return response()->json([
+            'success'    => true,
+            'message_id' => $message->id,
+            'reactions'  => $this->formatReactions($message, $userId),
+        ]);
+    }
+
+    /**
+     * Editar un mensaje propio de texto.
+     */
+    public function editMessage(Request $request, InternalChat $chat)
+    {
+        $userId = auth()->id();
+
+        if (!$chat->hasParticipant($userId)) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+
+        $request->validate([
+            'message_id' => 'required|integer|exists:internal_messages,id',
+            'body' => 'required|string|max:5000',
+        ]);
+
+        $message = InternalMessage::find($request->input('message_id'));
+        if (!$message || $message->internal_chat_id !== $chat->id) {
+            return response()->json(['error' => 'El mensaje no pertenece a este chat'], 422);
+        }
+        if ($message->user_id !== $userId) {
+            return response()->json(['error' => 'Solo puedes editar tus propios mensajes'], 403);
+        }
+        if ($message->type !== 'text') {
+            return response()->json(['error' => 'Solo se pueden editar mensajes de texto'], 422);
+        }
+
+        $message->update([
+            'body' => $request->input('body'),
+            'edited_at' => now(),
+        ]);
+
+        $message->load(['user', 'replyTo.user', 'reactions.user']);
+
+        return response()->json([
+            'success' => true,
+            'message' => $this->formatMessage($message, $userId),
+        ]);
+    }
+
+    /**
      * Marcar chat como leído
      */
     public function markRead(InternalChat $chat)
@@ -383,7 +494,7 @@ class InternalChatController extends Controller
 
         $since = $request->query('since');
 
-        $query = $chat->messages()->with(['user', 'replyTo.user']);
+        $query = $chat->messages()->with(['user', 'replyTo.user', 'reactions.user']);
 
         if ($since) {
             $query->where('created_at', '>', $since);
@@ -400,7 +511,25 @@ class InternalChatController extends Controller
                 ->update(['last_read_at' => now()]);
         }
 
-        return response()->json(['messages' => $messages]);
+        // Cambios en mensajes existentes (reacciones / ediciones): no generan un mensaje
+        // nuevo, así que se envían aparte para que los demás participantes los vean.
+        $updates = $chat->messages()
+            ->with('reactions.user')
+            ->orderBy('created_at', 'desc')
+            ->limit(80)
+            ->get()
+            ->map(fn ($m) => [
+                'id'        => $m->id,
+                'body'      => $m->body,
+                'edited'    => (bool) $m->edited_at,
+                'reactions' => $this->formatReactions($m, $userId),
+            ])
+            ->values();
+
+        return response()->json([
+            'messages' => $messages,
+            'updates'  => $updates,
+        ]);
     }
 
     /**

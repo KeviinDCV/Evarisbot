@@ -27,6 +27,7 @@ import {
     UserPlus,
     UserMinus,
     Reply,
+    SmilePlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import axios from 'axios';
@@ -84,6 +85,8 @@ interface MessageItem {
     is_mine: boolean;
     created_at: string;
     created_at_full: string;
+    edited?: boolean;
+    reactions?: { emoji: string; count: number; users: string[]; mine: boolean }[];
     reply_to?: ReplyTo | null;
 }
 
@@ -117,6 +120,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
     // IA local (LM Studio): indicador "escribiendo…" mientras el chatbot genera su respuesta
     const [aiTyping, setAiTyping] = useState(false);
+
+    // Reacciones (emoji) a mensajes
+    const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+    const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
+
+    // Edición de mensajes
+    const [editingMessage, setEditingMessage] = useState<MessageItem | null>(null);
 
     // Read receipts: who has read the chat
     const [readReceipts, setReadReceipts] = useState<ReadReceipt[]>([]);
@@ -336,6 +346,22 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         }
                     }
                 }
+
+                // Aplicar cambios en mensajes existentes (reacciones / ediciones)
+                if (Array.isArray(res.data?.updates) && res.data.updates.length > 0) {
+                    const upd = new Map(res.data.updates.map((u: { id: number; body: string; edited: boolean; reactions: MessageItem['reactions'] }) => [u.id, u]));
+                    setMessages(prev => {
+                        let changed = false;
+                        const next = prev.map(m => {
+                            const u = upd.get(m.id);
+                            if (!u) return m;
+                            if (m.body === u.body && !!m.edited === !!u.edited && JSON.stringify(m.reactions || []) === JSON.stringify(u.reactions || [])) return m;
+                            changed = true;
+                            return { ...m, body: u.body, edited: u.edited, reactions: u.reactions };
+                        });
+                        return changed ? next : prev;
+                    });
+                }
             } catch (e: any) {
                 // If chat was deleted (404), stop polling and clear
                 if (e?.response?.status === 404) {
@@ -357,6 +383,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             // Reset tracking for new chat
             lastMessageIdRef.current = 0;
             isAtBottomRef.current = true; // Reset scroll tracking
+            setEditingMessage(null);
+            setReactionPickerFor(null);
 
             axios.get(`/admin/internal-chat/${activeChat.id}/messages`)
                 .then(res => {
@@ -561,8 +589,72 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         }
     };
 
+    // Reaccionar a un mensaje (alterna mi emoji). El servidor devuelve el estado real.
+    const handleReact = async (msg: MessageItem, emoji: string) => {
+        if (!activeChat) return;
+        setReactionPickerFor(null);
+        setMessages(prev => prev.map(m => {
+            if (m.id !== msg.id) return m;
+            let reactions = (m.reactions || []).map(r => ({ ...r }));
+            const myCurrent = reactions.find(r => r.mine);
+            const removingSame = !!myCurrent && myCurrent.emoji === emoji;
+            if (myCurrent) {
+                myCurrent.count -= 1;
+                myCurrent.mine = false;
+                reactions = reactions.filter(r => r.count > 0);
+            }
+            if (!removingSame) {
+                const target = reactions.find(r => r.emoji === emoji);
+                if (target) { target.count += 1; target.mine = true; }
+                else reactions.push({ emoji, count: 1, users: ['Tú'], mine: true });
+            }
+            return { ...m, reactions };
+        }));
+        try {
+            const res = await axios.post(`/admin/internal-chat/${activeChat.id}/react`, { message_id: msg.id, emoji });
+            if (res.data?.reactions) {
+                setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, reactions: res.data.reactions } : m));
+            }
+        } catch { /* el polling reconciliará el estado real */ }
+    };
+
+    // Iniciar la edición de un mensaje propio de texto (se carga en el input)
+    const startEdit = (msg: MessageItem) => {
+        if (!msg.is_mine || msg.type !== 'text') return;
+        setReplyingTo(null);
+        setEditingMessage(msg);
+        setInputText(msg.body);
+        setTimeout(() => textareaRef.current?.focus(), 0);
+    };
+    const cancelEdit = () => {
+        setEditingMessage(null);
+        setInputText('');
+    };
+
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
+
+        // Modo edición: guardar cambios en el mensaje en vez de enviar uno nuevo
+        if (editingMessage) {
+            const newBody = inputText.trim();
+            const target = editingMessage;
+            if (!newBody || !activeChat) { cancelEdit(); return; }
+            if (newBody === target.body) { cancelEdit(); return; }
+            setMessages(prev => prev.map(m => m.id === target.id ? { ...m, body: newBody, edited: true } : m));
+            setEditingMessage(null);
+            setInputText('');
+            try {
+                const res = await axios.post(`/admin/internal-chat/${activeChat.id}/edit`, { message_id: target.id, body: newBody });
+                if (res.data?.message) {
+                    setMessages(prev => prev.map(m => m.id === target.id ? res.data.message : m));
+                }
+            } catch (err) {
+                console.error('Edit error', err);
+                toast.error('No se pudo editar el mensaje');
+            }
+            return;
+        }
+
         if ((!inputText.trim() && !isUploading) || !activeChat) return;
 
         const originalText = inputText;
@@ -1205,17 +1297,56 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 id={`msg-${msg.id}`}
                                                 className={`group/msg flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[85%] md:max-w-[70%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
                                             >
-                                                {/* Reply action button - appears on hover */}
-                                                <button
-                                                    onClick={() => {
-                                                        setReplyingTo(msg);
-                                                        textareaRef.current?.focus();
-                                                    }}
-                                                    className={`opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 self-center flex-shrink-0`}
-                                                    title="Responder"
-                                                >
-                                                    <Reply className="w-4 h-4" />
-                                                </button>
+                                                {/* Hover actions: reaccionar, responder, editar */}
+                                                <div className={cn(
+                                                    'flex items-center gap-0.5 self-center flex-shrink-0 transition-opacity duration-150',
+                                                    reactionPickerFor === msg.id ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'
+                                                )}>
+                                                    <div className="relative">
+                                                        <button
+                                                            onClick={() => setReactionPickerFor(reactionPickerFor === msg.id ? null : msg.id)}
+                                                            className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
+                                                            title="Reaccionar"
+                                                        >
+                                                            <SmilePlus className="w-4 h-4" />
+                                                        </button>
+                                                        {reactionPickerFor === msg.id && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-20" onClick={() => setReactionPickerFor(null)} />
+                                                                <div className={cn(
+                                                                    'absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-card dark:bg-neutral-800 border border-border dark:border-neutral-700 shadow-xl px-2 py-1.5 origin-bottom animate-in zoom-in-95 fade-in duration-150',
+                                                                    msg.is_mine ? 'right-0' : 'left-0'
+                                                                )}>
+                                                                    {QUICK_REACTIONS.map(emoji => (
+                                                                        <button
+                                                                            key={emoji}
+                                                                            onClick={() => handleReact(msg, emoji)}
+                                                                            className="px-1 text-[24px] leading-none transition-transform hover:scale-[1.35] active:scale-95"
+                                                                        >
+                                                                            {emoji}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => { setReplyingTo(msg); textareaRef.current?.focus(); }}
+                                                        className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
+                                                        title="Responder"
+                                                    >
+                                                        <Reply className="w-4 h-4" />
+                                                    </button>
+                                                    {msg.is_mine && msg.type === 'text' && (
+                                                        <button
+                                                            onClick={() => startEdit(msg)}
+                                                            className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
+                                                            title="Editar"
+                                                        >
+                                                            <Pencil className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
 
                                                 <div className={`flex flex-col min-w-0 ${msg.is_mine ? 'items-end' : 'items-start'}`}>
                                                 <div
@@ -1409,9 +1540,33 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                             </p>
                                                         )}
                                                     </div>
+                                                {/* Reaction badges */}
+                                                {msg.reactions && msg.reactions.length > 0 && (
+                                                    <div className={`flex flex-wrap gap-1 mt-1 ${msg.is_mine ? 'justify-end mr-1' : 'ml-1'}`}>
+                                                        {msg.reactions.map(r => (
+                                                            <button
+                                                                key={r.emoji}
+                                                                onClick={() => handleReact(msg, r.emoji)}
+                                                                title={r.users.join(', ')}
+                                                                className={cn(
+                                                                    'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 border shadow-sm transition-colors',
+                                                                    r.mine
+                                                                        ? 'bg-[#2e3f84]/10 border-[#2e3f84]/40 dark:bg-blue-500/20 dark:border-blue-400/40'
+                                                                        : 'bg-card dark:bg-neutral-800 border-border dark:border-neutral-700 hover:bg-muted'
+                                                                )}
+                                                            >
+                                                                <span className="text-[13px] leading-none">{r.emoji}</span>
+                                                                {r.count > 1 && <span className="text-[10px] font-semibold text-[#5f5e5e] dark:text-neutral-400">{r.count}</span>}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                                 {/* Timestamp - outside bubble */}
                                                 <div className={`flex items-center gap-1 mt-1 ${msg.is_mine ? 'mr-1 justify-end' : 'ml-1'}`}>
                                                     <span className="text-[10px] text-[#5f5e5e] dark:text-neutral-500">{msg.created_at}</span>
+                                                    {msg.edited && (
+                                                        <span className="text-[10px] italic text-[#5f5e5e]/80 dark:text-neutral-500">editado</span>
+                                                    )}
                                                     {msg.is_mine && (
                                                         <Check className="w-3 h-3 text-[#2e3f84] dark:text-blue-400" style={{ fontSize: '14px' }} />
                                                     )}
@@ -1469,6 +1624,24 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         type="button"
                                         onClick={() => setReplyingTo(null)}
                                         className="p-1 rounded-full hover:bg-background dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 transition-colors flex-shrink-0"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+                            {/* Edit banner */}
+                            {editingMessage && (
+                                <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border-l-3 border-amber-500 animate-in slide-in-from-bottom-2 duration-200">
+                                    <Pencil className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-amber-600 dark:text-amber-400">Editando mensaje</p>
+                                        <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">{editingMessage.body}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={cancelEdit}
+                                        className="p-1 rounded-full hover:bg-background dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 transition-colors flex-shrink-0"
+                                        title="Cancelar edición"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
