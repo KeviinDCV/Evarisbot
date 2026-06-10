@@ -70,14 +70,11 @@ export default function AuthSimpleLayout({
                         </h1>
                     </div>
 
-                    {/* Caja del Card - Padding y spacing responsivos */}
+                    {/* Contenido integrado al fondo (sin card) */}
                     <div
-                        className="rounded-3xl relative transition-all duration-300 overflow-hidden"
+                        className="relative transition-all duration-300"
                         style={{
-                            backgroundColor: 'var(--layer-deep)',
-                            boxShadow: 'var(--shadow-xl)',
-                            backgroundImage: 'var(--gradient-subtle)',
-                            padding: 'clamp(1.5rem, 1.5rem + 1vw, 2.5rem)', // 24px-40px fluido
+                            padding: 'clamp(0.5rem, 0.5rem + 0.5vw, 1rem)',
                         }}
                     >
                         {/* Caja de contenido interno */}

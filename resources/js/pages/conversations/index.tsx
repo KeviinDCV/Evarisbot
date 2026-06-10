@@ -354,6 +354,10 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Reacciones (emojis) a mensajes
     const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+    const REACTION_LABELS: Record<string, string> = {
+        '👍': 'Me gusta', '❤️': 'Me encanta', '😂': 'Me divierte',
+        '😮': 'Me asombra', '😢': 'Me entristece', '🙏': 'Gracias',
+    };
     const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
 
     const handleReact = async (message: Message, emoji: string) => {
@@ -2480,7 +2484,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 {/* Lista de Conversaciones - Izquierda */}
                 {/* Mobile: oculta cuando hay chat | Desktop: siempre visible con toggle */}
                 <div className={`bg-background dark:bg-neutral-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-border dark:border-neutral-700/50 ${selectedConversation ? 'hidden md:flex' : 'flex'
-                    } ${isSidebarVisible ? 'w-full md:w-80 lg:w-96' : 'hidden md:w-0 md:overflow-hidden'
+                    } ${isSidebarVisible ? 'w-full md:w-80 lg:w-[420px] xl:w-[460px]' : 'hidden md:w-0 md:overflow-hidden'
                     }`}>
                     {/* Header */}
                     <div className="px-4 pt-4 pb-2">
@@ -4134,7 +4138,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             animate={{ opacity: 1, scale: 1, y: 0 }}
                                                             transition={{ type: 'spring', stiffness: 500, damping: 22 }}
                                                             style={{ transformOrigin: 'bottom center' }}
-                                                            className={`absolute z-30 bottom-full mb-2 flex items-center gap-1 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2.5 py-2 ${message.is_from_user ? 'left-0' : 'right-0'}`}
+                                                            className={`absolute z-30 bottom-full mb-2 flex items-center gap-1.5 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2 py-2 ${message.is_from_user ? 'left-0' : 'right-0'}`}
                                                         >
                                                             {QUICK_REACTIONS.map((emoji, i) => (
                                                                 <motion.button
@@ -4142,11 +4146,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                     initial={{ opacity: 0, scale: 0, y: 10 }}
                                                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                                                     transition={{ delay: 0.05 + i * 0.045, type: 'spring', stiffness: 600, damping: 16 }}
-                                                                    whileHover={{ scale: 1.5, y: -6 }}
-                                                                    whileTap={{ scale: 0.8 }}
+                                                                    whileHover={{ scale: 1.3, y: -14 }}
+                                                                    whileTap={{ scale: 0.85 }}
                                                                     onClick={() => handleReact(message, emoji)}
-                                                                    className="cursor-pointer px-1 text-[28px] leading-none"
+                                                                    aria-label={REACTION_LABELS[emoji]}
+                                                                    className="group relative flex items-center justify-center cursor-pointer rounded-full px-2.5 py-1.5 text-[26px] leading-none"
                                                                 >
+                                                                    <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:bg-white dark:text-black">
+                                                                        {REACTION_LABELS[emoji]}
+                                                                    </span>
                                                                     {emoji}
                                                                 </motion.button>
                                                             ))}
