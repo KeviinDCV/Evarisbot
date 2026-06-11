@@ -96,6 +96,40 @@ interface MetricCardProps {
     tone?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
 }
 
+// --- Detección de tipos para el mapeo de parámetros ---
+// Las plantillas de Meta son posicionales ({{N}} sin nombre); el único indicio del
+// dato que espera cada hueco es el texto que lo precede ("a las {{4}}" → hora).
+const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const DATE_RX = /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/;
+const TIME_RX = /^\d{1,2}:\d{2}(\s?[ap]\.?\s?m\.?)?$/i;
+
+type SlotType = 'nombre' | 'date' | 'time' | 'doctor' | 'any';
+
+function expectedSlotType(previewText: string, idx: number): SlotType {
+    const pos = previewText.indexOf(`{{${idx}}}`);
+    if (pos < 0) return 'any';
+    const before = normalizeText(previewText.slice(Math.max(0, pos - 28), pos));
+    if (/(a las|hora)\s*[:.]?\s*$/.test(before)) return 'time';
+    if (/(el dia|del dia|fecha|para el dia)\s*[:.]?\s*$/.test(before)) return 'date';
+    if (/(dr\.?\s*\(?a?\)?|doctor|medic[oa])\s*[:.]?\s*$/.test(before)) return 'doctor';
+    if (/(sr\s*\(?a?\)?\.?|sra\.?|senor(a)?)\s*$/.test(before)) return 'nombre';
+    return 'any';
+}
+
+function columnSlotType(col: string, sample?: string): SlotType {
+    const n = normalizeText(col);
+    if (n.includes('hora')) return 'time';
+    if (n.includes('fecha') || n.includes('dia')) return 'date';
+    if (n.includes('medic') || n.includes('doctor') || n.includes('profesional') || n.startsWith('dr')) return 'doctor';
+    if (n.includes('nombre') || n.includes('paciente')) return 'nombre';
+    if (sample) {
+        const v = String(sample).trim();
+        if (TIME_RX.test(v)) return 'time';
+        if (DATE_RX.test(v)) return 'date';
+    }
+    return 'any';
+}
+
 const toneClasses: Record<NonNullable<MetricCardProps['tone']>, string> = {
     primary: 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100',
     success: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
@@ -143,6 +177,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [showPreview, setShowPreview] = useState(false);
     const [extraColumns, setExtraColumns] = useState<string[]>([]);
     const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
+    const [showConfirmSend, setShowConfirmSend] = useState(false);
+    const [confirmChecked, setConfirmChecked] = useState(false);
+    // Ref para leer la muestra del primer destinatario en el auto-mapeo sin que
+    // cada cambio de destinatarios pise los ajustes manuales del mapeo.
+    const recipientsRef = useRef<Recipient[]>([]);
     const [historySearch, setHistorySearch] = useState('');
     const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'processing' | 'completed' | 'failed' | 'cancelled'>('all');
     const [searchResults, setSearchResults] = useState<BulkSendRecord[] | null>(null);
@@ -234,30 +273,70 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         return indices;
     }, [selectedTemplate]);
 
-    // Auto-mapea: {{1}} → columna nombre; {{2}}..{{N}} → columnas extras del Excel en orden.
-    // El usuario puede sobrescribir cualquier dropdown si el orden de su Excel no coincide,
-    // y la vista previa muestra valores reales antes de enviar.
+    // Auto-mapea por SIGNIFICADO, no por orden de columnas: el hueco tras "a las" solo
+    // acepta columnas de hora, los de fecha solo fechas, el de "DR.(A)" solo médico, etc.
+    // Mapear por orden causó el incidente del 10-jun: la plantilla de Cartago (5 campos,
+    // sin especialidad) recibió las columnas corridas y los pacientes leyeron fechas donde
+    // iba la hora. Si no hay columna compatible, el hueco queda SIN asignar (en rojo) para
+    // forzar la decisión humana. El usuario puede sobrescribir cualquier dropdown.
     useEffect(() => {
         if (templatePlaceholders.length === 0) {
             setColumnMapping({});
             return;
         }
+        const preview = selectedTemplate?.preview_text || '';
+        const sample = recipientsRef.current[0]?.params || {};
+        const used = new Set<string>();
         const newMapping: ColumnMapping = {};
-        let extraIdx = 0;
+
+        // Pase 1: huecos con tipo claro (hora/fecha/doctor/nombre) toman su columna compatible
         templatePlaceholders.forEach((idx, i) => {
             if (i === 0) {
                 newMapping[String(idx)] = { source: 'nombre' };
                 return;
             }
-            if (extraIdx < extraColumns.length) {
-                newMapping[String(idx)] = { source: 'column', column: extraColumns[extraIdx] };
-                extraIdx++;
+            const expected = expectedSlotType(preview, idx);
+            if (expected === 'any') return;
+            if (expected === 'nombre') {
+                newMapping[String(idx)] = { source: 'nombre' };
+                return;
+            }
+            const col = extraColumns.find(c => !used.has(c) && columnSlotType(c, sample[c]) === expected);
+            if (col) {
+                used.add(col);
+                newMapping[String(idx)] = { source: 'column', column: col };
+            }
+        });
+
+        // Pase 2: SOLO los huecos genéricos toman columnas genéricas restantes, en orden.
+        // Un hueco tipado (hora/fecha/doctor) sin columna compatible queda SIN asignar:
+        // mejor un rojo que obligue a elegir, que adivinar y mandar datos cruzados.
+        templatePlaceholders.forEach((idx, i) => {
+            if (i === 0 || newMapping[String(idx)]) return;
+            const expected = expectedSlotType(preview, idx);
+            if (expected !== 'any') {
+                newMapping[String(idx)] = { source: 'unset' };
+                return;
+            }
+            const col = extraColumns.find(c => !used.has(c) && columnSlotType(c, sample[c]) === 'any');
+            if (col) {
+                used.add(col);
+                newMapping[String(idx)] = { source: 'column', column: col };
             } else {
                 newMapping[String(idx)] = { source: 'unset' };
             }
         });
+
+        // Pase 3: si queda exactamente UN hueco sin asignar y UNA columna sin usar,
+        // son la única combinación posible — se emparejan. La vista previa y el
+        // modal de confirmación siguen siendo la red de seguridad.
+        const unsetSlots = templatePlaceholders.filter((idx, i) => i > 0 && newMapping[String(idx)]?.source === 'unset');
+        const freeCols = extraColumns.filter(c => !used.has(c));
+        if (unsetSlots.length === 1 && freeCols.length === 1) {
+            newMapping[String(unsetSlots[0])] = { source: 'column', column: freeCols[0] };
+        }
         setColumnMapping(newMapping);
-    }, [templatePlaceholders, extraColumns]);
+    }, [templatePlaceholders, extraColumns, selectedTemplate]);
 
     // El mapeo está completo cuando cada {{N}} de la plantilla tiene un origen válido.
     const mappingComplete = useMemo(() => {
@@ -271,6 +350,66 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             return false;
         });
     }, [templatePlaceholders, columnMapping, extraColumns]);
+
+    useEffect(() => {
+        recipientsRef.current = recipients;
+    }, [recipients]);
+
+    // Mensaje final renderizado con los datos reales del primer destinatario
+    const renderedPreview = useMemo(() => {
+        if (!selectedTemplate?.preview_text) return '';
+        let text = selectedTemplate.preview_text;
+        const sample = recipients[0];
+        Object.entries(columnMapping).forEach(([paramIdx, map]) => {
+            const placeholder = `{{${paramIdx}}}`;
+            let replacement: string;
+            if (map.source === 'nombre') {
+                replacement = sample?.name || '[nombre del contacto]';
+            } else if (map.source === 'column') {
+                replacement = sample?.params?.[map.column || ''] ?? `[columna: ${map.column}]`;
+            } else if (map.source === 'static') {
+                replacement = map.value || '[valor fijo vacío]';
+            } else {
+                replacement = '⚠️[sin asignar]';
+            }
+            text = text.split(placeholder).join(replacement);
+        });
+        return text;
+    }, [selectedTemplate, columnMapping, recipients]);
+
+    // Coherencia del mapeo: detecta fechas donde va una hora, horas donde va una
+    // fecha o un nombre de médico, columnas duplicadas y columnas sin usar.
+    const validationIssues = useMemo(() => {
+        const errors: string[] = [];
+        const warnings: string[] = [];
+        if (!selectedTemplate?.preview_text || templatePlaceholders.length === 0) return { errors, warnings };
+        const preview = selectedTemplate.preview_text;
+        const sample = recipients[0]?.params || {};
+        const usedCols: string[] = [];
+
+        templatePlaceholders.forEach((idx) => {
+            const m = columnMapping[String(idx)];
+            if (!m) return;
+            let value = '';
+            if (m.source === 'nombre') value = recipients[0]?.name || '';
+            else if (m.source === 'column' && m.column) { value = sample[m.column] ?? ''; usedCols.push(m.column); }
+            else if (m.source === 'static') value = m.value || '';
+            if (!value) return;
+
+            const expected = expectedSlotType(preview, idx);
+            const v = String(value).trim();
+            const isDate = DATE_RX.test(v);
+            const isTime = TIME_RX.test(v);
+            if (expected === 'time' && isDate) errors.push(`{{${idx}}} va después de "a las…" (espera una HORA) pero recibirá una fecha: "${v}".`);
+            if (expected === 'date' && isTime) errors.push(`{{${idx}}} va en un contexto de FECHA pero recibirá una hora: "${v}".`);
+            if (expected === 'doctor' && (isDate || isTime)) errors.push(`{{${idx}}} va después de "DR.(A)" (espera un nombre) pero recibirá: "${v}".`);
+        });
+
+        const dup = usedCols.filter((c, i) => usedCols.indexOf(c) !== i);
+        [...new Set(dup)].forEach(c => warnings.push(`La columna "${c}" está asignada a más de un parámetro.`));
+        extraColumns.filter(c => !usedCols.includes(c)).forEach(c => warnings.push(`La columna "${c}" del archivo no se usará en el mensaje — verifica que no falte asignarla.`));
+        return { errors, warnings };
+    }, [selectedTemplate, templatePlaceholders, columnMapping, recipients, extraColumns]);
 
     const handleSelectTemplate = (templateId: string) => {
         const template = whatsappTemplates.find(t => t.id === Number(templateId));
@@ -461,7 +600,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         setTemplateParams(prev => prev.filter((_, i) => i !== index));
     };
 
-    const handleStartSend = async () => {
+    // Paso 1: abrir la confirmación obligatoria (con vista previa y chequeos de coherencia)
+    const handleStartSend = () => {
         if (!selectedTemplate) {
             setError('Seleccione una plantilla de WhatsApp');
             return;
@@ -474,6 +614,14 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             setError('Asigne un origen a cada parámetro {{N}} de la plantilla antes de enviar.');
             return;
         }
+        setError('');
+        setConfirmChecked(false);
+        setShowConfirmSend(true);
+    };
+
+    // Paso 2: envío real, solo tras confirmar en el modal
+    const executeSend = async () => {
+        if (!selectedTemplate || recipients.length === 0) return;
 
         setIsSending(true);
         setError('');
@@ -514,12 +662,15 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setShowPreview(false);
                 setExtraColumns([]);
                 setColumnMapping({});
+                setShowConfirmSend(false);
                 setTimeout(() => setSuccess(''), 5000);
             } else {
                 setError(data.message || 'Error al iniciar el envío');
+                setShowConfirmSend(false);
             }
         } catch (err) {
             setError('Error al iniciar el envío masivo');
+            setShowConfirmSend(false);
         } finally {
             setIsSending(false);
         }
@@ -1048,25 +1199,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                 : 'Vista previa del mensaje:'}
                                                         </p>
                                                         <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                                                            {(() => {
-                                                                let text = selectedTemplate.preview_text || '';
-                                                                const sample = recipients[0];
-                                                                Object.entries(columnMapping).forEach(([paramIdx, map]) => {
-                                                                    const placeholder = `{{${paramIdx}}}`;
-                                                                    let replacement: string;
-                                                                    if (map.source === 'nombre') {
-                                                                        replacement = sample?.name || '[nombre del contacto]';
-                                                                    } else if (map.source === 'column') {
-                                                                        replacement = sample?.params?.[map.column || ''] ?? `[columna: ${map.column}]`;
-                                                                    } else if (map.source === 'static') {
-                                                                        replacement = map.value || '[valor fijo vacío]';
-                                                                    } else {
-                                                                        replacement = '⚠️[sin asignar]';
-                                                                    }
-                                                                    text = text.split(placeholder).join(replacement);
-                                                                });
-                                                                return text;
-                                                            })()}
+                                                            {renderedPreview}
                                                         </p>
                                                         {!mappingComplete && (
                                                             <p className="mt-2 flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
@@ -1074,6 +1207,18 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                 Faltan parámetros por asignar. Revisa el mapeo antes de enviar.
                                                             </p>
                                                         )}
+                                                        {validationIssues.errors.map((msg, i) => (
+                                                            <p key={`e${i}`} className="mt-2 flex items-start gap-1 text-xs font-semibold text-red-600 dark:text-red-400">
+                                                                <XCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                                                                {msg}
+                                                            </p>
+                                                        ))}
+                                                        {validationIssues.warnings.map((msg, i) => (
+                                                            <p key={`w${i}`} className="mt-2 flex items-start gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                                                                <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                                                                {msg}
+                                                            </p>
+                                                        ))}
                                                     </div>
                                                 )}
                                             </div>
@@ -1638,6 +1783,100 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     )}
 
                     {/* Modal para crear plantilla */}
+                    {/* Modal de confirmación de envío: obliga a ver el mensaje final antes de disparar */}
+                    {showConfirmSend && selectedTemplate && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                            <div className="bg-background rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+                                <div className="flex items-center justify-between p-5 border-b border-border">
+                                    <h2 className="font-bold text-lg settings-title flex items-center gap-2">
+                                        <Send className="w-5 h-5" />
+                                        Confirmar envío masivo
+                                    </h2>
+                                    <button onClick={() => setShowConfirmSend(false)} className="text-muted-foreground hover:text-foreground p-1">
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+                                <div className="p-5 space-y-4">
+                                    <div className="flex flex-wrap gap-2 text-sm">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-medium">
+                                            <Phone className="w-3.5 h-3.5" />
+                                            {recipients.length} destinatarios
+                                        </span>
+                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-medium">
+                                            <MessageSquareText className="w-3.5 h-3.5" />
+                                            {selectedTemplate.name}
+                                        </span>
+                                    </div>
+
+                                    <div className="rounded-xl border border-green-200/60 dark:border-green-800/40 bg-green-50/60 dark:bg-green-950/20 p-4">
+                                        <p className="text-xs font-semibold text-muted-foreground mb-2">
+                                            Así llegará el mensaje a {recipients[0]?.name || recipients[0]?.phone}:
+                                        </p>
+                                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{renderedPreview}</p>
+                                    </div>
+
+                                    {validationIssues.errors.length > 0 && (
+                                        <div className="rounded-xl border border-red-300 dark:border-red-800/60 bg-red-50 dark:bg-red-950/30 p-4 space-y-1.5">
+                                            <p className="text-sm font-bold text-red-700 dark:text-red-300 flex items-center gap-1.5">
+                                                <XCircle className="w-4 h-4" />
+                                                Posibles datos cruzados — revisa antes de enviar:
+                                            </p>
+                                            {validationIssues.errors.map((msg, i) => (
+                                                <p key={i} className="text-xs text-red-700 dark:text-red-300 ml-5">• {msg}</p>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {validationIssues.warnings.length > 0 && (
+                                        <div className="rounded-xl border border-amber-300/70 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/20 p-4 space-y-1.5">
+                                            {validationIssues.warnings.map((msg, i) => (
+                                                <p key={i} className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
+                                                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                                                    {msg}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <label className="flex items-start gap-2.5 cursor-pointer select-none rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                                        <input
+                                            type="checkbox"
+                                            checked={confirmChecked}
+                                            onChange={(e) => setConfirmChecked(e.target.checked)}
+                                            className="mt-0.5 h-4 w-4 accent-[var(--primary-base)]"
+                                        />
+                                        <span className="text-sm">
+                                            Leí la vista previa y confirmo que <strong>fechas, horas y nombres están en su lugar correcto</strong>.
+                                        </span>
+                                    </label>
+
+                                    <div className="flex justify-end gap-2 pt-1">
+                                        <Button variant="outline" onClick={() => setShowConfirmSend(false)} className="rounded-lg">
+                                            Cancelar
+                                        </Button>
+                                        <Button
+                                            onClick={executeSend}
+                                            disabled={!confirmChecked || isSending}
+                                            className="rounded-lg font-semibold text-white"
+                                            style={{ backgroundColor: 'var(--primary-base)', backgroundImage: 'var(--gradient-shine)' }}
+                                        >
+                                            {isSending ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                                    Enviando...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Send className="w-4 h-4 mr-2" />
+                                                    Confirmar y enviar
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {showCreateModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                             <div className="bg-background rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">

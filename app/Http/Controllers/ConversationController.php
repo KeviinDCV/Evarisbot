@@ -242,6 +242,13 @@ class ConversationController extends Controller
         } elseif (!$filteringByTag && !$hasSearchTerm) {
             // Sin filtro de estado explícito, sin etiqueta y sin búsqueda: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
+            // Excluir "solo-salientes" sin asignar (recordatorios/masivos donde el paciente
+            // nunca ha escrito): no deben competir en la vista de trabajo. Siguen accesibles
+            // por búsqueda o filtros explícitos, y aparecen apenas el paciente responda.
+            $query->where(function ($q) {
+                $q->whereNotNull('assigned_to')
+                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true));
+            });
         }
 
         // Excluir conversaciones bloqueadas del listado general (solo se ven con filtro "blocked" o al buscar)
@@ -1891,6 +1898,11 @@ class ConversationController extends Controller
             }
         } elseif (!$filteringByTag && !$hasSearchTerm) {
             $query->whereIn('status', ['active', 'pending']);
+            // Excluir "solo-salientes" sin asignar (mismo criterio que index)
+            $query->where(function ($q) {
+                $q->whereNotNull('assigned_to')
+                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true));
+            });
         }
 
         // Excluir conversaciones bloqueadas del poll general (a menos que se busque)

@@ -2089,6 +2089,7 @@ class WhatsAppService
                 $pendingAppointments = $lockedAppointments->filter(fn ($a) => !in_array($a->reminder_status, ['confirmed', 'cancelled']));
 
                 $responseMessage = null;
+                $autoResolveConversation = false;
 
                 // Si TODAS las citas ya fueron procesadas, enviar advertencia (solo una vez)
                 if ($pendingAppointments->isEmpty() && $alreadyProcessed->isNotEmpty()) {
@@ -2138,6 +2139,8 @@ class WhatsAppService
 
                     if ($remaining->isEmpty()) {
                         $responseMessage = "✅ *Confirmación recibida*\n\nSe ha confirmado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                        // Flujo completo: no quedan citas por confirmar, el sistema ya atendió todo
+                        $autoResolveConversation = true;
                     } else {
                         $nextInfo = $remaining->map(function ($r) {
                             $h = $this->formatHoraForResponse($r->cithor);
@@ -2222,6 +2225,28 @@ class WhatsAppService
                             'message_id' => $messageId,
                             'appointment_ids' => $lockedAppointments->pluck('id')->toArray()
                         ]);
+
+                        // Confirmación gestionada 100% por el sistema: cerrar la conversación para
+                        // que no entierre la vista de trabajo de los asesores durante los envíos.
+                        // Solo si nadie la tiene asignada y el único no-leído es el "confirmar" recién
+                        // procesado; si el paciente vuelve a escribir, la reactivación automática la reabre.
+                        if ($autoResolveConversation) {
+                            $closed = \App\Models\Conversation::where('id', $conversation->id)
+                                ->whereNull('assigned_to')
+                                ->where('unread_count', '<=', 1)
+                                ->whereIn('status', ['active', 'pending'])
+                                ->update([
+                                    'status' => 'resolved',
+                                    'resolved_at' => now(),
+                                    'unread_count' => 0,
+                                ]);
+
+                            if ($closed) {
+                                Log::info('Conversación auto-resuelta tras confirmación de cita', [
+                                    'conversation_id' => $conversation->id,
+                                ]);
+                            }
+                        }
                     } else {
                         Log::error('Failed to save automatic response', [
                             'result' => $result,
