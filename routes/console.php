@@ -78,6 +78,34 @@ Schedule::command('ai:check-timeouts')
     ->withoutOverlapping()
     ->runInBackground();
 
+// TEMPORAL (jun-2026): relevo de la plantilla de reprogramación Cartago.
+// Cuando Meta apruebe la v2 se activa y se oculta la antigua, para que el
+// selector nunca muestre las dos. Tras el relevo queda en no-op; se puede
+// borrar este bloque cuando la v2 esté activa.
+Schedule::call(function () {
+    $v2 = \App\Models\WhatsappTemplate::where('meta_template_name', 'reprogramacion_cartago_v2')->first();
+    if (!$v2 || !$v2->meta_template_id || $v2->is_active || $v2->status === 'REJECTED') {
+        return; // relevo ya hecho, rechazada o no existe
+    }
+    try {
+        $r = \Illuminate\Support\Facades\Http::withToken(\App\Models\Setting::get('whatsapp_token'))
+            ->timeout(15)
+            ->get('https://graph.facebook.com/v21.0/' . $v2->meta_template_id, ['fields' => 'status']);
+        $status = $r->json()['status'] ?? null;
+        if ($status === 'APPROVED') {
+            $v2->update(['status' => 'APPROVED', 'is_active' => true]);
+            \App\Models\WhatsappTemplate::where('meta_template_name', 'reprogramacion_cartago')
+                ->update(['is_active' => false, 'name' => 'Reprogramación de cita (Cartago) — ANTIGUA']);
+            \Illuminate\Support\Facades\Log::info('Plantilla Cartago v2 APROBADA: v2 activada, antigua oculta');
+        } elseif ($status === 'REJECTED') {
+            $v2->update(['status' => 'REJECTED']);
+            \Illuminate\Support\Facades\Log::warning('Plantilla Cartago v2 RECHAZADA por Meta');
+        }
+    } catch (\Throwable $e) {
+        // Sin red o Meta caído: se reintenta en el próximo ciclo
+    }
+})->everyFiveMinutes()->name('swap-cartago-v2')->withoutOverlapping();
+
 // Procesar cola de recordatorios cada minuto (SOLO para cPanel sin queue:work permanente)
 // DESACTIVADO cuando se usa `php artisan queue:work` ya que compite por el lock
 // y causa que los jobs se atasquen sin enviar realmente.
