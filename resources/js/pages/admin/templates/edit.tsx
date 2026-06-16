@@ -245,9 +245,9 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.type === 'image' ? (
-                                                        <img src={mediaFile.url} alt="Preview" className="w-12 h-12 object-cover rounded-lg" />
+                                                        <img src={mediaFile.url} alt="Preview" className="w-12 h-12 object-cover rounded-xl" />
                                                     ) : (
-                                                        <div className="w-12 h-12 chat-message-sent rounded-lg flex items-center justify-center text-white">
+                                                        <div className="w-12 h-12 chat-message-sent rounded-xl flex items-center justify-center text-white">
                                                             {getFileIcon(mediaFile.type)}
                                                         </div>
                                                     )}
@@ -281,9 +281,9 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.preview ? (
-                                                        <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-lg" />
+                                                        <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-xl" />
                                                     ) : (
-                                                        <div className="w-12 h-12 chat-message-sent rounded-lg flex items-center justify-center text-white">
+                                                        <div className="w-12 h-12 chat-message-sent rounded-xl flex items-center justify-center text-white">
                                                             {getFileIcon(mediaFile.type)}
                                                         </div>
                                                     )}

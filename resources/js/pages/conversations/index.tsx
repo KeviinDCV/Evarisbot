@@ -24,6 +24,7 @@ import {
     ArrowDown,
     UserPlus,
     Trash2,
+    Eraser,
     Plus,
     AlertCircle,
     Filter,
@@ -57,6 +58,7 @@ import {
     SmilePlus,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
     DropdownMenu,
@@ -231,11 +233,12 @@ interface ConversationsIndexProps {
         specialty?: string;
     };
     filterCounts?: Partial<FilterCounts>;
+    advisorCounts?: Record<number, number>;
     templates?: Template[];
     whatsappTemplates?: WhatsappTemplate[];
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
     const { t } = useTranslation();
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
@@ -269,6 +272,10 @@ export default function ConversationsIndex({ conversations: initialConversations
         filters.assigned && !isNaN(Number(filters.assigned)) ? Number(filters.assigned) : null
     );
     const [showAdvisorFilter, setShowAdvisorFilter] = useState(false);
+    // Menú contextual (clic derecho) sobre un asesor en el filtro + confirmación de "Limpiar"
+    const [advisorMenu, setAdvisorMenu] = useState<{ id: number; name: string; count: number; x: number; y: number } | null>(null);
+    const [advisorToClear, setAdvisorToClear] = useState<{ id: number; name: string; count: number } | null>(null);
+    const [clearingAdvisor, setClearingAdvisor] = useState(false);
     const [selectedConversations, setSelectedConversations] = useState<number[]>([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [isDragSelecting, setIsDragSelecting] = useState(false);
@@ -1622,6 +1629,25 @@ export default function ConversationsIndex({ conversations: initialConversations
         user.name.toLowerCase().includes(advisorSearchQuery.toLowerCase())
     ), [users, advisorSearchQuery]);
 
+    // "Limpiar": quitar el asesor de TODAS sus conversaciones activas (vuelven al pool)
+    const handleClearAdvisor = useCallback(async () => {
+        if (!advisorToClear) return;
+        setClearingAdvisor(true);
+        try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const res = await axios.post(`/admin/chat/clear-advisor/${advisorToClear.id}`, {}, {
+                headers: { 'X-CSRF-TOKEN': csrfToken },
+            });
+            toast.success(res.data?.message || `Se limpiaron las conversaciones de ${advisorToClear.name}.`);
+            setAdvisorToClear(null);
+            router.reload({ only: ['conversations', 'hasMore', 'filters', 'filterCounts', 'advisorCounts'] });
+        } catch {
+            toast.error('No se pudo limpiar las conversaciones del asesor.');
+        } finally {
+            setClearingAdvisor(false);
+        }
+    }, [advisorToClear]);
+
     // Filtrar asesores por búsqueda en menú de asignación masiva
     const filteredBulkAdvisors = useMemo(() => users.filter(user =>
         user.name.toLowerCase().includes(bulkAssignSearchQuery.toLowerCase())
@@ -2855,10 +2881,23 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                                     setFilterByAdvisor(user.id);
                                                                                     applyFilters(statusFilter, user.id);
                                                                                 }}
-                                                                                className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between ${filterByAdvisor === user.id ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                                                                onContextMenu={(e) => {
+                                                                                    e.preventDefault();
+                                                                                    e.stopPropagation();
+                                                                                    setAdvisorMenu({ id: user.id, name: user.name, count: advisorCounts[user.id] ?? 0, x: e.clientX, y: e.clientY });
+                                                                                }}
+                                                                                className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between gap-2 ${filterByAdvisor === user.id ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
                                                                             >
                                                                                 <span className="truncate">{user.name}</span>
-                                                                                {filterByAdvisor === user.id && <Check className="w-3.5 h-3.5 text-primary dark:text-primary" />}
+                                                                                <span className="flex shrink-0 items-center gap-1.5">
+                                                                                    <span
+                                                                                        title="Conversaciones activas asignadas"
+                                                                                        className={`min-w-[22px] rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold ${(advisorCounts[user.id] ?? 0) > 0 ? 'bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-blue-500/20 dark:text-blue-300' : 'bg-muted text-muted-foreground'}`}
+                                                                                    >
+                                                                                        {advisorCounts[user.id] ?? 0}
+                                                                                    </span>
+                                                                                    {filterByAdvisor === user.id && <Check className="w-3.5 h-3.5 text-primary dark:text-primary" />}
+                                                                                </span>
                                                                             </button>
                                                                         ))
                                                                     ) : (
@@ -5459,6 +5498,72 @@ export default function ConversationsIndex({ conversations: initialConversations
                 </motion.div>
             )}
             </AnimatePresence>
+
+            {/* Menú contextual (clic derecho) sobre un asesor en el filtro.
+                Se renderiza con Portal a document.body para que no quede atrapado
+                detrás del panel de filtros (problema de z-index/stacking). */}
+            {advisorMenu && createPortal(
+                <>
+                    <div
+                        className="fixed inset-0"
+                        style={{ zIndex: 2147483646 }}
+                        onClick={() => setAdvisorMenu(null)}
+                        onContextMenu={(e) => { e.preventDefault(); setAdvisorMenu(null); }}
+                    />
+                    <div
+                        className="fixed w-[232px] overflow-hidden rounded-xl border border-border bg-card py-1.5 shadow-xl dark:bg-neutral-800"
+                        style={{ zIndex: 2147483647, top: Math.max(8, Math.min(advisorMenu.y, window.innerHeight - 116)), left: Math.max(8, Math.min(advisorMenu.x, window.innerWidth - 240)) }}
+                    >
+                        <div className="px-3 pb-1.5 pt-1">
+                            <p className="truncate text-xs font-bold text-foreground">{advisorMenu.name}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                                {advisorMenu.count} {advisorMenu.count === 1 ? 'conversación activa' : 'conversaciones activas'}
+                            </p>
+                        </div>
+                        <div className="border-t border-border" />
+                        <button
+                            onClick={() => {
+                                setAdvisorToClear({ id: advisorMenu.id, name: advisorMenu.name, count: advisorMenu.count });
+                                setAdvisorMenu(null);
+                            }}
+                            disabled={advisorMenu.count === 0}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-900/20"
+                        >
+                            <Eraser className="h-4 w-4" />
+                            Limpiar
+                        </button>
+                    </div>
+                </>,
+                document.body
+            )}
+
+            {/* Confirmación de "Limpiar" (acción destructiva, reversible) */}
+            <Dialog open={!!advisorToClear} onOpenChange={(open) => !open && setAdvisorToClear(null)}>
+                <DialogContent className="card-gradient rounded-2xl border border-white/40 shadow-2xl dark:border-white/10 sm:rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Eraser className="h-5 w-5 text-red-600 dark:text-red-300" />
+                            ¿Limpiar las conversaciones de {advisorToClear?.name}?
+                        </DialogTitle>
+                        <DialogDescription>
+                            Se le quitará la asignación a sus <strong>{advisorToClear?.count}</strong> {advisorToClear?.count === 1 ? 'conversación activa' : 'conversaciones activas'}. Quedarán <strong>sin asignar</strong> y volverán al pool compartido de asesores de turno.
+                            <span className="mt-2 block text-xs opacity-80">La acción queda registrada y es reversible.</span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setAdvisorToClear(null)} className="rounded-xl">
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleClearAdvisor}
+                            disabled={clearingAdvisor}
+                            className="rounded-xl border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md hover:from-red-600 hover:to-red-700 disabled:opacity-50"
+                        >
+                            {clearingAdvisor ? 'Limpiando…' : 'Sí, limpiar'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AdminLayout>
     );
 }

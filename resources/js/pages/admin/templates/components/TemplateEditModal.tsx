@@ -196,7 +196,7 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto card-gradient border border-border dark:border-[hsl(231,20%,22%)] p-0 gap-0">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto card-gradient rounded-2xl border border-border dark:border-[hsl(231,20%,22%)] p-0 gap-0">
                 <DialogHeader className="px-6 py-4 border-b border-border dark:border-[hsl(231,20%,22%)]">
                     <DialogTitle className="settings-title flex items-center gap-2 text-xl">
                         <Edit className="w-5 h-5 text-primary" />
@@ -288,16 +288,16 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                                 {existingFiles.map((mediaFile, index) => (
                                     <div key={`existing-${index}`} className="p-1.5 rounded-xl bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800 flex items-center gap-3">
                                         {mediaFile.type === 'image' ? (
-                                            <img src={mediaFile.url} alt="Preview" className="w-8 h-8 object-cover rounded-lg" />
+                                            <img src={mediaFile.url} alt="Preview" className="w-8 h-8 object-cover rounded-xl" />
                                         ) : (
-                                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center">
+                                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
                                                 {getFileIcon(mediaFile.type)}
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-semibold settings-title truncate">{mediaFile.filename}</p>
                                         </div>
-                                        <button type="button" onClick={() => handleRemoveExistingFile(index)} className="p-1 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                        <button type="button" onClick={() => handleRemoveExistingFile(index)} className="p-1 rounded-xl text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
                                             <X className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
@@ -311,16 +311,16 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                                 {newFiles.map((mediaFile, index) => (
                                     <div key={`new-${index}`} className="p-1.5 rounded-xl border border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-900/10 flex items-center gap-3">
                                         {mediaFile.preview ? (
-                                            <img src={mediaFile.preview} alt="Preview" className="w-8 h-8 object-cover rounded-lg" />
+                                            <img src={mediaFile.preview} alt="Preview" className="w-8 h-8 object-cover rounded-xl" />
                                         ) : (
-                                            <div className="w-8 h-8 bg-green-200 dark:bg-green-800/40 text-green-700 dark:text-green-300 flex items-center justify-center rounded-lg">
+                                            <div className="w-8 h-8 bg-green-200 dark:bg-green-800/40 text-green-700 dark:text-green-300 flex items-center justify-center rounded-xl">
                                                 {getFileIcon(mediaFile.type)}
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-semibold settings-title truncate">{mediaFile.file.name}</p>
                                         </div>
-                                        <button type="button" onClick={() => handleRemoveNewFile(index)} className="p-1 rounded-lg text-red-500 hover:bg-red-500/10">
+                                        <button type="button" onClick={() => handleRemoveNewFile(index)} className="p-1 rounded-xl text-red-500 hover:bg-red-500/10">
                                             <X className="w-3.5 h-3.5" />
                                         </button>
                                     </div>

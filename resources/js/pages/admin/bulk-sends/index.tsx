@@ -103,15 +103,16 @@ const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/[
 const DATE_RX = /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/;
 const TIME_RX = /^\d{1,2}:\d{2}(\s?[ap]\.?\s?m\.?)?$/i;
 
-type SlotType = 'nombre' | 'date' | 'time' | 'doctor' | 'any';
+type SlotType = 'nombre' | 'date' | 'time' | 'doctor' | 'especialidad' | 'any';
 
 function expectedSlotType(previewText: string, idx: number): SlotType {
     const pos = previewText.indexOf(`{{${idx}}}`);
     if (pos < 0) return 'any';
     const before = normalizeText(previewText.slice(Math.max(0, pos - 28), pos));
-    if (/(a las|hora)\s*[:.]?\s*$/.test(before)) return 'time';
-    if (/(el dia|del dia|fecha|para el dia)\s*[:.]?\s*$/.test(before)) return 'date';
+    if (/(a las|para las|hora)\s*[:.]?\s*$/.test(before)) return 'time';
+    if (/(el dia|del dia|fecha|para el)\s*[:.]?\s*$/.test(before)) return 'date';
     if (/(dr\.?\s*\(?a?\)?|doctor|medic[oa])\s*[:.]?\s*$/.test(before)) return 'doctor';
+    if (/(especialidad|cita de)\s*[:.]?\s*$/.test(before)) return 'especialidad';
     if (/(sr\s*\(?a?\)?\.?|sra\.?|senor(a)?)\s*$/.test(before)) return 'nombre';
     return 'any';
 }
@@ -121,6 +122,7 @@ function columnSlotType(col: string, sample?: string): SlotType {
     if (n.includes('hora')) return 'time';
     if (n.includes('fecha') || n.includes('dia')) return 'date';
     if (n.includes('medic') || n.includes('doctor') || n.includes('profesional') || n.startsWith('dr')) return 'doctor';
+    if (n.includes('especialidad')) return 'especialidad';
     if (n.includes('nombre') || n.includes('paciente')) return 'nombre';
     if (sample) {
         const v = String(sample).trim();
@@ -140,15 +142,15 @@ const toneClasses: Record<NonNullable<MetricCardProps['tone']>, string> = {
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
     return (
-        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
             <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${toneClasses[tone]}`}>
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                    <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
                     <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
-                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                    <p className="mt-0.5 truncate text-xs settings-subtitle">{detail}</p>
                 </div>
             </div>
         </div>
@@ -376,6 +378,39 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         });
         return text;
     }, [selectedTemplate, columnMapping, recipients]);
+
+    // Guía del Excel ideal para la plantilla seleccionada: deriva el nombre de cada
+    // columna del contexto del texto ("a las ___" → hora) y muestra dónde se usa.
+    const excelGuide = useMemo(() => {
+        if (!selectedTemplate?.preview_text || templatePlaceholders.length === 0) return null;
+        const preview = selectedTemplate.preview_text;
+        const counts: Record<string, number> = {};
+        return templatePlaceholders.map((idx, i) => {
+            const tag = `{{${idx}}}`;
+            const pos = preview.indexOf(tag);
+            const before = pos >= 0 ? preview.slice(Math.max(0, pos - 26), pos).replace(/\s+/g, ' ').trimStart() : '';
+            const after = pos >= 0 ? preview.slice(pos + tag.length, pos + tag.length + 20).replace(/\s+/g, ' ').trimEnd() : '';
+            let base: string;
+            if (i === 0) {
+                base = 'nombre';
+            } else {
+                const t = expectedSlotType(preview, idx);
+                base = t === 'date' ? 'fecha' : t === 'time' ? 'hora' : t === 'doctor' ? 'medico'
+                    : t === 'especialidad' ? 'especialidad' : t === 'nombre' ? 'nombre' : `dato_${idx}`;
+            }
+            counts[base] = (counts[base] || 0) + 1;
+            const header = counts[base] > 1 ? `${base}_${counts[base]}` : base;
+            // Los {{N}} vecinos en el extracto confunden: se reemplazan por puntos suspensivos
+            const clean = (s: string) => s.replace(/\{\{\d+\}\}/g, '…');
+            const sample = base.startsWith('fecha') ? '20/06/2026'
+                : base.startsWith('hora') ? '8:30 AM'
+                : base.startsWith('medico') ? 'CARLOS GOMEZ RIOS'
+                : base.startsWith('especialidad') ? 'dermatologia'
+                : base.startsWith('nombre') ? 'PEREZ LOPEZ, MARIA'
+                : 'texto';
+            return { idx, header, sample, context: `…${clean(before)}___${clean(after)}…` };
+        });
+    }, [selectedTemplate, templatePlaceholders]);
 
     // Coherencia del mapeo: detecta fechas donde va una hora, horas donde va una
     // fecha o un nombre de médico, columnas duplicadas y columnas sin usar.
@@ -851,7 +886,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <Send className="h-5 w-5" />
                             </div>
                             <div>
@@ -864,10 +899,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             </div>
                         </div>
 
-                        <div className="flex w-full gap-1 rounded-lg border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:w-fit">
+                        <div className="flex w-full gap-1 rounded-xl border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:w-fit">
                             <button
                                 onClick={() => setActiveTab('send')}
-                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 sm:flex-none ${
+                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 sm:flex-none ${
                                     activeTab === 'send'
                                         ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
                                         : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
@@ -878,7 +913,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             </button>
                             <button
                                 onClick={() => setActiveTab('templates')}
-                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-200 sm:flex-none ${
+                                className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 sm:flex-none ${
                                     activeTab === 'templates'
                                         ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
                                         : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
@@ -961,7 +996,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     variant="destructive"
                                     size="sm"
                                     onClick={() => handleCancel(activeProgress.id)}
-                                    className="h-9 rounded-lg"
+                                    className="h-9 rounded-xl"
                                 >
                                     <StopCircle className="mr-1.5 h-4 w-4" />
                                     Cancelar
@@ -976,19 +1011,19 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                                    <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-background/40">
+                                    <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-background/40">
                                         <div className="text-lg font-bold text-sky-950 dark:text-sky-100">{activeProgress.total.toLocaleString()}</div>
                                         <div className="text-xs font-semibold uppercase text-sky-700 dark:text-sky-300">Total</div>
                                     </div>
-                                    <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-background/40">
+                                    <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-background/40">
                                         <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{activeProgress.sent.toLocaleString()}</div>
                                         <div className="text-xs font-semibold uppercase text-muted-foreground">Enviados</div>
                                     </div>
-                                    <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-background/40">
+                                    <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-background/40">
                                         <div className="text-lg font-bold text-red-600 dark:text-red-300">{activeProgress.failed.toLocaleString()}</div>
                                         <div className="text-xs font-semibold uppercase text-muted-foreground">Fallidos</div>
                                     </div>
-                                    <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-background/40">
+                                    <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-background/40">
                                         <div className="text-lg font-bold text-amber-700 dark:text-amber-300">{activeProgress.pending.toLocaleString()}</div>
                                         <div className="text-xs font-semibold uppercase text-muted-foreground">Pendientes</div>
                                     </div>
@@ -1004,9 +1039,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             {/* Columna izquierda: Template y destinatarios */}
                             <div className="space-y-4">
                                 {/* Seleccionar Template */}
-                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
-                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-800/60">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-800/60">
                                             <MessageSquareText className="h-4 w-4" />
                                         </span>
                                         Plantilla y variables
@@ -1052,7 +1087,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                                                     {/* Preview del template seleccionado */}
                                                     {selectedTemplate && (
-                                                        <div className="border border-border/60 rounded-lg overflow-hidden">
+                                                        <div className="border border-border/60 rounded-xl overflow-hidden">
                                                             <button
                                                                 onClick={() => setShowPreview(!showPreview)}
                                                                 className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
@@ -1065,21 +1100,21 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                             </button>
                                                             {showPreview && (
                                                                 <div className="px-4 py-3 bg-green-50/60 dark:bg-green-950/20 border-t border-border/40">
-                                                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 max-w-sm">
+                                                                    <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 max-w-sm">
                                                                         {selectedTemplate.header_format === 'DOCUMENT' && (
-                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-2 flex items-center gap-2">
+                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 mb-2 flex items-center gap-2">
                                                                                 <FileText className="w-5 h-5 text-red-500" />
                                                                                 <span className="text-xs text-muted-foreground">Documento PDF adjunto</span>
                                                                             </div>
                                                                         )}
                                                                         {selectedTemplate.header_format === 'IMAGE' && (
-                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-2 flex items-center gap-2">
+                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 mb-2 flex items-center gap-2">
                                                                                 <Image className="w-5 h-5 text-blue-500" />
                                                                                 <span className="text-xs text-muted-foreground">Imagen adjunta</span>
                                                                             </div>
                                                                         )}
                                                                         {selectedTemplate.header_format === 'VIDEO' && (
-                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 mb-2 flex items-center gap-2">
+                                                                            <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 mb-2 flex items-center gap-2">
                                                                                 <Video className="w-5 h-5 text-purple-500" />
                                                                                 <span className="text-xs text-muted-foreground">Video adjunto</span>
                                                                             </div>
@@ -1097,7 +1132,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     )}
                                                 </div>
                                             ) : (
-                                                <div className="text-center py-6 border-2 border-dashed border-border/50 rounded-lg">
+                                                <div className="text-center py-6 border-2 border-dashed border-border/50 rounded-xl">
                                                     <MessageSquareText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
                                                     <p className="text-sm text-muted-foreground">
                                                         No hay plantillas configuradas.
@@ -1108,6 +1143,46 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 </div>
                                             )}
                                         </div>
+
+                                        {/* Guía: formato de Excel sugerido para la plantilla seleccionada */}
+                                        {selectedTemplate && excelGuide && (
+                                            <div className="rounded-xl border border-sky-200/60 dark:border-sky-800/40 bg-sky-50/50 dark:bg-sky-950/20 p-3.5">
+                                                <p className="text-xs font-bold text-sky-800 dark:text-sky-300 mb-2 flex items-center gap-1.5">
+                                                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                                                    Así debe ser el Excel para esta plantilla
+                                                </p>
+                                                <div className="overflow-x-auto custom-scrollbar mb-2.5">
+                                                    <table className="text-[11px] border-collapse">
+                                                        <thead>
+                                                            <tr>
+                                                                {['telefono', ...excelGuide.map(g => g.header)].map((h, i) => (
+                                                                    <th key={i} className="border border-sky-200/80 dark:border-sky-800/60 bg-white dark:bg-neutral-800 px-2.5 py-1 font-mono font-bold text-sky-900 dark:text-sky-200 text-left whitespace-nowrap">
+                                                                        {h}
+                                                                    </th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <tr>
+                                                                {['3101234567', ...excelGuide.map(g => g.sample)].map((v, i) => (
+                                                                    <td key={i} className="border border-sky-200/60 dark:border-sky-800/40 px-2.5 py-1 text-sky-800/80 dark:text-sky-300/70 whitespace-nowrap italic">
+                                                                        {v}
+                                                                    </td>
+                                                                ))}
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {excelGuide.map(g => (
+                                                        <p key={g.idx} className="text-[11px] text-sky-800/80 dark:text-sky-300/80">
+                                                            <span className="font-semibold">{g.header}</span>
+                                                            <span className="opacity-75"> se usa en: «{g.context}»</span>
+                                                        </p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Mapeo de columnas a parámetros del template */}
                                         {selectedTemplate && templatePlaceholders.length > 0 && (
@@ -1131,7 +1206,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         const columnMissing = source === 'column' && !extraColumns.includes(mapping?.column || '');
                                                         const isUnset = source === 'unset' || columnMissing;
                                                         return (
-                                                            <div key={idx} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2">
+                                                            <div key={idx} className="flex items-center gap-2 bg-muted/40 rounded-xl px-3 py-2">
                                                                 <span className="text-xs font-mono font-semibold text-primary whitespace-nowrap w-10">
                                                                     {`{{${idx}}}`}
                                                                 </span>
@@ -1157,7 +1232,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                             }
                                                                             setColumnMapping(newMapping);
                                                                         }}
-                                                                        className={`w-full settings-input rounded-lg text-sm appearance-none pr-8 cursor-pointer ${isUnset ? 'border-red-400 ring-1 ring-red-300/60 dark:border-red-500/70' : 'border-gray-200 dark:border-gray-800'}`}
+                                                                        className={`w-full settings-input rounded-xl text-sm appearance-none pr-8 cursor-pointer ${isUnset ? 'border-red-400 ring-1 ring-red-300/60 dark:border-red-500/70' : 'border-gray-200 dark:border-gray-800'}`}
                                                                         style={{ height: '2rem', fontSize: '0.8125rem' }}
                                                                     >
                                                                         <option value="" disabled>— Selecciona el origen —</option>
@@ -1181,7 +1256,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                             setColumnMapping(newMapping);
                                                                         }}
                                                                         placeholder="Escriba el valor..."
-                                                                        className="flex-1 settings-input rounded-lg border-gray-200 dark:border-gray-800 text-sm"
+                                                                        className="flex-1 settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm"
                                                                         style={{ height: '2rem', fontSize: '0.8125rem', minWidth: '120px' }}
                                                                     />
                                                                 )}
@@ -1192,7 +1267,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                                                 {/* Preview con valores reales del primer destinatario */}
                                                 {selectedTemplate.preview_text && Object.keys(columnMapping).length > 0 && (
-                                                    <div className="mt-3 bg-green-50/60 dark:bg-green-950/20 rounded-lg p-3 border border-green-200/40 dark:border-green-800/30">
+                                                    <div className="mt-3 bg-green-50/60 dark:bg-green-950/20 rounded-xl p-3 border border-green-200/40 dark:border-green-800/30">
                                                         <p className="text-xs font-medium text-muted-foreground mb-1.5">
                                                             {recipients[0]
                                                                 ? `Así llegará el mensaje a ${recipients[0].name || recipients[0].phone}:`
@@ -1273,9 +1348,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
 
                                 {/* Subir archivo */}
-                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
-                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:ring-sky-800/60">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:ring-sky-800/60">
                                             <Upload className="h-4 w-4" />
                                         </span>
                                         Cargar destinatarios
@@ -1335,9 +1410,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
 
                                 {/* Agregar manual */}
-                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
-                                        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-800/60">
+                                        <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-800/60">
                                             <Phone className="h-4 w-4" />
                                         </span>
                                         Agregar número
@@ -1375,13 +1450,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                             {/* Columna derecha: Vista previa de destinatarios */}
                             <div className="space-y-4">
-                                <div className="flex h-full min-h-[460px] flex-col rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="flex h-full min-h-[460px] flex-col rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <div className="mb-3 flex items-center justify-between gap-3">
                                         <h2 className="text-base font-bold settings-title">
                                             Destinatarios ({recipients.length})
                                         </h2>
                                         {recipients.length > 0 && (
-                                            <Button variant="ghost" size="sm" onClick={clearRecipients} className="h-8 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30">
+                                            <Button variant="ghost" size="sm" onClick={clearRecipients} className="h-8 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30">
                                                 <Trash2 className="mr-1 h-4 w-4" />
                                                 Limpiar
                                             </Button>
@@ -1479,7 +1554,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                         </div>
                     )}
 
-                    <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                    <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <div>
                                 <h2 className="flex items-center gap-2 text-base font-bold settings-title">
@@ -1505,7 +1580,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <button
                                             key={filter.value}
                                             onClick={() => setHistoryStatusFilter(filter.value)}
-                                            className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                                            className={`rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-colors ${
                                                 historyStatusFilter === filter.value
                                                     ? 'bg-white text-foreground shadow-sm dark:bg-gray-800'
                                                     : 'text-muted-foreground hover:text-foreground'
@@ -1583,7 +1658,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                             </div>
                                                         </td>
                                                         <td className="px-3 py-3 text-center">
-                                                            <div className="inline-grid grid-cols-3 overflow-hidden rounded-lg border border-border/60 text-xs">
+                                                            <div className="inline-grid grid-cols-3 overflow-hidden rounded-xl border border-border/60 text-xs">
                                                                 <span className="bg-emerald-50 px-2 py-1 font-bold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">{bs.sent_count}</span>
                                                                 <span className="bg-red-50 px-2 py-1 font-bold text-red-700 dark:bg-red-950/30 dark:text-red-300">{bs.failed_count}</span>
                                                                 <span className="bg-amber-50 px-2 py-1 font-bold text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">{pending}</span>
@@ -1595,7 +1670,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
-                                                                className="h-8 rounded-lg"
+                                                                className="h-8 rounded-xl"
                                                                 onClick={(event) => {
                                                                     event.stopPropagation();
                                                                     router.visit(`/admin/bulk-sends/${bs.id}`);
@@ -1622,7 +1697,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                                     key={recipient.id}
                                                                                     type="button"
                                                                                     onClick={() => router.visit(`/admin/bulk-sends/${bs.id}`)}
-                                                                                    className="rounded-lg border border-border/60 bg-background/70 p-3 text-left transition-colors hover:border-primary/40 hover:bg-background"
+                                                                                    className="rounded-xl border border-border/60 bg-background/70 p-3 text-left transition-colors hover:border-primary/40 hover:bg-background"
                                                                                 >
                                                                                     <div className="flex items-start justify-between gap-2">
                                                                                         <div className="min-w-0">
@@ -1661,25 +1736,25 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     {activeTab === 'templates' && (
                         <div className="space-y-4">
                             <div className="grid gap-3 md:grid-cols-4">
-                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">Registradas</p>
                                     <p className="mt-2 text-2xl font-bold text-foreground">{allTemplates.length.toLocaleString()}</p>
                                 </div>
-                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">Aprobadas</p>
                                     <p className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-300">{templateMetrics.approved.toLocaleString()}</p>
                                 </div>
-                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">En revisión</p>
                                     <p className="mt-2 text-2xl font-bold text-amber-700 dark:text-amber-300">{templateMetrics.pending.toLocaleString()}</p>
                                 </div>
-                                <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">Usables en envío</p>
                                     <p className="mt-2 text-2xl font-bold text-foreground">{templateMetrics.usable.toLocaleString()}</p>
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                 <div>
                                     <h2 className="text-base font-bold settings-title">Catálogo de plantillas</h2>
                                     <p className="mt-1 text-xs text-muted-foreground">Estados de Meta y acciones de sincronización.</p>
@@ -1687,7 +1762,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                     onClick={() => setShowCreateModal(true)}
-                                    className="h-9 rounded-lg border-0 font-semibold text-white transition-all duration-200"
+                                    className="h-9 rounded-xl border-0 font-semibold text-white transition-all duration-200"
                                     style={{
                                         backgroundColor: 'var(--primary-base)',
                                         backgroundImage: 'var(--gradient-shine)',
@@ -1700,7 +1775,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     variant="outline"
                                     onClick={handleSyncTemplates}
                                     disabled={isSyncing}
-                                    className="h-9 rounded-lg"
+                                    className="h-9 rounded-xl"
                                 >
                                     <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                                     {isSyncing ? 'Sincronizando...' : 'Sincronizar con Meta'}
@@ -1708,7 +1783,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
                             </div>
 
-                            <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                            <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                 <h2 className="mb-4 flex items-center gap-2 text-base font-bold settings-title">
                                     <MessageSquareText className="h-4 w-4" />
                                     Plantillas de WhatsApp ({allTemplates.length})
@@ -1837,7 +1912,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         </div>
                                     )}
 
-                                    <label className="flex items-start gap-2.5 cursor-pointer select-none rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+                                    <label className="flex items-start gap-2.5 cursor-pointer select-none rounded-xl border border-border bg-muted/40 px-3 py-2.5">
                                         <input
                                             type="checkbox"
                                             checked={confirmChecked}
@@ -1850,13 +1925,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     </label>
 
                                     <div className="flex justify-end gap-2 pt-1">
-                                        <Button variant="outline" onClick={() => setShowConfirmSend(false)} className="rounded-lg">
+                                        <Button variant="outline" onClick={() => setShowConfirmSend(false)} className="rounded-xl">
                                             Cancelar
                                         </Button>
                                         <Button
                                             onClick={executeSend}
                                             disabled={!confirmChecked || isSending}
-                                            className="rounded-lg font-semibold text-white"
+                                            className="rounded-xl font-semibold text-white"
                                             style={{ backgroundColor: 'var(--primary-base)', backgroundImage: 'var(--gradient-shine)' }}
                                         >
                                             {isSending ? (
@@ -2064,24 +2139,24 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 </span>
                                             </div>
                                             <div className="p-4 bg-green-50/60 dark:bg-green-950/20">
-                                                <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 max-w-sm">
+                                                <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-green-200/60 dark:border-green-800/40 max-w-sm">
                                                     {newTplHeaderFormat === 'TEXT' && newTplHeader && (
                                                         <p className="text-sm font-bold text-foreground mb-1">{newTplHeader}</p>
                                                     )}
                                                     {newTplHeaderFormat === 'IMAGE' && (
-                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 mb-2 flex flex-col items-center justify-center gap-1">
+                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-6 mb-2 flex flex-col items-center justify-center gap-1">
                                                             <Image className="w-8 h-8 text-muted-foreground" />
                                                             <span className="text-xs text-muted-foreground">Imagen</span>
                                                         </div>
                                                     )}
                                                     {newTplHeaderFormat === 'VIDEO' && (
-                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 mb-2 flex flex-col items-center justify-center gap-1">
+                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-6 mb-2 flex flex-col items-center justify-center gap-1">
                                                             <Video className="w-8 h-8 text-muted-foreground" />
                                                             <span className="text-xs text-muted-foreground">Video</span>
                                                         </div>
                                                     )}
                                                     {newTplHeaderFormat === 'DOCUMENT' && (
-                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 mb-2 flex flex-col items-center justify-center gap-1">
+                                                        <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-6 mb-2 flex flex-col items-center justify-center gap-1">
                                                             <FileText className="w-8 h-8 text-muted-foreground" />
                                                             <span className="text-xs text-muted-foreground">Documento</span>
                                                         </div>

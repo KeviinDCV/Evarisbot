@@ -157,6 +157,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         // Operaciones masivas
         Route::post('/bulk-assign', 'bulkAssign')->name('chat.bulk-assign');
         Route::post('/bulk-status', 'bulkUpdateStatus')->name('chat.bulk-status');
+        Route::post('/clear-advisor/{user}', 'clearAdvisor')->name('chat.clear-advisor'); // Quitar asesor de todas sus conversaciones (solo admin)
         
         Route::get('/{conversation}', 'show')->name('chat.show');
         Route::get('/{conversation}/poll-messages', 'pollMessages')->name('chat.poll-messages');

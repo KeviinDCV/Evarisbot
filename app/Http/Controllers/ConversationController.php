@@ -117,6 +117,22 @@ class ConversationController extends Controller
     }
 
     /**
+     * Conteo de conversaciones ACTIVAS/pendientes (no bloqueadas) asignadas a cada usuario.
+     * Devuelve un mapa { user_id => total } para mostrar en el filtro "Asesor".
+     */
+    private function getAdvisorCounts(): array
+    {
+        return Conversation::query()
+            ->whereNotNull('assigned_to')
+            ->whereIn('status', ['active', 'pending'])
+            ->where('is_blocked', false)
+            ->groupBy('assigned_to')
+            ->selectRaw('assigned_to, COUNT(*) as total')
+            ->pluck('total', 'assigned_to')
+            ->toArray();
+    }
+
+    /**
      * Lista única de especialidades existentes con conteo de conversaciones por cada una.
      */
     private function getAllSpecialties(): array
@@ -369,6 +385,7 @@ class ConversationController extends Controller
             // en el frontend no tiene sincronización. Ahorra ~45 ms en la carga inicial.
             'allTags' => Inertia::defer(fn () => \App\Models\Tag::withCount('conversations')->orderBy('name')->get()),
             'allSpecialties' => $this->getAllSpecialties(),
+            'advisorCounts' => Inertia::defer(fn () => $this->getAdvisorCounts()),
             'filterCounts' => Inertia::defer(fn () => $this->getFilterCounts($request)),
             'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
@@ -580,6 +597,7 @@ class ConversationController extends Controller
             'users' => $users,
             'allTags' => $allTags,
             'allSpecialties' => $this->getAllSpecialties(),
+            'advisorCounts' => $this->getAdvisorCounts(),
             'filterCounts' => $this->getFilterCounts($request),
             'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
             'templates' => $templates,
@@ -1204,6 +1222,60 @@ class ConversationController extends Controller
 
         $message = $userId ? 'Conversación asignada exitosamente.' : 'Asignación removida exitosamente.';
         return back()->with('success', $message);
+    }
+
+    /**
+     * Quitar a un asesor/admin de TODAS sus conversaciones activas/pendientes:
+     * quedan SIN asignar (vuelven al pool compartido). Solo admin.
+     *
+     * Deja un registro de auditoría por conversación (con released_from_id) para
+     * poder revertir la operación si se ejecuta por error — mismo criterio que
+     * usamos para restaurar tras el incidente de liberación automática.
+     */
+    public function clearAdvisor(Request $request, User $user)
+    {
+        if (!auth()->user()?->isAdmin()) {
+            abort(403);
+        }
+
+        $ids = Conversation::where('assigned_to', $user->id)
+            ->whereIn('status', ['active', 'pending'])
+            ->pluck('id');
+
+        $count = $ids->count();
+
+        if ($count === 0) {
+            return response()->json([
+                'success' => true,
+                'cleared' => 0,
+                'message' => "{$user->name} no tiene conversaciones activas asignadas.",
+            ]);
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($ids, $user) {
+            foreach ($ids as $id) {
+                ConversationActivity::log($id, 'unassigned', auth()->id(), [
+                    'previous_assigned_to' => $user->id,
+                    'released_from_id' => $user->id,
+                    'released_from_name' => $user->name,
+                    'reason' => 'Limpieza manual desde el filtro de asesores',
+                ]);
+            }
+            Conversation::whereIn('id', $ids)->update(['assigned_to' => null]);
+        });
+
+        \Illuminate\Support\Facades\Log::info('Limpieza manual de asesor (filtro)', [
+            'cleared_advisor_id' => $user->id,
+            'cleared_advisor_name' => $user->name,
+            'count' => $count,
+            'by_admin' => auth()->id(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'cleared' => $count,
+            'message' => "Se quitó la asignación de {$count} conversación(es) de {$user->name}. Quedaron sin asignar.",
+        ]);
     }
 
     /**

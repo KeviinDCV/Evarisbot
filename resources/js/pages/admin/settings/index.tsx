@@ -117,11 +117,11 @@ function StatusPill({ active, activeLabel, inactiveLabel }: StatusPillProps) {
 
 function StatusTile({ icon: Icon, title, value, detail, active }: StatusTileProps) {
     return (
-        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
             <div className="flex items-center gap-3">
                 <div
                     className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border',
+                        'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border',
                         active
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
                             : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300'
@@ -131,11 +131,11 @@ function StatusTile({ icon: Icon, title, value, detail, active }: StatusTileProp
                 </div>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-3">
-                        <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{title}</p>
+                        <p className="truncate text-xs font-semibold settings-subtitle">{title}</p>
                         <span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', active ? 'bg-emerald-500' : 'bg-amber-500')} />
                     </div>
-                    <p className="mt-1 truncate text-base font-bold settings-title">{value}</p>
-                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                    <p className="mt-1 truncate text-lg font-bold settings-title">{value}</p>
+                    <p className="mt-0.5 truncate text-xs settings-subtitle">{detail}</p>
                 </div>
             </div>
         </div>
@@ -146,7 +146,7 @@ function SectionHeader({ icon: Icon, title, subtitle, active, activeLabel, inact
     return (
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -168,12 +168,12 @@ function CredentialInput({ id, label, icon: Icon, value, onChange, placeholder, 
     return (
         <div className="space-y-2">
             <div className="flex min-h-5 items-center justify-between gap-3">
-                <Label htmlFor={id} className="flex items-center gap-2 text-xs font-semibold settings-label">
+                <Label htmlFor={id} className="flex items-center gap-2 text-[13px] font-semibold settings-label">
                     <Icon className="h-3.5 w-3.5" />
                     {label}
                 </Label>
                 {preview && (
-                    <span className="max-w-[160px] truncate rounded-md bg-[#eef1f8] px-2 py-1 font-mono text-[10px] text-[#6b7494] dark:bg-white/5 dark:text-neutral-400">
+                    <span className="max-w-[160px] truncate rounded-lg bg-[#eef1f8] px-2 py-1 font-mono text-[10px] text-[#6b7494] dark:bg-white/5 dark:text-neutral-400">
                         {preview}
                     </span>
                 )}
@@ -184,7 +184,7 @@ function CredentialInput({ id, label, icon: Icon, value, onChange, placeholder, 
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
                 placeholder={placeholder}
-                className="h-10 rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                className="h-11 rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
             />
             <InputError message={error} />
         </div>
@@ -339,7 +339,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex items-start gap-3">
-                        <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                        <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
                             <SlidersHorizontal className="h-5 w-5" />
                         </div>
                         <div>
@@ -376,7 +376,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         />
                     </section>
 
-                    <form onSubmit={handleWhatsAppSubmit} className="card-gradient rounded-lg border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10 md:p-6">
+                    <form onSubmit={handleWhatsAppSubmit} className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10 md:p-6">
                         <SectionHeader
                             icon={MessageCircle}
                             title={t('settings.whatsapp.apiTitle')}
@@ -391,7 +391,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                         variant="outline"
                                         onClick={testConnection}
                                         disabled={testingConnection}
-                                        className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-secondary"
+                                        className="h-9 rounded-xl px-5 text-xs font-semibold settings-btn-secondary"
                                     >
                                         {testingConnection ? (
                                             <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
@@ -406,7 +406,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                         variant="outline"
                                         onClick={getBusinessProfile}
                                         disabled={loadingProfile}
-                                        className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-secondary disabled:opacity-50"
+                                        className="h-9 rounded-xl px-5 text-xs font-semibold settings-btn-secondary disabled:opacity-50"
                                     >
                                         {loadingProfile ? (
                                             <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
@@ -419,10 +419,10 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             )}
                         />
 
-                        <div className="mt-6 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-                            <section className="rounded-lg border border-[#d4d8e8]/80 bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                                <h3 className="text-sm font-bold settings-title">Credenciales</h3>
-                                <p className="mt-1 text-xs settings-subtitle">Tokens privados usados por Meta y el webhook.</p>
+                        <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+                            <section>
+                                <h3 className="text-[15px] font-bold settings-title">Credenciales</h3>
+                                <p className="mt-1 text-[13px] settings-subtitle">Tokens privados usados por Meta y el webhook.</p>
                                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <CredentialInput
                                         id="whatsapp_token"
@@ -450,9 +450,9 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 </div>
                             </section>
 
-                            <section className="rounded-lg border border-[#d4d8e8]/80 bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                                <h3 className="text-sm font-bold settings-title">Identificadores</h3>
-                                <p className="mt-1 text-xs settings-subtitle">IDs operativos de WhatsApp Business.</p>
+                            <section className="border-t border-[#d4d8e8]/70 pt-6 dark:border-white/10 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                                <h3 className="text-[15px] font-bold settings-title">Identificadores</h3>
+                                <p className="mt-1 text-[13px] settings-subtitle">IDs operativos de WhatsApp Business.</p>
                                 <div className="mt-4 space-y-4">
                                     <CredentialInput
                                         id="whatsapp_phone_id"
@@ -478,7 +478,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         </div>
 
                         {settings.whatsapp.webhook_url && (
-                            <div className="mt-5 rounded-lg border border-[#d4d8e8]/80 bg-white/55 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                            <div className="mt-5 rounded-xl border border-[#d4d8e8]/80 bg-white/55 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
                                 <div className="flex items-center gap-2 text-xs font-semibold settings-label">
                                     <ShieldCheck className="h-4 w-4" />
                                     Webhook URL
@@ -490,7 +490,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         {connectionStatus.type && (
                             <div
                                 className={cn(
-                                    'mt-5 flex items-start gap-2 rounded-lg border px-4 py-3 text-xs font-medium shadow-sm',
+                                    'mt-5 flex items-start gap-2 rounded-xl border px-4 py-3 text-xs font-medium shadow-sm',
                                     connectionStatus.type === 'success'
                                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
                                         : 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
@@ -506,7 +506,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         )}
 
                         {businessProfile && (
-                            <div className="mt-5 rounded-lg border border-[#d4d8e8]/80 bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                            <div className="mt-5 rounded-xl border border-[#d4d8e8]/80 bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                 <div className="mb-4 flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-2">
                                         <Building2 className="h-4 w-4 text-[#2e3f84] dark:text-neutral-100" />
@@ -522,7 +522,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                         ['Calidad', businessProfile.quality_rating],
                                         ['Límite mensajes', businessProfile.messaging_limit],
                                     ].map(([label, value]) => (
-                                        <div key={label} className="min-w-0 rounded-lg bg-[#f4f5f9]/70 px-3 py-2 dark:bg-white/[0.04]">
+                                        <div key={label} className="min-w-0 rounded-xl bg-[#f4f5f9]/70 px-3 py-2 dark:bg-white/[0.04]">
                                             <p className="text-[10px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
                                             <p className="truncate font-semibold settings-title">{value}</p>
                                         </div>
@@ -535,7 +535,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             <Button
                                 type="submit"
                                 disabled={whatsappForm.processing}
-                                className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary disabled:opacity-50"
+                                className="h-9 rounded-xl px-5 text-xs font-semibold settings-btn-primary disabled:opacity-50"
                             >
                                 {whatsappForm.processing ? (
                                     <>
@@ -552,8 +552,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         </div>
                     </form>
 
-                    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-                        <form onSubmit={handleGroqSubmit} className="card-gradient rounded-lg border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[2fr_3fr]">
+                        <form onSubmit={handleGroqSubmit} className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                             <SectionHeader
                                 icon={Headphones}
                                 title="Transcripción de audio"
@@ -580,7 +580,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             <Button
                                 type="submit"
                                 disabled={groqForm.processing || !groqForm.data.groq_api_key}
-                                className="mt-5 h-9 w-full rounded-lg text-xs font-semibold settings-btn-primary disabled:opacity-50"
+                                className="mt-5 h-9 w-full rounded-xl text-xs font-semibold settings-btn-primary disabled:opacity-50"
                             >
                                 {groqForm.processing ? (
                                     <>
@@ -596,7 +596,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             </Button>
                         </form>
 
-                        <section className="card-gradient rounded-lg border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                        <section className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                             <SectionHeader
                                 icon={Users}
                                 title="Asesores de turno"
@@ -612,7 +612,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                     value={advisorSearch}
                                     onChange={(event) => setAdvisorSearch(event.target.value)}
                                     placeholder="Buscar asesor..."
-                                    className="h-9 rounded-lg pl-9 pr-9 text-xs settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    className="h-10 rounded-xl pl-9 pr-9 text-xs settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                 />
                                 {advisorSearch && (
                                     <button
@@ -636,7 +636,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 <>
                                     <div className="mt-3 grid max-h-[220px] grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar-light xl:grid-cols-2">
                                         {filteredAdvisors.length === 0 ? (
-                                            <div className="rounded-lg border border-dashed border-[#d4d8e8] px-4 py-6 text-center text-xs settings-subtitle dark:border-white/10 xl:col-span-2">
+                                            <div className="rounded-xl border border-dashed border-[#d4d8e8] px-4 py-6 text-center text-xs settings-subtitle dark:border-white/10 xl:col-span-2">
                                                 No hay coincidencias para la búsqueda.
                                             </div>
                                         ) : (
@@ -650,7 +650,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                         onClick={() => toggleAdvisor(advisor.id)}
                                                         aria-pressed={selected}
                                                         className={cn(
-                                                            'flex w-full items-center justify-between gap-3 rounded-lg border p-2.5 text-left transition-all duration-200',
+                                                            'flex w-full items-center justify-between gap-3 rounded-xl border p-2.5 text-left transition-all duration-200',
                                                             selected
                                                                 ? 'border-[#2e3f84]/25 bg-[#2e3f84]/5 shadow-sm dark:border-white/15 dark:bg-white/[0.06]'
                                                                 : 'border-transparent bg-transparent hover:border-[#d4d8e8] hover:bg-white/70 dark:hover:border-white/10 dark:hover:bg-white/[0.04]'
@@ -659,7 +659,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                                         <div className="flex min-w-0 items-center gap-3">
                                                             <div
                                                                 className={cn(
-                                                                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold',
+                                                                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold',
                                                                     selected
                                                                         ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
                                                                         : 'bg-[#eef1f8] text-[#2e3f84] dark:bg-white/10 dark:text-neutral-100'
@@ -696,7 +696,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             type="button"
                                             onClick={saveOnDutyAdvisors}
                                             disabled={savingAdvisors}
-                                            className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary disabled:opacity-50"
+                                            className="h-9 rounded-xl px-5 text-xs font-semibold settings-btn-primary disabled:opacity-50"
                                         >
                                             {savingAdvisors ? (
                                                 <>

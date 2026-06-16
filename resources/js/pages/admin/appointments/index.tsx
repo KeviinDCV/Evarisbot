@@ -90,15 +90,15 @@ const toneClasses: Record<NonNullable<MetricCardProps['tone']>, string> = {
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
     return (
-        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
             <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${toneClasses[tone]}`}>
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                    <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
                     <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
-                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                    <p className="mt-0.5 truncate text-xs settings-subtitle">{detail}</p>
                 </div>
             </div>
         </div>
@@ -632,7 +632,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <CalendarCheck className="h-5 w-5" />
                             </div>
                             <div>
@@ -646,7 +646,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                         </div>
 
                         {initialAppointments.length > 0 && (
-                            <Button onClick={() => router.visit(`${routePrefix}/view`)} className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary">
+                            <Button onClick={() => router.visit(`${routePrefix}/view`)} className="h-9 rounded-xl px-5 text-xs font-semibold settings-btn-primary">
                                 <ExternalLink className="mr-2 h-3.5 w-3.5" />
                                 Ver todas las citas
                             </Button>
@@ -655,7 +655,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
                     {showFlashMessage && (flash?.success || flash?.error) && (
                         <div
-                            className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium shadow-sm ${flash?.success
+                            className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm font-medium shadow-sm ${flash?.success
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
                                 : 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
                                 }`}
@@ -686,7 +686,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                         </section>
                     </Deferred>
 
-                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
+                    <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                     >
                         <form onSubmit={submit}>
                             <div className="mb-4">
@@ -701,7 +701,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                     onDragOver={handleDragOver}
                                     onDragLeave={handleDragLeave}
                                     className={`
-                                    cursor-pointer rounded-lg border border-dashed p-6 text-center
+                                    cursor-pointer rounded-xl border border-dashed p-6 text-center
                                     upload-dropzone
                                     ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(30,5%,25%)]'}
                                     hover:border-primary hover:upload-dropzone-active
@@ -720,7 +720,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                 disabled={processing}
                                             />
                                             <div className="flex flex-col items-center gap-3">
-                                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20">
+                                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20">
                                                     <Upload className="h-5 w-5" />
                                                 </div>
                                                 <div>
@@ -737,9 +737,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                             </div>
                                         </label>
                                     ) : (
-                                        <div className="flex items-center justify-between rounded-lg border border-white/50 bg-white/55 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                                        <div className="flex items-center justify-between rounded-xl border border-white/50 bg-white/55 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                                             <div className="flex items-center gap-4">
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
                                                     <FileSpreadsheet className="h-5 w-5" />
                                                 </div>
                                                 <div className="text-left">
@@ -752,7 +752,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                             <button
                                                 type="button"
                                                 onClick={removeFile}
-                                                className="rounded-lg p-2 text-red-500 transition-all duration-200 hover:bg-red-50 dark:hover:bg-red-500/10"
+                                                className="rounded-xl p-2 text-red-500 transition-all duration-200 hover:bg-red-50 dark:hover:bg-red-500/10"
                                                 disabled={processing}
                                             >
                                                 <X className="h-4 w-4" />
@@ -762,7 +762,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                 </div>
 
                                 {errors.file && (
-                                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+                                    <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
                                         <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                                         <p className="text-sm text-red-600 dark:text-red-400">{errors.file}</p>
                                     </div>
@@ -774,7 +774,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                     <button
                                         type="submit"
                                         disabled={processing}
-                                        className="h-9 rounded-lg px-5 text-sm font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="h-9 rounded-xl px-5 text-sm font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {processing ? 'Subiendo...' : 'Subir archivo'}
                                     </button>
@@ -784,10 +784,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                     </section>
 
                     {uploadedFile && (
-                        <section className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
+                        <section className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                         >
                             <div className="flex items-start gap-4">
-                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
                                     <CheckCircle2 className="h-5 w-5" />
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -806,7 +806,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                     )}
 
                     {(remindersStats || localStats) && (
-                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                        <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                 <div className="min-w-0 flex-1">
                                     <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
@@ -835,31 +835,31 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
                                 <div className="flex flex-wrap gap-2 lg:justify-end">
                                     {!isProcessing && !isPaused && localStats.pending > 0 && (
-                                        <Button onClick={handleStartReminders} disabled={isLoading || isProcessing} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                        <Button onClick={handleStartReminders} disabled={isLoading || isProcessing} className="h-9 rounded-xl px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                             <Play className="mr-2 h-3.5 w-3.5" />
                                             {isLoading || isProcessing ? 'Iniciando...' : `Comenzar (${localStats.pending})`}
                                         </Button>
                                     )}
                                     {!isProcessing && !isPaused && localStats.pending_tomorrow > 0 && (
-                                        <Button onClick={handleStartRemindersDayBefore} disabled={isLoading || isProcessing} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                        <Button onClick={handleStartRemindersDayBefore} disabled={isLoading || isProcessing} className="h-9 rounded-xl px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                             <CalendarCheck className="mr-2 h-3.5 w-3.5" />
                                             Enviar Día Antes ({localStats.pending_tomorrow})
                                         </Button>
                                     )}
                                     {isProcessing && !isPaused && (
                                         <>
-                                            <Button onClick={handlePauseReminders} disabled={isLoading} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+                                            <Button onClick={handlePauseReminders} disabled={isLoading} className="h-9 rounded-xl px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                                 <Pause className="mr-2 h-3.5 w-3.5" />
                                                 {isLoading ? 'Pausando...' : 'Pausar'}
                                             </Button>
-                                            <Button onClick={handleStopReminders} disabled={isLoading} className="h-9 rounded-lg bg-red-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                            <Button onClick={handleStopReminders} disabled={isLoading} className="h-9 rounded-xl bg-red-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
                                                 <Square className="mr-2 h-3.5 w-3.5" />
                                                 {isLoading ? 'Deteniendo...' : 'Detener'}
                                             </Button>
                                         </>
                                     )}
                                     {isProcessing && isPaused && (
-                                        <Button onClick={handleResumeReminders} disabled={isLoading} className="h-9 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                        <Button onClick={handleResumeReminders} disabled={isLoading} className="h-9 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
                                             <Play className="mr-2 h-3.5 w-3.5" />
                                             {isLoading ? 'Reanudando...' : 'Reanudar'}
                                         </Button>
@@ -868,7 +868,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             </div>
 
                             {isProcessing && progress && progress.total > 0 && (
-                                <div className="mt-4 rounded-lg border border-[#d4d8e8] bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                <div className="mt-4 rounded-xl border border-[#d4d8e8] bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                     <div className="mb-2 flex items-center justify-between gap-3 text-xs settings-subtitle">
                                         <span>Progreso del envío</span>
                                         <span className="font-semibold settings-title">
@@ -887,13 +887,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             )}
 
                             {localStats.pending > 2000 && (
-                                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                     <AlertCircle className="mr-1 inline h-4 w-4" />
                                     <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana. El sistema respetará el límite de 2,000 mensajes por día según las políticas de Meta.
                                 </div>
                             )}
                             {localStats.pending_tomorrow > 2000 && (
-                                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+                                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                     <AlertCircle className="mr-1 inline h-4 w-4" />
                                     <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio. El sistema respetará el límite de 2,000 mensajes por día.
                                 </div>
@@ -903,7 +903,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
                     <Deferred data="appointments" fallback={<AppointmentsTableSkeleton />}>
                     {initialAppointments.length > 0 && (
-                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                        <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
                                     <h2 className="text-base font-semibold settings-title">
@@ -925,13 +925,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                             placeholder="Buscar por paciente, teléfono, médico..."
                                             value={searchTerm}
                                             onChange={(e) => handleSearch(e.target.value)}
-                                            className="h-9 w-full rounded-lg pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
+                                            className="h-9 w-full rounded-xl pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
                                         />
                                     </div>
 
                                     <Button
                                         onClick={() => router.visit(`${routePrefix}/view`)}
-                                        className="h-9 shrink-0 rounded-lg px-4 text-xs font-semibold settings-btn-secondary"
+                                        className="h-9 shrink-0 rounded-xl px-4 text-xs font-semibold settings-btn-secondary"
                                     >
                                         <ExternalLink className="mr-2 h-3.5 w-3.5" />
                                         Ver todas las citas
@@ -939,7 +939,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto rounded-lg border border-[#d4d8e8] dark:border-white/10">
+                            <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-white/10">
                                 <table className="w-full text-left border-collapse">
                                     <thead className="border-b border-border bg-black/5 dark:border-white/10 dark:bg-white/5">
                                         <tr>
@@ -1075,7 +1075,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                             disabled={currentPage === 1}
-                                            className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
+                                            className="flex h-9 items-center gap-2 rounded-xl border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
                                             <ChevronLeft className="w-4 h-4" />
                                             Anterior
@@ -1083,7 +1083,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
-                                            className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
+                                            className="flex h-9 items-center gap-2 rounded-xl border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
                                             Siguiente
                                             <ChevronRight className="w-4 h-4" />
@@ -1095,7 +1095,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                     )}
 
                     {initialAppointments.length === 0 && (
-                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
+                        <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                         >
                             <h3 className="mb-4 font-semibold settings-title">
                                 Formato del archivo excel
@@ -1103,31 +1103,31 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             <div className="space-y-3 text-sm settings-subtitle">
                                 <p className="settings-title font-medium">El archivo debe contener las siguientes columnas:</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citead</strong> - Código admisión
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Nom_paciente</strong> - Nombre paciente
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Pactel</strong> - Teléfono
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citfc</strong> - Fecha cita
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Cithor</strong> - Hora cita
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Mednom</strong> - Nombre médico
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Espnom</strong> - Especialidad
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citdoc</strong> - Documento
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citobsobs</strong> - Observaciones
                                     </div>
                                 </div>
@@ -1147,7 +1147,7 @@ function AppointmentMetricsSkeleton() {
     return (
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-[88px] rounded-lg" />
+                <Skeleton key={i} className="h-[88px] rounded-2xl" />
             ))}
         </section>
     );
@@ -1155,14 +1155,14 @@ function AppointmentMetricsSkeleton() {
 
 function AppointmentsTableSkeleton() {
     return (
-        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
             <div className="mb-4 flex flex-col gap-2">
                 <Skeleton className="h-5 w-64" />
                 <Skeleton className="h-4 w-48" />
             </div>
             <div className="space-y-2">
                 {Array.from({ length: 8 }).map((_, i) => (
-                    <Skeleton key={i} className="h-12 w-full rounded-lg" />
+                    <Skeleton key={i} className="h-12 w-full rounded-xl" />
                 ))}
             </div>
         </section>

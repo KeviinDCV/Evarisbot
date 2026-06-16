@@ -241,16 +241,16 @@ function barColor(tone: StatLineProps['tone'] = 'primary') {
 }
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'primary', onClick, layoutId }: MetricCardProps) {
-    const base = 'card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10';
+    const base = 'card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10';
     const inner = (
         <div className="flex items-center gap-3">
-            <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClasses(tone))}>
+            <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border', toneClasses(tone))}>
                 <Icon className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-                <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
                 <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
-                <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                <p className="mt-0.5 truncate text-xs settings-subtitle">{detail}</p>
             </div>
         </div>
     );
@@ -276,10 +276,10 @@ function MetricCard({ icon: Icon, label, value, detail, tone = 'primary', onClic
 
 function SectionCard({ icon: Icon, title, subtitle, className, children, action }: SectionCardProps) {
     return (
-        <section className={cn('card-gradient rounded-lg border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10', className)}>
+        <section className={cn('card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10', className)}>
             <div className="mb-4 flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10">
                 <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
                         <Icon className="h-4.5 w-4.5" />
                     </div>
                     <div className="min-w-0">
@@ -298,7 +298,7 @@ function StatLine({ icon: Icon, label, value, total, tone = 'primary' }: StatLin
     const percent = total ? safePercent(value, total) : 0;
 
     return (
-        <div className="rounded-lg border border-transparent bg-white/45 px-3 py-2.5 dark:bg-white/[0.03]">
+        <div className="rounded-xl border border-transparent bg-white/45 px-3 py-2.5 dark:bg-white/[0.03]">
             <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                     <Icon className="h-3.5 w-3.5 shrink-0 settings-subtitle" />
@@ -317,7 +317,7 @@ function StatLine({ icon: Icon, label, value, total, tone = 'primary' }: StatLin
 
 function EmptyChart({ message }: { message: string }) {
     return (
-        <div className="flex h-[220px] items-center justify-center rounded-lg border border-dashed border-[#d4d8e8] text-sm settings-subtitle dark:border-white/10">
+        <div className="flex h-[220px] items-center justify-center rounded-xl border border-dashed border-[#d4d8e8] text-sm settings-subtitle dark:border-white/10">
             {message}
         </div>
     );
@@ -589,7 +589,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <BarChart3 className="h-5 w-5" />
                             </div>
                             <div>
@@ -603,7 +603,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
-                            <div className="inline-flex rounded-lg border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04]">
+                            <div className="inline-flex rounded-xl border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04]">
                                 <button
                                     type="button"
                                     onClick={() => setShowCharts(false)}
@@ -636,7 +636,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                 type="button"
                                 onClick={handleExport}
                                 disabled={isExporting}
-                                className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary disabled:opacity-50"
+                                className="h-9 rounded-xl px-5 text-xs font-semibold settings-btn-primary disabled:opacity-50"
                             >
                                 <Download className="mr-2 h-3.5 w-3.5" />
                                 {isExporting ? t('statistics.exporting') : t('statistics.export')}
@@ -652,11 +652,11 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                         <MetricCard icon={FileText} label="Plantillas" value={formatNumber(statistics.templates.total)} detail={`${formatNumber(statistics.templates.total_sends)} envíos`} tone="info" layoutId="metric-templates" onClick={() => setOpenMetric('templates')} />
                     </section>
 
-                    <form onSubmit={handleFilterSubmit} className="card-gradient rounded-lg border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                    <form onSubmit={handleFilterSubmit} className="card-gradient rounded-2xl border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto] xl:items-end">
                             <div>
                                 <Label className="mb-2 block text-xs font-semibold settings-label">{t('statistics.filters.period')}</Label>
-                                <div className="grid grid-cols-2 gap-1 rounded-lg border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:grid-cols-5">
+                                <div className="grid grid-cols-2 gap-1 rounded-xl border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:grid-cols-5">
                                     {periodOptions.map((option) => (
                                         <button
                                             key={option.value}
@@ -685,7 +685,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                     type="date"
                                     value={startDate}
                                     onChange={(event) => setStartDate(event.target.value)}
-                                    className="h-10 rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    className="h-10 rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                 />
                             </div>
 
@@ -699,11 +699,11 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                     type="date"
                                     value={endDate}
                                     onChange={(event) => setEndDate(event.target.value)}
-                                    className="h-10 rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    className="h-10 rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                 />
                             </div>
 
-                            <Button type="submit" className="h-10 rounded-lg px-5 text-xs font-semibold settings-btn-primary">
+                            <Button type="submit" className="h-10 rounded-xl px-5 text-xs font-semibold settings-btn-primary">
                                 <Filter className="mr-2 h-3.5 w-3.5" />
                                 {t('statistics.filters.apply')}
                             </Button>
@@ -735,7 +735,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                     const fd = statistics.flowDemand;
                                     if (!fd || fd.total === 0) {
                                         return (
-                                            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[#d4d8e8] py-10 text-center dark:border-white/10">
+                                            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#d4d8e8] py-10 text-center dark:border-white/10">
                                                 <MessageSquare className="mb-3 h-10 w-10 settings-subtitle" />
                                                 <p className="text-sm font-semibold settings-title">Aún no hay datos de demanda</p>
                                                 <p className="mt-1 max-w-md text-xs settings-subtitle">Se llenará automáticamente cuando el menú de bienvenida esté activo y los pacientes lo recorran.</p>
@@ -807,7 +807,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                 </div>
 
                                 {statistics.advisors.top_performer && (
-                                    <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
+                                    <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
                                         <span className="font-bold">Mejor desempeño:</span> {statistics.advisors.top_performer.name} con {statistics.advisors.top_performer.resolved_conversations} conversaciones resueltas y {statistics.advisors.top_performer.resolution_rate}% de resolución.
                                     </div>
                                 )}
@@ -819,14 +819,14 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                             const rateTone = advisor.resolution_rate >= 70 ? 'success' : advisor.resolution_rate >= 40 ? 'warning' : 'danger';
 
                                             return (
-                                                <div key={advisor.id} className="overflow-hidden rounded-lg border border-[#d4d8e8]/80 bg-white/45 dark:border-white/10 dark:bg-white/[0.03]">
+                                                <div key={advisor.id} className="overflow-hidden rounded-xl border border-[#d4d8e8]/80 bg-white/45 dark:border-white/10 dark:bg-white/[0.03]">
                                                     <button
                                                         type="button"
                                                         onClick={() => toggleAdvisorDetail(advisor.id)}
                                                         className="flex w-full flex-col gap-3 px-4 py-3 text-left transition-colors hover:bg-white/75 dark:hover:bg-white/[0.04] lg:flex-row lg:items-center lg:justify-between"
                                                     >
                                                         <div className="flex min-w-0 items-center gap-3">
-                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2e3f84] text-xs font-bold text-white shadow-sm shadow-[#2e3f84]/20">
+                                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2e3f84] text-xs font-bold text-white shadow-sm shadow-[#2e3f84]/20">
                                                                 {advisor.name.charAt(0).toUpperCase()}
                                                             </div>
                                                             <div className="min-w-0">
@@ -889,7 +889,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                             fetchAdvisorDetail(advisor.id, 'custom', event.target.value, advisorEndDate);
                                                                         }
                                                                     }}
-                                                                    className="h-8 w-[145px] rounded-lg text-xs settings-input"
+                                                                    className="h-8 w-[145px] rounded-xl text-xs settings-input"
                                                                 />
                                                                 <Input
                                                                     type="date"
@@ -901,7 +901,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                             fetchAdvisorDetail(advisor.id, 'custom', advisorStartDate, event.target.value);
                                                                         }
                                                                     }}
-                                                                    className="h-8 w-[145px] rounded-lg text-xs settings-input"
+                                                                    className="h-8 w-[145px] rounded-xl text-xs settings-input"
                                                                 />
                                                             </div>
 
@@ -921,7 +921,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                     </div>
 
                                                                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                                                                        <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                                                                             <h4 className="mb-2 flex items-center gap-2 text-xs font-bold settings-title">
                                                                                 <TrendingUp className="h-3.5 w-3.5" />
                                                                                 Actividad diaria
@@ -937,7 +937,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                             </ResponsiveContainer>
                                                                         </div>
 
-                                                                        <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                                                                             <h4 className="mb-2 flex items-center gap-2 text-xs font-bold settings-title">
                                                                                 <Timer className="h-3.5 w-3.5" />
                                                                                 Distribución por hora
@@ -1126,7 +1126,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                             ))}
                                         </div>
                                         {m.chart && (
-                                            <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                            <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                                                 {m.chart}
                                             </div>
                                         )}
@@ -1162,17 +1162,17 @@ function StatisticsSkeleton() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-[88px] rounded-lg" />
+                        <Skeleton key={i} className="h-[88px] rounded-2xl" />
                     ))}
                 </div>
 
-                <Skeleton className="h-[116px] rounded-lg" />
+                <Skeleton className="h-[116px] rounded-2xl" />
 
                 <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-[240px] rounded-lg" />
+                        <Skeleton key={i} className="h-[240px] rounded-2xl" />
                     ))}
-                    <Skeleton className="h-[300px] rounded-lg xl:col-span-2" />
+                    <Skeleton className="h-[300px] rounded-2xl xl:col-span-2" />
                 </div>
             </div>
         </div>

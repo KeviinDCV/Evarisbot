@@ -99,7 +99,7 @@ function FlowStatusPill({ active }: { active: boolean }) {
 
 function MessagePreview({ children }: { children: string }) {
     return (
-        <div className="max-w-2xl rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-sm leading-6 text-slate-700 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-neutral-200">
+        <div className="max-w-2xl rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 text-sm leading-6 text-slate-700 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-neutral-200">
             <p className="line-clamp-4 whitespace-pre-wrap [overflow-wrap:anywhere]">{children}</p>
         </div>
     );
@@ -249,10 +249,10 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
 
     return (
         <>
-            <section className="card-gradient rounded-lg border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+            <section className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                 <div className="mb-4 flex flex-col gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex min-w-0 items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
                             <Bot className="h-4.5 w-4.5" />
                         </div>
                         <div className="min-w-0">
@@ -262,20 +262,20 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             </p>
                         </div>
                     </div>
-                    <Button onClick={openCreateModal} className="h-9 rounded-lg settings-btn-primary text-white">
+                    <Button onClick={openCreateModal} className="h-9 rounded-xl settings-btn-primary text-white">
                         <Plus className="h-4 w-4" />
                         Nuevo flujo
                     </Button>
                 </div>
 
                 {welcomeFlows.length === 0 ? (
-                    <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed border-[#d4d8e8] p-6 text-center dark:border-white/10">
+                    <div className="flex min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-[#d4d8e8] p-6 text-center dark:border-white/10">
                         <Workflow className="mb-3 h-10 w-10 settings-subtitle" />
                         <h3 className="text-base font-bold settings-title">Sin flujos de bienvenida</h3>
                         <p className="mt-2 max-w-lg text-sm settings-subtitle">
                             Crea un menú de bienvenida para responder automáticamente a los nuevos contactos.
                         </p>
-                        <Button onClick={openCreateModal} className="mt-4 rounded-lg settings-btn-primary text-white">
+                        <Button onClick={openCreateModal} className="mt-4 rounded-xl settings-btn-primary text-white">
                             <Plus className="h-4 w-4" />
                             Crear flujo
                         </Button>
@@ -289,12 +289,12 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             const expanded = expandedFlowId === flow.id;
 
                             return (
-                                <article key={flow.id} className="overflow-hidden rounded-lg border border-[#d4d8e8]/80 bg-white/45 dark:border-white/10 dark:bg-white/[0.03]">
+                                <article key={flow.id} className="overflow-hidden rounded-xl border border-[#d4d8e8]/80 bg-white/45 dark:border-white/10 dark:bg-white/[0.03]">
                                     <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div className="flex min-w-0 items-center gap-3">
                                             <div
                                                 className={cn(
-                                                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border',
+                                                    'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border',
                                                     flow.is_active
                                                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
                                                         : 'border-slate-200 bg-slate-50 text-slate-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-300'
@@ -320,7 +320,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 size="icon"
                                                 variant="outline"
                                                 onClick={() => setExpandedFlowId(expanded ? null : flow.id)}
-                                                className="h-8 w-8 rounded-lg settings-btn-secondary"
+                                                className="h-8 w-8 rounded-xl settings-btn-secondary"
                                                 title="Ver detalles"
                                             >
                                                 {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -331,7 +331,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 variant="outline"
                                                 onClick={() => toggleFlowStatus(flow.id)}
                                                 className={cn(
-                                                    'h-8 w-8 rounded-lg',
+                                                    'h-8 w-8 rounded-xl',
                                                     flow.is_active
                                                         ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/10'
                                                         : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-neutral-300 dark:hover:bg-white/[0.05]'
@@ -345,7 +345,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 size="icon"
                                                 variant="outline"
                                                 onClick={() => openEditModal(flow)}
-                                                className="h-8 w-8 rounded-lg settings-btn-secondary"
+                                                className="h-8 w-8 rounded-xl settings-btn-secondary"
                                                 title="Editar"
                                             >
                                                 <Edit3 className="h-4 w-4" />
@@ -355,7 +355,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 size="icon"
                                                 variant="outline"
                                                 onClick={() => deleteFlow(flow.id)}
-                                                className="h-8 w-8 rounded-lg border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
+                                                className="h-8 w-8 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
                                                 title="Eliminar"
                                             >
                                                 <Trash2 className="h-4 w-4" />
@@ -372,7 +372,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                         Flujo conversacional ({steps.length} pasos)
                                                     </div>
                                                     {steps.map((step, index) => (
-                                                        <div key={step.id} className="rounded-lg border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                        <div key={step.id} className="rounded-xl border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                                                             <div className="mb-3 flex flex-wrap items-center gap-2">
                                                                 <span
                                                                     className={cn(
@@ -454,7 +454,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
             </section>
 
             <Dialog open={isModalOpen} onOpenChange={(open) => (open ? setIsModalOpen(true) : closeModal())}>
-                <DialogContent className="card-gradient max-h-[90vh] gap-0 overflow-y-auto border border-white/40 p-0 shadow-xl dark:border-white/10 sm:max-w-2xl">
+                <DialogContent className="card-gradient max-h-[90vh] gap-0 overflow-y-auto rounded-2xl border border-white/40 p-0 shadow-xl dark:border-white/10 sm:max-w-2xl">
                     <DialogHeader className="border-b border-[#d4d8e8]/80 px-6 py-4 dark:border-white/10">
                         <DialogTitle className="flex items-center gap-2 text-lg font-bold settings-title">
                             <Bot className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
@@ -475,7 +475,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                 value={data.name}
                                 onChange={(event) => setData('name', event.target.value)}
                                 placeholder="Ej: Menú de Bienvenida HUV"
-                                className="h-9 rounded-lg settings-input"
+                                className="h-9 rounded-xl settings-input"
                                 required
                             />
                             {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
@@ -489,7 +489,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                 id="flow-trigger"
                                 value={data.trigger_type}
                                 onChange={(event) => setData('trigger_type', event.target.value)}
-                                className="h-9 w-full rounded-lg border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
+                                className="h-9 w-full rounded-xl border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
                             >
                                 <option value="first_contact">Solo primer contacto</option>
                                 <option value="every_new_conversation">Cada conversación nueva</option>
@@ -506,32 +506,32 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                 value={data.message}
                                 onChange={(event) => setData('message', event.target.value)}
                                 placeholder="Escribe el mensaje que recibirá el usuario al iniciar la conversación..."
-                                className="min-h-[132px] rounded-lg settings-input"
+                                className="min-h-[132px] rounded-xl settings-input"
                                 required
                             />
                             {errors.message && <p className="text-xs text-red-500">{errors.message}</p>}
                         </div>
 
-                        <div className="space-y-3 rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="space-y-3 rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <Label className="text-sm font-semibold settings-label">Botones interactivos</Label>
                                     <p className="mt-1 text-xs settings-subtitle">{data.buttons.length}/3 configurados</p>
                                 </div>
-                                <Button type="button" variant="outline" onClick={addButton} disabled={data.buttons.length >= 3} className="h-8 rounded-lg settings-btn-secondary">
+                                <Button type="button" variant="outline" onClick={addButton} disabled={data.buttons.length >= 3} className="h-8 rounded-xl settings-btn-secondary">
                                     <Plus className="h-4 w-4" />
                                     Añadir
                                 </Button>
                             </div>
 
                             {data.buttons.length === 0 ? (
-                                <p className="rounded-lg border border-dashed border-[#d4d8e8] p-3 text-sm settings-subtitle dark:border-white/10">
+                                <p className="rounded-xl border border-dashed border-[#d4d8e8] p-3 text-sm settings-subtitle dark:border-white/10">
                                     Sin botones configurados.
                                 </p>
                             ) : (
                                 <div className="space-y-3">
                                     {data.buttons.map((button, index) => (
-                                        <div key={`${button.id}-${index}`} className="rounded-lg border border-[#d4d8e8]/80 bg-white/60 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                        <div key={`${button.id}-${index}`} className="rounded-xl border border-[#d4d8e8]/80 bg-white/60 p-3 dark:border-white/10 dark:bg-white/[0.04]">
                                             <div className="mb-3 flex items-center gap-2">
                                                 <MousePointerClick className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
                                                 <span className="text-sm font-semibold settings-title">Botón {index + 1}</span>
@@ -540,7 +540,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                     size="icon"
                                                     variant="ghost"
                                                     onClick={() => removeButton(index)}
-                                                    className="ml-auto h-7 w-7 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
+                                                    className="ml-auto h-7 w-7 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
                                                     title="Eliminar botón"
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
@@ -554,7 +554,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                         onChange={(event) => updateButton(index, 'title', event.target.value)}
                                                         placeholder="Ej: Acepto"
                                                         maxLength={20}
-                                                        className="h-9 rounded-lg settings-input"
+                                                        className="h-9 rounded-xl settings-input"
                                                         required
                                                     />
                                                     <p className="text-[11px] settings-subtitle">{button.title.length}/20</p>
@@ -565,7 +565,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                         value={button.id}
                                                         onChange={(event) => updateButton(index, 'id', event.target.value)}
                                                         placeholder="Ej: accept"
-                                                        className="h-9 rounded-lg settings-input"
+                                                        className="h-9 rounded-xl settings-input"
                                                         required
                                                     />
                                                 </div>
@@ -576,7 +576,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                     value={data.responses[button.id] || ''}
                                                     onChange={(event) => updateResponse(button.id, event.target.value)}
                                                     placeholder="Mensaje que se enviará cuando el usuario presione este botón..."
-                                                    className="min-h-[84px] rounded-lg settings-input"
+                                                    className="min-h-[84px] rounded-xl settings-input"
                                                 />
                                             </div>
                                         </div>
@@ -585,7 +585,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             )}
                         </div>
 
-                        <div className="flex items-center justify-between gap-4 rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="flex items-center justify-between gap-4 rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                             <div>
                                 <p className="text-sm font-semibold settings-title">Activar flujo</p>
                                 <p className="mt-1 text-xs settings-subtitle">Solo puede haber un flujo activo a la vez</p>
@@ -609,10 +609,10 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                         </div>
 
                         <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
-                            <Button type="button" variant="outline" onClick={closeModal} className="h-9 rounded-lg settings-btn-secondary">
+                            <Button type="button" variant="outline" onClick={closeModal} className="h-9 rounded-xl settings-btn-secondary">
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={processing} className="h-9 rounded-lg settings-btn-primary text-white">
+                            <Button type="submit" disabled={processing} className="h-9 rounded-xl settings-btn-primary text-white">
                                 <Save className="h-4 w-4" />
                                 {processing ? 'Guardando...' : editingFlow ? 'Actualizar' : 'Crear flujo'}
                             </Button>

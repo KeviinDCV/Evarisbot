@@ -213,7 +213,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <CalendarCheck className="h-5 w-5" />
                             </div>
                             <div>
@@ -227,11 +227,11 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                            <Button onClick={() => router.get(`${routePrefix}`)} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-secondary">
+                            <Button onClick={() => router.get(`${routePrefix}`)} className="h-9 rounded-xl px-4 text-xs font-semibold settings-btn-secondary">
                                 <ArrowLeft className="mr-2 h-3.5 w-3.5" />
                                 Volver a Citas
                             </Button>
-                            <a href={`${routePrefix}/export?filter=${filter}&search=${searchTerm || ''}&date_from=${dateFrom || ''}&date_to=${dateTo || ''}`} className="inline-flex h-9 items-center rounded-lg px-4 text-xs font-semibold settings-btn-primary">
+                            <a href={`${routePrefix}/export?filter=${filter}&search=${searchTerm || ''}&date_from=${dateFrom || ''}&date_to=${dateTo || ''}`} className="inline-flex h-9 items-center rounded-xl px-4 text-xs font-semibold settings-btn-primary">
                                 <Download className="mr-2 h-3.5 w-3.5" />
                                 Exportar Excel
                             </a>
@@ -243,17 +243,17 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                             <button
                                 key={key}
                                 onClick={() => handleFilterChange(key)}
-                                className={`card-gradient rounded-lg border p-4 text-left shadow-sm shadow-[#2e3f84]/5 transition-colors ${filter === key
+                                className={`card-gradient rounded-2xl border p-4 text-left shadow-sm shadow-[#2e3f84]/5 transition-colors ${filter === key
                                     ? 'border-[#2e3f84]/40 bg-[#2e3f84]/10 dark:border-white/20 dark:bg-white/[0.06]'
                                     : 'border-white/50 hover:border-[#d4d8e8] dark:border-white/10 dark:hover:border-white/20'
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/60 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-white/60 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
                                         <Icon className="h-5 w-5" />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                                        <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
                                         <p className="mt-1 text-lg font-bold leading-tight settings-title">{count.toLocaleString()}</p>
                                         <p className="mt-1 text-xs settings-subtitle">{key === filter ? 'Filtro activo' : 'Aplicar filtro'}</p>
                                     </div>
@@ -262,7 +262,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         ))}
                     </section>
 
-                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                    <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="mb-4">
                             <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
                                 <Filter className="h-4 w-4" />
@@ -285,7 +285,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         type="date"
                                         value={dateFrom}
                                         onChange={(e) => handleDateChange('from', e.target.value)}
-                                        className="h-9 w-full rounded-lg px-3 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
+                                        className="h-9 w-full rounded-xl px-3 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
                                     />
                                 </div>
                                 <div>
@@ -296,14 +296,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         type="date"
                                         value={dateTo}
                                         onChange={(e) => handleDateChange('to', e.target.value)}
-                                        className="h-9 w-full rounded-lg px-3 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
+                                        className="h-9 w-full rounded-xl px-3 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
                                     />
                                 </div>
                                 <div className="flex items-end">
                                     <button
                                         onClick={handleClearDates}
                                         disabled={!dateFrom && !dateTo}
-                                        className="h-9 w-full rounded-lg border border-[#d4d8e8] bg-white px-4 text-sm font-medium text-[#6b7494] transition-all duration-200 hover:border-[#2e3f84] hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300 dark:hover:bg-white/5"
+                                        className="h-9 w-full rounded-xl border border-[#d4d8e8] bg-white px-4 text-sm font-medium text-[#6b7494] transition-all duration-200 hover:border-[#2e3f84] hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300 dark:hover:bg-white/5"
                                     >
                                         Limpiar Fechas
                                     </button>
@@ -328,12 +328,12 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                 placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
                                 value={searchTerm}
                                 onChange={(e) => handleSearch(e.target.value)}
-                                className="h-9 w-full rounded-lg pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
+                                className="h-9 w-full rounded-xl pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
                             />
                         </div>
                     </section>
 
-                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                    <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="mb-4">
                             <h2 className="text-base font-semibold settings-title">
                                 Resultados ({appointments.total})
@@ -343,7 +343,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                             </p>
                         </div>
 
-                        <div className="overflow-x-auto rounded-lg border border-[#d4d8e8] dark:border-white/10">
+                        <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-white/10">
                             <table className="w-full text-left border-collapse">
                                 <thead className="border-b border-border bg-black/5 dark:border-white/10 dark:bg-white/5">
                                     <tr>
@@ -525,7 +525,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <button
                                         onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                         disabled={!appointments.prev_page_url}
-                                        className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
+                                        className="flex h-9 items-center gap-2 rounded-xl border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                     >
                                         <ChevronLeft className="w-4 h-4" />
                                         Anterior
@@ -533,7 +533,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <button
                                         onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                         disabled={!appointments.next_page_url}
-                                        className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
+                                        className="flex h-9 items-center gap-2 rounded-xl border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                     >
                                         Siguiente
                                         <ChevronRight className="w-4 h-4" />

@@ -87,11 +87,11 @@ function getInitials(name: string) {
 
 function MetricCard({ icon: Icon, label, value, detail, active = false }: MetricCardProps) {
     return (
-        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
             <div className="flex items-center gap-3">
                 <div
                     className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border',
+                        'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border',
                         active
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
                             : 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100'
@@ -100,9 +100,9 @@ function MetricCard({ icon: Icon, label, value, detail, active = false }: Metric
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                    <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
                     <p className="mt-1 text-lg font-bold leading-tight settings-title">{value}</p>
-                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                    <p className="mt-0.5 truncate text-xs settings-subtitle">{detail}</p>
                 </div>
             </div>
         </div>
@@ -305,7 +305,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <Users className="h-5 w-5" />
                             </div>
                             <div>
@@ -318,7 +318,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </div>
                         </div>
 
-                        <Button onClick={openCreateModal} className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary">
+                        <Button onClick={openCreateModal} className="h-10 rounded-xl px-5 text-xs font-semibold settings-btn-primary">
                             <Plus className="mr-2 h-3.5 w-3.5" />
                             {t('users.newUser')}
                         </Button>
@@ -331,7 +331,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         <MetricCard icon={Headphones} label="Asesores" value={stats.advisors} detail={`${stats.bulkEnabled} con envío masivo`} />
                     </section>
 
-                    <section className="card-gradient rounded-lg border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                    <section className="card-gradient rounded-2xl border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                             <div className="min-w-0 flex-1">
                                 <Label htmlFor="user-search" className="mb-2 block text-xs font-semibold settings-label">
@@ -346,7 +346,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={search}
                                         onChange={(event) => setSearch(event.target.value)}
                                         placeholder={t('users.searchPlaceholder')}
-                                        className="h-10 rounded-lg pl-9 pr-9 text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="h-10 rounded-xl pl-9 pr-9 text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                     />
                                     {search && (
                                         <button
@@ -363,14 +363,14 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                             <div className="min-w-0">
                                 <p className="mb-2 text-xs font-semibold settings-label">{t('users.role')}</p>
-                                <div className="inline-flex w-full rounded-lg border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:w-auto">
+                                <div className="inline-flex w-full rounded-xl border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:w-auto">
                                     {roleOptions.map((option) => (
                                         <button
                                             key={option.value}
                                             type="button"
                                             onClick={() => setRoleFilter(option.value)}
                                             className={cn(
-                                                'flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none',
+                                                'flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none',
                                                 roleFilter === option.value
                                                     ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
                                                     : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
@@ -384,7 +384,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </div>
                     </section>
 
-                    <section className="card-gradient overflow-hidden rounded-lg border border-white/40 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                    <section className="card-gradient overflow-hidden rounded-2xl border border-white/40 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="flex flex-col gap-2 border-b border-[#d4d8e8]/80 px-4 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h2 className="text-base font-bold settings-title">Directorio de usuarios</h2>
@@ -399,25 +399,25 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 <table className="w-full min-w-[900px] text-left">
                                     <thead>
                                         <tr className="border-b border-[#d4d8e8]/80 bg-[#f4f5f9]/70 dark:border-white/10 dark:bg-white/[0.04]">
-                                            <th className="px-4 py-3 text-xs font-semibold settings-title">Usuario</th>
-                                            <th className="px-4 py-3 text-xs font-semibold settings-title">{t('users.role')}</th>
-                                            <th className="px-4 py-3 text-xs font-semibold settings-title">Estado</th>
-                                            <th className="px-4 py-3 text-center text-xs font-semibold settings-title">
+                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">Usuario</th>
+                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.role')}</th>
+                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">Estado</th>
+                                            <th className="px-4 py-3.5 text-center text-xs font-semibold settings-title">
                                                 <span className="inline-flex items-center justify-center gap-1.5">
                                                     <Send className="h-3.5 w-3.5" />
                                                     Envío masivo
                                                 </span>
                                             </th>
-                                            <th className="px-4 py-3 text-xs font-semibold settings-title">Registro</th>
-                                            <th className="px-4 py-3 text-right text-xs font-semibold settings-title">Acciones</th>
+                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">Registro</th>
+                                            <th className="px-4 py-3.5 text-right text-xs font-semibold settings-title">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredUsers.map((user) => (
                                             <tr key={user.id} className="border-b border-[#d4d8e8]/60 transition-colors last:border-0 hover:bg-white/55 dark:border-white/10 dark:hover:bg-white/[0.04]">
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3.5">
                                                     <div className="flex min-w-0 items-center gap-3">
-                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2e3f84] text-xs font-bold text-white shadow-sm shadow-[#2e3f84]/20">
+                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2e3f84] text-xs font-bold text-white shadow-sm shadow-[#2e3f84]/20">
                                                             {getInitials(user.name)}
                                                         </div>
                                                         <div className="min-w-0">
@@ -426,10 +426,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3.5">
                                                     <RolePill role={user.role} label={getRoleLabel(user.role)} />
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3.5">
                                                     <div className="flex flex-col gap-1.5">
                                                         <OnlinePill online={user.is_online} label={user.is_online ? t('users.online') : t('users.offline')} />
                                                         <span className="text-[11px] settings-subtitle">
@@ -437,7 +437,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3 text-center">
+                                                <td className="px-4 py-3.5 text-center">
                                                     {user.role === 'advisor' ? (
                                                         <button
                                                             type="button"
@@ -460,20 +460,20 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                         <span className="text-xs settings-subtitle">-</span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3.5">
                                                     <div className="flex items-center gap-2 text-xs settings-subtitle">
                                                         <Calendar className="h-4 w-4 shrink-0" />
                                                         <span>{formatCreatedAt(user.created_at)}</span>
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3.5">
                                                     <div className="flex items-center justify-end gap-2">
                                                         <Button
                                                             type="button"
                                                             size="sm"
                                                             variant="outline"
                                                             onClick={() => openEditModal(user)}
-                                                            className="h-8 w-8 rounded-lg p-0 settings-btn-secondary"
+                                                            className="h-8 w-8 rounded-xl p-0 settings-btn-secondary"
                                                             title={t('common.edit')}
                                                         >
                                                             <Edit3 className="h-3.5 w-3.5" />
@@ -483,7 +483,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                             size="sm"
                                                             variant="outline"
                                                             onClick={() => setUserToDelete(user)}
-                                                            className="h-8 w-8 rounded-lg border-red-200 p-0 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
+                                                            className="h-8 w-8 rounded-xl border-red-200 p-0 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
                                                             title={t('common.delete')}
                                                         >
                                                             <Trash2 className="h-3.5 w-3.5" />
@@ -506,7 +506,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </div>
 
                 <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
-                    <DialogContent className="card-gradient rounded-lg border border-white/40 shadow-2xl dark:border-white/10 sm:rounded-lg">
+                    <DialogContent className="card-gradient rounded-2xl border border-white/40 shadow-2xl dark:border-white/10 sm:rounded-2xl">
                         <DialogHeader>
                             <DialogTitle className="settings-title">{t('users.deleteConfirm')}</DialogTitle>
                             <DialogDescription className="settings-subtitle">
@@ -516,11 +516,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </DialogHeader>
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button variant="outline" className="rounded-lg font-medium settings-btn-secondary">
+                                <Button variant="outline" className="rounded-xl font-medium settings-btn-secondary">
                                     {t('common.cancel')}
                                 </Button>
                             </DialogClose>
-                            <Button onClick={handleDelete} className="rounded-lg border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md transition-all duration-200 hover:from-red-600 hover:to-red-700">
+                            <Button onClick={handleDelete} className="rounded-xl border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md transition-all duration-200 hover:from-red-600 hover:to-red-700">
                                 {t('common.delete')}
                             </Button>
                         </DialogFooter>
@@ -528,7 +528,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </Dialog>
 
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-                    <DialogContent className="card-gradient overflow-hidden rounded-lg border border-white/40 p-0 shadow-2xl dark:border-white/10 sm:max-w-xl sm:rounded-lg">
+                    <DialogContent className="card-gradient overflow-hidden rounded-2xl border border-white/40 p-0 shadow-2xl dark:border-white/10 sm:max-w-xl sm:rounded-2xl">
                         <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
                             <DialogTitle className="flex items-center gap-2 text-xl settings-title">
                                 <UserCircle className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
@@ -552,7 +552,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={createForm.data.name}
                                         onChange={(event) => createForm.setData('name', event.target.value)}
                                         placeholder={t('users.fullNamePlaceholder')}
-                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={createForm.errors.name} />
@@ -569,7 +569,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={createForm.data.email}
                                         onChange={(event) => createForm.setData('email', event.target.value)}
                                         placeholder={t('users.emailPlaceholder')}
-                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={createForm.errors.email} />
@@ -586,7 +586,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={createForm.data.password}
                                         onChange={(event) => createForm.setData('password', event.target.value)}
                                         placeholder={t('users.passwordPlaceholder')}
-                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={createForm.errors.password} />
@@ -603,7 +603,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={createForm.data.password_confirmation}
                                         onChange={(event) => createForm.setData('password_confirmation', event.target.value)}
                                         placeholder={t('users.confirmPasswordPlaceholder')}
-                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={createForm.errors.password_confirmation} />
@@ -615,10 +615,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         {t('users.role')}
                                     </Label>
                                     <Select value={createForm.data.role} onValueChange={(value) => createForm.setData('role', value as User['role'])}>
-                                        <SelectTrigger className="h-10 w-full rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
+                                        <SelectTrigger className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
-                                        <SelectContent className="card-gradient rounded-lg border border-white/40 p-1 shadow-lg dark:border-white/10">
+                                        <SelectContent className="card-gradient rounded-xl border border-white/40 p-1 shadow-lg dark:border-white/10">
                                             <SelectItem value="advisor" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
                                             <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
@@ -628,10 +628,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </div>
 
                             <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
-                                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)} className="rounded-lg text-sm settings-btn-secondary">
+                                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)} className="rounded-xl text-sm settings-btn-secondary">
                                     {t('common.cancel')}
                                 </Button>
-                                <Button type="submit" disabled={createForm.processing} className="rounded-lg text-sm settings-btn-primary disabled:opacity-50">
+                                <Button type="submit" disabled={createForm.processing} className="rounded-xl text-sm settings-btn-primary disabled:opacity-50">
                                     {createForm.processing ? t('users.creating') : t('users.createUser')}
                                 </Button>
                             </div>
@@ -640,7 +640,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </Dialog>
 
                 <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-                    <DialogContent className="card-gradient overflow-hidden rounded-lg border border-white/40 p-0 shadow-2xl dark:border-white/10 sm:max-w-xl sm:rounded-lg">
+                    <DialogContent className="card-gradient overflow-hidden rounded-2xl border border-white/40 p-0 shadow-2xl dark:border-white/10 sm:max-w-xl sm:rounded-2xl">
                         <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
                             <DialogTitle className="flex items-center gap-2 text-xl settings-title">
                                 <Edit3 className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
@@ -664,7 +664,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={editForm.data.name}
                                         onChange={(event) => editForm.setData('name', event.target.value)}
                                         placeholder={t('users.fullNamePlaceholder')}
-                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={editForm.errors.name} />
@@ -681,7 +681,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={editForm.data.email}
                                         onChange={(event) => editForm.setData('email', event.target.value)}
                                         placeholder={t('users.emailPlaceholder')}
-                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required
                                     />
                                     <InputError message={editForm.errors.email} />
@@ -698,7 +698,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={editForm.data.password}
                                         onChange={(event) => editForm.setData('password', event.target.value)}
                                         placeholder={t('users.newPasswordPlaceholder')}
-                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                     />
                                     <InputError message={editForm.errors.password} />
                                 </div>
@@ -714,7 +714,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         value={editForm.data.password_confirmation}
                                         onChange={(event) => editForm.setData('password_confirmation', event.target.value)}
                                         placeholder={t('users.confirmNewPasswordPlaceholder')}
-                                        className="rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
+                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                         required={!!editForm.data.password}
                                     />
                                     <InputError message={editForm.errors.password_confirmation} />
@@ -726,10 +726,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         {t('users.role')}
                                     </Label>
                                     <Select value={editForm.data.role} onValueChange={(value) => editForm.setData('role', value as User['role'])}>
-                                        <SelectTrigger className="h-10 w-full rounded-lg text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
+                                        <SelectTrigger className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
-                                        <SelectContent className="card-gradient rounded-lg border border-white/40 p-1 shadow-lg dark:border-white/10">
+                                        <SelectContent className="card-gradient rounded-xl border border-white/40 p-1 shadow-lg dark:border-white/10">
                                             <SelectItem value="advisor" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
                                             <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
@@ -739,10 +739,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </div>
 
                             <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
-                                <Button type="button" variant="outline" onClick={() => setShowEditModal(false)} className="rounded-lg text-sm settings-btn-secondary">
+                                <Button type="button" variant="outline" onClick={() => setShowEditModal(false)} className="rounded-xl text-sm settings-btn-secondary">
                                     {t('common.cancel')}
                                 </Button>
-                                <Button type="submit" disabled={editForm.processing} className="rounded-lg text-sm settings-btn-primary disabled:opacity-50">
+                                <Button type="submit" disabled={editForm.processing} className="rounded-xl text-sm settings-btn-primary disabled:opacity-50">
                                     {editForm.processing ? t('common.saving') : t('users.saveChanges')}
                                 </Button>
                             </div>

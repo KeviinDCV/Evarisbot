@@ -40,6 +40,62 @@ class WhatsAppService
     }
 
     /**
+     * Sube un archivo multimedia LOCAL directamente a Meta y devuelve su media_id.
+     *
+     * Esto reemplaza el envío por "link": antes le pasábamos a Meta la URL pública
+     * (túnel de Tailscale) y Meta venía a descargar el archivo, lo que fallaba de forma
+     * intermitente con el error 131053 "Media upload error / Downloading media from
+     * weblink failed (DNS resolution timed out / DNS query shed)". Subiendo los bytes
+     * nosotros, Meta ya no depende de poder resolver/alcanzar nuestro túnel.
+     *
+     * Devuelve null si no puede subir (archivo externo o fallo) → el método que llama
+     * hace fallback a enviar por 'link', así nunca se rompe el envío.
+     */
+    public function uploadMedia(string $mediaUrl): ?string
+    {
+        try {
+            // Resolver la ruta local desde la URL pública (.../storage/whatsapp_media/xxx.png)
+            $pos = strpos($mediaUrl, '/storage/');
+            if ($pos === false) {
+                return null; // No es un archivo servido por nosotros
+            }
+            $relative = explode('?', substr($mediaUrl, $pos + strlen('/storage/')))[0];
+
+            $disk = \Illuminate\Support\Facades\Storage::disk('public');
+            if (!$disk->exists($relative)) {
+                return null;
+            }
+
+            $mime = $disk->mimeType($relative) ?: 'application/octet-stream';
+
+            $response = Http::withToken($this->token)
+                ->timeout(60)
+                ->connectTimeout(10)
+                ->attach('file', $disk->get($relative), basename($relative), ['Content-Type' => $mime])
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/media", [
+                    'messaging_product' => 'whatsapp',
+                    'type' => $mime,
+                ]);
+
+            $mediaId = $response->json()['id'] ?? null;
+            if ($response->successful() && $mediaId) {
+                Log::info('Media subida directamente a Meta', ['media_id' => $mediaId, 'file' => basename($relative)]);
+                return $mediaId;
+            }
+
+            Log::warning('No se pudo subir media a Meta; se usará enlace como respaldo', [
+                'status' => $response->status(),
+                'body' => $response->json(),
+                'file' => basename($relative),
+            ]);
+            return null;
+        } catch (\Throwable $e) {
+            Log::warning('Excepción subiendo media a Meta; se usará enlace', ['error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
      * Enviar mensaje de texto
      */
     public function sendTextMessage(string $to, string $message, ?string $replyToWamid = null): array
@@ -181,18 +237,19 @@ class WhatsAppService
         }
 
         try {
+            // Subir el archivo a Meta y enviar por media_id (más confiable que el enlace).
+            $mediaId = $this->uploadMedia($imageUrl);
+            $image = $mediaId ? ['id' => $mediaId] : ['link' => $imageUrl];
+            if ($caption) {
+                $image['caption'] = $caption;
+            }
+
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'image',
-                'image' => [
-                    'link' => $imageUrl,
-                ],
+                'image' => $image,
             ];
-
-            if ($caption) {
-                $payload['image']['caption'] = $caption;
-            }
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -252,20 +309,19 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($documentUrl);
+            $document = $mediaId ? ['id' => $mediaId, 'filename' => $filename] : ['link' => $documentUrl, 'filename' => $filename];
+            // Agregar caption si existe
+            if ($caption) {
+                $document['caption'] = $caption;
+            }
+
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'document',
-                'document' => [
-                    'link' => $documentUrl,
-                    'filename' => $filename,
-                ],
+                'document' => $document,
             ];
-
-            // Agregar caption si existe
-            if ($caption) {
-                $payload['document']['caption'] = $caption;
-            }
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -315,18 +371,18 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($videoUrl);
+            $video = $mediaId ? ['id' => $mediaId] : ['link' => $videoUrl];
+            if ($caption) {
+                $video['caption'] = $caption;
+            }
+
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'video',
-                'video' => [
-                    'link' => $videoUrl,
-                ],
+                'video' => $video,
             ];
-
-            if ($caption) {
-                $payload['video']['caption'] = $caption;
-            }
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -374,13 +430,12 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($audioUrl);
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'audio',
-                'audio' => [
-                    'link' => $audioUrl,
-                ],
+                'audio' => $mediaId ? ['id' => $mediaId] : ['link' => $audioUrl],
             ];
 
             if ($replyToWamid) {

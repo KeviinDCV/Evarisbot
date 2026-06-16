@@ -128,15 +128,15 @@ function toneClasses(tone: MetricCardProps['tone'] = 'primary') {
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
     return (
-        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
             <div className="flex items-center gap-3">
-                <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border', toneClasses(tone))}>
+                <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border', toneClasses(tone))}>
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-[11px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
+                    <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
                     <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
-                    <p className="mt-1 truncate text-xs settings-subtitle">{detail}</p>
+                    <p className="mt-0.5 truncate text-xs settings-subtitle">{detail}</p>
                 </div>
             </div>
         </div>
@@ -145,10 +145,10 @@ function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: Metr
 
 function SectionCard({ icon: Icon, title, subtitle, action, children, className }: SectionCardProps) {
     return (
-        <section className={cn('card-gradient rounded-lg border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10', className)}>
+        <section className={cn('card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10', className)}>
             <div className="mb-4 flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10">
                 <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
                         <Icon className="h-4.5 w-4.5" />
                     </div>
                     <div className="min-w-0">
@@ -208,14 +208,14 @@ function EmptyState({ isAdmin, onCreate }: { isAdmin: boolean; onCreate: () => v
     const { t } = useTranslation();
 
     return (
-        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-lg border border-dashed border-[#d4d8e8] p-8 text-center dark:border-white/10">
+        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#d4d8e8] p-8 text-center dark:border-white/10">
             <MessageSquare className="mb-4 h-12 w-12 settings-subtitle" />
             <h3 className="text-lg font-bold settings-title">{t('templates.noTemplates')}</h3>
             <p className="mt-2 max-w-md text-sm settings-subtitle">
                 {isAdmin ? t('templates.noTemplatesSubtitle') : t('templates.noTemplatesViewer')}
             </p>
             {isAdmin && (
-                <Button onClick={onCreate} className="mt-5 rounded-lg settings-btn-primary text-white">
+                <Button onClick={onCreate} className="mt-5 rounded-xl settings-btn-primary text-white">
                     <Plus className="h-4 w-4" />
                     {t('templates.newTemplate')}
                 </Button>
@@ -353,7 +353,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                 <div className="mx-auto max-w-7xl space-y-6">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <FileText className="h-5 w-5" />
                             </div>
                             <div className="min-w-0">
@@ -364,7 +364,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                             </div>
                         </div>
                         {isAdmin && (
-                            <Button onClick={() => setIsCreateModalOpen(true)} className="w-full rounded-lg settings-btn-primary text-white sm:w-auto">
+                            <Button onClick={() => setIsCreateModalOpen(true)} className="w-full rounded-xl settings-btn-primary text-white sm:w-auto">
                                 <Plus className="h-4 w-4" />
                                 {t('templates.newTemplate')}
                             </Button>
@@ -405,7 +405,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                         onChange={(event) => setSearch(event.target.value)}
                                         onKeyDown={(event) => event.key === 'Enter' && handleFilter()}
                                         placeholder={t('templates.searchPlaceholder')}
-                                        className="h-9 rounded-lg pl-9 settings-input"
+                                        className="h-9 rounded-xl pl-9 settings-input"
                                     />
                                 </div>
                             </div>
@@ -419,7 +419,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                     name="template-status"
                                     value={statusFilter}
                                     onChange={(event) => setStatusFilter(event.target.value)}
-                                    className="h-9 w-full rounded-lg border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
+                                    className="h-9 w-full rounded-xl border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
                                 >
                                     {statusOptions.map((option) => (
                                         <option key={option.value} value={option.value}>
@@ -438,7 +438,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                     name="template-type"
                                     value={typeFilter}
                                     onChange={(event) => setTypeFilter(event.target.value)}
-                                    className="h-9 w-full rounded-lg border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
+                                    className="h-9 w-full rounded-xl border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
                                 >
                                     {typeOptions.map((option) => (
                                         <option key={option.value} value={option.value}>
@@ -448,11 +448,11 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                 </select>
                             </div>
 
-                            <Button onClick={handleFilter} className="h-9 rounded-lg settings-btn-primary text-white">
+                            <Button onClick={handleFilter} className="h-9 rounded-xl settings-btn-primary text-white">
                                 <Search className="h-4 w-4" />
                                 {t('common.filter')}
                             </Button>
-                            <Button onClick={clearFilters} variant="outline" className="h-9 rounded-lg settings-btn-secondary" disabled={!hasFilters}>
+                            <Button onClick={clearFilters} variant="outline" className="h-9 rounded-xl settings-btn-secondary" disabled={!hasFilters}>
                                 <X className="h-4 w-4" />
                                 Limpiar
                             </Button>
@@ -474,7 +474,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                                         whileHover={{ y: -3 }}
                                                         whileTap={{ scale: 0.98 }}
                                                         transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                                                        className="card-gradient flex cursor-pointer flex-col gap-3 rounded-xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 hover:shadow-md hover:shadow-[#2e3f84]/10 dark:border-white/10"
+                                                        className="card-gradient flex cursor-pointer flex-col gap-3 rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 hover:shadow-md hover:shadow-[#2e3f84]/10 dark:border-white/10"
                                                     >
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="min-w-0 flex-1">
@@ -511,21 +511,21 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                     </SectionCard>
 
                     <div className="grid gap-3 md:grid-cols-3">
-                        <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                             <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
                                 Activas
                             </div>
                             <p className="mt-2 text-xl font-bold settings-title">{formatNumber(stats.active)}</p>
                         </div>
-                        <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                             <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
                                 <CircleOff className="h-4 w-4 text-slate-500" />
                                 Inactivas
                             </div>
                             <p className="mt-2 text-xl font-bold settings-title">{formatNumber(stats.inactive)}</p>
                         </div>
-                        <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                             <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
                                 <UserCheck className="h-4 w-4 text-amber-600 dark:text-amber-300" />
                                 Asignadas
@@ -570,7 +570,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="flex-1 space-y-4 overflow-y-auto p-5">
                                 <div>
                                     <p className="mb-1.5 text-xs font-semibold settings-label">Contenido</p>
-                                    <div className="whitespace-pre-wrap rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 text-sm leading-6 settings-title [overflow-wrap:anywhere] dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="whitespace-pre-wrap rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 text-sm leading-6 settings-title [overflow-wrap:anywhere] dark:border-white/10 dark:bg-white/[0.03]">
                                         {openTemplate.content}
                                     </div>
                                 </div>
@@ -584,11 +584,11 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                                 : [{ url: openTemplate.media_url!, filename: openTemplate.media_filename || 'archivo', type: (openTemplate.message_type === 'image' ? 'image' : openTemplate.message_type === 'video' ? 'video' : 'document') as MediaFile['type'] }]
                                             ).map((file, i) => (
                                                 file.type === 'image' ? (
-                                                    <img key={i} src={file.url} alt={file.filename} className="h-28 w-28 rounded-lg border border-[#d4d8e8] object-cover dark:border-white/10" />
+                                                    <img key={i} src={file.url} alt={file.filename} className="h-28 w-28 rounded-xl border border-[#d4d8e8] object-cover dark:border-white/10" />
                                                 ) : file.type === 'video' ? (
-                                                    <video key={i} src={file.url} className="h-28 w-28 rounded-lg border border-[#d4d8e8] object-cover dark:border-white/10" />
+                                                    <video key={i} src={file.url} className="h-28 w-28 rounded-xl border border-[#d4d8e8] object-cover dark:border-white/10" />
                                                 ) : (
-                                                    <a key={i} href={file.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#d4d8e8] bg-white/50 px-3 py-2 text-xs font-semibold settings-title dark:border-white/10 dark:bg-white/[0.04]">
+                                                    <a key={i} href={file.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#d4d8e8] bg-white/50 px-3 py-2 text-xs font-semibold settings-title dark:border-white/10 dark:bg-white/[0.04]">
                                                         <FileText className="h-4 w-4" /> {file.filename}
                                                     </a>
                                                 )
@@ -598,11 +598,11 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                 )}
 
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                                         <p className="text-[11px] settings-subtitle">Envíos registrados</p>
                                         <p className="mt-0.5 text-lg font-bold settings-title">{formatNumber(openTemplate.usage_stats?.total_sends)}</p>
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                                         <p className="text-[11px] settings-subtitle">Actualización</p>
                                         <p className="mt-0.5 text-sm font-bold settings-title">{formatDate(openTemplate.updated_at || openTemplate.created_at)}</p>
                                         <p className="text-[11px] settings-subtitle">{openTemplate.updated_by ? `por ${openTemplate.updated_by}` : `creada por ${openTemplate.created_by}`}</p>
@@ -612,17 +612,17 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
 
                             {isAdmin && (
                                 <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#d4d8e8]/80 p-4 dark:border-white/10">
-                                    <Button variant="outline" onClick={() => { deleteTemplate(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-lg border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10">
+                                    <Button variant="outline" onClick={() => { deleteTemplate(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10">
                                         <Trash2 className="h-4 w-4" /> Eliminar
                                     </Button>
-                                    <Button variant="outline" onClick={() => { toggleStatus(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-lg settings-btn-secondary">
+                                    <Button variant="outline" onClick={() => { toggleStatus(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-xl settings-btn-secondary">
                                         {openTemplate.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
                                         {openTemplate.is_active ? 'Desactivar' : 'Activar'}
                                     </Button>
-                                    <Button variant="outline" onClick={() => { setTemplateToEdit(openTemplate); setIsEditModalOpen(true); setOpenTemplate(null); }} className="h-9 rounded-lg settings-btn-secondary">
+                                    <Button variant="outline" onClick={() => { setTemplateToEdit(openTemplate); setIsEditModalOpen(true); setOpenTemplate(null); }} className="h-9 rounded-xl settings-btn-secondary">
                                         <Edit3 className="h-4 w-4" /> Editar
                                     </Button>
-                                    <Button onClick={() => router.get(`/admin/templates/${openTemplate.id}/send-form`)} className="h-9 rounded-lg settings-btn-primary text-white">
+                                    <Button onClick={() => router.get(`/admin/templates/${openTemplate.id}/send-form`)} className="h-9 rounded-xl settings-btn-primary text-white">
                                         <Send className="h-4 w-4" /> Enviar
                                     </Button>
                                 </div>
