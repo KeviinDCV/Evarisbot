@@ -11,6 +11,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
     ArrowRight,
@@ -485,16 +492,16 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             <Label htmlFor="flow-trigger" className="text-sm font-semibold settings-label">
                                 ¿Cuándo se envía?
                             </Label>
-                            <select
-                                id="flow-trigger"
-                                value={data.trigger_type}
-                                onChange={(event) => setData('trigger_type', event.target.value)}
-                                className="h-9 w-full rounded-xl border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
-                            >
-                                <option value="first_contact">Solo primer contacto</option>
-                                <option value="every_new_conversation">Cada conversación nueva</option>
-                                <option value="always">Siempre</option>
-                            </select>
+                            <Select value={data.trigger_type} onValueChange={(v) => setData('trigger_type', v)}>
+                                <SelectTrigger id="flow-trigger" className="w-full h-10 settings-input rounded-xl">
+                                    <SelectValue placeholder="Selecciona cuándo se envía" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                    <SelectItem value="first_contact" className="rounded-lg cursor-pointer">Solo primer contacto</SelectItem>
+                                    <SelectItem value="every_new_conversation" className="rounded-lg cursor-pointer">Cada conversación nueva</SelectItem>
+                                    <SelectItem value="always" className="rounded-lg cursor-pointer">Siempre</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="space-y-1.5">

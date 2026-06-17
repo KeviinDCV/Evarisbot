@@ -1324,7 +1324,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                     transition={{ type: 'spring', stiffness: 500, damping: 22 }}
                                                                     style={{ transformOrigin: 'bottom center' }}
                                                                     className={cn(
-                                                                        'absolute z-30 bottom-full mb-2 flex items-center gap-1.5 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2 py-2',
+                                                                        'absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2 py-1.5',
                                                                         msg.is_mine ? 'right-0' : 'left-0'
                                                                     )}
                                                                 >
@@ -1338,7 +1338,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                             whileTap={{ scale: 0.85 }}
                                                                             onClick={() => handleReact(msg, emoji)}
                                                                             aria-label={REACTION_LABELS[emoji]}
-                                                                            className="group relative flex items-center justify-center cursor-pointer rounded-full px-2.5 py-1.5 text-[26px] leading-none"
+                                                                            className="group relative flex items-center justify-center cursor-pointer rounded-full px-1 py-1 text-[26px] leading-none"
                                                                         >
                                                                             <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:bg-white dark:text-black">
                                                                                 {REACTION_LABELS[emoji]}

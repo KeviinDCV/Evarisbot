@@ -32,6 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin/chat/*/send',
             'admin/chat/*/viewing',
             'admin/chat/*/typing',
+            // Marcar-como-leído del chat interno: corre en polling frecuente y daba 419
+            // cuando el token quedaba stale. No muta estado sensible (solo lee/marca leído).
+            'admin/internal-chat/*/read',
         ]);
 
         $middleware->web(append: [

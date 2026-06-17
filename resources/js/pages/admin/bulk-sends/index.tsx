@@ -5,6 +5,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 
 interface Recipient {
@@ -1068,22 +1070,21 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             </label>
                                             {whatsappTemplates.length > 0 ? (
                                                 <div className="space-y-3">
-                                                    <div className="relative">
-                                                        <select
-                                                            value={selectedTemplate?.id || ''}
-                                                            onChange={(e) => handleSelectTemplate(e.target.value)}
-                                                            className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 appearance-none pr-10 cursor-pointer focus:ring-2 focus:ring-[#2e3f84]/30"
-                                                            style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
-                                                        >
-                                                            <option value="">— Seleccione una plantilla —</option>
+                                                    <Select
+                                                        value={selectedTemplate?.id ? String(selectedTemplate.id) : undefined}
+                                                        onValueChange={(v) => handleSelectTemplate(v)}
+                                                    >
+                                                        <SelectTrigger className="w-full h-10 settings-input rounded-xl">
+                                                            <SelectValue placeholder="— Seleccione una plantilla —" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
                                                             {whatsappTemplates.map((t) => (
-                                                                <option key={t.id} value={t.id}>
+                                                                <SelectItem key={t.id} value={String(t.id)} className="rounded-lg cursor-pointer">
                                                                     {t.header_format && ['DOCUMENT', 'IMAGE', 'VIDEO'].includes(t.header_format) ? '📎 ' : ''}{t.name}
-                                                                </option>
+                                                                </SelectItem>
                                                             ))}
-                                                        </select>
-                                                        <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                                                    </div>
+                                                        </SelectContent>
+                                                    </Select>
 
                                                     {/* Preview del template seleccionado */}
                                                     {selectedTemplate && (
@@ -1211,16 +1212,16 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                     {`{{${idx}}}`}
                                                                 </span>
                                                                 <ArrowRight className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                                                <div className="relative flex-1">
-                                                                    <select
+                                                                <div className="flex-1">
+                                                                    <Select
                                                                         value={
                                                                             source === 'nombre' ? '__nombre__' :
                                                                             source === 'column' && !columnMissing ? `__col__${mapping?.column}` :
                                                                             source === 'static' ? '__static__' :
-                                                                            ''
+                                                                            undefined
                                                                         }
-                                                                        onChange={(e) => {
-                                                                            const val = e.target.value;
+                                                                        onValueChange={(v) => {
+                                                                            const val = v;
                                                                             const newMapping = { ...columnMapping };
                                                                             if (val === '__nombre__') {
                                                                                 newMapping[String(idx)] = { source: 'nombre' };
@@ -1232,19 +1233,25 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                             }
                                                                             setColumnMapping(newMapping);
                                                                         }}
-                                                                        className={`w-full settings-input rounded-xl text-sm appearance-none pr-8 cursor-pointer ${isUnset ? 'border-red-400 ring-1 ring-red-300/60 dark:border-red-500/70' : 'border-gray-200 dark:border-gray-800'}`}
-                                                                        style={{ height: '2rem', fontSize: '0.8125rem' }}
                                                                     >
-                                                                        <option value="" disabled>— Selecciona el origen —</option>
-                                                                        <option value="__nombre__">📋 Nombre del contacto</option>
-                                                                        {extraColumns.map((col) => (
-                                                                            <option key={col} value={`__col__${col}`}>
-                                                                                📊 Columna: {col}
-                                                                            </option>
-                                                                        ))}
-                                                                        <option value="__static__">✏️ Valor fijo</option>
-                                                                    </select>
-                                                                    <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                                                                        <SelectTrigger
+                                                                            className={cn(
+                                                                                'w-full h-8 settings-input rounded-xl text-sm',
+                                                                                isUnset ? 'border-red-400 ring-1 ring-red-300/60 dark:border-red-500/70' : 'border-gray-200 dark:border-gray-800'
+                                                                            )}
+                                                                        >
+                                                                            <SelectValue placeholder="— Selecciona el origen —" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                                            <SelectItem value="__nombre__" className="rounded-lg cursor-pointer">📋 Nombre del contacto</SelectItem>
+                                                                            {extraColumns.map((col) => (
+                                                                                <SelectItem key={col} value={`__col__${col}`} className="rounded-lg cursor-pointer">
+                                                                                    📊 Columna: {col}
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                            <SelectItem value="__static__" className="rounded-lg cursor-pointer">✏️ Valor fijo</SelectItem>
+                                                                        </SelectContent>
+                                                                    </Select>
                                                                 </div>
                                                                 {source === 'static' && (
                                                                     <input
@@ -2002,39 +2009,41 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             <label className="block font-semibold mb-1.5 settings-label text-sm">
                                                 Categoría *
                                             </label>
-                                            <div className="relative">
-                                                <select
-                                                    value={newTplCategory}
-                                                    onChange={(e) => setNewTplCategory(e.target.value as 'MARKETING' | 'UTILITY' | 'AUTHENTICATION')}
-                                                    className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm appearance-none pr-10 cursor-pointer"
-                                                >
-                                                    <option value="UTILITY">Utilidad</option>
-                                                    <option value="MARKETING">Marketing</option>
-                                                    <option value="AUTHENTICATION">Autenticación</option>
-                                                </select>
-                                                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                                            </div>
+                                            <Select
+                                                value={newTplCategory}
+                                                onValueChange={(v) => setNewTplCategory(v as 'MARKETING' | 'UTILITY' | 'AUTHENTICATION')}
+                                            >
+                                                <SelectTrigger className="w-full h-10 settings-input rounded-xl">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                    <SelectItem value="UTILITY" className="rounded-lg cursor-pointer">Utilidad</SelectItem>
+                                                    <SelectItem value="MARKETING" className="rounded-lg cursor-pointer">Marketing</SelectItem>
+                                                    <SelectItem value="AUTHENTICATION" className="rounded-lg cursor-pointer">Autenticación</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                         <div>
                                             <label className="block font-semibold mb-1.5 settings-label text-sm">
                                                 Idioma *
                                             </label>
-                                            <div className="relative">
-                                                <select
-                                                    value={newTplLanguage}
-                                                    onChange={(e) => setNewTplLanguage(e.target.value)}
-                                                    className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm appearance-none pr-10 cursor-pointer"
-                                                >
-                                                    <option value="es">Español</option>
-                                                    <option value="es_CO">Español (Colombia)</option>
-                                                    <option value="es_MX">Español (México)</option>
-                                                    <option value="es_AR">Español (Argentina)</option>
-                                                    <option value="en">Inglés</option>
-                                                    <option value="en_US">Inglés (US)</option>
-                                                    <option value="pt_BR">Portugués (Brasil)</option>
-                                                </select>
-                                                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                                            </div>
+                                            <Select
+                                                value={newTplLanguage}
+                                                onValueChange={(v) => setNewTplLanguage(v)}
+                                            >
+                                                <SelectTrigger className="w-full h-10 settings-input rounded-xl">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                    <SelectItem value="es" className="rounded-lg cursor-pointer">Español</SelectItem>
+                                                    <SelectItem value="es_CO" className="rounded-lg cursor-pointer">Español (Colombia)</SelectItem>
+                                                    <SelectItem value="es_MX" className="rounded-lg cursor-pointer">Español (México)</SelectItem>
+                                                    <SelectItem value="es_AR" className="rounded-lg cursor-pointer">Español (Argentina)</SelectItem>
+                                                    <SelectItem value="en" className="rounded-lg cursor-pointer">Inglés</SelectItem>
+                                                    <SelectItem value="en_US" className="rounded-lg cursor-pointer">Inglés (US)</SelectItem>
+                                                    <SelectItem value="pt_BR" className="rounded-lg cursor-pointer">Portugués (Brasil)</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                     </div>
 
@@ -2043,23 +2052,26 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <label className="block font-semibold mb-1.5 settings-label text-sm">
                                             Encabezado <span className="font-normal text-muted-foreground">(opcional)</span>
                                         </label>
-                                        <div className="relative mb-2">
-                                            <select
+                                        <div className="mb-2">
+                                            <Select
                                                 value={newTplHeaderFormat}
-                                                onChange={(e) => {
-                                                    setNewTplHeaderFormat(e.target.value as 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT');
+                                                onValueChange={(v) => {
+                                                    setNewTplHeaderFormat(v as 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT');
                                                     setNewTplHeader('');
                                                     setNewTplHeaderMediaUrl('');
                                                 }}
-                                                className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm appearance-none pr-10 cursor-pointer"
                                             >
-                                                <option value="NONE">Sin encabezado</option>
-                                                <option value="TEXT">Texto</option>
-                                                <option value="IMAGE">Imagen</option>
-                                                <option value="VIDEO">Video</option>
-                                                <option value="DOCUMENT">Documento</option>
-                                            </select>
-                                            <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                                                <SelectTrigger className="w-full h-10 settings-input rounded-xl">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                    <SelectItem value="NONE" className="rounded-lg cursor-pointer">Sin encabezado</SelectItem>
+                                                    <SelectItem value="TEXT" className="rounded-lg cursor-pointer">Texto</SelectItem>
+                                                    <SelectItem value="IMAGE" className="rounded-lg cursor-pointer">Imagen</SelectItem>
+                                                    <SelectItem value="VIDEO" className="rounded-lg cursor-pointer">Video</SelectItem>
+                                                    <SelectItem value="DOCUMENT" className="rounded-lg cursor-pointer">Documento</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
                                         {newTplHeaderFormat === 'TEXT' && (
                                             <input

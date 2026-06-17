@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
     Bot,
@@ -414,38 +415,36 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                 <label htmlFor="template-status" className="mb-1.5 block text-xs font-semibold settings-label">
                                     {t('common.status')}
                                 </label>
-                                <select
-                                    id="template-status"
-                                    name="template-status"
-                                    value={statusFilter}
-                                    onChange={(event) => setStatusFilter(event.target.value)}
-                                    className="h-9 w-full rounded-xl border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
-                                >
-                                    {statusOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
+                                    <SelectTrigger id="template-status" className="w-full h-9 settings-input rounded-xl">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                        {statusOptions.map((option) => (
+                                            <SelectItem key={option.value} value={option.value} className="rounded-lg cursor-pointer">
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <div>
                                 <label htmlFor="template-type" className="mb-1.5 block text-xs font-semibold settings-label">
                                     {t('templates.type')}
                                 </label>
-                                <select
-                                    id="template-type"
-                                    name="template-type"
-                                    value={typeFilter}
-                                    onChange={(event) => setTypeFilter(event.target.value)}
-                                    className="h-9 w-full rounded-xl border border-gray-200 px-3 text-sm settings-input dark:border-gray-800"
-                                >
-                                    {typeOptions.map((option) => (
-                                        <option key={option.value} value={option.value}>
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v)}>
+                                    <SelectTrigger id="template-type" className="w-full h-9 settings-input rounded-xl">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                        {typeOptions.map((option) => (
+                                            <SelectItem key={option.value} value={option.value} className="rounded-lg cursor-pointer">
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             <Button onClick={handleFilter} className="h-9 rounded-xl settings-btn-primary text-white">

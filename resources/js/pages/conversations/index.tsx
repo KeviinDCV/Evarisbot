@@ -76,6 +76,14 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
@@ -236,6 +244,68 @@ interface ConversationsIndexProps {
     advisorCounts?: Record<number, number>;
     templates?: Template[];
     whatsappTemplates?: WhatsappTemplate[];
+}
+
+/**
+ * Selector de plantilla de WhatsApp personalizado al estilo de la app.
+ * Reemplaza el <select> nativo por el dropdown de shadcn con cada plantilla
+ * mostrando su nombre, ícono de adjunto (documentos) y una etiqueta de categoría.
+ */
+function WaTemplateSelect({
+    templates,
+    value,
+    onChange,
+    placeholder = 'Seleccionar plantilla...',
+}: {
+    templates: WhatsappTemplate[];
+    value: number | null;
+    onChange: (id: number | null) => void;
+    placeholder?: string;
+}) {
+    return (
+        <Select
+            value={value ? String(value) : undefined}
+            onValueChange={(val) => onChange(val ? Number(val) : null)}
+        >
+            <SelectTrigger className="w-full !h-11 settings-input rounded-xl data-[placeholder]:text-muted-foreground">
+                <SelectValue placeholder={placeholder} />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                {templates.map((tpl) => {
+                    const isMarketing = tpl.category === 'MARKETING';
+                    const categoryLabel = isMarketing
+                        ? 'Marketing'
+                        : tpl.category === 'UTILITY'
+                            ? 'Utilidad'
+                            : tpl.category || 'Sin categoría';
+                    return (
+                        <SelectItem
+                            key={tpl.id}
+                            value={String(tpl.id)}
+                            className="rounded-lg cursor-pointer py-2.5 pr-8"
+                        >
+                            <span className="flex items-center gap-2">
+                                {tpl.header_format === 'DOCUMENT' && (
+                                    <Paperclip className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                                )}
+                                <span className="font-medium text-foreground truncate">{tpl.name}</span>
+                                <span
+                                    className={cn(
+                                        'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                                        isMarketing
+                                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                                            : 'bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-[hsl(231,55%,70%)]/15 dark:text-[hsl(231,55%,75%)]',
+                                    )}
+                                >
+                                    {categoryLabel}
+                                </span>
+                            </span>
+                        </SelectItem>
+                    );
+                })}
+            </SelectContent>
+        </Select>
+    );
 }
 
 export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
@@ -4177,7 +4247,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             animate={{ opacity: 1, scale: 1, y: 0 }}
                                                             transition={{ type: 'spring', stiffness: 500, damping: 22 }}
                                                             style={{ transformOrigin: 'bottom center' }}
-                                                            className={`absolute z-30 bottom-full mb-2 flex items-center gap-1.5 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2 py-2 ${message.is_from_user ? 'left-0' : 'right-0'}`}
+                                                            className={`absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2 py-1.5 ${message.is_from_user ? 'left-0' : 'right-0'}`}
                                                         >
                                                             {QUICK_REACTIONS.map((emoji, i) => (
                                                                 <motion.button
@@ -4189,7 +4259,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                     whileTap={{ scale: 0.85 }}
                                                                     onClick={() => handleReact(message, emoji)}
                                                                     aria-label={REACTION_LABELS[emoji]}
-                                                                    className="group relative flex items-center justify-center cursor-pointer rounded-full px-2.5 py-1.5 text-[26px] leading-none"
+                                                                    className="group relative flex items-center justify-center cursor-pointer rounded-full px-1 py-1 text-[26px] leading-none"
                                                                 >
                                                                     <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:bg-white dark:text-black">
                                                                         {REACTION_LABELS[emoji]}
@@ -4870,23 +4940,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                             <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
                                 Plantilla *
                             </label>
-                            <select
-                                value={waTemplateId || ''}
-                                onChange={(e) => {
-                                    const templateId = e.target.value ? Number(e.target.value) : null;
+                            <WaTemplateSelect
+                                templates={whatsappTemplates}
+                                value={waTemplateId}
+                                onChange={(templateId) => {
                                     const selectedTpl = whatsappTemplates.find(t => t.id === templateId);
                                     setWaTemplateId(templateId);
                                     setWaTemplateParams(selectedTpl ? Array(getTemplateParamCount(selectedTpl)).fill('') : []);
                                 }}
-                                className="w-full h-10 px-3 settings-input rounded-xl"
-                            >
-                                <option value="">Seleccionar plantilla...</option>
-                                {whatsappTemplates.map((tpl) => (
-                                    <option key={tpl.id} value={tpl.id}>
-                                        {tpl.name} ({tpl.meta_template_name}) — {tpl.header_format === 'DOCUMENT' ? '📎 ' : ''}{tpl.category === 'MARKETING' ? '📢 Marketing' : tpl.category === 'UTILITY' ? '⚙️ Utilidad' : tpl.category || 'Sin categoría'}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                             {whatsappTemplates.length === 0 && (
                                 <p className="text-xs text-amber-600 dark:text-amber-400">
                                     No hay plantillas aprobadas. Créelas desde Envíos Masivos.
@@ -5191,10 +5253,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                             <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
                                 Plantilla de WhatsApp *
                             </label>
-                            <select
-                                value={newChatData.whatsapp_template_id || ''}
-                                onChange={(e) => {
-                                    const templateId = e.target.value ? Number(e.target.value) : null;
+                            <WaTemplateSelect
+                                templates={whatsappTemplates}
+                                value={newChatData.whatsapp_template_id}
+                                onChange={(templateId) => {
                                     const selectedTpl = whatsappTemplates.find(t => t.id === templateId);
                                     setNewChatData({
                                         ...newChatData,
@@ -5202,15 +5264,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         template_params: selectedTpl ? Array(getTemplateParamCount(selectedTpl)).fill('') : [],
                                     });
                                 }}
-                                className="w-full h-10 px-3 settings-input rounded-xl"
-                            >
-                                <option value="">Seleccionar plantilla...</option>
-                                {whatsappTemplates.map((tpl) => (
-                                    <option key={tpl.id} value={tpl.id}>
-                                        {tpl.name} ({tpl.meta_template_name}) — {tpl.header_format === 'DOCUMENT' ? '📎 ' : ''}{tpl.category === 'MARKETING' ? '📢 Marketing' : tpl.category === 'UTILITY' ? '⚙️ Utilidad' : tpl.category || 'Sin categoría'}
-                                    </option>
-                                ))}
-                            </select>
+                            />
                             {whatsappTemplates.length === 0 && (
                                 <p className="text-xs text-amber-600 dark:text-amber-400">
                                     No hay plantillas aprobadas disponibles. Cree y apruebe plantillas desde Envíos Masivos.
@@ -5287,18 +5341,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                             <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
                                 Asignar a asesor (opcional)
                             </label>
-                            <select
-                                value={newChatData.assigned_to || ''}
-                                onChange={(e) => setNewChatData({ ...newChatData, assigned_to: e.target.value ? Number(e.target.value) : null })}
-                                className="w-full h-10 px-3 settings-input rounded-xl"
+                            <Select
+                                value={newChatData.assigned_to ? String(newChatData.assigned_to) : '__self__'}
+                                onValueChange={(v) => setNewChatData({ ...newChatData, assigned_to: v === '__self__' ? null : Number(v) })}
                             >
-                                <option value="">Yo mismo (Admin)</option>
-                                {users.filter(user => user.id !== auth.user.id).map((user) => (
-                                    <option key={user.id} value={user.id}>
-                                        {user.name} {user.role === 'admin' ? '(Admin)' : ''}
-                                    </option>
-                                ))}
-                            </select>
+                                <SelectTrigger className="w-full h-10 settings-input rounded-xl">
+                                    <SelectValue placeholder="Yo mismo (Admin)" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                    <SelectItem value="__self__" className="rounded-lg cursor-pointer">Yo mismo (Admin)</SelectItem>
+                                    {users.filter(user => user.id !== auth.user.id).map((user) => (
+                                        <SelectItem key={user.id} value={String(user.id)} className="rounded-lg cursor-pointer">
+                                            {user.name} {user.role === 'admin' ? '(Admin)' : ''}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         {newChatError && (
