@@ -374,19 +374,20 @@
         @apply bg-background text-foreground;
     }
 
-    /* Eliminar el outline del navegador en todos los elementos */
-    *:focus,
-    *:focus-visible {
-        outline: none !important;
-        box-shadow: none !important;
+    /* Ocultar el outline SOLO cuando el foco viene del mouse/touch; mantener un
+       anillo visible para navegación por teclado (accesibilidad WCAG 2.4.7). */
+    *:focus:not(:focus-visible) {
+        outline: none;
     }
 
-    /* Eliminar el borde azul en botones en algunos navegadores */
-    button:focus,
-    input:focus,
-    textarea:focus,
-    select:focus {
-        outline: none !important;
+    *:focus-visible {
+        outline: 2px solid #2e3f84;
+        outline-offset: 2px;
+        border-radius: inherit;
+    }
+
+    .dark *:focus-visible {
+        outline-color: #53bdeb;
     }
 }
 
@@ -1459,8 +1460,8 @@ tr.table-row-hover:hover {
 }
 
 .dark .chat-date-separator span {
-    background-color: hsl(30, 4%, 20%);
-    color: hsl(30, 5%, 65%);
+    background-color: rgba(83, 189, 235, 0.14);
+    color: #9ed3ec;
 }
 
 /* ============================================
@@ -1479,5 +1480,5 @@ tr.table-row-hover:hover {
     /* Las tarjetas fuera del viewport no se renderizan hasta hacer scroll:
        menos trabajo de layout/paint en cada poll de la lista (cada 10s). */
     content-visibility: auto;
-    contain-intrinsic-size: auto 92px;
+    contain-intrinsic-size: auto 84px;
 }

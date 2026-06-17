@@ -56,6 +56,9 @@ import {
     ShieldBan,
     Reply,
     SmilePlus,
+    Copy,
+    ArrowLeft,
+    Image as ImageIcon,
 } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -244,6 +247,74 @@ interface ConversationsIndexProps {
     advisorCounts?: Record<number, number>;
     templates?: Template[];
     whatsappTemplates?: WhatsappTemplate[];
+}
+
+/**
+ * Convierte URLs, correos y teléfonos dentro del texto de un mensaje en enlaces
+ * clicables, conservando los saltos de línea. Devuelve nodos de React.
+ */
+const RICH_TEXT_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+|[\w.+-]+@[\w-]+\.[\w.-]+|(?:\+?57[\s-]?)?3\d{2}[\s-]?\d{3}[\s-]?\d{4})/g;
+
+function renderRichText(text: string) {
+    if (!text) return text;
+    const parts = text.split(RICH_TEXT_REGEX);
+    return parts.map((part, i) => {
+        if (!part) return null;
+        if (/^https?:\/\//i.test(part) || /^www\./i.test(part)) {
+            const href = part.startsWith('http') ? part : `https://${part}`;
+            return (
+                <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="underline decoration-1 underline-offset-2 text-[#1f7aad] dark:text-[#53bdeb] break-all">{part}</a>
+            );
+        }
+        if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(part)) {
+            return <a key={i} href={`mailto:${part}`} className="underline decoration-1 underline-offset-2 text-[#1f7aad] dark:text-[#53bdeb]">{part}</a>;
+        }
+        if (/^(?:\+?57[\s-]?)?3\d{2}[\s-]?\d{3}[\s-]?\d{4}$/.test(part)) {
+            const tel = part.replace(/[\s-]/g, '');
+            return <a key={i} href={`tel:${tel}`} className="underline decoration-1 underline-offset-2 text-[#1f7aad] dark:text-[#53bdeb]">{part}</a>;
+        }
+        return part;
+    });
+}
+
+/** Fecha y hora completas para el tooltip de la marca de tiempo de un mensaje. */
+function formatFullDateTime(iso: string) {
+    try {
+        return new Date(iso).toLocaleString('es-CO', {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+        });
+    } catch {
+        return '';
+    }
+}
+
+// Emojis frecuentes para el picker del composer (sin dependencias pesadas)
+const COMPOSER_EMOJIS = ['😀', '😅', '😂', '🙂', '😉', '😍', '😘', '😊', '👍', '🙏', '👏', '🙌', '👌', '💪', '🎉', '❤️', '🔥', '✅', '⚠️', '❌', '📅', '🕐', '📍', '📎'];
+
+/**
+ * Imagen de mensaje con fallback si la URL falla (medios de WhatsApp/Meta que expiran
+ * o un corte momentáneo de LAN). Evita el ícono de imagen rota del navegador.
+ */
+function ChatImage({ src, alt, className, layoutId }: { src: string; alt?: string; className?: string; layoutId?: string }) {
+    const [errored, setErrored] = useState(false);
+    if (errored) {
+        return (
+            <div className={`flex flex-col items-center justify-center gap-1 bg-black/5 dark:bg-white/5 text-[#667781] dark:text-neutral-400 rounded-xl p-6 min-w-[140px] ${className || ''}`}>
+                <ImageIcon className="w-7 h-7 opacity-60" />
+                <span className="text-xs">No se pudo cargar</span>
+            </div>
+        );
+    }
+    return (
+        <motion.img
+            layoutId={layoutId}
+            src={src}
+            alt={alt}
+            className={className}
+            loading="lazy"
+            onError={() => setErrored(true)}
+        />
+    );
 }
 
 /**
@@ -622,8 +693,32 @@ export default function ConversationsIndex({ conversations: initialConversations
             setTemplateFilter('');
         }
 
+        // Fallback de auto-crecimiento del textarea para navegadores sin field-sizing-content
+        // (Firefox / Safari < 18.4). En navegadores modernos coincide con field-sizing, así que es inocuo.
+        const ta = textareaRef.current;
+        if (ta) {
+            ta.style.height = 'auto';
+            ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+        }
+
         // Emit typing indicator
         emitTyping();
+    };
+
+    // Insertar un emoji en la posición del cursor del composer
+    const insertEmoji = (emoji: string) => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const start = ta.selectionStart ?? ta.value.length;
+        const end = ta.selectionEnd ?? ta.value.length;
+        const newValue = ta.value.slice(0, start) + emoji + ta.value.slice(end);
+        ta.value = newValue;
+        handleMessageChange(newValue);
+        requestAnimationFrame(() => {
+            ta.focus();
+            const pos = start + emoji.length;
+            ta.setSelectionRange(pos, pos);
+        });
     };
 
     // Seleccionar una plantilla
@@ -671,7 +766,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Manejar teclas de navegación para plantillas
     const handleTemplateKeyDown = (e: React.KeyboardEvent) => {
         if (!showTemplates || filteredTemplates.length === 0) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            // En pantallas táctiles (sin Shift) Enter inserta salto de línea; se envía con el botón.
+            if (e.key === 'Enter' && !e.shiftKey && !window.matchMedia?.('(pointer: coarse)')?.matches) {
                 handleSubmit(e);
             }
             return;
@@ -703,7 +799,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 setSelectedTemplateIndex(0);
                 break;
             default:
-                if (e.key === 'Enter' && !e.shiftKey && !showTemplates) {
+                if (e.key === 'Enter' && !e.shiftKey && !showTemplates && !window.matchMedia?.('(pointer: coarse)')?.matches) {
                     handleSubmit(e);
                 }
         }
@@ -721,6 +817,12 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Estados para control de scroll inteligente
     const [isAtBottom, setIsAtBottom] = useState(true);
     const [newMessagesCount, setNewMessagesCount] = useState(0);
+    // Indicador de conexión inestable (fallos consecutivos de polling / navegador offline)
+    const [connectionStale, setConnectionStale] = useState(false);
+    const pollFailuresRef = useRef(0);
+    // Picker de emojis del composer y arrastrar-soltar archivos
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [isFileDragging, setIsFileDragging] = useState(false);
     // Divisor "Mensajes nuevos" (tipo WhatsApp): ancla y visibilidad (se auto-oculta)
     const [newMsgAnchorId, setNewMsgAnchorId] = useState<number | null>(null);
     const [showNewDivider, setShowNewDivider] = useState(false);
@@ -1424,8 +1526,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Update typing and viewing indicators
                 setTypingUsers(res.data.typing || []);
                 setViewingUsers(res.data.viewing || []);
+
+                // Polling exitoso: la conexión está sana de nuevo.
+                pollFailuresRef.current = 0;
+                setConnectionStale(false);
             } catch {
-                // Silenciar errores de polling
+                // Tras 2 fallos consecutivos, avisar que la conexión quedó inestable
+                // (servidor reiniciado, caída de LAN, etc.) en vez de silenciar siempre.
+                pollFailuresRef.current += 1;
+                if (pollFailuresRef.current >= 2) setConnectionStale(true);
             }
         }, 5000);
 
@@ -1434,6 +1543,18 @@ export default function ConversationsIndex({ conversations: initialConversations
             clearInterval(messagesInterval);
         };
     }, [selectedConversation?.id]);
+
+    // Avisar al instante cuando el navegador pierde/recupera la conexión.
+    useEffect(() => {
+        const goOffline = () => setConnectionStale(true);
+        const goOnline = () => { pollFailuresRef.current = 0; setConnectionStale(false); };
+        window.addEventListener('offline', goOffline);
+        window.addEventListener('online', goOnline);
+        return () => {
+            window.removeEventListener('offline', goOffline);
+            window.removeEventListener('online', goOnline);
+        };
+    }, []);
 
     // Heartbeat de presencia: señalar que estamos viendo esta conversación
     useEffect(() => {
@@ -1455,6 +1576,16 @@ export default function ConversationsIndex({ conversations: initialConversations
         const viewingInterval = setInterval(sendViewing, 10000);
 
         return () => clearInterval(viewingInterval);
+    }, [selectedConversation?.id]);
+
+    // Enfocar el composer al abrir una conversación (flujo de teclado del asesor en desktop).
+    // No roba el foco en táctil (evita abrir el teclado en pantalla); si el chat está
+    // bloqueado el composer no se renderiza, así que textareaRef.current es null y no hace nada.
+    useEffect(() => {
+        if (!selectedConversation?.id) return;
+        if (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) return;
+        const focusId = window.setTimeout(() => textareaRef.current?.focus(), 80);
+        return () => window.clearTimeout(focusId);
     }, [selectedConversation?.id]);
 
     // Debounce para la búsqueda
@@ -2063,19 +2194,19 @@ export default function ConversationsIndex({ conversations: initialConversations
             case 'pending':
                 return (
                     <span title={t('conversations.status.sending')}>
-                        <Clock className="w-3.5 h-3.5 text-[#667781] dark:text-[#8696a0] animate-pulse" />
+                        <Clock className="w-3 h-3 text-[#667781] dark:text-[#8696a0] animate-pulse" />
                     </span>
                 );
             case 'sent':
                 return (
                     <span title={t('conversations.status.sent')}>
-                        <Check className="w-3.5 h-3.5 text-[#667781] dark:text-[#8696a0]" />
+                        <Check className="w-3 h-3 text-[#667781] dark:text-[#8696a0]" />
                     </span>
                 );
             case 'delivered':
                 return (
                     <span title={t('conversations.status.delivered')}>
-                        <CheckCheck className="w-3.5 h-3.5 text-[#667781] dark:text-[#8696a0]" />
+                        <CheckCheck className="w-3 h-3 text-[#667781] dark:text-[#8696a0]" />
                     </span>
                 );
             case 'read':
@@ -2188,7 +2319,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             tempId,
             content: currentInput || (selectedFile ? `📎 ${selectedFile.name}` : ''),
             message_type: hasFile ? 'document' : 'text',
-            media_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
+            media_url: null, // el preview optimista solo muestra el texto/nombre; evitamos fugas de blob URL
             is_from_user: false,
             status: 'sending',
             created_at: new Date().toISOString(),
@@ -3059,6 +3190,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             ].map((pill) => (
                                 <button
                                     key={pill.value}
+                                    aria-pressed={statusFilter === pill.value}
                                     onClick={() => {
                                         setStatusFilter(pill.value);
                                         applyFilters(pill.value, filterByAdvisor);
@@ -3119,7 +3251,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         onMouseDown={() => handleDragSelectStart(conversation.id)}
                                         onMouseEnter={() => handleDragSelectEnter(conversation.id)}
                                         onMouseUp={handleDragSelectEnd}
-                                        className={`conv-list-item w-full flex items-center gap-4 p-4 mb-1.5 rounded-xl transition-all text-left select-none group ${selectedConversations.includes(conversation.id)
+                                        aria-current={selectedConversation?.id === conversation.id ? 'true' : undefined}
+                                        className={`conv-list-item w-full flex items-center gap-3 px-3 py-2.5 mb-1 rounded-xl transition-all text-left select-none group ${selectedConversations.includes(conversation.id)
                                                 ? 'bg-green-50/80 dark:bg-green-900/20 border-l-4 border-green-500 shadow-sm'
                                                 : selectedConversation?.id === conversation.id
                                                     ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#2e3f84] dark:border-blue-400 shadow-sm'
@@ -3153,7 +3286,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                         {/* Información */}
                                         <div className="flex-grow min-w-0">
-                                            <div className="flex justify-between items-baseline mb-0.5">
+                                            <div className="flex justify-between items-center mb-0.5">
                                                 <div className="flex-1 min-w-0 flex items-center gap-1.5">
                                                     <h3 className="font-bold text-[#1a1c1c] dark:text-neutral-200 truncate text-[15px]">
                                                         {conversation.contact_name || 'Sin nombre'}
@@ -3171,7 +3304,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         </span>
                                                     )}
                                                 </div>
-                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-[#2e3f84] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
+                                                <span className={`text-[11px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-[#5b6bb5] dark:text-blue-400/80' : 'text-[#5f5e5e] dark:text-neutral-500'
                                                     }`}>
                                                     {formatTime(conversation.last_message_at)}
                                                 </span>
@@ -3196,7 +3329,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     {conversation.last_message?.content || t('conversations.noMessages')}
                                                 </span>
                                             </p>
-                                            <div className="flex items-center justify-between mt-1.5">
+                                            <div className="flex items-center justify-between mt-1">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status, conversation.is_blocked)}`}></span>
                                                     <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-neutral-400">{getStatusLabel(conversation.status, conversation.is_blocked)}</span>
@@ -3833,16 +3966,20 @@ export default function ConversationsIndex({ conversations: initialConversations
                         <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm">
                             <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
                                 {/* Botón volver (mobile) / toggle sidebar (desktop) */}
+                                {/* Móvil: volver a la lista (flecha atrás, estilo WhatsApp) */}
                                 <button
-                                    onClick={() => {
-                                        // En mobile: volver a lista | En desktop: toggle sidebar
-                                        if (window.innerWidth < 768) {
-                                            handleCloseChat();
-                                        } else {
-                                            setIsSidebarVisible(!isSidebarVisible);
-                                        }
-                                    }}
-                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
+                                    onClick={handleCloseChat}
+                                    aria-label="Volver a la lista"
+                                    title="Volver"
+                                    className="md:hidden w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
+                                >
+                                    <ArrowLeft className="w-5 h-5 text-[#2e3f84] dark:text-neutral-300" />
+                                </button>
+                                {/* Desktop: mostrar/ocultar la lista de conversaciones */}
+                                <button
+                                    onClick={() => setIsSidebarVisible(!isSidebarVisible)}
+                                    aria-label={isSidebarVisible ? t('conversations.hideList') : t('conversations.showList')}
+                                    className="hidden md:flex w-9 h-9 rounded-full items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors flex-shrink-0"
                                     title={isSidebarVisible ? t('conversations.hideList') : t('conversations.showList')}
                                 >
                                     {isSidebarVisible ? (
@@ -4163,12 +4300,34 @@ export default function ConversationsIndex({ conversations: initialConversations
                             );
                         })()}
 
+                        {/* Banner de conexión inestable (solo aparece ante fallos reales) */}
+                        {connectionStale && (
+                            <div className="flex items-center justify-center gap-2 px-4 py-1.5 bg-amber-50/90 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-300 text-xs font-medium">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Sin conexión — reintentando...
+                            </div>
+                        )}
+
                         {/* Área de Mensajes */}
                         <div
                             ref={messagesContainerRef}
+                            onDragOver={(e) => { e.preventDefault(); if (!isFileDragging) setIsFileDragging(true); }}
+                            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsFileDragging(false); }}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                setIsFileDragging(false);
+                                const f = e.dataTransfer.files?.[0];
+                                if (f) setSelectedFile(f);
+                            }}
                             className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
-
                         >
+                            {/* Overlay al arrastrar un archivo encima */}
+                            {isFileDragging && (
+                                <div className="absolute inset-2 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#2e3f84] bg-[#dee1ff]/70 dark:bg-blue-900/40 backdrop-blur-sm pointer-events-none">
+                                    <Paperclip className="w-8 h-8 text-[#2e3f84] dark:text-blue-300" />
+                                    <span className="text-sm font-semibold text-[#2e3f84] dark:text-blue-200">Suelta el archivo aquí</span>
+                                </div>
+                            )}
                             {localMessages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-[#767681]">
                                     <div className="text-center">
@@ -4180,7 +4339,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-1">
+                                <div className="space-y-1" role="log" aria-live="polite" aria-relevant="additions" aria-label="Mensajes de la conversación">
                                     {localMessages.map((message, index) => {
                                         // Date separator logic
                                         const msgDate = new Date(message.created_at).toDateString();
@@ -4225,10 +4384,20 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         setReplyingTo(message);
                                                         textareaRef.current?.focus();
                                                     }}
-                                                    className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 self-center flex-shrink-0"
-                                                    title="Responder"
+                                                    className="opacity-0 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 self-center flex-shrink-0"
+                                                    aria-label="Responder" title="Responder"
                                                 >
                                                     <Reply className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {/* Copy button - visible on hover (solo mensajes con texto) */}
+                                            {!isLockedByOther && message.content && (
+                                                <button
+                                                    onClick={() => { navigator.clipboard?.writeText(message.content || ''); toast.success('Mensaje copiado'); }}
+                                                    aria-label="Copiar mensaje" title="Copiar"
+                                                    className="opacity-0 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 self-center flex-shrink-0"
+                                                >
+                                                    <Copy className="w-4 h-4" />
                                                 </button>
                                             )}
                                             {/* React button - visible on hover */}
@@ -4236,15 +4405,18 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 <div className="relative self-center flex-shrink-0">
                                                     <button
                                                         onClick={() => setReactionPickerFor(reactionPickerFor === message.id ? null : message.id)}
-                                                        className="opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
-                                                        title="Reaccionar"
+                                                        className="opacity-0 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
+                                                        aria-label="Reaccionar" title="Reaccionar"
                                                     >
                                                         <SmilePlus className="w-4 h-4" />
                                                     </button>
+                                                    <AnimatePresence>
                                                     {reactionPickerFor === message.id && (
                                                         <motion.div
+                                                            key="reaction-picker"
                                                             initial={{ opacity: 0, scale: 0.6, y: 12 }}
                                                             animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                            exit={{ opacity: 0, scale: 0.8, y: 8 }}
                                                             transition={{ type: 'spring', stiffness: 500, damping: 22 }}
                                                             style={{ transformOrigin: 'bottom center' }}
                                                             className={`absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2 py-1.5 ${message.is_from_user ? 'left-0' : 'right-0'}`}
@@ -4269,6 +4441,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             ))}
                                                         </motion.div>
                                                     )}
+                                                    </AnimatePresence>
                                                 </div>
                                             )}
                                             <div className={`flex flex-col ${message.is_from_user ? 'items-start' : 'items-end'}`}>
@@ -4298,7 +4471,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         <p className="font-bold text-[#06cf9c] mb-0.5">
                                                             {message.reply_to.is_from_user ? (selectedConversation?.contact_name || 'Cliente') : (message.reply_to.sender?.name || 'Asesor')}
                                                         </p>
-                                                        <p className={`truncate max-w-[250px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-400' : 'text-[#1a7f37] dark:text-[#99ceb5]'}`}>
+                                                        <p className={`truncate max-w-[250px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-400' : 'text-[#557d6b] dark:text-white/55'}`}>
                                                             {message.reply_to.message_type === 'image' ? '📷 Foto'
                                                                 : message.reply_to.message_type === 'video' ? '🎥 Video'
                                                                 : message.reply_to.message_type === 'audio' ? '🎵 Audio'
@@ -4330,12 +4503,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                 setZoomLevel(1);
                                                             }}
                                                         >
-                                                            <motion.img
+                                                            <ChatImage
                                                                 layoutId={`media-${message.id}`}
                                                                 src={message.media_url}
                                                                 alt={message.content}
                                                                 className="max-w-full max-h-96 rounded-xl object-cover"
-                                                                loading="lazy"
                                                             />
                                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 flex items-center justify-center">
                                                                 <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
@@ -4343,7 +4515,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         </div>
                                                         {message.content && message.content !== 'Imagen' && (
                                                             <p className="text-sm whitespace-pre-wrap break-words">
-                                                                {message.content}
+                                                                {renderRichText(message.content)}
                                                             </p>
                                                         )}
                                                     </div>
@@ -4372,7 +4544,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         </div>
                                                         {message.content && message.content !== 'Video' && (
                                                             <p className="text-sm whitespace-pre-wrap break-words">
-                                                                {message.content}
+                                                                {renderRichText(message.content)}
                                                             </p>
                                                         )}
                                                     </div>
@@ -4398,11 +4570,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </div>
                                                 ) : message.message_type === 'sticker' && message.media_url ? (
                                                     <div className="space-y-2">
-                                                        <img
+                                                        <ChatImage
                                                             src={message.media_url}
                                                             alt="Sticker"
                                                             className="w-32 h-32 object-contain"
-                                                            loading="lazy"
                                                         />
                                                     </div>
                                                 ) : message.message_type === 'document' && message.media_url ? (
@@ -4458,13 +4629,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     })()
                                                 ) : (
                                                     <p className="text-[15px] leading-snug whitespace-pre-wrap break-words inline-block relative pr-3">
-                                                        {message.content}
+                                                        {renderRichText(message.content)}
                                                     </p>
                                                 )}
 
                                                 {/* Hora y Estado - dentro de la burbuja */}
                                                 <div className={`flex items-center gap-1 justify-end mt-1 -mb-0.5 ${message.is_from_user ? '' : ''}`}>
-                                                    <span className={`text-[10px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-500' : 'text-[#1a7f37] dark:text-[#99ceb5]'}`}>{formatTime(message.created_at)}</span>
+                                                    <span title={formatFullDateTime(message.created_at)} className={`text-[10px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-500' : 'text-[#557d6b] dark:text-white/55'}`}>{formatTime(message.created_at)}</span>
                                                     {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
                                                 </div>
                                                 {message.reactions && message.reactions.length > 0 && (
@@ -4520,7 +4691,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                                 {/* Estado del mensaje - dentro de la burbuja */}
                                                 <div className="flex items-center gap-1 justify-end mt-1 -mb-0.5">
-                                                    <span className={`text-[10px] ${message.status === 'error' ? 'text-white/70' : 'text-[#1a7f37] dark:text-[#99ceb5]'}`}>{formatTime(message.created_at)}</span>
+                                                    <span title={formatFullDateTime(message.created_at)} className={`text-[10px] ${message.status === 'error' ? 'text-white/70' : 'text-[#557d6b] dark:text-white/55'}`}>{formatTime(message.created_at)}</span>
                                                     {message.status === 'sending' ? (
                                                         <Clock className="w-3 h-3 text-[#667781] animate-pulse" />
                                                     ) : (
@@ -4532,17 +4703,32 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         </div>
                                     ))}
 
-                                    {/* Indicador de "escribiendo..." - Se mostrará cuando se implemente en backend */}
-                                    {/* Ejemplo de cómo se vería: */}
-                                    {/* <div className="flex justify-start">
-                                        <div className="card-gradient shadow-[0_1px_3px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] rounded-2xl px-4 py-3">
-                                            <div className="flex items-center gap-1">
-                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                                            </div>
-                                        </div>
-                                    </div> */}
+                                    {/* Indicador de "escribiendo..." (estilo WhatsApp, animado, dentro del hilo) */}
+                                    <AnimatePresence>
+                                        {typingUsers.length > 0 && (
+                                            <motion.div
+                                                key="typing-indicator"
+                                                initial={{ opacity: 0, y: 8, scale: 0.9 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: 8, scale: 0.9 }}
+                                                transition={{ duration: 0.18 }}
+                                                className="flex justify-start"
+                                            >
+                                                <div className="bg-white dark:bg-[#202c33] shadow-sm rounded-xl rounded-bl-sm px-3.5 py-2.5">
+                                                    <p className="text-[11px] font-semibold text-[#1f7aad] dark:text-[#53bdeb] mb-1">
+                                                        {typingUsers.length === 1
+                                                            ? `${typingUsers[0].name} está escribiendo`
+                                                            : `${typingUsers.map(u => u.name).join(', ')} están escribiendo`}
+                                                    </p>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="w-2 h-2 bg-gray-400 dark:bg-neutral-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                        <span className="w-2 h-2 bg-gray-400 dark:bg-neutral-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                        <span className="w-2 h-2 bg-gray-400 dark:bg-neutral-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
 
                                     <div ref={messagesEndRef} />
                                 </div>
@@ -4551,15 +4737,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                             {/* Botón flotante para ir al final + indicador de nuevos mensajes */}
                             <button
                                 onClick={() => scrollToBottom()}
-                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 bg-white dark:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300 px-3 py-2 rounded-full shadow-lg hover:shadow-xl z-10 transition-all duration-300 ${isAtBottom
+                                aria-label="Ir al último mensaje"
+                                className={`sticky bottom-4 left-full -translate-x-8 flex items-center gap-2 bg-white dark:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300 px-3 py-2 rounded-full shadow-lg hover:shadow-xl active:scale-95 z-10 transition-all duration-300 ${isAtBottom
                                     ? 'opacity-0 translate-y-4 pointer-events-none'
                                     : 'opacity-100 translate-y-0'
                                     }`}
                             >
                                 {newMessagesCount > 0 && (
-                                    <span className="bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                                    <motion.span
+                                        key={newMessagesCount}
+                                        initial={{ scale: 1.4 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+                                        className="bg-gradient-to-b from-[#22c55e] to-[#16a34a] text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center"
+                                    >
                                         {newMessagesCount > 99 ? '99+' : newMessagesCount}
-                                    </span>
+                                    </motion.span>
                                 )}
                                 <ArrowDown className="w-4 h-4" />
                             </button>
@@ -4577,15 +4770,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             </div>
                         ) : (
                         <>
-                        {/* Indicador de escribiendo */}
-                        {typingUsers.length > 0 && (
-                            <div className="px-4 md:px-6 py-1.5 text-xs text-muted-foreground italic animate-pulse">
-                                {typingUsers.length === 1
-                                    ? `${typingUsers[0].name} está escribiendo...`
-                                    : `${typingUsers.map(u => u.name).join(', ')} están escribiendo...`
-                                }
-                            </div>
-                        )}
+                        {/* (El indicador de "escribiendo" ahora se muestra animado dentro del hilo de mensajes) */}
                         {selectedConversation.is_blocked ? (
                             <div className="px-3 md:px-6 py-4 bg-red-50/80 dark:bg-red-950/20 backdrop-blur-md border-t border-red-200 dark:border-red-800/30">
                                 <div className="flex items-center justify-center gap-3">
@@ -4712,6 +4897,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     {/* Botón de adjuntar - Ahora integrado dentro de la burbuja */}
                                     <button
                                         type="button"
+                                        aria-label="Adjuntar archivo"
                                         className="flex-shrink-0 h-[44px] w-12 p-0 rounded-l-full self-end text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
                                         onClick={() => fileInputRef.current?.click()}
                                         title="Adjuntar archivo"
@@ -4728,6 +4914,46 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     >
                                         <FileText className="w-[20px] h-[20px]" />
                                     </button>
+
+                                    {/* Botón de emojis */}
+                                    <div className="relative flex-shrink-0 self-end">
+                                        <button
+                                            type="button"
+                                            aria-label="Insertar emoji"
+                                            title="Emoji"
+                                            onClick={() => setShowEmojiPicker(v => !v)}
+                                            className="h-[44px] w-10 p-0 text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+                                        >
+                                            <Smile className="w-[22px] h-[22px]" />
+                                        </button>
+                                        {showEmojiPicker && (
+                                            <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
+                                        )}
+                                        <AnimatePresence>
+                                            {showEmojiPicker && (
+                                                <motion.div
+                                                    key="emoji-pop"
+                                                    initial={{ opacity: 0, scale: 0.9, y: 8 }}
+                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                    exit={{ opacity: 0, scale: 0.9, y: 8 }}
+                                                    transition={{ duration: 0.14 }}
+                                                    className="absolute bottom-full left-0 mb-2 z-50 grid grid-cols-6 gap-1 p-2 rounded-2xl bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl w-[252px]"
+                                                >
+                                                    {COMPOSER_EMOJIS.map((emoji) => (
+                                                        <button
+                                                            key={emoji}
+                                                            type="button"
+                                                            aria-label={`Insertar ${emoji}`}
+                                                            onClick={() => insertEmoji(emoji)}
+                                                            className="text-[22px] leading-none rounded-lg p-1 hover:bg-muted dark:hover:bg-neutral-700 transition-colors"
+                                                        >
+                                                            {emoji}
+                                                        </button>
+                                                    ))}
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </div>
 
                                     {/* Campo de texto */}
                                     <div className="relative flex-1">
@@ -4801,9 +5027,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <button
                                     type="submit"
                                     disabled={(!hasInputText && !selectedFile) || processing || isSubmitting}
-                                    className="flex-shrink-0 bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] hover:from-[#1a2a6e] hover:to-[#364588] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
+                                    aria-label="Enviar mensaje"
+                                    className="flex-shrink-0 bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] hover:from-[#1a2a6e] hover:to-[#364588] text-white w-12 h-12 md:w-[50px] md:h-[50px] rounded-full shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed p-0 flex items-center justify-center"
                                 >
-                                    <Send className="w-5 h-5 ml-[2px]" />
+                                    {(processing || isSubmitting) ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <Send className="w-5 h-5 ml-[2px]" />
+                                    )}
                                 </button>
                             </div>
                             <p className="hidden md:block text-xs text-[#767681] mt-2">
