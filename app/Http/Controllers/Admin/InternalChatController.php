@@ -730,20 +730,8 @@ class InternalChatController extends Controller
             return response()->json(['error' => 'Este chat no es con la IA'], 422);
         }
 
-        // Si el último mensaje del usuario contiene una cédula, validarla contra la
-        // Registraduría (vía Verifik) y pasar el nombre verificado al prompt. Es no-op
-        // si Verifik no está configurado (token vacío), así que es seguro siempre.
-        $lastUserBody = $chat->messages()
-            ->where('user_id', '!=', $ai->id)
-            ->latest()
-            ->value('body');
-        $cedulaInfo = app(\App\Services\CedulaValidationService::class)->detectAndValidate($lastUserBody, [
-            'user_id'          => $userId,
-            'internal_chat_id' => $chat->id,
-        ]);
-
         // Construir la conversación para el modelo: system prompt + historial reciente
-        $aiMessages = $this->buildAiMessages($chat, $ai, $cedulaInfo);
+        $aiMessages = $this->buildAiMessages($chat, $ai);
         $reply = $lm->chat($aiMessages, 0.2, 500);
         $reply = $reply ? $this->sanitizeAiReply($reply) : null;
 
@@ -777,7 +765,7 @@ class InternalChatController extends Controller
      *
      * @return array<int, array{role:string, content:string}>
      */
-    private function buildAiMessages(InternalChat $chat, User $ai, ?array $cedulaInfo = null): array
+    private function buildAiMessages(InternalChat $chat, User $ai): array
     {
         $messages = [[
             'role'    => 'system',
@@ -819,16 +807,6 @@ class InternalChatController extends Controller
                 . 'responde breve y natural, con UNA sola pregunta; usa SOLO los DATOS OFICIALES y la GUÍA; '
                 . 'nunca inventes teléfonos, horarios, direcciones ni especialidades; el HUV está en Cali, no en Bogotá. '
                 . 'Escribe ÚNICAMENTE tu mensaje para el usuario, SIN notas ni aclaraciones entre paréntesis al final.';
-
-            // Dato verificado de identidad (cédula -> nombre real). Se inyecta como hecho
-            // para que el modelo NO invente el nombre; el bot debe usarlo tal cual.
-            if ($cedulaInfo) {
-                $estado = !empty($cedulaInfo['status']) ? " (estado del documento: {$cedulaInfo['status']})" : '';
-                $messages[$last]['content'] .= "\n\n[DATO VERIFICADO — identidad confirmada en la Registraduría] "
-                    . "La cédula {$cedulaInfo['cedula']} corresponde a: {$cedulaInfo['fullName']}{$estado}. "
-                    . 'Confirma de forma natural que tienes los datos del paciente y dirígete a la persona usando EXACTAMENTE ese nombre. '
-                    . 'NO inventes ni alteres el nombre, y NO menciones que fue una validación automática.';
-            }
         }
 
         return $messages;
