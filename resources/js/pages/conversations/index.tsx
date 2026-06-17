@@ -446,6 +446,9 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
+    // Gestos táctiles del visor de imágenes (pinch-zoom y pan en tablets)
+    const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
+    const gestureMovedRef = useRef(false);
     const lastMessageIdRef = useRef<number>(0);
 
     // Estados para el modal de advertencia de 24 horas
@@ -823,6 +826,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Picker de emojis del composer y arrastrar-soltar archivos
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isFileDragging, setIsFileDragging] = useState(false);
+    // Búsqueda dentro de la conversación abierta
+    const [showInChatSearch, setShowInChatSearch] = useState(false);
+    const [inChatQuery, setInChatQuery] = useState('');
+    const [inChatMatchIndex, setInChatMatchIndex] = useState(0);
     // Divisor "Mensajes nuevos" (tipo WhatsApp): ancla y visibilidad (se auto-oculta)
     const [newMsgAnchorId, setNewMsgAnchorId] = useState<number | null>(null);
     const [showNewDivider, setShowNewDivider] = useState(false);
@@ -1587,6 +1594,57 @@ export default function ConversationsIndex({ conversations: initialConversations
         const focusId = window.setTimeout(() => textareaRef.current?.focus(), 80);
         return () => window.clearTimeout(focusId);
     }, [selectedConversation?.id]);
+
+    // ── Búsqueda dentro de la conversación abierta ──────────────────────────
+    // Reutiliza el mismo mecanismo de resaltado/scroll que el salto de citas.
+    const inChatMatches = useMemo(() => {
+        const q = inChatQuery.trim().toLowerCase();
+        if (!q) return [];
+        return localMessages.filter(m => (m.content || '').toLowerCase().includes(q)).map(m => m.id);
+    }, [inChatQuery, localMessages]);
+
+    const highlightMessage = (id: number) => {
+        const el = document.getElementById(`msg-${id}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-2', 'ring-[#06cf9c]/50');
+            setTimeout(() => el.classList.remove('ring-2', 'ring-[#06cf9c]/50'), 2000);
+        }
+    };
+
+    const goToMatch = (index: number) => {
+        if (inChatMatches.length === 0) return;
+        const wrapped = (index + inChatMatches.length) % inChatMatches.length;
+        setInChatMatchIndex(wrapped);
+        highlightMessage(inChatMatches[wrapped]);
+    };
+
+    const closeInChatSearch = () => {
+        setShowInChatSearch(false);
+        setInChatQuery('');
+        setInChatMatchIndex(0);
+    };
+
+    // Al cambiar la consulta, saltar a la coincidencia más reciente (la última del hilo).
+    useEffect(() => {
+        if (!showInChatSearch || inChatMatches.length === 0) { setInChatMatchIndex(0); return; }
+        const lastIdx = inChatMatches.length - 1;
+        setInChatMatchIndex(lastIdx);
+        highlightMessage(inChatMatches[lastIdx]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [inChatQuery]);
+
+    // Cerrar la búsqueda al cambiar de conversación.
+    useEffect(() => {
+        setShowInChatSearch(false);
+        setInChatQuery('');
+        setInChatMatchIndex(0);
+    }, [selectedConversation?.id]);
+
+    // Mantener el índice dentro de rango si las coincidencias cambian (p. ej. tras un poll).
+    useEffect(() => {
+        setInChatMatchIndex(i => Math.min(i, Math.max(0, inChatMatches.length - 1)));
+    }, [inChatMatches.length]);
 
     // Debounce para la búsqueda
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -4020,11 +4078,21 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                             {/* Acciones y Cerrar */}
                             <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                                {/* Buscar en la conversación */}
+                                <button
+                                    onClick={() => setShowInChatSearch(v => !v)}
+                                    aria-label="Buscar en la conversación"
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showInChatSearch ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
+                                    title="Buscar en la conversación"
+                                >
+                                    <Search className="w-5 h-5" />
+                                </button>
                                 {/* Botón Asignar - Solo Admin */}
                                 {isAdmin && (
                                     <button
                                         onClick={() => setShowAssignModal(true)}
                                         className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300"
+                                        aria-label={t('conversations.assignConversation')}
                                         title={t('conversations.assignConversation')}
                                     >
                                         <UserPlus className="w-5 h-5" />
@@ -4034,7 +4102,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Menú de Tres Puntos */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300">
+                                        <button aria-label="Más opciones" className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300">
                                             <MoreVertical className="w-5 h-5" />
                                         </button>
                                     </DropdownMenuTrigger>
@@ -4146,6 +4214,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     <button
                                         onClick={() => setShowPatientData(!showPatientData)}
                                         className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showPatientData ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
+                                        aria-label="Datos del paciente"
                                         title="Datos del paciente"
                                     >
                                         <ClipboardList className="w-5 h-5" />
@@ -4156,6 +4225,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <button
                                     onClick={() => setShowNotes(!showNotes)}
                                     className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors relative ${showNotes ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
+                                    aria-label="Notas internas"
                                     title="Notas internas"
                                 >
                                     <StickyNote className="w-5 h-5" />
@@ -4168,6 +4238,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <button
                                     onClick={toggleActivityPanel}
                                     className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showActivity ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
+                                    aria-label="Historial de actividad"
                                     title="Historial de actividad"
                                 >
                                     <History className="w-5 h-5" />
@@ -4177,12 +4248,43 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <button
                                     onClick={handleCloseChat}
                                     className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300"
+                                    aria-label="Cerrar conversación"
                                     title={t('conversations.closeChatHint')}
                                 >
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
+
+                        {/* Barra de búsqueda dentro de la conversación */}
+                        {showInChatSearch && (
+                            <div className="flex items-center gap-2 px-4 md:px-6 py-2 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-border/60">
+                                <Search className="w-4 h-4 text-[#767681] flex-shrink-0" />
+                                <input
+                                    autoFocus
+                                    value={inChatQuery}
+                                    onChange={(e) => setInChatQuery(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') { e.preventDefault(); goToMatch(e.shiftKey ? inChatMatchIndex - 1 : inChatMatchIndex + 1); }
+                                        if (e.key === 'Escape') { e.preventDefault(); closeInChatSearch(); }
+                                    }}
+                                    placeholder="Buscar en esta conversación..."
+                                    className="flex-1 bg-transparent text-sm outline-none placeholder:text-[#767681]"
+                                />
+                                <span className="text-xs text-[#767681] tabular-nums flex-shrink-0">
+                                    {inChatMatches.length > 0 ? `${Math.min(inChatMatchIndex + 1, inChatMatches.length)}/${inChatMatches.length}` : (inChatQuery.trim() ? '0/0' : '')}
+                                </span>
+                                <button onClick={() => goToMatch(inChatMatchIndex - 1)} disabled={inChatMatches.length === 0} aria-label="Coincidencia anterior" className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 disabled:opacity-40 text-[#2e3f84] dark:text-neutral-300">
+                                    <ChevronUp className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => goToMatch(inChatMatchIndex + 1)} disabled={inChatMatches.length === 0} aria-label="Coincidencia siguiente" className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 disabled:opacity-40 text-[#2e3f84] dark:text-neutral-300">
+                                    <ChevronDown className="w-4 h-4" />
+                                </button>
+                                <button onClick={closeInChatSearch} aria-label="Cerrar búsqueda" className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
 
                         {/* Indicador de otros asesores viendo esta conversación */}
                         {viewingUsers.length > 0 && (
@@ -4694,8 +4796,26 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <span title={formatFullDateTime(message.created_at)} className={`text-[10px] ${message.status === 'error' ? 'text-white/70' : 'text-[#557d6b] dark:text-white/55'}`}>{formatTime(message.created_at)}</span>
                                                     {message.status === 'sending' ? (
                                                         <Clock className="w-3 h-3 text-[#667781] animate-pulse" />
+                                                    ) : message.message_type === 'text' ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                // Reintentar: devolver el texto al composer para reenviarlo
+                                                                // (no tocamos el flujo de envío; el asesor presiona Enviar).
+                                                                if (textareaRef.current) {
+                                                                    textareaRef.current.value = message.content;
+                                                                    handleMessageChange(message.content);
+                                                                    textareaRef.current.focus();
+                                                                }
+                                                                setOptimisticMessages(prev => prev.filter(m => m.tempId !== message.tempId));
+                                                            }}
+                                                            aria-label="Reintentar envío"
+                                                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-white/90 hover:text-white underline-offset-2 hover:underline"
+                                                        >
+                                                            <RotateCcw className="w-3 h-3" /> Error · Reintentar
+                                                        </button>
                                                     ) : (
-                                                        <span className="text-[10px] text-red-500">Error</span>
+                                                        <span className="text-[10px] font-semibold text-white/90">Error al enviar</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -5632,6 +5752,9 @@ export default function ConversationsIndex({ conversations: initialConversations
             {mediaViewer && (
                 <motion.div
                     key="media-viewer"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={mediaViewer.caption || 'Visor de medios'}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -5711,6 +5834,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                         className="flex-1 flex items-center justify-center overflow-hidden p-4"
                         onClick={(e) => {
                             e.stopPropagation();
+                            // No cerrar si el clic proviene de un gesto táctil (pinch/pan)
+                            if (gestureMovedRef.current) { gestureMovedRef.current = false; return; }
                             if (!isDragging) {
                                 setMediaViewer(null);
                             }
@@ -5728,6 +5853,31 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }}
                         onMouseUp={() => setIsDragging(false)}
                         onMouseLeave={() => setIsDragging(false)}
+                        onTouchMove={(e) => {
+                            if (e.touches.length === 2 && pinchRef.current) {
+                                // Pinch-zoom con dos dedos
+                                gestureMovedRef.current = true;
+                                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                                const dist = Math.hypot(dx, dy);
+                                const ratio = dist / pinchRef.current.dist;
+                                setZoomLevel(Math.min(4, Math.max(0.5, pinchRef.current.zoom * ratio)));
+                            } else if (e.touches.length === 1 && isDragging && zoomLevel > 1) {
+                                // Pan con un dedo cuando hay zoom
+                                gestureMovedRef.current = true;
+                                const t = e.touches[0];
+                                const dx = t.clientX - dragStart.x;
+                                const dy = t.clientY - dragStart.y;
+                                setImagePosition(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+                                setDragStart({ x: t.clientX, y: t.clientY });
+                            }
+                        }}
+                        onTouchEnd={() => {
+                            setIsDragging(false);
+                            pinchRef.current = null;
+                            // Limpiar el flag tras el posible click sintético, para que el próximo tap sí cierre.
+                            setTimeout(() => { gestureMovedRef.current = false; }, 0);
+                        }}
                     >
                         {mediaViewer.type === 'image' ? (
                             <motion.div
@@ -5754,6 +5904,18 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     } else {
                                         // Si no hay zoom, hacer zoom in
                                         setZoomLevel(2);
+                                    }
+                                }}
+                                onTouchStart={(e) => {
+                                    e.stopPropagation();
+                                    gestureMovedRef.current = false;
+                                    if (e.touches.length === 2) {
+                                        const dx = e.touches[0].clientX - e.touches[1].clientX;
+                                        const dy = e.touches[0].clientY - e.touches[1].clientY;
+                                        pinchRef.current = { dist: Math.hypot(dx, dy), zoom: zoomLevel };
+                                    } else if (e.touches.length === 1 && zoomLevel > 1) {
+                                        setIsDragging(true);
+                                        setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
                                     }
                                 }}
                                 onClick={(e) => e.stopPropagation()}
