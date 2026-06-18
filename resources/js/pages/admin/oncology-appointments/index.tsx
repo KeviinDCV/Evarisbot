@@ -1052,7 +1052,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                                     </span>
                                                                 ) : (
                                                                     <span className="inline-flex items-center gap-1 text-blue-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <Clock className="w-3 h-3" /> En camino
+                                                                        <Clock className="w-3 h-3" /> Sin respuesta
                                                                     </span>
                                                                 )}
                                                             </>

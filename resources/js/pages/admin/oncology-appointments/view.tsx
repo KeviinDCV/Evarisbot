@@ -198,9 +198,9 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         }
 
         return (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
                 <Clock className="w-3 h-3" />
-                En camino
+                Sin respuesta
             </span>
         );
     };
@@ -495,7 +495,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                                     </span>
                                                                 ) : (
                                                                     <span className="inline-flex items-center gap-1 text-blue-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <Clock className="w-3 h-3" /> En camino
+                                                                        <Clock className="w-3 h-3" /> Sin respuesta
                                                                     </span>
                                                                 )}
                                                             </>

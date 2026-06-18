@@ -1267,7 +1267,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         <div
                             ref={messagesContainerRef}
                             onScroll={handleMessagesScroll}
-                            className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-3 md:px-5 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
+                            className="flex-1 min-w-0 overflow-y-auto px-3 md:px-5 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
 
                         >
                             {messages.length === 0 ? (
@@ -1306,7 +1306,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 <div className={cn(
                                                     'absolute top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 px-1 transition-opacity duration-150',
                                                     msg.is_mine ? 'right-full' : 'left-full',
-                                                    reactionPickerFor === msg.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto'
+                                                    reactionPickerFor === msg.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto group-focus-within/msg:opacity-100 group-focus-within/msg:pointer-events-auto'
                                                 )}>
                                                     <div className="relative">
                                                         <button
@@ -1572,7 +1572,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                 className={cn(
                                                                     'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[13px] leading-none shadow-md ring-1 transition-transform hover:scale-105 active:scale-95',
                                                                     r.mine
-                                                                        ? 'bg-[#2e3f84] text-white ring-[#2e3f84]/30'
+                                                                        ? 'bg-white dark:bg-neutral-800 ring-[#2e3f84]/40 dark:ring-blue-400/40'
                                                                         : 'bg-white dark:bg-neutral-800 ring-black/5 dark:ring-white/10'
                                                                 )}
                                                             >
