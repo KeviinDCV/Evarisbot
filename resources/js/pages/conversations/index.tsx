@@ -4512,6 +4512,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     >
                                                         <SmilePlus className="w-4 h-4" />
                                                     </button>
+                                                    {/* Backdrop invisible: clic afuera cierra el picker (igual que se abre). */}
+                                                    {reactionPickerFor === message.id && (
+                                                        <div className="fixed inset-0 z-20" onClick={() => setReactionPickerFor(null)} />
+                                                    )}
                                                     <AnimatePresence>
                                                     {reactionPickerFor === message.id && (
                                                         <motion.div
@@ -4527,10 +4531,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                 <motion.button
                                                                     key={emoji}
                                                                     initial={{ opacity: 0, scale: 0, y: 10 }}
-                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                                    transition={{ delay: 0.05 + i * 0.045, type: 'spring', stiffness: 600, damping: 16 }}
-                                                                    whileHover={{ scale: 1.3, y: -14 }}
-                                                                    whileTap={{ scale: 0.85 }}
+                                                                    animate={{ opacity: 1, scale: 1, y: 0, transition: { delay: 0.04 + i * 0.035, type: 'spring', stiffness: 600, damping: 18 } }}
+                                                                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                                                                    whileHover={{ scale: 1.35, y: -14, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
+                                                                    whileTap={{ scale: 0.9, transition: { duration: 0.12, ease: [0.22, 1, 0.36, 1] } }}
                                                                     onClick={() => handleReact(message, emoji)}
                                                                     aria-label={REACTION_LABELS[emoji]}
                                                                     className="group relative flex items-center justify-center cursor-pointer rounded-full px-1 py-1 text-[26px] leading-none"
