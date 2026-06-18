@@ -968,7 +968,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 <div className={cn(
                     "bg-background dark:bg-neutral-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-border dark:border-neutral-700/50",
                     activeChat ? 'hidden md:flex' : 'flex',
-                    isSidebarVisible ? 'w-full md:w-80 lg:w-[420px] xl:w-[460px]' : 'hidden md:w-0 md:overflow-hidden'
+                    isSidebarVisible ? 'w-full md:w-80 lg:w-[340px] xl:w-[360px]' : 'hidden md:w-0 md:overflow-hidden'
                 )}>
                     {/* Header */}
                     <div className="px-4 pt-4 pb-3">
@@ -1267,7 +1267,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         <div
                             ref={messagesContainerRef}
                             onScroll={handleMessagesScroll}
-                            className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
+                            className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-3 md:px-5 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
 
                         >
                             {messages.length === 0 ? (
@@ -1281,7 +1281,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-1">
+                                <div className="flex flex-col gap-2">
                                     {messages.map((msg, idx) => {
                                         // Show "Visto por" only on the last message
                                         const isLastMessage = idx === messages.length - 1;
@@ -1300,12 +1300,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             <div
                                                 key={msg.id}
                                                 id={`msg-${msg.id}`}
-                                                className={`group/msg flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[85%] md:max-w-[70%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
+                                                className={`group/msg relative flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[85%] md:max-w-[56%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
                                             >
                                                 {/* Hover actions: reaccionar, responder, editar */}
                                                 <div className={cn(
-                                                    'flex items-center gap-0.5 self-center flex-shrink-0 transition-opacity duration-150',
-                                                    reactionPickerFor === msg.id ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'
+                                                    'absolute top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 px-1 transition-opacity duration-150',
+                                                    msg.is_mine ? 'right-full' : 'left-full',
+                                                    reactionPickerFor === msg.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto'
                                                 )}>
                                                     <div className="relative">
                                                         <button
@@ -1522,7 +1523,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* Text Content (with @mention highlighting) */}
                                                         {msg.body && (
-                                                            <p className="text-[15px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere] pr-3">
+                                                            <p className="text-[15px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                                                                 {(() => {
                                                                     const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
                                                                     const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);

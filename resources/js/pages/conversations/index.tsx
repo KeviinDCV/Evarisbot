@@ -16,6 +16,7 @@ import {
     X,
     PanelLeftClose,
     PanelLeftOpen,
+    PanelRight,
     Clock,
     MapPin,
     User,
@@ -431,6 +432,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [zoomLevel, setZoomLevel] = useState(1);
     const [imageRotation, setImageRotation] = useState(0);
     const [showPatientData, setShowPatientData] = useState(false);
+    // Panel derecho de detalles del contacto (fijo en escritorio, overlay en móvil)
+    const [showDetails, setShowDetails] = useState(true);
     const [showNotes, setShowNotes] = useState(false);
     const [notesText, setNotesText] = useState(selectedConversation?.notes || '');
     const [savingNotes, setSavingNotes] = useState(false);
@@ -2769,7 +2772,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 {/* Lista de Conversaciones - Izquierda */}
                 {/* Mobile: oculta cuando hay chat | Desktop: siempre visible con toggle */}
                 <div className={`bg-background dark:bg-neutral-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-border dark:border-neutral-700/50 ${selectedConversation ? 'hidden md:flex' : 'flex'
-                    } ${isSidebarVisible ? 'w-full md:w-80 lg:w-[420px] xl:w-[460px]' : 'hidden md:w-0 md:overflow-hidden'
+                    } ${isSidebarVisible ? 'w-full md:w-80 lg:w-[340px] xl:w-[360px]' : 'hidden md:w-0 md:overflow-hidden'
                     }`}>
                     {/* Header */}
                     <div className="px-4 pt-4 pb-2">
@@ -4019,7 +4022,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col bg-background dark:bg-neutral-900 w-full md:w-auto">
+                    <div className="flex-1 flex min-w-0 w-full md:w-auto relative">
+                    <div className="flex-1 flex flex-col min-w-0 bg-background dark:bg-neutral-900">
                         {/* Header del Chat */}
                         <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm">
                             <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
@@ -4062,18 +4066,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </div>
                                 </div>
 
-                                {/* Estado */}
-                                <div className="hidden lg:flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-[#dee1ff]/60 dark:bg-neutral-800">
+                                {/* Estado (indicador mínimo; el detalle vive en el panel derecho) */}
+                                <span className="hidden sm:inline-flex items-center gap-1.5 ml-2 text-xs text-[#5f5e5e] dark:text-neutral-400">
                                     <span className={`w-2 h-2 rounded-full ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)}`}></span>
-                                    <span className="text-sm text-[#2e3f84] dark:text-neutral-300 font-medium">{getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}</span>
-                                </div>
-
-                                {/* Asignación */}
-                                {selectedConversation.assigned_user && (
-                                    <div className="hidden xl:block text-sm text-[#5f5e5e] dark:text-neutral-400 ml-2">
-                                        {t('conversations.assignedTo')}: <span className="font-medium text-[#2e3f84] dark:text-neutral-300">{selectedConversation.assigned_user.name}</span>
-                                    </div>
-                                )}
+                                    {getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}
+                                </span>
                             </div>
 
                             {/* Acciones y Cerrar */}
@@ -4087,162 +4084,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 >
                                     <Search className="w-5 h-5" />
                                 </button>
-                                {/* Botón Asignar - Solo Admin */}
-                                {isAdmin && (
-                                    <button
-                                        onClick={() => setShowAssignModal(true)}
-                                        className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300"
-                                        aria-label={t('conversations.assignConversation')}
-                                        title={t('conversations.assignConversation')}
-                                    >
-                                        <UserPlus className="w-5 h-5" />
-                                    </button>
-                                )}
-
-                                {/* Menú de Tres Puntos */}
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <button aria-label="Más opciones" className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300">
-                                            <MoreVertical className="w-5 h-5" />
-                                        </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-56 bg-card">
-                                        {/* Marcar como Activo */}
-                                        {selectedConversation.status !== 'active' && (
-                                            <DropdownMenuItem
-                                                onClick={() => handleStatusChange('active')}
-                                                className="cursor-pointer hover:bg-accent text-blue-600"
-                                            >
-                                                <Check className="w-4 h-4 mr-2" />
-                                                Marcar como Activo
-                                            </DropdownMenuItem>
-                                        )}
-
-                                        {/* Marcar como Pendiente */}
-                                        {selectedConversation.status !== 'pending' && (
-                                            <DropdownMenuItem
-                                                onClick={() => handleStatusChange('pending')}
-                                                className="cursor-pointer hover:bg-accent text-yellow-600"
-                                            >
-                                                <Clock className="w-4 h-4 mr-2" />
-                                                Marcar como Pendiente
-                                            </DropdownMenuItem>
-                                        )}
-
-                                        {/* Marcar como Resuelta */}
-                                        {selectedConversation.status !== 'resolved' && (
-                                            <DropdownMenuItem
-                                                onClick={() => handleStatusChange('resolved')}
-                                                className="cursor-pointer hover:bg-accent text-green-600"
-                                            >
-                                                <CheckCheck className="w-4 h-4 mr-2" />
-                                                {t('conversations.markAsResolved')}
-                                            </DropdownMenuItem>
-                                        )}
-
-                                        {/* Marcar como Agendado */}
-                                        {selectedConversation.status !== 'scheduled' && (
-                                            <DropdownMenuItem
-                                                onClick={() => handleStatusChange('scheduled')}
-                                                className="cursor-pointer hover:bg-accent text-indigo-600"
-                                            >
-                                                <CalendarCheck className="w-4 h-4 mr-2" />
-                                                Marcar como Agendado
-                                            </DropdownMenuItem>
-                                        )}
-
-                                        {/* Bloquear / Desbloquear */}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                            onClick={() => {
-                                                fetch(`/admin/chat/${selectedConversation.id}/block`, {
-                                                    method: 'POST',
-                                                    headers: {
-                                                        'Content-Type': 'application/json',
-                                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                                                    },
-                                                }).then(res => res.json()).then(data => {
-                                                    if (data.success) {
-                                                        setLocalConversations(prev => prev.map(c =>
-                                                            c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c
-                                                        ));
-                                                        router.reload({ only: ['selectedConversation'] });
-                                                        toast.success(data.is_blocked ? 'Contacto bloqueado' : 'Contacto desbloqueado');
-                                                    }
-                                                }).catch(() => {
-                                                    toast.error('Error al cambiar estado de bloqueo');
-                                                });
-                                            }}
-                                            className={`cursor-pointer ${
-                                                selectedConversation.is_blocked
-                                                    ? 'hover:bg-green-50 text-green-600'
-                                                    : 'hover:bg-red-50 text-red-600'
-                                            }`}
-                                        >
-                                            <ShieldBan className="w-4 h-4 mr-2" />
-                                            {selectedConversation.is_blocked ? 'Desbloquear' : 'Bloquear'}
-                                        </DropdownMenuItem>
-
-                                        {/* Eliminar chat - Solo administradores */}
-                                        {isAdmin && (
-                                            <>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem
-                                                    onClick={() => {
-                                                        window.open(`/admin/chat/${selectedConversation.id}/export-pdf`, '_blank');
-                                                    }}
-                                                    className="cursor-pointer hover:bg-accent text-[#2e3f84] dark:text-neutral-300"
-                                                >
-                                                    <Download className="w-4 h-4 mr-2" />
-                                                    Exportar a PDF
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem
-                                                    onClick={handleHideChat}
-                                                    className="cursor-pointer hover:bg-red-50 text-red-600"
-                                                >
-                                                    <Trash2 className="w-4 h-4 mr-2" />
-                                                    {t('conversations.deleteChat')}
-                                                </DropdownMenuItem>
-                                            </>
-                                        )}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-
-                                {/* Botón Datos del Paciente */}
-                                {selectedConversation.welcome_flow_data && Object.keys(selectedConversation.welcome_flow_data).filter(k => !k.startsWith('_')).length > 0 && (
-                                    <button
-                                        onClick={() => setShowPatientData(!showPatientData)}
-                                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showPatientData ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
-                                        aria-label="Datos del paciente"
-                                        title="Datos del paciente"
-                                    >
-                                        <ClipboardList className="w-5 h-5" />
-                                    </button>
-                                )}
-
-                                {/* Botón Notas Internas */}
+                                {/* Toggle del panel de detalles del contacto */}
                                 <button
-                                    onClick={() => setShowNotes(!showNotes)}
-                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors relative ${showNotes ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
-                                    aria-label="Notas internas"
-                                    title="Notas internas"
+                                    onClick={() => setShowDetails(v => !v)}
+                                    aria-label="Detalles del contacto"
+                                    title="Detalles del contacto"
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showDetails ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
                                 >
-                                    <StickyNote className="w-5 h-5" />
-                                    {selectedConversation.notes && !showNotes && (
-                                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full border-2 border-white dark:border-neutral-900" />
-                                    )}
+                                    <PanelRight className="w-5 h-5" />
                                 </button>
 
-                                {/* Botón Historial de Actividad */}
-                                <button
-                                    onClick={toggleActivityPanel}
-                                    className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${showActivity ? 'bg-[#2e3f84] text-white' : 'hover:bg-muted dark:hover:bg-neutral-800 text-[#2e3f84] dark:text-neutral-300'}`}
-                                    aria-label="Historial de actividad"
-                                    title="Historial de actividad"
-                                >
-                                    <History className="w-5 h-5" />
-                                </button>
+                                {/* El menú de acciones (cambiar estado, bloquear, exportar, eliminar) se movió al panel derecho */}
+
+                                {/* Datos del paciente, Notas y Actividad se movieron al panel derecho de detalles */}
 
                                 {/* Botón Cerrar Chat */}
                                 <button
@@ -4299,84 +4153,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             </div>
                         )}
 
-                        {/* Panel de datos del paciente */}
-                        {showPatientData && selectedConversation.welcome_flow_data && (
-                            <div className="border-b border-border bg-blue-50/50 dark:bg-blue-950/20 px-4 py-3">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <ClipboardList className="w-4 h-4 text-primary" />
-                                    <span className="text-sm font-semibold text-primary">Datos del paciente</span>
-                                </div>
-                                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-1.5">
-                                    {Object.entries(selectedConversation.welcome_flow_data)
-                                        .filter(([key]) => !key.startsWith('_'))
-                                        .map(([key, value]) => (
-                                            <div key={key} className="min-w-0">
-                                                <span className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                                                    {flowFieldNames[key] || key}
-                                                </span>
-                                                <p className="text-sm text-foreground font-medium truncate" title={getFlowDataLabel(key, value)}>
-                                                    {getFlowDataLabel(key, value)}
-                                                </p>
-                                            </div>
-                                        ))
-                                    }
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Panel de notas internas */}
-                        {showNotes && (
-                            <div className="border-b border-border bg-amber-50/50 dark:bg-amber-950/10 px-4 py-3">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <StickyNote className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                                        <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">Notas internas</span>
-                                    </div>
-                                    {savingNotes && (
-                                        <span className="text-xs text-muted-foreground">Guardando...</span>
-                                    )}
-                                    {!savingNotes && notesText && (
-                                        <span className="text-xs text-green-600 dark:text-green-400">Guardado</span>
-                                    )}
-                                </div>
-                                <textarea
-                                    value={notesText}
-                                    onChange={(e) => handleSaveNotes(e.target.value)}
-                                    placeholder="Escribe notas internas sobre esta conversación... (solo visible para asesores)"
-                                    className="w-full min-h-[80px] max-h-[160px] resize-y rounded-lg border border-amber-200 dark:border-amber-800/30 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-400/50"
-                                />
-                            </div>
-                        )}
-
-                        {/* Panel de historial de actividad */}
-                        {showActivity && (
-                            <div className="border-b border-border bg-slate-50/50 dark:bg-slate-950/20 px-4 py-3 max-h-[200px] overflow-y-auto custom-scrollbar">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <History className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-300">Historial de actividad</span>
-                                </div>
-                                {loadingActivities ? (
-                                    <p className="text-xs text-muted-foreground">Cargando...</p>
-                                ) : activities.length === 0 ? (
-                                    <p className="text-xs text-muted-foreground">No hay actividad registrada aún.</p>
-                                ) : (
-                                    <div className="relative pl-4">
-                                        <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200 dark:bg-slate-700" />
-                                        {activities.map((act) => (
-                                            <div key={act.id} className="relative flex items-start gap-3 pb-3 last:pb-0">
-                                                <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${getActivityColor(act.type)} ring-2 ring-white dark:ring-slate-900`} />
-                                                <div className="min-w-0">
-                                                    <p className="text-xs text-foreground leading-snug">{getActivityLabel(act)}</p>
-                                                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                                                        {new Date(act.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                        {/* Datos del paciente, Notas y Actividad ahora viven en el panel derecho de detalles (aside, abajo) */}
 
                         {/* Banner de conversación resuelta */}
                         {selectedConversation.status === 'resolved' && selectedConversation.resolved_by_user && (() => {
@@ -4421,7 +4198,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 const f = e.dataTransfer.files?.[0];
                                 if (f) setSelectedFile(f);
                             }}
-                            className="flex-1 overflow-y-auto px-3 md:px-6 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
+                            className="flex-1 overflow-y-auto px-3 md:px-5 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
                         >
                             {/* Overlay al arrastrar un archivo encima */}
                             {isFileDragging && (
@@ -4441,7 +4218,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-1" role="log" aria-live="polite" aria-relevant="additions" aria-label="Mensajes de la conversación">
+                                <div className="space-y-2" role="log" aria-live="polite" aria-relevant="additions" aria-label="Mensajes de la conversación">
                                     {localMessages.map((message, index) => {
                                         // Date separator logic
                                         const msgDate = new Date(message.created_at).toDateString();
@@ -4478,36 +4255,33 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 <div
                                                     className={`flex ${message.is_from_user ? 'justify-start' : 'justify-end'} ${!renderedMessageIdsRef.current.has(message.id) ? (message.is_from_user ? 'msg-animate-left' : 'msg-animate-right') : ''}`}
                                                 >
-                                          <div className={`group/msg flex ${message.is_from_user ? 'flex-row' : 'flex-row-reverse'} items-start gap-1 max-w-[85%] md:max-w-[70%]`}>
-                                            {/* Reply button - visible on hover */}
+                                          <div className={`group/msg relative flex ${message.is_from_user ? 'flex-row' : 'flex-row-reverse'} items-start gap-1 max-w-[85%] md:max-w-[56%]`}>
+                                            {/* Acciones (responder, copiar, reaccionar): flotan al lado en hover SIN reservar espacio */}
                                             {!isLockedByOther && (
+                                            <div className={`absolute top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 px-1 transition-opacity duration-150 ${message.is_from_user ? 'left-full' : 'right-full'} ${reactionPickerFor === message.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto group-focus-within/msg:opacity-100 group-focus-within/msg:pointer-events-auto'}`}>
                                                 <button
                                                     onClick={() => {
                                                         setReplyingTo(message);
                                                         textareaRef.current?.focus();
                                                     }}
-                                                    className="opacity-0 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 self-center flex-shrink-0"
+                                                    className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
                                                     aria-label="Responder" title="Responder"
                                                 >
                                                     <Reply className="w-4 h-4" />
                                                 </button>
-                                            )}
-                                            {/* Copy button - visible on hover (solo mensajes con texto) */}
-                                            {!isLockedByOther && message.content && (
+                                                {message.content && (
                                                 <button
                                                     onClick={() => { navigator.clipboard?.writeText(message.content || ''); toast.success('Mensaje copiado'); }}
                                                     aria-label="Copiar mensaje" title="Copiar"
-                                                    className="opacity-0 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 self-center flex-shrink-0"
+                                                    className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
                                                 >
                                                     <Copy className="w-4 h-4" />
                                                 </button>
-                                            )}
-                                            {/* React button - visible on hover */}
-                                            {!isLockedByOther && (
-                                                <div className="relative self-center flex-shrink-0">
+                                                )}
+                                                <div className="relative">
                                                     <button
                                                         onClick={() => setReactionPickerFor(reactionPickerFor === message.id ? null : message.id)}
-                                                        className="opacity-0 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
+                                                        className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
                                                         aria-label="Reaccionar" title="Reaccionar"
                                                     >
                                                         <SmilePlus className="w-4 h-4" />
@@ -4549,6 +4323,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     )}
                                                     </AnimatePresence>
                                                 </div>
+                                            </div>
                                             )}
                                             <div className={`flex flex-col ${message.is_from_user ? 'items-start' : 'items-end'}`}>
                                             <div
@@ -4734,7 +4509,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         );
                                                     })()
                                                 ) : (
-                                                    <p className="text-[15px] leading-snug whitespace-pre-wrap break-words inline-block relative pr-3">
+                                                    <p className="text-[15px] leading-snug whitespace-pre-wrap break-words inline-block relative">
                                                         {renderRichText(message.content)}
                                                     </p>
                                                 )}
@@ -4776,7 +4551,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             animate={{ opacity: 1, scale: 1, y: 0 }}
                                             transition={{ type: 'spring', stiffness: 500, damping: 28, mass: 0.8 }}
                                             style={{ transformOrigin: 'bottom right' }}
-                                            className="flex flex-col items-end max-w-[85%] md:max-w-[70%]">
+                                            className="flex flex-col items-end max-w-[85%] md:max-w-[56%]">
                                             <div
                                                 className={`px-3 pt-2 pb-1 flex flex-col relative rounded-xl rounded-br-sm ${message.status === 'error'
                                                     ? 'bg-red-500 text-white shadow-md'
@@ -5168,6 +4943,269 @@ export default function ConversationsIndex({ conversations: initialConversations
                         )}
                         </>
                         )}
+                    </div>
+
+                    {/* ===== Panel derecho de detalles (fijo en escritorio, overlay en móvil) ===== */}
+                    {showDetails && (
+                        <>
+                            <div className="md:hidden fixed inset-0 z-40 bg-black/40" onClick={() => setShowDetails(false)} />
+                            <aside className="fixed inset-y-0 right-0 z-50 w-[88%] max-w-sm md:static md:z-auto md:w-[290px] md:max-w-none flex-shrink-0 flex flex-col border-l border-border bg-card dark:bg-neutral-900 overflow-y-auto custom-scrollbar">
+                                {/* Encabezado del panel (cerrar en móvil) */}
+                                <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border">
+                                    <span className="font-semibold text-sm text-[#2e3f84] dark:text-neutral-200">Detalles</span>
+                                    <button onClick={() => setShowDetails(false)} aria-label="Cerrar detalles" className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800">
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                {/* Contacto */}
+                                <div className="flex flex-col items-center gap-2 px-4 py-5 border-b border-border">
+                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] flex items-center justify-center text-white text-xl font-bold">
+                                        {[...(selectedConversation.contact_name || '')][0]?.toUpperCase() || '?'}
+                                    </div>
+                                    <h3 className="font-bold text-[#1a1c1c] dark:text-neutral-200 text-base text-center">{selectedConversation.contact_name || 'Sin nombre'}</h3>
+                                    <div className="flex items-center gap-1.5 text-sm text-[#5f5e5e] dark:text-neutral-400"><Phone className="w-3.5 h-3.5" />{selectedConversation.phone_number}</div>
+                                    <span className="inline-flex items-center gap-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[11px] font-medium px-2.5 py-1 rounded-full">WhatsApp</span>
+                                </div>
+
+                                {/* Estado y asignación */}
+                                <div className="px-4 py-3 border-b border-border space-y-2">
+                                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Estado y asignación</p>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="flex items-center gap-2 min-w-0">
+                                            <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)}`} />
+                                            <span className="text-sm font-medium text-foreground truncate">{getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}</span>
+                                        </span>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <button className="text-xs text-[#2e3f84] dark:text-blue-400 hover:underline flex items-center gap-0.5 flex-shrink-0">Cambiar <ChevronDown className="w-3.5 h-3.5" /></button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-52 bg-card">
+                                                {selectedConversation.status !== 'active' && (
+                                                    <DropdownMenuItem onClick={() => handleStatusChange('active')} className="cursor-pointer hover:bg-accent text-blue-600"><Check className="w-4 h-4 mr-2" /> Marcar como Activo</DropdownMenuItem>
+                                                )}
+                                                {selectedConversation.status !== 'pending' && (
+                                                    <DropdownMenuItem onClick={() => handleStatusChange('pending')} className="cursor-pointer hover:bg-accent text-yellow-600"><Clock className="w-4 h-4 mr-2" /> Marcar como Pendiente</DropdownMenuItem>
+                                                )}
+                                                {selectedConversation.status !== 'resolved' && (
+                                                    <DropdownMenuItem onClick={() => handleStatusChange('resolved')} className="cursor-pointer hover:bg-accent text-green-600"><CheckCheck className="w-4 h-4 mr-2" /> {t('conversations.markAsResolved')}</DropdownMenuItem>
+                                                )}
+                                                {selectedConversation.status !== 'scheduled' && (
+                                                    <DropdownMenuItem onClick={() => handleStatusChange('scheduled')} className="cursor-pointer hover:bg-accent text-indigo-600"><CalendarCheck className="w-4 h-4 mr-2" /> Marcar como Agendado</DropdownMenuItem>
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-sm text-[#5f5e5e] dark:text-neutral-400 flex items-center gap-1.5 min-w-0">
+                                            <User className="w-3.5 h-3.5 flex-shrink-0" />
+                                            <span className="truncate">{selectedConversation.assigned_user?.name || 'Sin asignar'}</span>
+                                        </span>
+                                        {isAdmin && (
+                                            <button onClick={() => setShowAssignModal(true)} className="text-xs text-[#2e3f84] dark:text-blue-400 hover:underline flex-shrink-0">Reasignar</button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Etiquetas (gestión completa: ver, quitar, agregar, crear) */}
+                                <div className="px-4 py-3 border-b border-border">
+                                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1"><Tag className="w-3 h-3" /> Etiquetas</p>
+                                    {selectedConversation.tags && selectedConversation.tags.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mb-2">
+                                            {selectedConversation.tags.map(tag => (
+                                                <span key={tag.id} onClick={() => detachTag(selectedConversation.id, tag.id)} title={`Quitar "${tag.name}"`} className="inline-flex items-center gap-1 text-[11px] text-white px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80" style={{ backgroundColor: tag.color }}>
+                                                    {tag.name}<X className="w-3 h-3" />
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {allTags.filter(t => !(selectedConversation.tags || []).some(ct => ct.id === t.id)).length > 0 && (
+                                        <>
+                                            <input type="text" value={tagSearch} onChange={(e) => setTagSearch(e.target.value)} placeholder="Buscar etiqueta..." className="w-full px-2 py-1 text-xs border border-border rounded-lg focus:outline-none focus:border-primary bg-muted mb-1" />
+                                            <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
+                                                {allTags.filter(t => !(selectedConversation.tags || []).some(ct => ct.id === t.id)).filter(t => !tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase())).map(tag => (
+                                                    <button key={tag.id} onClick={() => attachTag(selectedConversation.id, tag.id)} className="w-full px-1 py-1.5 text-left text-sm hover:bg-accent rounded-lg flex items-center gap-2">
+                                                        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                                                        <span className="truncate">{tag.name}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                    {!showTagSubmenu ? (
+                                        <button onClick={() => setShowTagSubmenu(true)} className="w-full px-1 py-1.5 mt-1 text-left text-sm hover:bg-accent rounded-lg text-primary flex items-center gap-2"><Plus className="w-3.5 h-3.5" /> Nueva etiqueta...</button>
+                                    ) : (
+                                        <div className="py-2 space-y-2">
+                                            <input type="text" value={newTagName} autoFocus onChange={(e) => setNewTagName(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && newTagName.trim()) { createTag(newTagName.trim(), newTagColor).then((tag) => { if (tag) { attachTag(selectedConversation.id, tag.id); setNewTagName(''); setShowTagSubmenu(false); } }); }
+                                                    if (e.key === 'Escape') { setShowTagSubmenu(false); setNewTagName(''); }
+                                                }}
+                                                placeholder="Nombre de etiqueta" className="w-full px-2 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:border-primary bg-muted" />
+                                            <div className="flex gap-1 flex-wrap">
+                                                {TAG_COLORS.map((c) => (
+                                                    <button key={c} onClick={() => setNewTagColor(c)} className={`w-5 h-5 rounded-full flex-shrink-0 ${newTagColor === c ? 'ring-2 ring-offset-1 ring-primary' : ''}`} style={{ backgroundColor: c }} />
+                                                ))}
+                                            </div>
+                                            <div className="flex gap-1">
+                                                <button onClick={() => { if (newTagName.trim()) { createTag(newTagName.trim(), newTagColor).then((tag) => { if (tag) { attachTag(selectedConversation.id, tag.id); setNewTagName(''); setShowTagSubmenu(false); } }); } }} className="flex-1 px-2 py-1.5 text-xs bg-primary text-white rounded-lg">Crear</button>
+                                                <button onClick={() => { setShowTagSubmenu(false); setNewTagName(''); }} className="px-3 py-1.5 text-xs border border-border rounded-lg">Cancelar</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Especialidad (editable) */}
+                                <div className="px-4 py-3 border-b border-border">
+                                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-2">Especialidad</p>
+                                    {showSpecialtyInput ? (
+                                        <input
+                                            type="text"
+                                            value={specialtyName}
+                                            autoFocus
+                                            onChange={(e) => setSpecialtyName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    const name = specialtyName.trim();
+                                                    fetch(`/admin/chat/${selectedConversation.id}/specialty`, {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                                                        body: JSON.stringify({ specialty: name }),
+                                                    }).then(() => {
+                                                        setLocalConversations(prev => prev.map(c => c.id === selectedConversation.id ? { ...c, specialty: name } : c));
+                                                        router.reload({ only: ['selectedConversation'] });
+                                                        toast.success(name ? `Especialidad "${name}" guardada` : 'Especialidad quitada');
+                                                    }).catch(() => toast.error('Error al guardar la especialidad'));
+                                                    setShowSpecialtyInput(false);
+                                                }
+                                                if (e.key === 'Escape') { setShowSpecialtyInput(false); }
+                                            }}
+                                            placeholder="Especialidad (Enter para guardar)"
+                                            className="w-full px-2 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:border-primary bg-muted"
+                                        />
+                                    ) : (
+                                        <button onClick={() => { setSpecialtyName(selectedConversation.specialty || ''); setShowSpecialtyInput(true); }} className="w-full flex items-center justify-between gap-2 text-sm text-foreground hover:bg-muted/40 rounded-lg px-1 py-1 transition-colors">
+                                            <span className="flex items-center gap-2 min-w-0">
+                                                <Stethoscope className="w-4 h-4 text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                                                <span className="truncate">{selectedConversation.specialty || 'Sin especialidad'}</span>
+                                            </span>
+                                            <Pencil className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Datos del paciente (colapsable) */}
+                                {selectedConversation.welcome_flow_data && Object.keys(selectedConversation.welcome_flow_data).filter(k => !k.startsWith('_')).length > 0 && (
+                                    <div className="border-b border-border">
+                                        <button onClick={() => setShowPatientData(!showPatientData)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors">
+                                            <span className="flex items-center gap-2 text-sm font-medium text-foreground"><ClipboardList className="w-4 h-4 text-primary" /> Datos del paciente</span>
+                                            {showPatientData ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                                        </button>
+                                        {showPatientData && (
+                                            <div className="px-4 pb-3 grid grid-cols-2 gap-x-3 gap-y-2">
+                                                {Object.entries(selectedConversation.welcome_flow_data).filter(([key]) => !key.startsWith('_')).map(([key, value]) => (
+                                                    <div key={key} className="min-w-0">
+                                                        <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{flowFieldNames[key] || key}</span>
+                                                        <p className="text-sm text-foreground font-medium truncate" title={getFlowDataLabel(key, value)}>{getFlowDataLabel(key, value)}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Notas internas (colapsable) */}
+                                <div className="border-b border-border">
+                                    <button onClick={() => setShowNotes(!showNotes)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors">
+                                        <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                            <StickyNote className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Notas internas
+                                            {selectedConversation.notes && !showNotes && <span className="w-2 h-2 bg-amber-400 rounded-full" />}
+                                        </span>
+                                        {showNotes ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                                    </button>
+                                    {showNotes && (
+                                        <div className="px-4 pb-3">
+                                            <textarea
+                                                value={notesText}
+                                                onChange={(e) => handleSaveNotes(e.target.value)}
+                                                placeholder="Notas internas (solo visible para asesores)..."
+                                                className="w-full min-h-[80px] max-h-[160px] resize-y rounded-lg border border-amber-200 dark:border-amber-800/30 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                                            />
+                                            {savingNotes && <span className="text-xs text-muted-foreground">Guardando...</span>}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Historial de actividad (colapsable) */}
+                                <div className="border-b border-border">
+                                    <button onClick={toggleActivityPanel} className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors">
+                                        <span className="flex items-center gap-2 text-sm font-medium text-foreground"><History className="w-4 h-4 text-slate-600 dark:text-slate-400" /> Historial de actividad</span>
+                                        {showActivity ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                                    </button>
+                                    {showActivity && (
+                                        <div className="px-4 pb-3 max-h-[260px] overflow-y-auto custom-scrollbar">
+                                            {loadingActivities ? (
+                                                <p className="text-xs text-muted-foreground">Cargando...</p>
+                                            ) : activities.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground">No hay actividad registrada aún.</p>
+                                            ) : (
+                                                <div className="relative pl-4">
+                                                    <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200 dark:bg-slate-700" />
+                                                    {activities.map((act) => (
+                                                        <div key={act.id} className="relative flex items-start gap-3 pb-3 last:pb-0">
+                                                            <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${getActivityColor(act.type)} ring-2 ring-white dark:ring-slate-900`} />
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs text-foreground leading-snug">{getActivityLabel(act)}</p>
+                                                                <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(act.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Acciones */}
+                                <div className="px-4 py-3">
+                                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1.5">Acciones</p>
+                                    <button
+                                        onClick={() => handleTogglePin(selectedConversation.id)}
+                                        className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-foreground hover:bg-muted transition-colors"
+                                    >
+                                        <Pin className={`w-4 h-4 ${selectedConversation.is_pinned ? 'text-primary rotate-45' : 'text-muted-foreground'}`} /> {selectedConversation.is_pinned ? 'Desfijar chat' : 'Fijar chat'}
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            fetch(`/admin/chat/${selectedConversation.id}/block`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                                            }).then(res => res.json()).then(data => {
+                                                if (data.success) {
+                                                    setLocalConversations(prev => prev.map(c => c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c));
+                                                    router.reload({ only: ['selectedConversation'] });
+                                                    toast.success(data.is_blocked ? 'Contacto bloqueado' : 'Contacto desbloqueado');
+                                                }
+                                            }).catch(() => toast.error('Error al cambiar estado de bloqueo'));
+                                        }}
+                                        className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-colors ${selectedConversation.is_blocked ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20' : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'}`}
+                                    >
+                                        <ShieldBan className="w-4 h-4" /> {selectedConversation.is_blocked ? 'Desbloquear' : 'Bloquear'}
+                                    </button>
+                                    {isAdmin && (
+                                        <button onClick={() => window.open(`/admin/chat/${selectedConversation.id}/export-pdf`, '_blank')} className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-[#2e3f84] dark:text-neutral-300 hover:bg-muted transition-colors">
+                                            <Download className="w-4 h-4" /> Exportar a PDF
+                                        </button>
+                                    )}
+                                    {isAdmin && (
+                                        <button onClick={handleHideChat} className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                            <Trash2 className="w-4 h-4" /> {t('conversations.deleteChat')}
+                                        </button>
+                                    )}
+                                </div>
+                            </aside>
+                        </>
+                    )}
                     </div>
                 )}
             </div>
