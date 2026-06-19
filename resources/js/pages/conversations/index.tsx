@@ -4,6 +4,7 @@ import AdminLayout from '@/layouts/admin-layout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { ChatMessagesSkeleton, ConversationListSkeleton } from '@/components/chat-skeletons';
 import {
     Search,
     MessageSquare,
@@ -816,6 +817,9 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [hasMore, setHasMore] = useState(initialHasMore);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
+    // Skeletons de carga: al abrir un chat (visita Inertia) y al recargar la lista (filtros/búsqueda)
+    const [openingChat, setOpeningChat] = useState(false);
+    const [listLoading, setListLoading] = useState(false);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
     // Ref para trackear si se cargaron páginas adicionales (para no resetear hasMore)
     const hasLoadedExtraPagesRef = useRef(false);
@@ -1698,6 +1702,25 @@ export default function ConversationsIndex({ conversations: initialConversations
                 clearTimeout(searchTimeoutRef.current);
             }
         };
+    }, []);
+
+    // Skeletons: detectar navegación de Inertia para mostrar el estado de carga.
+    // - Abrir un chat: visita completa a /admin/chat/{id} (sin `only`).
+    // - Recargar la lista: partial reload con only:['conversations'] (búsqueda/filtros).
+    useEffect(() => {
+        const offStart = router.on('start', (event) => {
+            const { url, only } = event.detail.visit;
+            if (only.includes('conversations')) {
+                setListLoading(true);
+            } else if (/\/admin\/chat\/\d+/.test(url.pathname)) {
+                setOpeningChat(true);
+            }
+        });
+        const offFinish = router.on('finish', () => {
+            setOpeningChat(false);
+            setListLoading(false);
+        });
+        return () => { offStart(); offFinish(); };
     }, []);
 
     const formatTime = (date: string | null) => {
@@ -3282,7 +3305,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                         ref={conversationsListRef}
                         className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-6 custom-scrollbar-light"
                     >
-                        {localConversations.length === 0 ? (
+                        {listLoading ? (
+                            <ConversationListSkeleton />
+                        ) : localConversations.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-[#767681] p-8">
                                 <MessageSquare className="w-16 h-16 mb-4 text-[#767681]/50" />
                                 <p className="text-center text-sm">
@@ -4068,7 +4093,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                 {/* Estado (indicador mínimo; el detalle vive en el panel derecho) */}
                                 <span className="hidden sm:inline-flex items-center gap-1.5 ml-2 text-xs text-[#5f5e5e] dark:text-neutral-400">
-                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)}`}></span>
+                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)} ${selectedConversation.status === 'active' && !selectedConversation.is_blocked ? 'status-pulse' : ''}`}></span>
                                     {getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}
                                 </span>
                             </div>
@@ -4207,7 +4232,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     <span className="text-sm font-semibold text-[#2e3f84] dark:text-blue-200">Suelta el archivo aquí</span>
                                 </div>
                             )}
-                            {localMessages.length === 0 ? (
+                            {openingChat ? (
+                                <ChatMessagesSkeleton />
+                            ) : localMessages.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-[#767681]">
                                     <div className="text-center">
                                         <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-white/60 dark:bg-neutral-800/60 flex items-center justify-center">
