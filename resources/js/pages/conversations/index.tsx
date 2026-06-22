@@ -1919,10 +1919,9 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (!advisorToClear) return;
         setClearingAdvisor(true);
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const res = await axios.post(`/admin/chat/clear-advisor/${advisorToClear.id}`, {}, {
-                headers: { 'X-CSRF-TOKEN': csrfToken },
-            });
+            // axios envía el token vivo (cookie XSRF-TOKEN vía withXSRFToken). NO fijar X-CSRF-TOKEN
+            // manual del <meta>, que queda obsoleto tras iniciar sesión y provoca el 419.
+            const res = await axios.post(`/admin/chat/clear-advisor/${advisorToClear.id}`, {});
             toast.success(res.data?.message || `Se limpiaron las conversaciones de ${advisorToClear.name}.`);
             setAdvisorToClear(null);
             router.reload({ only: ['conversations', 'hasMore', 'filters', 'filterCounts', 'advisorCounts'] });

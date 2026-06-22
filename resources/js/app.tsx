@@ -25,6 +25,13 @@ axios.interceptors.response.use(
             originalRequest._retried = true;
             // Hit a lightweight endpoint to refresh XSRF-TOKEN cookie
             await axios.get('/csrf-refresh').catch(() => {});
+            // Quitar el X-CSRF-TOKEN viejo (del <meta> obsoleto tras iniciar sesión) para que el
+            // reintento use el token VIVO de la cookie. Si queda, Laravel lo prioriza y vuelve a dar 419.
+            try { originalRequest.headers?.delete?.('X-CSRF-TOKEN'); } catch { /* headers puede ser objeto plano */ }
+            if (originalRequest.headers) {
+                delete originalRequest.headers['X-CSRF-TOKEN'];
+                delete originalRequest.headers['x-csrf-token'];
+            }
             return axios(originalRequest);
         }
         return Promise.reject(error);
