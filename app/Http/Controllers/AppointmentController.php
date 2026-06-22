@@ -381,7 +381,7 @@ class AppointmentController extends Controller
             $sheet->getColumnDimension($col)->setWidth($w);
         }
 
-        // Mapa de estados
+        // Mapa de estados (texto)
         $statusLabels = [
             'pending'   => 'Pendiente',
             'sent'      => 'Enviado',
@@ -392,10 +392,23 @@ class AppointmentController extends Controller
             'failed'    => 'Fallido',
         ];
 
+        // Mapa de colores por estado para la columna "Estado Recordatorio": [fondo, texto]
+        $statusColors = [
+            'confirmed' => ['C6EFCE', '006100'], // verde
+            'cancelled' => ['FFC7CE', '9C0006'], // rojo
+            'failed'    => ['FFC7CE', '9C0006'], // rojo
+            'sent'      => ['FFEB9C', '9C6500'], // amarillo
+            'delivered' => ['BDD7EE', '1F4E78'], // azul (recibido)
+            'read'      => ['BDD7EE', '1F4E78'], // azul (leído)
+            'pending'   => ['F2F2F2', '7F7F7F'], // gris (aún no enviado)
+        ];
+
         // Escribir datos en chunks
         $row = 2;
-        $query->chunk(1000, function ($appointments) use ($sheet, &$row, $statusLabels) {
+        $query->chunk(1000, function ($appointments) use ($sheet, &$row, $statusLabels, $statusColors) {
             $batchData = [];
+            $rowColors = []; // [numeroDeFila => [fondo, texto]]
+            $r = $row;
             foreach ($appointments as $appt) {
                 $batchData[] = [
                     $appt->citead ?? '',
@@ -413,9 +426,28 @@ class AppointmentController extends Controller
                     $appt->reminder_sent_at ? $appt->reminder_sent_at->format('Y-m-d H:i') : '',
                     $statusLabels[$appt->reminder_status] ?? '-',
                 ];
+                if (isset($statusColors[$appt->reminder_status])) {
+                    $rowColors[$r] = $statusColors[$appt->reminder_status];
+                }
+                $r++;
             }
             // fromArray escribe todo el bloque de golpe (mucho más rápido que celda a celda)
             $sheet->fromArray($batchData, null, "A{$row}");
+
+            // Colorear la celda "Estado Recordatorio" (columna N) según el estado
+            foreach ($rowColors as $rn => $colors) {
+                $sheet->getStyle("N{$rn}")->applyFromArray([
+                    'fill' => [
+                        'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => $colors[0]],
+                    ],
+                    'font' => [
+                        'bold'  => true,
+                        'color' => ['rgb' => $colors[1]],
+                    ],
+                ]);
+            }
+
             $row += count($batchData);
         });
 

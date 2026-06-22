@@ -205,7 +205,9 @@ class AppointmentReminderService
                     ['phone_number' => '+' . $phoneNumber],
                     [
                         'contact_name' => $appointment->nom_paciente,
-                        'status' => 'active',
+                        // Recordatorio saliente: la conversación nace "agendada" (oculta de "Todos").
+                        // Si el paciente responde, la reactivación automática la pasa a "active" y aparece.
+                        'status' => 'scheduled',
                         'last_message_at' => now()
                     ]
                 );

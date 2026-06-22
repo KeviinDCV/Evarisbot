@@ -1672,6 +1672,8 @@ class WhatsAppService
                 $conversation->update([
                     'status' => 'active',
                     'assigned_to' => null,
+                    'resolved_by' => null, // Limpiar la resolución previa: ya no está resuelta (evita arrastrar el nombre viejo)
+                    'resolved_at' => null,
                     'last_message_at' => now(),
                     'welcome_flow_completed' => false,
                     'welcome_flow_step' => null,
@@ -2293,6 +2295,7 @@ class WhatsAppService
                                 ->update([
                                     'status' => 'resolved',
                                     'resolved_at' => now(),
+                                    'resolved_by' => null, // Auto-resuelto por el SISTEMA: no atribuir a un asesor (evita "resuelta por X" falso e infla stats)
                                     'unread_count' => 0,
                                 ]);
 
