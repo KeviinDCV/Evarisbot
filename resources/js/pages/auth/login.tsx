@@ -1,53 +1,70 @@
 import InputError from '@/components/input-error';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/routes/login';
 import { Form, Head } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
-import { Eye, EyeOff, Infinity } from 'lucide-react';
+import { Eye, EyeOff, Infinity as InfinityIcon, Lock, Mail } from 'lucide-react';
+import type { FocusEvent } from 'react';
 
 interface LoginProps {
     status?: string;
-    canResetPassword: boolean;
+    // Provista por el backend; el flujo de reset aún no se expone en la UI.
+    canResetPassword?: boolean;
 }
 
-export default function Login({ status, canResetPassword }: LoginProps) {
+// Estilo base de los inputs translúcidos (paleta institucional navy #2e3f84).
+const inputBaseStyle: React.CSSProperties = {
+    width: '100%',
+    fontSize: '14px',
+    color: '#2b2f55',
+    background: 'rgba(255,255,255,.55)',
+    border: '1.5px solid rgba(46,63,132,.12)',
+    borderRadius: '14px',
+    outline: 'none',
+    transition: 'border-color .15s, background .15s, box-shadow .15s',
+};
+
+// Foco: borde navy + glow sutil.
+const handleFieldFocus = (e: FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = '#2e3f84';
+    e.currentTarget.style.background = 'rgba(255,255,255,.92)';
+    e.currentTarget.style.boxShadow = '0 0 0 4px rgba(46,63,132,.10)';
+};
+const handleFieldBlur = (e: FocusEvent<HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = 'rgba(46,63,132,.12)';
+    e.currentTarget.style.background = 'rgba(255,255,255,.55)';
+    e.currentTarget.style.boxShadow = 'none';
+};
+
+export default function Login({ status }: LoginProps) {
     const { t } = useTranslation();
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
 
     return (
-        <AuthLayout
-            title={t('auth.loginTitle')}
-            description=""
-        >
+        <AuthLayout title={t('auth.loginTitle')} description="">
             <Head title={t('auth.loginTitle')} />
 
-            <Form
-                {...store.form()}
-                resetOnSuccess={['password']}
-                className="flex flex-col"
-                style={{ gap: 'var(--space-md)' }}
-            >
+            {status && (
+                <div
+                    className="mb-4 rounded-xl text-center text-sm font-medium"
+                    style={{ color: '#2e3f84', background: 'rgba(46,63,132,.07)', padding: '10px 16px' }}
+                >
+                    {status}
+                </div>
+            )}
+
+            <Form {...store.form()} resetOnSuccess={['password']} className="flex flex-col">
                 {({ processing, errors }) => (
-                    <>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                                <Label
-                                    htmlFor="email"
-                                    className="font-semibold"
-                                    style={{
-                                        color: 'var(--primary-base)',
-                                        fontSize: 'var(--text-sm)'
-                                    }}
-                                >
-                                    {t('auth.username')}
-                                </Label>
-                                <Input
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                        {/* Usuario */}
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#3a3f63' }}>{t('auth.username')}</span>
+                            <span className="relative flex items-center">
+                                <Mail className="pointer-events-none absolute left-[15px] h-[18px] w-[18px]" style={{ color: '#9aa0c4' }} />
+                                <input
                                     id="email"
                                     type="email"
                                     name="email"
@@ -56,167 +73,101 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                     tabIndex={1}
                                     autoComplete="email"
                                     placeholder={t('auth.emailPlaceholder')}
-                                    className="w-full rounded-xl border-0 placeholder:text-muted-foreground transition-all duration-200"
-                                    style={{
-                                        backgroundColor: 'var(--layer-base)',
-                                        color: 'var(--primary-base)',
-                                        boxShadow: 'var(--shadow-inset-sm)',
-                                        height: 'clamp(2.25rem, 2.25rem + 0.25vw, 2.5rem)',
-                                        padding: '0 var(--space-base)',
-                                        fontSize: 'var(--text-base)'
-                                    }}
-                                    onFocus={(e) => {
-                                        e.target.style.backgroundColor = 'var(--layer-elevated)';
-                                        e.target.style.boxShadow = 'var(--shadow-inset-md)'; // Deeper inset on focus
-                                    }}
-                                    onBlur={(e) => {
-                                        e.target.style.backgroundColor = 'var(--layer-base)';
-                                        e.target.style.boxShadow = 'var(--shadow-inset-sm)';
-                                    }}
+                                    style={{ ...inputBaseStyle, padding: '15px 16px 15px 44px' }}
+                                    onFocus={handleFieldFocus}
+                                    onBlur={handleFieldBlur}
                                 />
-                                <InputError message={errors.email} />
-                            </div>
+                            </span>
+                            <InputError message={errors.email} />
+                        </label>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                                <Label
-                                    htmlFor="password"
-                                    className="font-semibold"
-                                    style={{
-                                        color: 'var(--primary-base)',
-                                        fontSize: 'var(--text-sm)'
-                                    }}
+                        {/* Contraseña */}
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#3a3f63' }}>{t('common.password')}</span>
+                            <span className="relative flex items-center">
+                                <Lock className="pointer-events-none absolute left-[15px] h-[18px] w-[18px]" style={{ color: '#9aa0c4' }} />
+                                <input
+                                    id="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    name="password"
+                                    required
+                                    tabIndex={2}
+                                    autoComplete="current-password"
+                                    placeholder={t('auth.passwordPlaceholder')}
+                                    style={{ ...inputBaseStyle, padding: '15px 48px 15px 44px' }}
+                                    onFocus={handleFieldFocus}
+                                    onBlur={handleFieldBlur}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-2 flex h-[34px] w-[34px] items-center justify-center rounded-[9px] transition-colors hover:bg-[#2e3f84]/8"
+                                    style={{ color: '#7d83ad', background: 'transparent' }}
+                                    tabIndex={-1}
+                                    aria-label={showPassword ? t('auth.hidePassword', 'Ocultar contraseña') : t('auth.showPassword', 'Mostrar contraseña')}
                                 >
-                                    {t('common.password')}
-                                </Label>
-                                <div className="relative">
-                                    <Input
-                                        id="password"
-                                        type={showPassword ? 'text' : 'password'}
-                                        name="password"
-                                        required
-                                        tabIndex={2}
-                                        autoComplete="current-password"
-                                        placeholder={t('auth.passwordPlaceholder')}
-                                        className="w-full rounded-xl border-0 placeholder:text-muted-foreground transition-all duration-200 pr-10"
-                                        style={{
-                                            backgroundColor: 'var(--layer-base)',
-                                            color: 'var(--primary-base)',
-                                            boxShadow: 'var(--shadow-inset-sm)',
-                                            height: 'clamp(2.25rem, 2.25rem + 0.25vw, 2.5rem)',
-                                            padding: '0 var(--space-base)',
-                                            paddingRight: '2.5rem',
-                                            fontSize: 'var(--text-base)'
-                                        }}
-                                        onFocus={(e) => {
-                                            e.target.style.backgroundColor = 'var(--layer-elevated)';
-                                            e.target.style.boxShadow = 'var(--shadow-inset-md)';
-                                        }}
-                                        onBlur={(e) => {
-                                            e.target.style.backgroundColor = 'var(--layer-base)';
-                                            e.target.style.boxShadow = 'var(--shadow-inset-sm)';
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-primary dark:text-primary transition-colors duration-200"
-                                        tabIndex={-1}
-                                    >
-                                        {showPassword ? (
-                                            <EyeOff className="w-4 h-4" />
-                                        ) : (
-                                            <Eye className="w-4 h-4" />
-                                        )}
-                                    </button>
-                                </div>
-                                <InputError message={errors.password} />
-                            </div>
+                                    {showPassword ? <EyeOff className="h-[19px] w-[19px]" /> : <Eye className="h-[19px] w-[19px]" />}
+                                </button>
+                            </span>
+                            <InputError message={errors.password} />
+                        </label>
 
-                            {/* Nunca cerrar sesión */}
-                            {rememberMe && (
-                                <input type="hidden" name="remember" value="1" />
-                            )}
-                            <button
-                                type="button"
-                                onClick={() => setRememberMe(!rememberMe)}
-                                className="flex items-center gap-2.5 group w-fit"
-                                tabIndex={3}
-                            >
-                                {/* Custom checkbox */}
-                                <span
-                                    className="relative flex-shrink-0 w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center"
-                                    style={{
-                                        borderColor: rememberMe ? 'var(--primary-base)' : 'var(--border-muted, #c7cde0)',
-                                        backgroundColor: rememberMe ? 'var(--primary-base)' : 'var(--layer-base)',
-                                        boxShadow: rememberMe ? 'var(--shadow-sm)' : 'none',
-                                    }}
-                                >
-                                    {rememberMe && (
-                                        <svg viewBox="0 0 12 9" fill="none" className="w-3 h-3">
-                                            <path d="M1 4L4.5 7.5L11 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                    )}
-                                </span>
-                                <span
-                                    className="flex items-center gap-1.5 text-sm font-medium select-none transition-colors duration-200"
-                                    style={{ color: rememberMe ? 'var(--primary-base)' : 'var(--muted-foreground, #6b7280)' }}
-                                >
-                                    <Infinity className="w-3.5 h-3.5 flex-shrink-0" />
-                                    Nunca cerrar sesión
-                                </span>
-                            </button>
-
-                            <Button
-                                type="submit"
-                                className="w-full rounded-full font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden"
+                        {/* Nunca cerrar sesión */}
+                        {rememberMe && <input type="hidden" name="remember" value="1" />}
+                        <button
+                            type="button"
+                            onClick={() => setRememberMe(!rememberMe)}
+                            className="group mt-0.5 flex w-fit items-center gap-2.5"
+                            tabIndex={3}
+                            aria-pressed={rememberMe}
+                        >
+                            <span
+                                className="relative flex h-[19px] w-[19px] flex-shrink-0 items-center justify-center rounded-md border-[1.5px] transition-colors"
                                 style={{
-                                    ...{
-                                        backgroundColor: 'var(--primary-base)',
-                                        boxShadow: 'var(--shadow-md)',
-                                        backgroundImage: 'var(--gradient-shine)',
-                                        height: 'clamp(2.5rem, 2.5rem + 0.25vw, 2.75rem)',
-                                        fontSize: 'var(--text-base)',
-                                        marginTop: 'var(--space-sm)'
-                                    }
+                                    borderColor: rememberMe ? '#2e3f84' : '#c3c6e0',
+                                    backgroundColor: rememberMe ? '#2e3f84' : '#ffffff',
                                 }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; // Two-layer shadow on hover
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                    e.currentTarget.style.backgroundImage = 'var(--gradient-shine)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.backgroundImage = 'var(--gradient-shine)';
-                                }}
-                                onMouseDown={(e) => {
-                                    // Active state: pressed down effect
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                }}
-                                onMouseUp={(e) => {
-                                    // Release: return to hover state
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                }}
-                                tabIndex={4}
-                                disabled={processing}
                             >
-                                {processing && <Spinner className="mr-2" />}
-                                {t('auth.login')}
-                            </Button>
-                        </div>
-                    </>
+                                {rememberMe && (
+                                    <svg viewBox="0 0 12 9" fill="none" className="h-3 w-3">
+                                        <path d="M1 4L4.5 7.5L11 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                )}
+                            </span>
+                            <span
+                                className="flex select-none items-center gap-[7px] text-sm font-medium"
+                                style={{ color: rememberMe ? '#2e3f84' : '#5a5f80' }}
+                            >
+                                <InfinityIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                                Nunca cerrar sesión
+                            </span>
+                        </button>
+
+                        {/* Botón: navy SÓLIDO, sin gradiente, sin animación de elevación */}
+                        <button
+                            type="submit"
+                            disabled={processing}
+                            tabIndex={4}
+                            className="mt-3.5 flex w-full items-center justify-center font-bold text-white"
+                            style={{
+                                backgroundColor: '#2e3f84',
+                                border: 'none',
+                                borderRadius: '16px',
+                                padding: '17px',
+                                fontSize: '15.5px',
+                                cursor: processing ? 'not-allowed' : 'pointer',
+                                opacity: processing ? 0.7 : 1,
+                                boxShadow: '0 10px 24px -12px rgba(46,63,132,.55)',
+                            }}
+                            onMouseEnter={(e) => { if (!processing) e.currentTarget.style.backgroundColor = '#26356f'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#2e3f84'; }}
+                        >
+                            {processing && <Spinner className="mr-2" />}
+                            {t('auth.login')}
+                        </button>
+                    </div>
                 )}
             </Form>
-
-            {status && (
-                <div className="mb-4 text-center text-sm font-medium text-green-600">
-                    {status}
-                </div>
-            )}
         </AuthLayout>
     );
 }
