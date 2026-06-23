@@ -319,7 +319,12 @@ class SendBulkMessageJob implements ShouldQueue
         ]);
 
         if (!$response->successful()) {
-            throw new \Exception('Error en API de WhatsApp (Status: ' . $response->status() . '): ' . $response->body());
+            $err = $response->json()['error'] ?? [];
+            throw new \Exception(\App\Support\WhatsAppErrorTranslator::human(
+                $err['code'] ?? null,
+                $err['message'] ?? null,
+                $err['error_data']['details'] ?? null
+            ));
         }
 
         return $response->json();

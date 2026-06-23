@@ -166,14 +166,10 @@ class WhatsAppWebhookController extends Controller
                             $recipientPhone = $status['recipient_id'] ?? null;
                             if ($recipientPhone) {
                                 $errorCodeMsg = $errorInfo[0]['code'] ?? null;
-                                $errorTitleMsg = $errorInfo[0]['title'] ?? 'Error desconocido';
+                                $errorTitleMsg = $errorInfo[0]['title'] ?? null;
                                 $errorDetail = $errorInfo[0]['error_data']['details'] ?? ($errorInfo[0]['message'] ?? null);
-                                $finalErrorMsg = $errorCodeMsg
-                                    ? "{$errorTitleMsg} (code: {$errorCodeMsg})"
-                                    : $errorTitleMsg;
-                                if ($errorDetail) {
-                                    $finalErrorMsg .= ' — ' . $errorDetail;
-                                }
+                                // Mensaje claro en español para el usuario (sin códigos técnicos)
+                                $finalErrorMsg = \App\Support\WhatsAppErrorTranslator::human($errorCodeMsg, $errorTitleMsg, $errorDetail);
 
                                 // El recipient phone puede venir sin prefijo "+" — comparar tolerante.
                                 $digits = preg_replace('/\D/', '', (string) $recipientPhone);
