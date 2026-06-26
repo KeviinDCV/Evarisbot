@@ -1824,9 +1824,10 @@ class ConversationController extends Controller
                     'error_message' => $result['error'] ?? 'Error desconocido al enviar mensaje',
                 ]);
                 
-                return back()->withErrors([
-                    'message' => 'No se pudo enviar el mensaje: ' . ($result['error'] ?? 'Error desconocido')
-                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo enviar el mensaje: ' . ($result['error'] ?? 'Error desconocido'),
+                ], 422);
             }
         } else {
             $message->update([
@@ -1834,14 +1835,19 @@ class ConversationController extends Controller
                 'error_message' => 'WhatsApp API no está configurada',
             ]);
             
-            return back()->withErrors([
-                'message' => 'WhatsApp API no está configurada. Por favor, configúrala en Ajustes.'
-            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'WhatsApp API no está configurada. Por favor, configúrala en Ajustes.',
+            ], 422);
         }
 
-        // Redirigir a la conversación creada
-        return redirect()->route('admin.chat.show', $conversation->id)
-            ->with('success', 'Conversación iniciada exitosamente.');
+        // Devolver JSON (NO redirect) para que el frontend no navegue ni recargue la lista
+        // (el redirect reseteaba el scroll/posición del asesor). La conversación nueva aparece
+        // sola por el polling, sin mover la lista.
+        return response()->json([
+            'success' => true,
+            'conversation_id' => $conversation->id,
+        ]);
     }
 
     /**

@@ -587,24 +587,46 @@ export default function ConversationsIndex({ conversations: initialConversations
     };
 
     const attachTag = async (conversationId: number, tagId: number) => {
+        const tag = allTags.find(t => t.id === tagId);
+        if (!tag) return;
+        // Actualización optimista LOCAL (sin router.reload — eso reseteaba la lista al inicio y cerraba el chat)
+        setLocalConversations(prev => prev.map(c =>
+            c.id === conversationId && !(c.tags || []).some(t => t.id === tagId)
+                ? { ...c, tags: [...(c.tags || []), tag] }
+                : c
+        ));
         try {
             await fetch(`/admin/tags/conversation/${conversationId}/attach`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
                 body: JSON.stringify({ tag_id: tagId }),
             });
-            router.reload({ only: ['conversations', 'selectedConversation', 'allTags', 'filterCounts'] });
-        } catch { }
+        } catch {
+            // Rollback si falla el guardado en el servidor
+            setLocalConversations(prev => prev.map(c =>
+                c.id === conversationId ? { ...c, tags: (c.tags || []).filter(t => t.id !== tagId) } : c
+            ));
+        }
     };
 
     const detachTag = async (conversationId: number, tagId: number) => {
+        const removed = allTags.find(t => t.id === tagId);
+        // Actualización optimista LOCAL (sin recargar)
+        setLocalConversations(prev => prev.map(c =>
+            c.id === conversationId ? { ...c, tags: (c.tags || []).filter(t => t.id !== tagId) } : c
+        ));
         try {
             await fetch(`/admin/tags/conversation/${conversationId}/detach/${tagId}`, {
                 method: 'DELETE',
                 headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             });
-            router.reload({ only: ['conversations', 'selectedConversation', 'allTags', 'filterCounts'] });
-        } catch { }
+        } catch {
+            // Rollback si falla
+            if (removed) setLocalConversations(prev => prev.map(c =>
+                c.id === conversationId && !(c.tags || []).some(t => t.id === tagId)
+                    ? { ...c, tags: [...(c.tags || []), removed] } : c
+            ));
+        }
     };
 
     const deleteTag = async (tagId: number) => {
@@ -2015,6 +2037,14 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Las conversaciones ya vienen filtradas del backend
     const displayedConversations = localConversations;
 
+    // Etiquetas de la conversación abierta: leer del estado LOCAL (mutable) para que al agregar/quitar
+    // una etiqueta el panel derecho se actualice sin recargar (no resetea la lista ni cierra el chat).
+    const selectedConvTags = useMemo(() => {
+        if (!selectedConversation) return [];
+        const local = localConversations.find(c => c.id === selectedConversation.id);
+        return local?.tags ?? selectedConversation.tags ?? [];
+    }, [localConversations, selectedConversation]);
+
     // Función para manejar selección de conversación
     const handleConversationSelect = (conversationId: number, event: React.MouseEvent) => {
         // Si se acaba de hacer drag-select, ignorar el click para no duplicar toggle
@@ -2706,18 +2736,19 @@ export default function ConversationsIndex({ conversations: initialConversations
             return;
         }
 
-        router.post(`/admin/chat/${convId}/status`, { status }, {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => {
-                toast.success('Estado actualizado');
-                // Actualizar estado localmente sin recargar ni navegar
-                setLocalConversations(prev =>
-                    prev.map(c => c.id === convId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
-                );
-            },
-            onError: () => toast.error('Error al cambiar el estado'),
-        });
+        // Cambio de estado SIN recargar la lista (evita el salto al inicio y que se cierre el chat).
+        // Actualización optimista local + refrescar SOLO la conversación abierta (encabezado).
+        setLocalConversations(prev =>
+            prev.map(c => c.id === convId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
+        );
+        fetch(`/admin/chat/${convId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+            body: JSON.stringify({ status }),
+        }).then(() => {
+            toast.success('Estado actualizado');
+            router.reload({ only: ['selectedConversation'], preserveScroll: true, preserveState: true });
+        }).catch(() => toast.error('Error al cambiar el estado'));
     };
 
     const handleStatusChangeFromContext = (conversationId: number, status: string) => {
@@ -2745,17 +2776,20 @@ export default function ConversationsIndex({ conversations: initialConversations
             return;
         }
 
-        router.post(`/admin/chat/${conversationId}/status`, { status }, {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => {
-                toast.success('Estado actualizado');
-                setLocalConversations(prev =>
-                    prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
-                );
-            },
-            onError: () => toast.error('Error al cambiar el estado'),
-        });
+        // Cambio de estado SIN recargar la lista (evita el salto al inicio y que se cierre el chat).
+        setLocalConversations(prev =>
+            prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
+        );
+        fetch(`/admin/chat/${conversationId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+            body: JSON.stringify({ status }),
+        }).then(() => {
+            toast.success('Estado actualizado');
+            if (selectedConversation?.id === conversationId) {
+                router.reload({ only: ['selectedConversation'], preserveScroll: true, preserveState: true });
+            }
+        }).catch(() => toast.error('Error al cambiar el estado'));
     };
 
     const handleHideChat = () => {
@@ -5036,20 +5070,20 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Etiquetas (gestión completa: ver, quitar, agregar, crear) */}
                                 <div className="px-4 py-3 border-b border-border">
                                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1"><Tag className="w-3 h-3" /> Etiquetas</p>
-                                    {selectedConversation.tags && selectedConversation.tags.length > 0 && (
+                                    {selectedConvTags.length > 0 && (
                                         <div className="flex flex-wrap gap-1.5 mb-2">
-                                            {selectedConversation.tags.map(tag => (
+                                            {selectedConvTags.map(tag => (
                                                 <span key={tag.id} onClick={() => detachTag(selectedConversation.id, tag.id)} title={`Quitar "${tag.name}"`} className="inline-flex items-center gap-1 text-[11px] text-white px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80" style={{ backgroundColor: tag.color }}>
                                                     {tag.name}<X className="w-3 h-3" />
                                                 </span>
                                             ))}
                                         </div>
                                     )}
-                                    {allTags.filter(t => !(selectedConversation.tags || []).some(ct => ct.id === t.id)).length > 0 && (
+                                    {allTags.filter(t => !selectedConvTags.some(ct => ct.id === t.id)).length > 0 && (
                                         <>
                                             <input type="text" value={tagSearch} onChange={(e) => setTagSearch(e.target.value)} placeholder="Buscar etiqueta..." className="w-full px-2 py-1 text-xs border border-border rounded-lg focus:outline-none focus:border-primary bg-muted mb-1" />
                                             <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
-                                                {allTags.filter(t => !(selectedConversation.tags || []).some(ct => ct.id === t.id)).filter(t => !tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase())).map(tag => (
+                                                {allTags.filter(t => !selectedConvTags.some(ct => ct.id === t.id)).filter(t => !tagSearch || t.name.toLowerCase().includes(tagSearch.toLowerCase())).map(tag => (
                                                     <button key={tag.id} onClick={() => attachTag(selectedConversation.id, tag.id)} className="w-full px-1 py-1.5 text-left text-sm hover:bg-accent rounded-lg flex items-center gap-2">
                                                         <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
                                                         <span className="truncate">{tag.name}</span>
@@ -5631,22 +5665,30 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }
 
                         setIsCreatingChat(true);
-                        router.post('/admin/chat/create', {
-                            phone_number: newChatData.phone_number,
-                            assigned_to: newChatData.assigned_to,
-                            whatsapp_template_id: newChatData.whatsapp_template_id,
-                            template_params: newChatData.template_params,
-                        }, {
-                            onSuccess: () => {
+                        // Crear con fetch (NO Inertia): no navega ni recarga la lista, así el asesor
+                        // NO pierde su posición/scroll. La conversación nueva aparece sola por el polling.
+                        fetch('/admin/chat/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+                            body: JSON.stringify({
+                                phone_number: newChatData.phone_number,
+                                assigned_to: newChatData.assigned_to,
+                                whatsapp_template_id: newChatData.whatsapp_template_id,
+                                template_params: newChatData.template_params,
+                            }),
+                        }).then(async (res) => {
+                            const data = await res.json().catch(() => ({}));
+                            if (res.ok && data.success) {
                                 setShowNewChatModal(false);
                                 setNewChatData({ phone_number: '', assigned_to: null, whatsapp_template_id: null, template_params: [] });
-                                setIsCreatingChat(false);
                                 toast.success('Conversación creada exitosamente');
-                            },
-                            onError: (errors) => {
-                                setNewChatError(errors.message || errors.phone_number || 'Error al crear la conversación');
-                                setIsCreatingChat(false);
-                            },
+                            } else {
+                                setNewChatError(data.message || 'Error al crear la conversación');
+                            }
+                            setIsCreatingChat(false);
+                        }).catch(() => {
+                            setNewChatError('Error al crear la conversación');
+                            setIsCreatingChat(false);
                         });
                     }} className="space-y-4 py-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
                         <div className="space-y-2">
