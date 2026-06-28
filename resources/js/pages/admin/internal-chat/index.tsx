@@ -543,10 +543,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
         try {
             const deletedId = chat.id;
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            await axios.delete(`/admin/internal-chat/${deletedId}`, {
-                headers: { 'X-CSRF-TOKEN': csrfToken }
-            });
+            await axios.delete(`/admin/internal-chat/${deletedId}`);
 
             lastChatPollRef.current = '';
             if (activeChat?.id === deletedId) {
@@ -1939,10 +1936,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     onClick={async () => {
                                                         if (!confirm(`¿Eliminar a ${p.name} del grupo?`)) return;
                                                         try {
-                                                            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-                                                            const res = await axios.delete(`/admin/internal-chat/${activeChat!.id}/participants/${p.id}`, {
-                                                                headers: { 'X-CSRF-TOKEN': csrfToken }
-                                                            });
+                                                            const res = await axios.delete(`/admin/internal-chat/${activeChat!.id}/participants/${p.id}`);
                                                             if (res.data.success) {
                                                                 // Actualizar participantes localmente
                                                                 setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
@@ -2033,11 +2027,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         if (!activeChat || addParticipantIds.length === 0) return;
                                         setIsAddingParticipants(true);
                                         try {
-                                            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
                                             const res = await axios.post(`/admin/internal-chat/${activeChat.id}/participants`, {
                                                 user_ids: addParticipantIds,
-                                            }, {
-                                                headers: { 'X-CSRF-TOKEN': csrfToken }
                                             });
                                             if (res.data.success) {
                                                 setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);

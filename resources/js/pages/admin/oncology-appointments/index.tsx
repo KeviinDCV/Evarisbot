@@ -4,6 +4,14 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronL
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import axios from 'axios';
+
+// POST de recordatorios vía axios: usa el token CSRF VIVO de la cookie (el <meta> queda
+// obsoleto tras un login por Inertia) y deja que el interceptor global reintente ante un 419.
+// validateStatus deja pasar 400/500 sin lanzar para que la UI siga mostrando el JSON de
+// negocio ({ success:false, message, debug }) como hacía el fetch original.
+const postReminder = (url: string) =>
+    axios.post(url, null, { validateStatus: (status) => status !== 419 }).then((r) => r.data);
 
 interface Appointment {
     id: number;
@@ -341,15 +349,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
         }
 
         try {
-            const response = await fetch(`${routePrefix}/reminders/start`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            const data = await response.json();
+            const data = await postReminder(`${routePrefix}/reminders/start`);
 
             if (data.success) {
                 // Si fue síncrono y terminó inmediatamente, actualizar progreso final
@@ -458,15 +458,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
     const handlePauseReminders = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`${routePrefix}/reminders/pause`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            const data = await response.json();
+            const data = await postReminder(`${routePrefix}/reminders/pause`);
 
             if (data.success) {
                 setIsPaused(true);
@@ -485,15 +477,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
     const handleResumeReminders = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`${routePrefix}/reminders/resume`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            const data = await response.json();
+            const data = await postReminder(`${routePrefix}/reminders/resume`);
 
             if (data.success) {
                 setIsPaused(false);
@@ -528,15 +512,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
         }
 
         try {
-            const response = await fetch(`${routePrefix}/reminders/start-day-before`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            const data = await response.json();
+            const data = await postReminder(`${routePrefix}/reminders/start-day-before`);
 
             if (data.success) {
                 // Si fue síncrono y terminó inmediatamente, actualizar progreso final
@@ -598,15 +574,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
         setIsLoading(true);
         try {
-            const response = await fetch(`${routePrefix}/reminders/stop`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            const data = await response.json();
+            const data = await postReminder(`${routePrefix}/reminders/stop`);
 
             if (data.success) {
                 setIsProcessing(false);

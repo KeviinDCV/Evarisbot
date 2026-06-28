@@ -9,6 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
 
+// Las llamadas que MUTAN estado van por axios: así usan el token CSRF vivo (cookie
+// XSRF-TOKEN) y pasan por el interceptor de app.tsx que reintenta 1 vez ante 419.
+// validateStatus deja pasar 4xx/5xx (como fetch) para conservar el manejo de errores
+// de negocio/validación, pero rechaza el 419 para que el interceptor lo reintente.
+const csrfPost = (url: string, body?: unknown) =>
+    axios.post(url, body, { validateStatus: (s: number) => s !== 419 });
+const csrfDelete = (url: string) =>
+    axios.delete(url, { validateStatus: (s: number) => s !== 419 });
+
 interface Recipient {
     phone: string;
     name: string;
@@ -523,40 +532,37 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         formData.append('file', file);
 
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minutos
 
-            const response = await fetch('/admin/bulk-sends/upload', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                },
-                body: formData,
+            const response = await axios.post('/admin/bulk-sends/upload', formData, {
                 signal: controller.signal,
+                timeout: 300000,
+                validateStatus: (s) => s !== 419,
             });
 
             clearTimeout(timeoutId);
 
+            const status = response.status;
+
             // Si el servidor devuelve error HTTP sin JSON (ej: 413 nginx, 500 HTML)
-            if (!response.ok) {
-                const text = await response.text();
-                try {
-                    const data = JSON.parse(text);
+            if (!(status >= 200 && status < 300)) {
+                const data = response.data;
+                if (data && typeof data === 'object') {
                     if (data.errors) {
                         const firstError = Object.values(data.errors).flat()[0] as string;
                         setError(firstError || 'Error de validación');
                     } else {
-                        setError(data.message || `Error del servidor (${response.status})`);
+                        setError(data.message || `Error del servidor (${status})`);
                     }
-                } catch {
-                    setError(`Error del servidor (${response.status}): ${text.substring(0, 200)}`);
+                } else {
+                    const text = typeof data === 'string' ? data : '';
+                    setError(`Error del servidor (${status}): ${text.substring(0, 200)}`);
                 }
                 return;
             }
 
-            const data = await response.json();
+            const data = response.data;
 
             if (data.success) {
                 setRecipients(data.recipients);
@@ -570,7 +576,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setError(data.message || 'Error al procesar el archivo');
             }
         } catch (err: any) {
-            if (err?.name === 'AbortError') {
+            if (axios.isCancel(err) || err?.code === 'ERR_CANCELED' || err?.code === 'ECONNABORTED' || err?.name === 'CanceledError' || err?.name === 'AbortError') {
                 setError('El archivo es muy grande y tardó demasiado en procesarse. Intente con un archivo más pequeño.');
             } else {
                 setError('Error al subir el archivo. Verifique que el formato sea correcto.');
@@ -664,28 +670,19 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         setError('');
 
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const response = await fetch('/admin/bulk-sends/start', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    template_name: templateName,
-                    template_params: templateParams.length > 0 ? templateParams : null,
-                    column_mapping: Object.keys(columnMapping).length > 0 ? columnMapping : null,
-                    name: sendName || null,
-                    recipients: recipients.map(r => ({
-                        phone: r.phone,
-                        name: r.name,
-                        params: r.params || null,
-                    })),
-                }),
+            const response = await csrfPost('/admin/bulk-sends/start', {
+                template_name: templateName,
+                template_params: templateParams.length > 0 ? templateParams : null,
+                column_mapping: Object.keys(columnMapping).length > 0 ? columnMapping : null,
+                name: sendName || null,
+                recipients: recipients.map(r => ({
+                    phone: r.phone,
+                    name: r.name,
+                    params: r.params || null,
+                })),
             });
 
-            const data = await response.json();
+            const data = response.data;
 
             if (data.success) {
                 setSuccess(data.message);
@@ -715,16 +712,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
     const handleCancel = async (id: number) => {
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const response = await fetch(`/admin/bulk-sends/${id}/cancel`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                },
-            });
+            const response = await csrfPost(`/admin/bulk-sends/${id}/cancel`);
 
-            const data = await response.json();
+            const data = response.data;
             if (data.success) {
                 setIsProcessing(false);
                 setActiveProgress(null);
@@ -778,27 +768,18 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         setIsCreatingTemplate(true);
         setError('');
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const response = await fetch('/admin/bulk-sends/templates/create', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    name: newTplName,
-                    display_name: newTplDisplayName,
-                    category: newTplCategory,
-                    language: newTplLanguage,
-                    header_format: newTplHeaderFormat !== 'NONE' ? newTplHeaderFormat : null,
-                    header_text: newTplHeaderFormat === 'TEXT' ? newTplHeader || null : null,
-                    header_media_url: ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(newTplHeaderFormat) ? newTplHeaderMediaUrl || null : null,
-                    body_text: newTplBody,
-                    footer_text: newTplFooter || null,
-                }),
+            const response = await csrfPost('/admin/bulk-sends/templates/create', {
+                name: newTplName,
+                display_name: newTplDisplayName,
+                category: newTplCategory,
+                language: newTplLanguage,
+                header_format: newTplHeaderFormat !== 'NONE' ? newTplHeaderFormat : null,
+                header_text: newTplHeaderFormat === 'TEXT' ? newTplHeader || null : null,
+                header_media_url: ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(newTplHeaderFormat) ? newTplHeaderMediaUrl || null : null,
+                body_text: newTplBody,
+                footer_text: newTplFooter || null,
             });
-            const data = await response.json();
+            const data = response.data;
             if (data.success) {
                 setSuccess(data.message);
                 setShowCreateModal(false);
@@ -827,12 +808,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         setIsSyncing(true);
         setError('');
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const response = await fetch('/admin/bulk-sends/templates/sync', {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
-            });
-            const data = await response.json();
+            const response = await csrfPost('/admin/bulk-sends/templates/sync');
+            const data = response.data;
             if (data.success) {
                 setSuccess(data.message);
                 setTimeout(() => setSuccess(''), 5000);
@@ -850,12 +827,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const handleDeleteTemplate = async (id: number, name: string) => {
         if (!confirm(`¿Eliminar la plantilla "${name}"? Esto también la eliminará de Meta.`)) return;
         try {
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-            const response = await fetch(`/admin/bulk-sends/templates/${id}`, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': csrfToken, 'Accept': 'application/json' },
-            });
-            const data = await response.json();
+            const response = await csrfDelete(`/admin/bulk-sends/templates/${id}`);
+            const data = response.data;
             if (data.success) {
                 setSuccess(data.message);
                 setTimeout(() => setSuccess(''), 5000);

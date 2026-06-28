@@ -93,6 +93,18 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
 
+// CSRF: las mutaciones van por axios para usar el token VIVO de la cookie XSRF-TOKEN
+// (withXSRFToken global). El <meta name="csrf-token"> queda obsoleto tras un login por
+// Inertia (la sesión se regenera) => 419 + HTML. validateStatus deja pasar cualquier
+// estado salvo 419 para que el interceptor global de app.tsx reintente, replicando que
+// fetch nunca lanza por código HTTP (la UI sigue leyendo data.success / data.error).
+const csrfPost = (url: string, body?: unknown) =>
+    axios.post(url, body, { validateStatus: (s: number) => s !== 419 });
+const csrfPut = (url: string, body?: unknown) =>
+    axios.put(url, body, { validateStatus: (s: number) => s !== 419 });
+const csrfDelete = (url: string) =>
+    axios.delete(url, { validateStatus: (s: number) => s !== 419 });
+
 interface Message {
     id: number;
     content: string;
@@ -560,13 +572,9 @@ export default function ConversationsIndex({ conversations: initialConversations
             const existing = allTags.find(t => t.name.toLowerCase() === name.toLowerCase());
             if (existing) return existing;
 
-            const res = await fetch('/admin/tags', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-                body: JSON.stringify({ name, color }),
-            });
-            if (res.ok) {
-                const tag = await res.json();
+            const res = await csrfPost('/admin/tags', { name, color });
+            if (res.status >= 200 && res.status < 300) {
+                const tag = res.data;
                 setAllTags(prev => [...prev, { ...tag, conversations_count: 0 }].sort((a, b) => a.name.localeCompare(b.name)));
                 return tag;
             }
@@ -596,11 +604,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 : c
         ));
         try {
-            await fetch(`/admin/tags/conversation/${conversationId}/attach`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-                body: JSON.stringify({ tag_id: tagId }),
-            });
+            await csrfPost(`/admin/tags/conversation/${conversationId}/attach`, { tag_id: tagId });
         } catch {
             // Rollback si falla el guardado en el servidor
             setLocalConversations(prev => prev.map(c =>
@@ -616,10 +620,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             c.id === conversationId ? { ...c, tags: (c.tags || []).filter(t => t.id !== tagId) } : c
         ));
         try {
-            await fetch(`/admin/tags/conversation/${conversationId}/detach/${tagId}`, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-            });
+            await csrfDelete(`/admin/tags/conversation/${conversationId}/detach/${tagId}`);
         } catch {
             // Rollback si falla
             if (removed) setLocalConversations(prev => prev.map(c =>
@@ -632,10 +633,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const deleteTag = async (tagId: number) => {
         if (!confirm('¿Eliminar esta etiqueta? Se quitará de todas las conversaciones.')) return;
         try {
-            await fetch(`/admin/tags/${tagId}`, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-            });
+            await csrfDelete(`/admin/tags/${tagId}`);
             setAllTags(prev => prev.filter(t => t.id !== tagId));
             if (tagFilterId === tagId) {
                 setTagFilterId(null);
@@ -648,16 +646,9 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const updateTag = async (tagId: number, name: string, color: string) => {
         try {
-            const res = await fetch(`/admin/tags/${tagId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                body: JSON.stringify({ name, color }),
-            });
-            if (res.ok) {
-                const updated = await res.json();
+            const res = await csrfPut(`/admin/tags/${tagId}`, { name, color });
+            if (res.status >= 200 && res.status < 300) {
+                const updated = res.data;
                 setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, name: updated.name, color: updated.color } : t));
                 setEditingTag(null);
                 router.reload({ only: ['conversations', 'selectedConversation', 'filterCounts'] });
@@ -1599,12 +1590,8 @@ export default function ConversationsIndex({ conversations: initialConversations
             return;
         }
 
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const sendViewing = () => {
-            fetch(`/admin/chat/${selectedConversation.id}/viewing`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrfToken },
-            }).catch(() => {});
+            csrfPost(`/admin/chat/${selectedConversation.id}/viewing`).catch(() => {});
         };
 
         // Enviar inmediatamente al abrir y luego cada 10s
@@ -2485,32 +2472,18 @@ export default function ConversationsIndex({ conversations: initialConversations
             formData.append('reply_to_id', messageReplyToId.toString());
         }
 
-        // Obtener token CSRF del meta tag
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
-        fetch(`/admin/chat/${selectedConversation.id}/send`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': csrfToken,
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-            credentials: 'same-origin',
-            body: formData,
-        })
+        csrfPost(`/admin/chat/${selectedConversation.id}/send`, formData)
             .then(response => {
-                if (!response.ok) {
+                if (!(response.status >= 200 && response.status < 300)) {
                     if (response.status === 419) {
                         throw new Error('Sesión expirada. Por favor recarga la página.');
                     }
                     if (response.status === 423) {
-                        return response.json().then(data => {
-                            throw new Error(data.error || 'Esta conversación está siendo atendida por otro asesor.');
-                        });
+                        throw new Error(response.data?.error || 'Esta conversación está siendo atendida por otro asesor.');
                     }
                     throw new Error('Error al enviar mensaje');
                 }
-                return response.json();
+                return response.data;
             })
             .then((data) => {
                 const serverMessage = data?.message;
@@ -2584,13 +2557,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             });
         });
         // Use fetch instead of router.post to avoid Inertia page reload
-        fetch(`/admin/chat/${conversationId}/pin`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            },
-        }).then(() => {
+        csrfPost(`/admin/chat/${conversationId}/pin`).then(() => {
             toast.success(isPinned ? 'Chat desfijado' : 'Chat fijado');
         }).catch(err => {
             console.error('Error toggling pin:', err);
@@ -2605,14 +2572,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (notesTimeoutRef.current) clearTimeout(notesTimeoutRef.current);
         notesTimeoutRef.current = setTimeout(() => {
             setSavingNotes(true);
-            fetch(`/admin/chat/${selectedConversation.id}/notes`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-                body: JSON.stringify({ notes: text }),
-            }).then(() => {
+            csrfPost(`/admin/chat/${selectedConversation.id}/notes`, { notes: text }).then(() => {
                 setSavingNotes(false);
             }).catch(() => {
                 setSavingNotes(false);
@@ -2678,12 +2638,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const emitTyping = () => {
         if (!selectedConversation) return;
         if (typingTimeoutRef.current) return; // Already sent recently
-        fetch(`/admin/chat/${selectedConversation.id}/typing`, {
-            method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-            },
-        }).catch(() => {});
+        csrfPost(`/admin/chat/${selectedConversation.id}/typing`).catch(() => {});
         typingTimeoutRef.current = setTimeout(() => {
             typingTimeoutRef.current = null;
         }, 4000);
@@ -2741,11 +2696,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         setLocalConversations(prev =>
             prev.map(c => c.id === convId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
         );
-        fetch(`/admin/chat/${convId}/status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-            body: JSON.stringify({ status }),
-        }).then(() => {
+        csrfPost(`/admin/chat/${convId}/status`, { status }).then(() => {
             toast.success('Estado actualizado');
             router.reload({ only: ['selectedConversation'], preserveScroll: true, preserveState: true });
         }).catch(() => toast.error('Error al cambiar el estado'));
@@ -2780,11 +2731,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         setLocalConversations(prev =>
             prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
         );
-        fetch(`/admin/chat/${conversationId}/status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-            body: JSON.stringify({ status }),
-        }).then(() => {
+        csrfPost(`/admin/chat/${conversationId}/status`, { status }).then(() => {
             toast.success('Estado actualizado');
             if (selectedConversation?.id === conversationId) {
                 router.reload({ only: ['selectedConversation'], preserveScroll: true, preserveState: true });
@@ -3906,14 +3853,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            fetch(`/admin/chat/${conversation.id}/specialty`, {
-                                                                method: 'POST',
-                                                                headers: {
-                                                                    'Content-Type': 'application/json',
-                                                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                                                                },
-                                                                body: JSON.stringify({ specialty: null }),
-                                                            }).then(() => {
+                                                            csrfPost(`/admin/chat/${conversation.id}/specialty`, { specialty: null }).then(() => {
                                                                 setLocalConversations(prev => prev.map(c =>
                                                                     c.id === conversation.id ? { ...c, specialty: null } : c
                                                                 ));
@@ -3952,14 +3892,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' && specialtyName.trim()) {
                                                     const name = specialtyName.trim();
-                                                    fetch(`/admin/chat/${conversation.id}/specialty`, {
-                                                        method: 'POST',
-                                                        headers: {
-                                                            'Content-Type': 'application/json',
-                                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                                                        },
-                                                        body: JSON.stringify({ specialty: name }),
-                                                    }).then(() => {
+                                                    csrfPost(`/admin/chat/${conversation.id}/specialty`, { specialty: name }).then(() => {
                                                         setLocalConversations(prev => prev.map(c =>
                                                             c.id === conversation.id ? { ...c, specialty: name } : c
                                                         ));
@@ -4030,13 +3963,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <div className="border-t border-border my-1"></div>
                                 <button
                                     onClick={() => {
-                                        fetch(`/admin/chat/${conversation.id}/block`, {
-                                            method: 'POST',
-                                            headers: {
-                                                'Content-Type': 'application/json',
-                                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                                            },
-                                        }).then(res => res.json()).then(data => {
+                                        csrfPost(`/admin/chat/${conversation.id}/block`).then(res => res.data).then(data => {
                                             if (data.success) {
                                                 setLocalConversations(prev => prev.map(c =>
                                                     c.id === conversation.id ? { ...c, is_blocked: data.is_blocked } : c
@@ -4737,13 +4664,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     <span className="text-sm font-medium text-red-600 dark:text-red-400">Este contacto está bloqueado</span>
                                     <button
                                         onClick={() => {
-                                            fetch(`/admin/chat/${selectedConversation.id}/block`, {
-                                                method: 'POST',
-                                                headers: {
-                                                    'Content-Type': 'application/json',
-                                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                                                },
-                                            }).then(res => res.json()).then(data => {
+                                            csrfPost(`/admin/chat/${selectedConversation.id}/block`).then(res => res.data).then(data => {
                                                 if (data.success) {
                                                     setLocalConversations(prev => prev.map(c =>
                                                         c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c
@@ -5127,11 +5048,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
                                                     const name = specialtyName.trim();
-                                                    fetch(`/admin/chat/${selectedConversation.id}/specialty`, {
-                                                        method: 'POST',
-                                                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-                                                        body: JSON.stringify({ specialty: name }),
-                                                    }).then(() => {
+                                                    csrfPost(`/admin/chat/${selectedConversation.id}/specialty`, { specialty: name }).then(() => {
                                                         setLocalConversations(prev => prev.map(c => c.id === selectedConversation.id ? { ...c, specialty: name } : c));
                                                         router.reload({ only: ['selectedConversation'] });
                                                         toast.success(name ? `Especialidad "${name}" guardada` : 'Especialidad quitada');
@@ -5237,10 +5154,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </button>
                                     <button
                                         onClick={() => {
-                                            fetch(`/admin/chat/${selectedConversation.id}/block`, {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-                                            }).then(res => res.json()).then(data => {
+                                            csrfPost(`/admin/chat/${selectedConversation.id}/block`).then(res => res.data).then(data => {
                                                 if (data.success) {
                                                     setLocalConversations(prev => prev.map(c => c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c));
                                                     router.reload({ only: ['selectedConversation'] });
@@ -5503,20 +5417,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 if (!waTemplateId || !selectedConversation) return;
                                 setIsSendingWaTemplate(true);
                                 try {
-                                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-                                    const response = await fetch(`/admin/chat/${selectedConversation.id}/send-template`, {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'X-CSRF-TOKEN': csrfToken,
-                                            'Accept': 'application/json',
-                                        },
-                                        body: JSON.stringify({
-                                            whatsapp_template_id: waTemplateId,
-                                            template_params: waTemplateParams,
-                                        }),
+                                    const response = await csrfPost(`/admin/chat/${selectedConversation.id}/send-template`, {
+                                        whatsapp_template_id: waTemplateId,
+                                        template_params: waTemplateParams,
                                     });
-                                    const result = await response.json();
+                                    const result = response.data;
                                     if (result.success) {
                                         toast.success('Plantilla enviada exitosamente');
                                         setShowWaTemplateModal(false);
@@ -5667,18 +5572,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                         setIsCreatingChat(true);
                         // Crear con fetch (NO Inertia): no navega ni recarga la lista, así el asesor
                         // NO pierde su posición/scroll. La conversación nueva aparece sola por el polling.
-                        fetch('/admin/chat/create', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-                            body: JSON.stringify({
-                                phone_number: newChatData.phone_number,
-                                assigned_to: newChatData.assigned_to,
-                                whatsapp_template_id: newChatData.whatsapp_template_id,
-                                template_params: newChatData.template_params,
-                            }),
-                        }).then(async (res) => {
-                            const data = await res.json().catch(() => ({}));
-                            if (res.ok && data.success) {
+                        csrfPost('/admin/chat/create', {
+                            phone_number: newChatData.phone_number,
+                            assigned_to: newChatData.assigned_to,
+                            whatsapp_template_id: newChatData.whatsapp_template_id,
+                            template_params: newChatData.template_params,
+                        }).then((res) => {
+                            const data = res.data || {};
+                            if (res.status >= 200 && res.status < 300 && data.success) {
                                 setShowNewChatModal(false);
                                 setNewChatData({ phone_number: '', assigned_to: null, whatsapp_template_id: null, template_params: [] });
                                 toast.success('Conversación creada exitosamente');

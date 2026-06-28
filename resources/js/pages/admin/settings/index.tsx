@@ -26,6 +26,7 @@ import {
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import axios from 'axios';
 
 interface Settings {
     whatsapp: {
@@ -257,15 +258,14 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
         setConnectionStatus({ type: null, message: '' });
 
         try {
-            const response = await fetch('/admin/settings/test-whatsapp', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
+            // axios usa el token CSRF VIVO de la cookie (el <meta> queda obsoleto tras login por
+            // Inertia) y el interceptor global reintenta ante 419. validateStatus deja pasar 4xx/5xx
+            // sin lanzar para conservar el manejo del JSON de negocio ({ success, message }).
+            const response = await axios.post('/admin/settings/test-whatsapp', null, {
+                validateStatus: (status) => status !== 419,
             });
 
-            const data = await response.json();
+            const data = response.data;
 
             setConnectionStatus({
                 type: data.success ? 'success' : 'error',
