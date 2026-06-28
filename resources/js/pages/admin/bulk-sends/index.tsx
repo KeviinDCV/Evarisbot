@@ -1071,7 +1071,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             {whatsappTemplates.length > 0 ? (
                                                 <div className="space-y-3">
                                                     <Select
-                                                        value={selectedTemplate?.id ? String(selectedTemplate.id) : undefined}
+                                                        value={selectedTemplate?.id ? String(selectedTemplate.id) : ''}
                                                         onValueChange={(v) => handleSelectTemplate(v)}
                                                     >
                                                         <SelectTrigger className="w-full h-10 settings-input rounded-xl">
@@ -1218,7 +1218,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                             source === 'nombre' ? '__nombre__' :
                                                                             source === 'column' && !columnMissing ? `__col__${mapping?.column}` :
                                                                             source === 'static' ? '__static__' :
-                                                                            undefined
+                                                                            ''
                                                                         }
                                                                         onValueChange={(v) => {
                                                                             const val = v;
@@ -1456,8 +1456,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             </div>
 
                             {/* Columna derecha: Vista previa de destinatarios */}
-                            <div className="space-y-4">
-                                <div className="flex h-full min-h-[460px] flex-col rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                            <div className="flex flex-col gap-4">
+                                <div className="flex min-h-[460px] flex-1 flex-col rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <div className="mb-3 flex items-center justify-between gap-3">
                                         <h2 className="text-base font-bold settings-title">
                                             Destinatarios ({recipients.length})
@@ -1476,7 +1476,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             <p className="text-sm">No hay destinatarios aún</p>
                                         </div>
                                     ) : (
-                                        <div className="mb-4 max-h-[520px] flex-1 overflow-y-auto rounded-xl border border-border/60 bg-background/50 custom-scrollbar-light">
+                                        <div className="relative mb-4 flex-1 min-h-0">
+                                            <div className="absolute inset-0 overflow-y-auto rounded-xl border border-border/60 bg-background/50 custom-scrollbar-light">
                                             {recipients.map((r, index) => (
                                                 <div
                                                     key={index}
@@ -1504,6 +1505,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     </button>
                                                 </div>
                                             ))}
+                                            </div>
                                         </div>
                                     )}
 

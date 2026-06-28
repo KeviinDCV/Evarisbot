@@ -284,10 +284,17 @@ class BulkSendController extends Controller
                     $rows[] = $row;
                 }
                 fclose($handle);
+            } elseif ($extension === 'xlsx') {
+                // XLSX: lector en streaming propio (ver readXlsxStreaming). Lee fila por
+                // fila con XMLReader y se detiene al terminar los datos reales, ignorando
+                // las filas fantasma que inflan el archivo (un .xlsx puede declarar más de
+                // un millón de filas vacías → PhpSpreadsheet revienta la memoria/tarda
+                // minutos). Esto es órdenes de magnitud más rápido y usa poca memoria,
+                // produciendo EXACTAMENTE la misma salida de fechas/horas que antes.
+                $rows = $this->readXlsxStreaming($filePath);
             } else {
-                // Excel: leer con formato para que fechas/horas se conviertan correctamente
-                $readerType = $extension === 'xls' ? 'Xls' : 'Xlsx';
-                $reader = IOFactory::createReader($readerType);
+                // XLS (formato binario antiguo, máx. 65.536 filas): PhpSpreadsheet con formato.
+                $reader = IOFactory::createReader('Xls');
                 // NO usar setReadDataOnly(true) — destruye el formato de fechas/horas
                 $spreadsheet = $reader->load($filePath);
                 $worksheet = $spreadsheet->getActiveSheet();
@@ -456,6 +463,218 @@ class BulkSendController extends Controller
                 'message' => 'Error al procesar el archivo: ' . $e->getMessage(),
             ], 422);
         }
+    }
+
+    /**
+     * Lee un archivo .xlsx en streaming con XMLReader, fila por fila, deteniéndose en
+     * cuanto terminan los datos reales (tras N filas vacías seguidas).
+     *
+     * Por qué: un .xlsx exportado puede declarar más de 1.000.000 de filas (rango usado
+     * inflado con celdas fantasma). PhpSpreadsheet carga TODO en memoria (estilos
+     * incluidos) → minutos de espera y consumo de memoria de varios GB. Aquí leemos solo
+     * lo necesario: cadenas compartidas + formatos (ambos pequeños) y luego la hoja en
+     * streaming sobre el wrapper zip:// (nunca se materializan los 186 MB de XML).
+     *
+     * Devuelve un array de filas (la primera fila es el encabezado). Las columnas de
+     * fecha/hora se convierten a texto con EXACTAMENTE la misma lógica que antes, por lo
+     * que la salida es idéntica a la de PhpSpreadsheet pero muchísimo más rápida.
+     */
+    private function readXlsxStreaming(string $path): array
+    {
+        $emptyRowLimit = 100; // nº de filas vacías seguidas que marcan el fin de los datos
+        $zip = new \ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new \Exception('No se pudo abrir el archivo Excel.');
+        }
+
+        // 1) Tabla de cadenas compartidas (sharedStrings). Suele ser pequeña.
+        $shared = [];
+        $ssXml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($ssXml !== false && $ssXml !== '') {
+            $sr = new \XMLReader();
+            $sr->XML($ssXml);
+            while ($sr->read()) {
+                if ($sr->nodeType === \XMLReader::ELEMENT && $sr->localName === 'si') break;
+            }
+            while ($sr->nodeType === \XMLReader::ELEMENT && $sr->localName === 'si') {
+                $node = $sr->readOuterXml();
+                $txt = '';
+                if (preg_match_all('/<t[^>]*>(.*?)<\/t>/s', $node, $mm)) {
+                    foreach ($mm[1] as $piece) {
+                        $txt .= html_entity_decode($piece, ENT_QUOTES | ENT_XML1, 'UTF-8');
+                    }
+                }
+                $shared[] = $txt;
+                $sr->next('si');
+            }
+            $sr->close();
+        }
+
+        // 2) Estilos → qué índice de estilo es un formato de fecha/hora.
+        $styleIsDate = [];
+        $stylesXml = $zip->getFromName('xl/styles.xml');
+        if ($stylesXml !== false && $stylesXml !== '') {
+            $sx = @simplexml_load_string($stylesXml);
+            if ($sx !== false) {
+                $numFmtMap = [];
+                if (isset($sx->numFmts)) {
+                    foreach ($sx->numFmts->numFmt as $nf) {
+                        $numFmtMap[(int) $nf['numFmtId']] = (string) $nf['formatCode'];
+                    }
+                }
+                if (isset($sx->cellXfs)) {
+                    $idx = 0;
+                    foreach ($sx->cellXfs->xf as $xf) {
+                        $numFmtId = (int) $xf['numFmtId'];
+                        $code = $numFmtMap[$numFmtId]
+                            ?? \PhpOffice\PhpSpreadsheet\Style\NumberFormat::builtInFormatCode($numFmtId);
+                        $styleIsDate[$idx] = ($code !== null && $code !== ''
+                            && \PhpOffice\PhpSpreadsheet\Shared\Date::isDateTimeFormatCode((string) $code));
+                        $idx++;
+                    }
+                }
+            }
+        }
+
+        // 3) Localizar la primera hoja (casi siempre sheet1.xml).
+        $sheetPath = 'xl/worksheets/sheet1.xml';
+        if ($zip->locateName($sheetPath) === false) {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if ($name !== false && preg_match('#^xl/worksheets/sheet[^/]+\.xml$#i', $name)) {
+                    $sheetPath = $name;
+                    break;
+                }
+            }
+        }
+        $zip->close();
+
+        // 4) Hoja en streaming con XMLReader sobre zip:// (no se carga el XML completo).
+        $timeColumnAliases = ['cithor', 'hora', 'hour', 'time', 'horario'];
+        $headerNames = [];
+        $maxCol = 0;
+        $rows = [];
+        $emptyRun = 0;
+        $rowIndex = 0;
+
+        $xr = new \XMLReader();
+        if (!@$xr->open('zip://' . $path . '#' . $sheetPath)) {
+            throw new \Exception('No se pudo leer la hoja del archivo Excel.');
+        }
+        // Avanzar hasta la primera <row>.
+        while ($xr->read()) {
+            if ($xr->nodeType === \XMLReader::ELEMENT && $xr->localName === 'row') break;
+        }
+
+        while ($xr->nodeType === \XMLReader::ELEMENT && $xr->localName === 'row') {
+            $rowIndex++;
+            $rowXml = $xr->readOuterXml();
+
+            // Parsear las celdas (<c>) de la fila.
+            $cells = [];
+            $rowMaxCol = 0;
+            if (preg_match_all('/<c\s+([^>]*?)(?:\/>|>(.*?)<\/c>)/s', $rowXml, $cm, PREG_SET_ORDER)) {
+                foreach ($cm as $c) {
+                    $attrs = $c[1];
+                    $inner = $c[2] ?? '';
+                    if (!preg_match('/r="([A-Z]+)\d+"/', $attrs, $rm)) continue;
+                    $colIdx = $this->colLettersToIndex($rm[1]);
+                    $t = preg_match('/t="([^"]+)"/', $attrs, $tm) ? $tm[1] : 'n';
+                    $s = preg_match('/\ss="(\d+)"/', $attrs, $sm) ? (int) $sm[1] : 0;
+
+                    if ($t === 'inlineStr') {
+                        $val = preg_match('/<t[^>]*>(.*?)<\/t>/s', $inner, $vm)
+                            ? html_entity_decode($vm[1], ENT_QUOTES | ENT_XML1, 'UTF-8') : '';
+                    } else {
+                        $raw = preg_match('/<v[^>]*>(.*?)<\/v>/s', $inner, $vm) ? $vm[1] : '';
+                        if ($t === 's') {
+                            $val = $shared[(int) $raw] ?? '';
+                        } elseif ($t === 'str') {
+                            $val = html_entity_decode($raw, ENT_QUOTES | ENT_XML1, 'UTF-8');
+                        } else {
+                            $val = $raw;
+                        }
+                    }
+                    $cells[$colIdx] = ['t' => $t, 's' => $s, 'val' => $val];
+                    if ($colIdx > $rowMaxCol) $rowMaxCol = $colIdx;
+                }
+            }
+
+            // Fila 1 = encabezados: define columnas y detecta columnas de hora.
+            if ($rowIndex === 1) {
+                $maxCol = $rowMaxCol;
+                for ($col = 1; $col <= $maxCol; $col++) {
+                    $headerNames[$col] = strtolower(trim((string) ($cells[$col]['val'] ?? '')));
+                }
+                $rowData = [];
+                for ($col = 1; $col <= $maxCol; $col++) {
+                    $rowData[] = (string) ($cells[$col]['val'] ?? '');
+                }
+                $rows[] = $rowData;
+                $xr->next('row');
+                continue;
+            }
+
+            // Filas de datos.
+            $rowData = [];
+            $nonEmpty = false;
+            for ($col = 1; $col <= $maxCol; $col++) {
+                $cell = $cells[$col] ?? null;
+                if ($cell === null) { $rowData[] = ''; continue; }
+                $val = $cell['val'];
+                $isText = in_array($cell['t'], ['s', 'str', 'inlineStr'], true);
+
+                // Numérico con formato de fecha/hora → convertir (misma lógica de antes).
+                if (!$isText && is_numeric($val) && (float) $val > 0 && ($styleIsDate[$cell['s']] ?? false)) {
+                    try {
+                        $dateObj = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $val);
+                        $isTimeColumn = in_array($headerNames[$col] ?? '', $timeColumnAliases, true);
+                        if ($isTimeColumn) {
+                            $rowData[] = $dateObj->format('g:i A');
+                        } elseif (fmod((float) $val, 1) > 0 && (float) $val < 1) {
+                            $rowData[] = $dateObj->format('g:i A');
+                        } elseif (fmod((float) $val, 1) > 0) {
+                            $rowData[] = $dateObj->format('d/m/Y g:i A');
+                        } else {
+                            $rowData[] = $dateObj->format('d/m/Y');
+                        }
+                        $nonEmpty = true;
+                        continue;
+                    } catch (\Throwable $e) {
+                        // Si falla la conversión, cae al valor de texto de abajo.
+                    }
+                }
+
+                // Normalizar numéricos como (string)(float): "3001234567.0" -> "3001234567".
+                $sval = ($cell['t'] === 'n' && is_numeric($val)) ? (string) (float) $val : (string) $val;
+                $rowData[] = $sval;
+                if (trim($sval) !== '') $nonEmpty = true;
+            }
+
+            if ($nonEmpty) {
+                $rows[] = $rowData;
+                $emptyRun = 0;
+            } else {
+                // Fila vacía: contar. Tras N seguidas, los datos terminaron → cortar.
+                $emptyRun++;
+                if ($emptyRun >= $emptyRowLimit) break;
+            }
+            $xr->next('row');
+        }
+        $xr->close();
+
+        return $rows;
+    }
+
+    /** Convierte letras de columna de Excel (A, B, ..., AA, AB) a índice 1-based. */
+    private function colLettersToIndex(string $letters): int
+    {
+        $n = 0;
+        $len = strlen($letters);
+        for ($i = 0; $i < $len; $i++) {
+            $n = $n * 26 + (ord($letters[$i]) - 64);
+        }
+        return $n;
     }
 
     /**

@@ -78,6 +78,15 @@ Schedule::command('ai:check-timeouts')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Marcar como leídas las confirmaciones/cortesías de recordatorios cada noche.
+// Mantiene bajo el contador de "no leídos" sin tocar mensajes reales de pacientes.
+Schedule::command('conversations:mark-confirmations-read')
+    ->dailyAt('23:30')
+    ->timezone('America/Bogota')
+    ->withoutOverlapping()
+    ->onOneServer()
+    ->runInBackground();
+
 // Procesar cola de recordatorios cada minuto (SOLO para cPanel sin queue:work permanente)
 // DESACTIVADO cuando se usa `php artisan queue:work` ya que compite por el lock
 // y causa que los jobs se atasquen sin enviar realmente.

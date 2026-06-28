@@ -7,8 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 import {
     Bot,
-    CheckCircle2,
-    CircleOff,
     Edit3,
     FileText,
     Globe2,
@@ -508,30 +506,6 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                             </div>
                         )}
                     </SectionCard>
-
-                    <div className="grid gap-3 md:grid-cols-3">
-                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                            <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
-                                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
-                                Activas
-                            </div>
-                            <p className="mt-2 text-xl font-bold settings-title">{formatNumber(stats.active)}</p>
-                        </div>
-                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                            <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
-                                <CircleOff className="h-4 w-4 text-slate-500" />
-                                Inactivas
-                            </div>
-                            <p className="mt-2 text-xl font-bold settings-title">{formatNumber(stats.inactive)}</p>
-                        </div>
-                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                            <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
-                                <UserCheck className="h-4 w-4 text-amber-600 dark:text-amber-300" />
-                                Asignadas
-                            </div>
-                            <p className="mt-2 text-xl font-bold settings-title">{formatNumber(stats.assigned)}</p>
-                        </div>
-                    </div>
                 </div>
             </div>
 
