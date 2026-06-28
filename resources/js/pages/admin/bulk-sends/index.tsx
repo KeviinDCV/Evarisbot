@@ -481,7 +481,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         if (!isProcessing) return;
 
         let shouldStop = false;
-        let intervalId: NodeJS.Timeout | null = null;
+        let intervalId: ReturnType<typeof setInterval> | null = null;
 
         const checkStatus = async () => {
             if (shouldStop) return;

@@ -176,7 +176,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
         let updateCount = 0;
         let shouldStop = false;
-        let intervalId: NodeJS.Timeout | null = null;
+        let intervalId: ReturnType<typeof setInterval> | null = null;
 
         // Primera actualización inmediata
         const updateStatus = async () => {

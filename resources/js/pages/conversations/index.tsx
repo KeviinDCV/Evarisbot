@@ -1663,7 +1663,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     }, [inChatMatches.length]);
 
     // Debounce para la búsqueda
-    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleSearch = (value: string) => {
         setSearch(value);
@@ -2698,7 +2698,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         );
         csrfPost(`/admin/chat/${convId}/status`, { status }).then(() => {
             toast.success('Estado actualizado');
-            router.reload({ only: ['selectedConversation'], preserveScroll: true, preserveState: true });
+            router.reload({ only: ['selectedConversation'] });
         }).catch(() => toast.error('Error al cambiar el estado'));
     };
 
@@ -2734,7 +2734,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         csrfPost(`/admin/chat/${conversationId}/status`, { status }).then(() => {
             toast.success('Estado actualizado');
             if (selectedConversation?.id === conversationId) {
-                router.reload({ only: ['selectedConversation'], preserveScroll: true, preserveState: true });
+                router.reload({ only: ['selectedConversation'] });
             }
         }).catch(() => toast.error('Error al cambiar el estado'));
     };
