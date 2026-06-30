@@ -4,7 +4,8 @@ import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/routes/login';
 import { Form, Head } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Eye, EyeOff, Infinity as InfinityIcon, Lock, Mail } from 'lucide-react';
 import type { FocusEvent } from 'react';
 
@@ -42,6 +43,12 @@ export default function Login({ status }: LoginProps) {
     const { t } = useTranslation();
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
+
+    // Refresca la cookie XSRF-TOKEN al montar para que el primer envío del login use un token
+    // vivo y no choque con uno caducado/rotado (evita el 419 + reintento que ensucia la consola).
+    useEffect(() => {
+        axios.get('/csrf-refresh').catch(() => {});
+    }, []);
 
     return (
         <AuthLayout title={t('auth.loginTitle')} description="">
