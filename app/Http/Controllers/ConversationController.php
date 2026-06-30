@@ -263,7 +263,7 @@ class ConversationController extends Controller
             // por búsqueda o filtros explícitos, y aparecen apenas el paciente responda.
             $query->where(function ($q) {
                 $q->whereNotNull('assigned_to')
-                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true));
+                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
             });
         }
 
@@ -484,6 +484,13 @@ class ConversationController extends Controller
         } elseif (!$filteringByTag && !$hasSearchTerm) {
             // Sin filtro de estado explícito, sin etiqueta y sin búsqueda: excluir resueltas
             $query->whereIn('status', ['active', 'pending']);
+            // Mismo criterio que index(): excluir conversaciones sin asignar cuyo único
+            // tráfico del paciente son respuestas automáticas de cita ocultas
+            // (confirmar/cancelar). Reaparecen apenas el paciente escriba algo distinto.
+            $query->where(function ($q) {
+                $q->whereNotNull('assigned_to')
+                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
+            });
         }
 
         // Excluir conversaciones bloqueadas del listado general (a menos que se busque)
@@ -556,8 +563,17 @@ class ConversationController extends Controller
             return [$conv->is_pinned ? 1 : 0, $conv->last_message_at?->timestamp ?? 0];
         })->values();
         
-        // Cargar la conversación seleccionada con todos sus mensajes
-        $conversation->load(['messages.sender', 'messages.replyTo', 'messages.reactions', 'assignedUser', 'resolvedByUser', 'tags']);
+        // Cargar la conversación seleccionada con sus mensajes VISIBLES (las respuestas
+        // automáticas de cita marcadas como ocultas no se muestran al asesor).
+        $conversation->load([
+            'messages' => fn ($q) => $q->where('is_hidden', false),
+            'messages.sender',
+            'messages.replyTo',
+            'messages.reactions',
+            'assignedUser',
+            'resolvedByUser',
+            'tags',
+        ]);
         
         // Conteo de mensajes sin leer ANTES de marcarlos como leídos, para el divisor
         // "Mensajes nuevos" (tipo WhatsApp) en el frontend.
@@ -1976,10 +1992,12 @@ class ConversationController extends Controller
             }
         } elseif (!$filteringByTag && !$hasSearchTerm) {
             $query->whereIn('status', ['active', 'pending']);
-            // Excluir "solo-salientes" sin asignar (mismo criterio que index)
+            // Excluir "solo-salientes" sin asignar (mismo criterio que index): los
+            // mensajes ocultos (respuestas automáticas de cita) no cuentan como
+            // tráfico real del paciente.
             $query->where(function ($q) {
                 $q->whereNotNull('assigned_to')
-                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true));
+                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
             });
         }
 
@@ -2070,6 +2088,7 @@ class ConversationController extends Controller
         $newMessages = $conversation->messages()
             ->with(['sender', 'replyTo', 'reactions'])
             ->where('id', '>', $afterId)
+            ->where('is_hidden', false) // No entregar respuestas automáticas de cita al hilo
             ->orderBy('id', 'asc')
             ->get();
 

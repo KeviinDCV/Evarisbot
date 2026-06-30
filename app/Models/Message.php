@@ -17,6 +17,7 @@ class Message extends Model
         'media_filename',
         'transcription',
         'is_from_user',
+        'is_hidden',
         'whatsapp_message_id',
         'reply_to_id',
         'status',
@@ -26,6 +27,7 @@ class Message extends Model
 
     protected $casts = [
         'is_from_user' => 'boolean',
+        'is_hidden' => 'boolean',
     ];
 
     /**
@@ -116,5 +118,14 @@ class Message extends Model
     public function scopeUnread($query)
     {
         return $query->where('status', '!=', 'read');
+    }
+
+    /**
+     * Solo mensajes visibles para los asesores (excluye respuestas
+     * automáticas de cita marcadas como ocultas).
+     */
+    public function scopeVisible($query)
+    {
+        return $query->where('is_hidden', false);
     }
 }

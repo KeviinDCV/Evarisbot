@@ -1819,12 +1819,19 @@ class WhatsAppService
                 return null;
             }
 
+            // ¿Es una respuesta automática de cita (confirmar/cancelar)? En ese caso
+            // el sistema la atiende solo y debe ocultarse de los asesores: no inunda
+            // la lista de "Conversaciones" ni el hilo. Cualquier otro mensaje del
+            // paciente (incluidos los datos para cancelar) sí queda visible.
+            $isAppointmentResponse = $appointments->isNotEmpty();
+
             // Crear mensaje
             $message = $conversation->messages()->create([
                 'content' => $content,
                 'message_type' => $messageType,
                 'media_url' => $mediaUrl,
                 'is_from_user' => true,
+                'is_hidden' => $isAppointmentResponse,
                 'whatsapp_message_id' => $messageId,
                 'status' => 'delivered',
                 'reply_to_id' => isset($messageData['context']['id'])
@@ -1842,13 +1849,19 @@ class WhatsAppService
                 'last_message_at' => now(),
             ]);
 
-            $conversation->incrementUnread();
+            // Los mensajes ocultos no suman no-leídos ni reactivan la vista de trabajo.
+            if (!$isAppointmentResponse) {
+                $conversation->incrementUnread();
+            }
 
             // Marcar como leído en WhatsApp
             $this->markAsRead($messageId);
 
-            // Emitir evento de broadcasting para actualización en tiempo real
-            broadcast(new MessageSent($message, $conversation->fresh(['lastMessage', 'assignedUser'])));
+            // Emitir evento de broadcasting solo para mensajes visibles, para que las
+            // confirmaciones/cancelaciones no "salten" en tiempo real a la lista.
+            if (!$isAppointmentResponse) {
+                broadcast(new MessageSent($message, $conversation->fresh(['lastMessage', 'assignedUser'])));
+            }
 
             Log::info('Incoming message processed', [
                 'conversation_id' => $conversation->id,
@@ -2272,6 +2285,7 @@ class WhatsAppService
                             'content' => $responseMessage,
                             'message_type' => 'text',
                             'is_from_user' => false,
+                            'is_hidden' => true, // Respuesta automática de cita: oculta para los asesores
                             'whatsapp_message_id' => $messageId,
                             'status' => 'sent',
                             'sent_by' => null // Sistema automático

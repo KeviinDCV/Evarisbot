@@ -51,11 +51,16 @@ class Conversation extends Model
     }
 
     /**
-     * Último mensaje de la conversación
+     * Último mensaje de la conversación.
+     * Excluye los ocultos (respuestas automáticas de cita) para que el
+     * preview de la lista no muestre una confirmación/cancelación.
      */
     public function lastMessage()
     {
-        return $this->hasOne(Message::class)->latestOfMany();
+        return $this->hasOne(Message::class)->ofMany(
+            ['created_at' => 'max', 'id' => 'max'],
+            fn ($query) => $query->where('is_hidden', false)
+        );
     }
 
     /**
