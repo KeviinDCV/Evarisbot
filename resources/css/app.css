@@ -790,6 +790,17 @@
 }
 
 
+/* Padding horizontal por defecto para inputs nativos de settings.
+   En @layer components para que utilidades de Tailwind (px-3, pl-10, etc.)
+   lo sobreescriban cuando el input las declara (ej. inputs con ícono). */
+@layer components {
+    input.settings-input,
+    textarea.settings-input,
+    select.settings-input {
+        padding-inline: 0.75rem;
+    }
+}
+
 /* Input con estilo de settings - soporta dark mode */
 .settings-input {
     border: 0;
