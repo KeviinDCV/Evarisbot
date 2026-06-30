@@ -3971,7 +3971,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 if (selectedConversation?.id === conversation.id) {
                                                     router.reload({ only: ['selectedConversation'] });
                                                 }
-                                                toast.success(data.is_blocked ? 'Contacto bloqueado' : 'Contacto desbloqueado');
+                                                if (data.meta_synced === false) {
+                                                    toast.warning(
+                                                        `${data.is_blocked ? 'Bloqueado' : 'Desbloqueado'} localmente, pero WhatsApp no lo confirmó: ${data.meta_error ?? 'sin detalle'}`
+                                                    );
+                                                } else {
+                                                    toast.success(data.is_blocked ? 'Contacto bloqueado' : 'Contacto desbloqueado');
+                                                }
                                             }
                                         }).catch(() => {
                                             toast.error('Error al cambiar estado de bloqueo');
@@ -4670,7 +4676,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c
                                                     ));
                                                     router.reload({ only: ['selectedConversation'] });
-                                                    toast.success('Contacto desbloqueado');
+                                                    if (data.meta_synced === false) {
+                                                        toast.warning(`Desbloqueado localmente, pero WhatsApp no lo confirmó: ${data.meta_error ?? 'sin detalle'}`);
+                                                    } else {
+                                                        toast.success('Contacto desbloqueado');
+                                                    }
                                                 }
                                             }).catch(() => {
                                                 toast.error('Error al desbloquear');
@@ -5158,7 +5168,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 if (data.success) {
                                                     setLocalConversations(prev => prev.map(c => c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c));
                                                     router.reload({ only: ['selectedConversation'] });
-                                                    toast.success(data.is_blocked ? 'Contacto bloqueado' : 'Contacto desbloqueado');
+                                                    if (data.meta_synced === false) {
+                                                        toast.warning(`${data.is_blocked ? 'Bloqueado' : 'Desbloqueado'} localmente, pero WhatsApp no lo confirmó: ${data.meta_error ?? 'sin detalle'}`);
+                                                    } else {
+                                                        toast.success(data.is_blocked ? 'Contacto bloqueado' : 'Contacto desbloqueado');
+                                                    }
                                                 }
                                             }).catch(() => toast.error('Error al cambiar estado de bloqueo'));
                                         }}

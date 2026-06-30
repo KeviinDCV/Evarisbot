@@ -228,6 +228,92 @@ class WhatsAppService
     }
 
     /**
+     * Bloquea un número en WhatsApp vía el Block Users API de Meta.
+     * El bloqueo es REAL: Meta deja de entregarnos los mensajes de ese usuario
+     * y cuenta del lado de Meta. Requisito de Meta: el usuario debe haber escrito
+     * en las últimas 24h; si no, Meta lo rechaza (lo reportamos en 'error').
+     */
+    public function blockUser(string $phone): array
+    {
+        return $this->toggleBlockUser($phone, true);
+    }
+
+    /**
+     * Desbloquea un número previamente bloqueado en WhatsApp (DELETE block_users).
+     */
+    public function unblockUser(string $phone): array
+    {
+        return $this->toggleBlockUser($phone, false);
+    }
+
+    /**
+     * Lógica compartida block/unblock contra POST|DELETE /{phone-number-id}/block_users.
+     * Meta responde 200 aunque algún número falle: hay que revisar 'failed_users'.
+     */
+    private function toggleBlockUser(string $phone, bool $block): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        $user = $this->formatPhoneNumber($phone);
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'block_users' => [['user' => $user]],
+        ];
+        $url = "{$this->apiUrl}/{$this->phoneNumberId}/block_users";
+
+        try {
+            $response = $block
+                ? $this->httpClient()->post($url, $payload)
+                : $this->httpClient()->delete($url, $payload);
+
+            $data = $response->json();
+
+            if ($response->successful()) {
+                // Meta puede devolver 200 con números que fallaron individualmente.
+                $failed = $data['block_users']['failed_users'] ?? [];
+                if (!empty($failed)) {
+                    $errObj = $failed[0]['errors'][0] ?? [];
+                    $err = $errObj['error_data']['details']
+                        ?? $errObj['message']
+                        ?? 'Meta rechazó la operación (posible causa: el usuario no ha escrito en las últimas 24h).';
+                    Log::warning('WhatsApp block_users falló para el número', [
+                        'phone' => $user,
+                        'block' => $block,
+                        'failed' => $failed,
+                    ]);
+                    return ['success' => false, 'error' => $err, 'data' => $data];
+                }
+
+                Log::info('WhatsApp block_users OK', ['phone' => $user, 'block' => $block]);
+                return ['success' => true, 'data' => $data];
+            }
+
+            $errorMsg = $data['error']['message'] ?? 'Error desconocido';
+            $errorCode = $data['error']['code'] ?? null;
+            if ($errorCode) {
+                $errorMsg .= " (code: {$errorCode})";
+            }
+            Log::error('WhatsApp block_users error', [
+                'phone' => $user,
+                'block' => $block,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return ['success' => false, 'error' => $errorMsg, 'data' => $data];
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp block_users exception', [
+                'error' => $e->getMessage(),
+                'phone' => $user,
+                'block' => $block,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Enviar mensaje con imagen
      */
     public function sendImageMessage(string $to, string $imageUrl, ?string $caption = null, ?string $replyToWamid = null): array

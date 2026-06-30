@@ -1409,23 +1409,47 @@ class ConversationController extends Controller
     }
 
     /**
-     * Bloquear o desbloquear una conversación
+     * Bloquear o desbloquear una conversación.
+     *
+     * Además del bloqueo local (no procesar sus mensajes), aplica el bloqueo REAL
+     * en WhatsApp vía el Block Users API de Meta. Si Meta lo rechaza (p. ej. el
+     * usuario no escribió en las últimas 24h o la API no está configurada), el
+     * bloqueo local igual queda guardado y se devuelve la advertencia para la UI.
      */
-    public function toggleBlock(Conversation $conversation)
+    public function toggleBlock(Conversation $conversation, WhatsAppService $whatsappService)
     {
         $wasBlocked = $conversation->is_blocked;
+        $willBlock = !$wasBlocked;
 
+        // 1) Bloqueo real en Meta (no aborta el flujo si falla).
+        $metaResult = $willBlock
+            ? $whatsappService->blockUser($conversation->phone_number)
+            : $whatsappService->unblockUser($conversation->phone_number);
+
+        // 2) Estado local (fuente de verdad para la UI y el filtrado del webhook).
         $conversation->update([
-            'is_blocked' => !$wasBlocked,
-            'blocked_at' => !$wasBlocked ? now() : null,
-            'blocked_by' => !$wasBlocked ? auth()->id() : null,
+            'is_blocked' => $willBlock,
+            'blocked_at' => $willBlock ? now() : null,
+            'blocked_by' => $willBlock ? auth()->id() : null,
         ]);
 
         ConversationActivity::log($conversation->id, $wasBlocked ? 'unblocked' : 'blocked', auth()->id());
 
+        $metaOk = (bool) ($metaResult['success'] ?? false);
+        if (!$metaOk) {
+            \Log::warning('Bloqueo local aplicado pero Meta no confirmó', [
+                'conversation_id' => $conversation->id,
+                'phone' => $conversation->phone_number,
+                'block' => $willBlock,
+                'meta_error' => $metaResult['error'] ?? null,
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'is_blocked' => $conversation->is_blocked,
+            'meta_synced' => $metaOk,
+            'meta_error' => $metaOk ? null : ($metaResult['error'] ?? null),
         ]);
     }
 
