@@ -1024,6 +1024,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const lastStatusFilterRef = useRef<string>(filters.status || 'all');
     const lastAssignedFilterRef = useRef<string>(filters.assigned || '');
     const lastTagFilterRef = useRef<string>(filters.tag || '');
+    const lastSpecialtyFilterRef = useRef<string>(filters.specialty || '');
     // Ref para trackear si había conversación seleccionada
     const lastSelectedConversationRef = useRef<number | null>(selectedConversation?.id || null);
 
@@ -1033,11 +1034,13 @@ export default function ConversationsIndex({ conversations: initialConversations
         const currentStatusFilter = filters.status || 'all';
         const currentAssignedFilter = filters.assigned || '';
         const currentTagFilter = filters.tag || '';
+        const currentSpecialtyFilter = filters.specialty || '';
 
         const searchChanged = currentSearchFilter !== lastSearchFilterRef.current;
         const statusChanged = currentStatusFilter !== lastStatusFilterRef.current;
         const assignedChanged = currentAssignedFilter !== lastAssignedFilterRef.current;
         const tagChanged = currentTagFilter !== lastTagFilterRef.current;
+        const specialtyChanged = currentSpecialtyFilter !== lastSpecialtyFilterRef.current;
         const selectedChanged = (selectedConversation?.id || null) !== lastSelectedConversationRef.current;
 
         // Actualizar refs
@@ -1045,10 +1048,11 @@ export default function ConversationsIndex({ conversations: initialConversations
         lastStatusFilterRef.current = currentStatusFilter;
         lastAssignedFilterRef.current = currentAssignedFilter;
         lastTagFilterRef.current = currentTagFilter;
+        lastSpecialtyFilterRef.current = currentSpecialtyFilter;
         lastSelectedConversationRef.current = selectedConversation?.id || null;
 
         // Si cambió algún filtro, resetear completamente
-        if (searchChanged || statusChanged || assignedChanged || tagChanged) {
+        if (searchChanged || statusChanged || assignedChanged || tagChanged || specialtyChanged) {
             setLocalConversations(initialConversations);
             setHasMore(initialHasMore);
             setCurrentPage(1);
@@ -1102,8 +1106,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Si hay búsqueda activa, no filtrar por estado/bloqueo (el backend ya respeta search)
                 if (filters.search && filters.search.trim() !== '') return true;
                 // Ocultar conversaciones resueltas/cerradas/agendadas de "Todos"
-                // EXCEPTO si el filtro activo corresponde o hay filtro de etiqueta
-                if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
+                // EXCEPTO si el filtro activo corresponde o hay filtro de etiqueta/especialidad
+                if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled') {
                     if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
@@ -1114,7 +1118,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             const existingIds = new Set(prev.map(c => c.id));
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
                 if (filters.search && filters.search.trim() !== '') return true;
-                if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled') {
+                if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled') {
                     if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
@@ -1323,7 +1327,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     }).filter(conv => {
                         // Si hay búsqueda activa, no filtrar por estado/bloqueo (el backend ya respeta search)
                         if (filters.search && filters.search.trim() !== '') return true;
-                        if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
+                        if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                             if (conv.is_blocked && filters.status !== 'blocked') return false;
@@ -1335,7 +1339,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     const existingIds = new Set(prev.map(c => c.id));
                     const newConvs = freshConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
                         if (filters.search && filters.search.trim() !== '') return true;
-                        if (!filters.tag && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
+                        if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
                             if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                             if (conv.is_blocked && filters.status !== 'blocked') return false;

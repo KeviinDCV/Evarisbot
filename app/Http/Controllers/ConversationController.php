@@ -213,6 +213,9 @@ class ConversationController extends Controller
         // Si el usuario está buscando (search no vacío) NO aplicamos los filtros de exclusión
         // por defecto (resueltas, bloqueadas, oncología) — debe poder encontrar cualquier conversación.
         $hasSearchTerm = $request->filled('search');
+        // Al filtrar por especialidad queremos ver TODAS las que la tengan (incluidas resueltas,
+        // bloqueadas u oncología) para que el listado coincida con el conteo mostrado en el filtro.
+        $filteringBySpecialty = $request->filled('specialty');
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
@@ -255,7 +258,7 @@ class ConversationController extends Controller
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif (!$filteringByTag && !$hasSearchTerm) {
+        } elseif (!$filteringByTag && !$filteringBySpecialty && !$hasSearchTerm) {
             // Sin filtro de estado explícito, sin etiqueta y sin búsqueda: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
             // Excluir "solo-salientes" sin asignar (recordatorios/masivos donde el paciente
@@ -268,12 +271,12 @@ class ConversationController extends Controller
         }
 
         // Excluir conversaciones bloqueadas del listado general (solo se ven con filtro "blocked" o al buscar)
-        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm) {
+        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm && !$filteringBySpecialty) {
             $query->where('is_blocked', false);
         }
 
         // Excluir conversaciones de oncología del listado general (solo se ven con filtro "oncology" o al buscar)
-        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm) {
+        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm && !$filteringBySpecialty) {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
@@ -439,6 +442,9 @@ class ConversationController extends Controller
         // Filtrar por estado (disponible para todos los usuarios)
         $filteringByTag = $request->has('tag') && is_numeric($request->tag);
         $hasSearchTerm = $request->filled('search');
+        // Al filtrar por especialidad mostramos TODAS las que la tengan (incluidas resueltas,
+        // bloqueadas u oncología) para que el listado coincida con el conteo del filtro.
+        $filteringBySpecialty = $request->filled('specialty');
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
@@ -481,7 +487,7 @@ class ConversationController extends Controller
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif (!$filteringByTag && !$hasSearchTerm) {
+        } elseif (!$filteringByTag && !$filteringBySpecialty && !$hasSearchTerm) {
             // Sin filtro de estado explícito, sin etiqueta y sin búsqueda: excluir resueltas
             $query->whereIn('status', ['active', 'pending']);
             // Mismo criterio que index(): excluir conversaciones sin asignar cuyo único
@@ -494,12 +500,12 @@ class ConversationController extends Controller
         }
 
         // Excluir conversaciones bloqueadas del listado general (a menos que se busque)
-        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm) {
+        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm && !$filteringBySpecialty) {
             $query->where('is_blocked', false);
         }
 
         // Excluir conversaciones de oncología del listado general (a menos que se busque)
-        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm) {
+        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm && !$filteringBySpecialty) {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
