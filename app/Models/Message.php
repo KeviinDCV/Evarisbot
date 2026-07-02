@@ -23,11 +23,17 @@ class Message extends Model
         'status',
         'error_message',
         'sent_by',
+        'pricing_category',
+        'pricing_model',
+        'billable',
+        'conversation_origin_type',
+        'wa_conversation_id',
     ];
 
     protected $casts = [
         'is_from_user' => 'boolean',
         'is_hidden' => 'boolean',
+        'billable' => 'boolean',
     ];
 
     /**

@@ -49,6 +49,7 @@ class StatisticsController extends Controller
                         'appointments' => $this->getAppointmentStatistics($dateStart, $dateEnd),
                         'conversations' => $this->getConversationStatistics($dateStart, $dateEnd),
                         'templates' => $this->getTemplateStatistics($dateStart, $dateEnd),
+                        'costs' => $this->getCostStatistics($dateStart, $dateEnd),
                         'users' => $this->getUserStatistics(),
                         'advisors' => $this->getAdvisorStatistics($dateStart, $dateEnd),
                         'flowDemand' => $this->getFlowDemandStatistics($dateStart, $dateEnd),
@@ -303,6 +304,89 @@ class StatisticsController extends Controller
     }
 
     /**
+     * Estima el costo del API de WhatsApp (Meta) del período.
+     *
+     * Meta cobra por mensaje de plantilla entregado según su categoría; los datos
+     * reales (categoría facturada y si fue facturable) llegan por webhook y se
+     * guardan en messages.pricing_category / messages.billable. Aquí se agregan y
+     * se multiplican por el rate card de config/whatsapp.php.
+     *
+     * Es una ESTIMACIÓN: solo cubre mensajes con datos de facturación (los
+     * enviados después de activar esta medición). El cobro real vive en Meta.
+     */
+    private function getCostStatistics(?\Carbon\Carbon $startDate, ?\Carbon\Carbon $endDate): array
+    {
+        $rates = (array) config('whatsapp.billing.rates', []);
+        $currency = (string) config('whatsapp.billing.currency', 'USD');
+        $ratesAsOf = (string) config('whatsapp.billing.rates_as_of', '');
+
+        // Base: mensajes salientes (los que Meta puede cobrar) del período.
+        $base = DB::table('messages')->where('is_from_user', 0);
+        if ($startDate && $endDate) {
+            $base->whereBetween('created_at', [$startDate, $endDate]);
+        }
+
+        // Conteos agregados por categoría facturada y si Meta lo marcó facturable.
+        $rows = (clone $base)
+            ->whereNotNull('pricing_category')
+            ->selectRaw('pricing_category, billable, COUNT(*) as cnt')
+            ->groupBy('pricing_category', 'billable')
+            ->get();
+
+        // Estructura por categoría, en orden fijo para el frontend.
+        $byCategory = [];
+        foreach (['marketing', 'utility', 'authentication', 'service'] as $cat) {
+            $byCategory[$cat] = [
+                'billable' => 0,
+                'free' => 0,
+                'rate' => (float) ($rates[$cat] ?? 0),
+                'cost' => 0.0,
+            ];
+        }
+
+        $billableTotal = 0;
+        $freeTotal = 0;
+        foreach ($rows as $r) {
+            $cat = $r->pricing_category;
+            if (!isset($byCategory[$cat])) {
+                $byCategory[$cat] = ['billable' => 0, 'free' => 0, 'rate' => (float) ($rates[$cat] ?? 0), 'cost' => 0.0];
+            }
+            $cnt = (int) $r->cnt;
+            if ((int) $r->billable === 1) {
+                $byCategory[$cat]['billable'] += $cnt;
+                $billableTotal += $cnt;
+            } else {
+                $byCategory[$cat]['free'] += $cnt;
+                $freeTotal += $cnt;
+            }
+        }
+
+        $totalCost = 0.0;
+        foreach ($byCategory as $cat => $data) {
+            $cost = round($data['billable'] * $data['rate'], 2);
+            $byCategory[$cat]['cost'] = $cost;
+            $totalCost += $cost;
+        }
+
+        // Cobertura: qué porción de los salientes tiene datos de facturación.
+        $outbound = (int) (clone $base)->count();
+        $withPricing = (int) (clone $base)->whereNotNull('pricing_category')->count();
+
+        return [
+            'currency' => $currency,
+            'rates_as_of' => $ratesAsOf,
+            'by_category' => $byCategory,
+            'total_cost' => round($totalCost, 2),
+            'billable_total' => $billableTotal,
+            'free_total' => $freeTotal,
+            'outbound_total' => $outbound,
+            'with_pricing' => $withPricing,
+            'without_pricing' => max(0, $outbound - $withPricing),
+            'coverage_percent' => $outbound > 0 ? round($withPricing / $outbound * 100, 1) : 0,
+        ];
+    }
+
+    /**
      * Get user statistics - OPTIMIZADO con una sola consulta
      */
     private function getUserStatistics(): array
@@ -422,6 +506,7 @@ class StatisticsController extends Controller
             'appointments' => $this->getAppointmentStatistics($dateStart, $dateEnd),
             'conversations' => $this->getConversationStatistics($dateStart, $dateEnd),
             'templates' => $this->getTemplateStatistics($dateStart, $dateEnd),
+            'costs' => $this->getCostStatistics($dateStart, $dateEnd),
             'users' => $this->getUserStatistics(),
             'advisors' => $this->getAdvisorStatistics($dateStart, $dateEnd),
         ];

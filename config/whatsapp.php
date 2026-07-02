@@ -1,0 +1,43 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Facturación / estimación de costos del API de WhatsApp (Meta)
+    |--------------------------------------------------------------------------
+    |
+    | Meta cobra POR MENSAJE de plantilla entregado (modelo per-message vigente
+    | desde el 1 de julio de 2025), según la categoría y el país del destinatario.
+    | Estas tarifas son las de Colombia (+57) en USD y se usan solo para ESTIMAR
+    | el gasto en el panel de estadísticas. El cobro real y las facturas viven en
+    | Meta Business Manager > Facturación y pagos; el consumo por categoría en
+    | WhatsApp Manager > Insights.
+    |
+    | Verifica los valores contra el rate card oficial de Meta (cambian con el
+    | tiempo; Colombia ajustó utility/authentication el 1-oct-2025). Puedes
+    | sobreescribirlos por .env sin tocar código.
+    |
+    */
+
+    'billing' => [
+
+        // Moneda en la que están expresadas las tarifas de abajo.
+        'currency' => env('WHATSAPP_BILLING_CURRENCY', 'USD'),
+
+        // Mes de referencia de las tarifas (para mostrar en el panel).
+        'rates_as_of' => env('WHATSAPP_RATES_AS_OF', '2025-11'),
+
+        // Tarifa por mensaje entregado, por categoría (USD, Colombia).
+        // 'service' es gratis; 'utility' es gratis dentro de la ventana de 24h
+        // (Meta lo marca como no facturable y no se suma al costo).
+        'rates' => [
+            'marketing' => (float) env('WHATSAPP_RATE_MARKETING', 0.0125),
+            'utility' => (float) env('WHATSAPP_RATE_UTILITY', 0.0008),
+            'authentication' => (float) env('WHATSAPP_RATE_AUTHENTICATION', 0.0008),
+            'service' => (float) env('WHATSAPP_RATE_SERVICE', 0.0),
+        ],
+
+    ],
+
+];

@@ -40,6 +40,7 @@ class StatisticsExport
         $this->createAppointmentsSheet($spreadsheet);
         $this->createConversationsSheet($spreadsheet);
         $this->createTemplatesSheet($spreadsheet);
+        $this->createCostsSheet($spreadsheet);
         $this->createUsersSheet($spreadsheet);
         $this->createAdvisorsSheet($spreadsheet);
 
@@ -157,6 +158,20 @@ class StatisticsExport
             ['Total de envíos', $this->statistics['templates']['total_sends']],
         ], self::COLOR_WARNING);
         $row += 7;
+
+        // Resumen de Costos (estimación del API de WhatsApp)
+        $costs = $this->statistics['costs'] ?? null;
+        if ($costs) {
+            $cur = $costs['currency'] ?? 'USD';
+            $this->addSection($sheet, $row, 'COSTO ESTIMADO WHATSAPP', [
+                ['Costo total estimado', $this->money($costs['total_cost'] ?? 0, $cur)],
+                ['Mensajes facturables', $costs['billable_total'] ?? 0],
+                ['Mensajes gratis (servicio/ventana 24h)', $costs['free_total'] ?? 0],
+                ['Sin datos de facturación', $costs['without_pricing'] ?? 0],
+                ['Cobertura de la medición', ($costs['coverage_percent'] ?? 0) . '%'],
+            ], self::COLOR_DANGER);
+            $row += 8;
+        }
 
         // Resumen de Usuarios
         $this->addSection($sheet, $row, 'USUARIOS', [
@@ -374,6 +389,108 @@ class StatisticsExport
 
         $sheet->getColumnDimension('A')->setWidth(35);
         $sheet->getColumnDimension('B')->setWidth(25);
+    }
+
+    private function createCostsSheet(Spreadsheet $spreadsheet): void
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle('Costos');
+
+        $costs = $this->statistics['costs'] ?? [
+            'currency' => 'USD', 'by_category' => [], 'total_cost' => 0,
+            'billable_total' => 0, 'free_total' => 0, 'without_pricing' => 0,
+            'with_pricing' => 0, 'outbound_total' => 0, 'coverage_percent' => 0,
+        ];
+        $cur = $costs['currency'] ?? 'USD';
+
+        $row = 1;
+        $sheet->setCellValue('A' . $row, 'COSTO ESTIMADO DEL API DE WHATSAPP');
+        $sheet->mergeCells('A' . $row . ':D' . $row);
+        $this->styleSheetTitle($sheet, $row, self::COLOR_DANGER);
+        $row += 2;
+
+        // Encabezados de la tabla por categoría
+        $headers = ['Categoría', 'Facturables', 'Tarifa/mensaje', 'Costo estimado'];
+        $col = 'A';
+        foreach ($headers as $header) {
+            $sheet->setCellValue($col . $row, $header);
+            $col++;
+        }
+        $this->styleAdvisorHeader($sheet, $row, 'A', 'D');
+        $row++;
+
+        $labels = [
+            'marketing' => 'Marketing',
+            'utility' => 'Utility (recordatorios/citas)',
+            'authentication' => 'Autenticación (OTP)',
+            'service' => 'Servicio (respuestas 24h)',
+        ];
+
+        $dataRow = 0;
+        foreach (($costs['by_category'] ?? []) as $cat => $data) {
+            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0, 'A', 'D');
+            $sheet->setCellValue('A' . $row, $labels[$cat] ?? ucfirst($cat));
+            $sheet->setCellValue('B' . $row, $data['billable'] ?? 0);
+            $sheet->setCellValue('C' . $row, ($data['rate'] ?? 0) == 0 ? 'Gratis' : $this->money($data['rate'] ?? 0, $cur, 4));
+            $sheet->setCellValue('D' . $row, $this->money($data['cost'] ?? 0, $cur));
+            $sheet->getStyle('B' . $row . ':D' . $row)->applyFromArray([
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
+            $row++;
+            $dataRow++;
+        }
+
+        // Fila de total
+        $sheet->setCellValue('A' . $row, 'TOTAL ESTIMADO');
+        $sheet->setCellValue('D' . $row, $this->money($costs['total_cost'] ?? 0, $cur));
+        $sheet->mergeCells('A' . $row . ':C' . $row);
+        $this->styleAdvisorHeader($sheet, $row, 'A', 'D');
+        $row += 2;
+
+        // Cobertura y contexto de la medición
+        $sheet->setCellValue('A' . $row, 'Cobertura de la medición:');
+        $sheet->mergeCells('A' . $row . ':D' . $row);
+        $this->styleSubtitle($sheet, $row);
+        $row++;
+
+        $context = [
+            ['Mensajes salientes del período', $costs['outbound_total'] ?? 0],
+            ['Con datos de facturación', $costs['with_pricing'] ?? 0],
+            ['Sin datos (anteriores a la medición)', $costs['without_pricing'] ?? 0],
+            ['Cobertura', ($costs['coverage_percent'] ?? 0) . '%'],
+            ['Mensajes facturables', $costs['billable_total'] ?? 0],
+            ['Mensajes gratis', $costs['free_total'] ?? 0],
+        ];
+        $dataRow = 0;
+        foreach ($context as $item) {
+            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0);
+            $sheet->setCellValue('A' . $row, $item[0]);
+            $sheet->setCellValue('B' . $row, $item[1]);
+            $row++;
+            $dataRow++;
+        }
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Estimación con tarifas de Colombia (Meta, modelo por mensaje). Cifra referencial: el cobro real y las facturas están en Meta Business Manager › Facturación y pagos.');
+        $sheet->mergeCells('A' . $row . ':D' . $row);
+        $sheet->getStyle('A' . $row)->applyFromArray([
+            'font' => ['size' => 9, 'italic' => true, 'color' => ['rgb' => '6B7280']],
+            'alignment' => ['wrapText' => true, 'vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+        $sheet->getRowDimension($row)->setRowHeight(45);
+
+        $sheet->getColumnDimension('A')->setWidth(38);
+        $sheet->getColumnDimension('B')->setWidth(18);
+        $sheet->getColumnDimension('C')->setWidth(18);
+        $sheet->getColumnDimension('D')->setWidth(18);
+    }
+
+    /**
+     * Formatea un monto con su moneda para el Excel (ej: "US$ 125.00").
+     */
+    private function money($value, string $currency = 'USD', int $decimals = 2): string
+    {
+        return $currency . ' ' . number_format((float) $value, $decimals, '.', ',');
     }
 
     private function createUsersSheet(Spreadsheet $spreadsheet): void

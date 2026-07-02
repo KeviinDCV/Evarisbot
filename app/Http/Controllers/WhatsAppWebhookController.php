@@ -145,7 +145,13 @@ class WhatsAppWebhookController extends Controller
                     $errorMsg = $errorCode ? "{$errorTitle} (code: {$errorCode})" : $errorTitle;
                     $updateData['error_message'] = $errorMsg;
                 }
-                
+
+                // Capturar datos de facturación que Meta envía en los callbacks
+                // 'sent'/'delivered' (objetos `pricing` y `conversation`) para el
+                // panel de costos. Solo se escriben si vienen: así un callback
+                // posterior ('read') no borra lo ya capturado.
+                $this->fillBillingData($status, $updateData);
+
                 $message->update($updateData);
 
                 // Si el mensaje era de envío masivo y falló, actualizar contadores del BulkSend
@@ -211,6 +217,38 @@ class WhatsAppWebhookController extends Controller
                 'error' => $e->getMessage(),
                 'status' => $status,
             ]);
+        }
+    }
+
+    /**
+     * Extrae los datos de facturación del status de Meta y los agrega a $updateData
+     * (por referencia). Meta manda `pricing` y `conversation` en los callbacks
+     * 'sent'/'delivered'. Solo se agregan las llaves presentes para no sobrescribir
+     * con null lo capturado en un callback anterior.
+     */
+    private function fillBillingData(array $status, array &$updateData): void
+    {
+        $pricing = $status['pricing'] ?? null;
+        if (is_array($pricing)) {
+            if (array_key_exists('billable', $pricing)) {
+                $updateData['billable'] = (bool) $pricing['billable'];
+            }
+            if (!empty($pricing['category'])) {
+                $updateData['pricing_category'] = $pricing['category'];
+            }
+            if (!empty($pricing['pricing_model'])) {
+                $updateData['pricing_model'] = $pricing['pricing_model'];
+            }
+        }
+
+        $conversation = $status['conversation'] ?? null;
+        if (is_array($conversation)) {
+            if (!empty($conversation['id'])) {
+                $updateData['wa_conversation_id'] = $conversation['id'];
+            }
+            if (!empty($conversation['origin']['type'])) {
+                $updateData['conversation_origin_type'] = $conversation['origin']['type'];
+            }
         }
     }
 }

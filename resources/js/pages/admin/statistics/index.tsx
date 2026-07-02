@@ -17,6 +17,7 @@ import {
     ChevronDown,
     ChevronUp,
     Clock,
+    DollarSign,
     Download,
     FileText,
     Filter,
@@ -28,6 +29,7 @@ import {
     Timer,
     TrendingUp,
     Users,
+    Wallet,
     XCircle,
     type LucideIcon,
 } from 'lucide-react';
@@ -115,6 +117,18 @@ interface Statistics {
         successful_sends: number;
         failed_sends: number;
         total_sends: number;
+    };
+    costs?: {
+        currency: string;
+        rates_as_of: string;
+        by_category: Record<string, { billable: number; free: number; rate: number; cost: number }>;
+        total_cost: number;
+        billable_total: number;
+        free_total: number;
+        outbound_total: number;
+        with_pricing: number;
+        without_pricing: number;
+        coverage_percent: number;
     };
     users: {
         total: number;
@@ -211,6 +225,19 @@ const tooltipStyle = {
 
 function formatNumber(value: number | null | undefined) {
     return Number(value ?? 0).toLocaleString('es-CO');
+}
+
+function formatMoney(value: number | null | undefined, currency = 'USD', maxDigits = 2) {
+    try {
+        return new Intl.NumberFormat('es-CO', {
+            style: 'currency',
+            currency,
+            minimumFractionDigits: 2,
+            maximumFractionDigits: maxDigits,
+        }).format(Number(value ?? 0));
+    } catch {
+        return `${currency} ${Number(value ?? 0).toFixed(maxDigits)}`;
+    }
 }
 
 function safePercent(value: number, total: number) {
@@ -727,6 +754,70 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                             )}
                         </div>
                     </form>
+
+                    {statistics.costs && (() => {
+                        const c = statistics.costs;
+                        const catLabels: Record<string, string> = {
+                            marketing: 'Marketing',
+                            utility: 'Utility (recordatorios/citas)',
+                            authentication: 'Autenticación (OTP)',
+                            service: 'Servicio (respuestas 24h)',
+                        };
+                        const rows = Object.entries(c.by_category);
+                        return (
+                            <SectionCard
+                                icon={Wallet}
+                                title="Costo estimado de WhatsApp (Meta)"
+                                subtitle={`Estimación por categoría facturada de Meta · tarifas de Colombia${c.rates_as_of ? ` (${c.rates_as_of})` : ''}`}
+                                action={
+                                    <div className="text-right">
+                                        <p className="text-xs settings-subtitle">Estimado del período</p>
+                                        <p className="text-2xl font-bold settings-title">{formatMoney(c.total_cost, c.currency)}</p>
+                                    </div>
+                                }
+                            >
+                                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
+                                    <div className="overflow-hidden rounded-xl border border-[#d4d8e8]/80 dark:border-white/10">
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="bg-[#2e3f84]/[0.06] text-left settings-subtitle dark:bg-white/[0.05]">
+                                                    <th className="px-3 py-2 font-semibold">Categoría</th>
+                                                    <th className="px-3 py-2 text-right font-semibold">Facturables</th>
+                                                    <th className="px-3 py-2 text-right font-semibold">Tarifa</th>
+                                                    <th className="px-3 py-2 text-right font-semibold">Costo</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {rows.map(([key, data]) => (
+                                                    <tr key={key} className="border-t border-[#d4d8e8]/60 dark:border-white/10">
+                                                        <td className="px-3 py-2 settings-title">{catLabels[key] ?? key}</td>
+                                                        <td className="px-3 py-2 text-right settings-title">{formatNumber(data.billable)}</td>
+                                                        <td className="px-3 py-2 text-right settings-subtitle">{data.rate === 0 ? 'Gratis' : formatMoney(data.rate, c.currency, 4)}</td>
+                                                        <td className="px-3 py-2 text-right font-semibold settings-title">{formatMoney(data.cost, c.currency)}</td>
+                                                    </tr>
+                                                ))}
+                                                <tr className="border-t-2 border-[#2e3f84]/25 bg-[#2e3f84]/[0.05] dark:bg-white/[0.04]">
+                                                    <td className="px-3 py-2 font-bold settings-title" colSpan={3}>Total estimado</td>
+                                                    <td className="px-3 py-2 text-right font-bold settings-title">{formatMoney(c.total_cost, c.currency)}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="flex flex-col gap-2.5">
+                                        <StatLine icon={Send} label="Salientes facturables" value={c.billable_total} tone="warning" />
+                                        <StatLine icon={CheckCircle2} label="Gratis (servicio / ventana 24h)" value={c.free_total} tone="success" />
+                                        <StatLine icon={AlertCircle} label="Sin datos de facturación" value={c.without_pricing} tone="info" />
+                                        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+                                            <DollarSign className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                            <span>
+                                                Estimación con tarifas de Colombia (modelo por mensaje de Meta). Cubre el {c.coverage_percent}% de los mensajes salientes del período; el resto son anteriores a la medición. El cobro real y las facturas están en <span className="font-semibold">Meta Business Manager › Facturación</span>.
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </SectionCard>
+                        );
+                    })()}
 
                     {!showCharts ? (
                         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
