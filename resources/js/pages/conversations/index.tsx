@@ -237,6 +237,7 @@ interface WhatsappTemplate {
 }
 
 type ChatFilterKey = 'all' | 'unanswered' | 'pending_response' | 'resolved' | 'scheduled' | 'oncology' | 'blocked';
+
 type FilterCounts = Record<ChatFilterKey, number>;
 
 const DEFAULT_FILTER_COUNTS: FilterCounts = {
@@ -3294,7 +3295,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     {/* Lista de Conversaciones */}
                     <div
                         ref={conversationsListRef}
-                        className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-6 custom-scrollbar-light"
+                        className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light"
                     >
                         {listLoading ? (
                             <ConversationListSkeleton />
@@ -3329,11 +3330,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         onMouseEnter={() => handleDragSelectEnter(conversation.id)}
                                         onMouseUp={handleDragSelectEnd}
                                         aria-current={selectedConversation?.id === conversation.id ? 'true' : undefined}
-                                        className={`conv-list-item w-full flex items-center gap-3 px-3 py-2.5 mb-1 rounded-xl transition-all text-left select-none group ${selectedConversations.includes(conversation.id)
-                                                ? 'bg-green-50/80 dark:bg-green-900/20 border-l-4 border-green-500 shadow-sm'
+                                        className={`conv-list-item w-full flex items-center gap-3 pl-3 transition-colors text-left select-none group ${selectedConversations.includes(conversation.id)
+                                                ? 'bg-green-50/80 dark:bg-green-900/20'
                                                 : selectedConversation?.id === conversation.id
-                                                    ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#2e3f84] dark:border-blue-400 shadow-sm'
-                                                    : 'bg-card dark:bg-neutral-800/60 hover:bg-muted/60 dark:hover:bg-neutral-800/80 border-l-4 border-transparent shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
+                                                    ? 'bg-[#e9ebf5] dark:bg-neutral-800'
+                                                    : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
                                             }`}
                                     >
                                         {/* Avatar / Checkbox en modo selección */}
@@ -3350,19 +3351,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     )}
                                                 </div>
                                             ) : (
-                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] flex items-center justify-center text-white text-[15px] font-bold">
+                                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94] flex items-center justify-center text-white text-[16px] font-semibold">
                                                     {[...(conversation.contact_name || '')][0]?.toUpperCase() || '?'}
-                                                </div>
-                                            )}
-                                            {!isSelectionMode && conversation.unread_count > 0 && (
-                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm border-2 border-[#f3f3f3] dark:border-neutral-900">
-                                                    {conversation.unread_count}
                                                 </div>
                                             )}
                                         </div>
 
-                                        {/* Información */}
-                                        <div className="flex-grow min-w-0">
+                                        {/* Información (divisor inset estilo WhatsApp: empieza después del avatar) */}
+                                        <div className="flex-grow min-w-0 py-2.5 pr-3 border-b border-[#ececf3] dark:border-white/[0.06]">
                                             <div className="flex justify-between items-center mb-0.5">
                                                 <div className="flex-1 min-w-0 flex items-center gap-1.5">
                                                     <h3 className="font-bold text-[#1a1c1c] dark:text-neutral-200 truncate text-[15px]">
@@ -3393,26 +3389,34 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     ? (conversation.last_visible_message ?? conversation.last_message)
                                                     : conversation.last_message;
                                                 return (
-                                                    <p className={`text-sm truncate flex items-center gap-1 ${conversation.unread_count > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
-                                                        {pm && (
-                                                            pm.is_from_user ? (
-                                                                <span title="Mensaje del cliente">
-                                                                    <CornerDownLeft className="w-3 h-3 text-[#767681] flex-shrink-0" />
-                                                                </span>
-                                                            ) : pm.status === 'failed' ? (
-                                                                <span title={pm.error_message ? `Error: ${pm.error_message}` : 'Error al enviar'}>
-                                                                    <X className="w-3 h-3 text-red-500 flex-shrink-0" />
-                                                                </span>
-                                                            ) : (
-                                                                <span title="Mensaje enviado">
-                                                                    <CornerDownRight className="w-3 h-3 text-[#2e3f84] dark:text-blue-400 flex-shrink-0" />
-                                                                </span>
-                                                            )
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className={`text-sm truncate flex items-center gap-1 flex-1 min-w-0 ${conversation.unread_count > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
+                                                            {pm && (
+                                                                pm.is_from_user ? (
+                                                                    <span title="Mensaje del cliente">
+                                                                        <CornerDownLeft className="w-3 h-3 text-[#767681] flex-shrink-0" />
+                                                                    </span>
+                                                                ) : pm.status === 'failed' ? (
+                                                                    <span title={pm.error_message ? `Error: ${pm.error_message}` : 'Error al enviar'}>
+                                                                        <X className="w-3 h-3 text-red-500 flex-shrink-0" />
+                                                                    </span>
+                                                                ) : (
+                                                                    <span title="Mensaje enviado">
+                                                                        <CornerDownRight className="w-3 h-3 text-[#2e3f84] dark:text-blue-400 flex-shrink-0" />
+                                                                    </span>
+                                                                )
+                                                            )}
+                                                            <span className="truncate">
+                                                                {pm?.content || t('conversations.noMessages')}
+                                                            </span>
+                                                        </p>
+                                                        {/* Badge de no-leídos a la derecha (estilo WhatsApp) */}
+                                                        {!isSelectionMode && conversation.unread_count > 0 && (
+                                                            <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold">
+                                                                {conversation.unread_count}
+                                                            </span>
                                                         )}
-                                                        <span className="truncate">
-                                                            {pm?.content || t('conversations.noMessages')}
-                                                        </span>
-                                                    </p>
+                                                    </div>
                                                 );
                                             })()}
                                             <div className="flex items-center justify-between mt-1">
@@ -3424,7 +3428,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 {conversation.status === 'resolved' && conversation.resolved_by_user && (() => {
                                                     const colors = getUserBadgeColor(conversation.resolved_by_user!.id);
                                                     return (
-                                                        <span className={`text-[10px] ${colors.text} ${colors.bg} border ${colors.border} px-2 py-0.5 rounded-full truncate max-w-[130px] font-medium shadow-sm transition-all`} title={`Resuelto por ${conversation.resolved_by_user!.name}`}>
+                                                        <span className={`text-[10px] ${colors.text} ${colors.bg} border ${colors.border} px-2 py-0.5 rounded-full truncate max-w-[130px] font-medium`} title={`Resuelto por ${conversation.resolved_by_user!.name}`}>
                                                             <CheckCheck className="w-3 h-3 inline mr-1" />
                                                             {conversation.resolved_by_user!.name.split(' ')[0]}
                                                         </span>
@@ -4238,6 +4242,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         const prevDate = index > 0 ? new Date(localMessages[index - 1].created_at).toDateString() : null;
                                         const showDateSeparator = index === 0 || msgDate !== prevDate;
 
+                                        // Primer mensaje de un grupo (cambia el remitente o hay separador de
+                                        // fecha) → lleva la "colita" de burbuja estilo WhatsApp.
+                                        const isFirstOfGroup = showDateSeparator
+                                            || index === 0
+                                            || localMessages[index - 1].is_from_user !== message.is_from_user;
+
                                         return (
                                             <div key={message.id}>
                                                 <AnimatePresence>
@@ -4342,8 +4352,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             <div
                                                 id={`msg-${message.id}`}
                                                 className={`px-3 pt-2 flex flex-col relative ${message.reactions && message.reactions.length ? 'pb-4 mb-2.5' : 'pb-1'} ${message.is_from_user
-                                                    ? 'rounded-xl rounded-bl-sm bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-200 shadow-sm'
-                                                    : 'rounded-xl rounded-br-sm bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] shadow-sm'
+                                                    ? `rounded-xl rounded-bl-sm bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-200 shadow-sm ${isFirstOfGroup ? 'bubble-tail-in rounded-tl-none' : ''}`
+                                                    : `rounded-xl rounded-br-sm bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] shadow-sm ${isFirstOfGroup ? 'bubble-tail-out rounded-tr-none' : ''}`
                                                     }`}
                                             >
                                                 {/* Reply quote bubble */}

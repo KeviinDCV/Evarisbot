@@ -1391,14 +1391,43 @@ tr.table-row-hover:hover {
 /* ============================================
    CHAT BACKGROUND PATTERN - Subtle institutional
    ============================================ */
+/* Fondo del chat estilo WhatsApp: doodle sutil con motivos de salud
+   (corazón, cruz médica, burbuja de chat, cápsula, destellos) en navy institucional. */
 .chat-bg-pattern {
     background-color: #eef0f6;
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232e3f84' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg width='140' height='140' viewBox='0 0 140 140' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%232e3f84' fill-opacity='0.04'%3E%3Cpath d='M26 22c-1.8-3.4-7-2.6-7 .9 0 2.6 3.4 4.3 7 7.1 3.6-2.8 7-4.5 7-7.1 0-3.5-5.2-4.3-7-.9z'/%3E%3Cpath d='M92 12h8v6h6v8h-6v6h-8v-6h-6v-8h6z'/%3E%3Cpath d='M62 40l1.8 4.6 4.2 1.8-4.2 1.8L62 52.8l-1.8-4.6-4.2-1.8 4.2-1.8z'/%3E%3Cpath d='M17 84h20a5 5 0 0 1 5 5v12a5 5 0 0 1-5 5H27l-7 6v-6h-3a5 5 0 0 1-5-5V89a5 5 0 0 1 5-5z'/%3E%3Crect x='86' y='92' width='26' height='11' rx='5.5' transform='rotate(-25 99 97.5)'/%3E%3Cpath d='M54 108h4v4h4v4h-4v4h-4v-4h-4v-4h4z'/%3E%3Ccircle cx='120' cy='52' r='2.5'/%3E%3Ccircle cx='40' cy='56' r='2'/%3E%3Ccircle cx='72' cy='16' r='2'/%3E%3Ccircle cx='124' cy='124' r='2'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 .dark .chat-bg-pattern {
     background-color: hsl(30, 4%, 8%);
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg width='140' height='140' viewBox='0 0 140 140' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.035'%3E%3Cpath d='M26 22c-1.8-3.4-7-2.6-7 .9 0 2.6 3.4 4.3 7 7.1 3.6-2.8 7-4.5 7-7.1 0-3.5-5.2-4.3-7-.9z'/%3E%3Cpath d='M92 12h8v6h6v8h-6v6h-8v-6h-6v-8h6z'/%3E%3Cpath d='M62 40l1.8 4.6 4.2 1.8-4.2 1.8L62 52.8l-1.8-4.6-4.2-1.8 4.2-1.8z'/%3E%3Cpath d='M17 84h20a5 5 0 0 1 5 5v12a5 5 0 0 1-5 5H27l-7 6v-6h-3a5 5 0 0 1-5-5V89a5 5 0 0 1 5-5z'/%3E%3Crect x='86' y='92' width='26' height='11' rx='5.5' transform='rotate(-25 99 97.5)'/%3E%3Cpath d='M54 108h4v4h4v4h-4v4h-4v-4h-4v-4h4z'/%3E%3Ccircle cx='120' cy='52' r='2.5'/%3E%3Ccircle cx='40' cy='56' r='2'/%3E%3Ccircle cx='72' cy='16' r='2'/%3E%3Ccircle cx='124' cy='124' r='2'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Colitas de burbuja estilo WhatsApp — solo en el primer mensaje de cada grupo.
+   El color replica el fondo de la burbuja correspondiente (claro/oscuro). */
+.bubble-tail-in::before,
+.bubble-tail-out::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 13px;
+}
+.bubble-tail-in::before {
+    left: -8px;
+    background-color: #ffffff;
+    clip-path: polygon(100% 0, 100% 100%, 0 0);
+}
+.dark .bubble-tail-in::before {
+    background-color: #262626; /* = dark:bg-neutral-800 de la burbuja entrante */
+}
+.bubble-tail-out::before {
+    right: -8px;
+    background-color: #d9fdd3;
+    clip-path: polygon(0 0, 0 100%, 100% 0);
+}
+.dark .bubble-tail-out::before {
+    background-color: #005c4b; /* = dark de la burbuja saliente */
 }
 
 /* ============================================
