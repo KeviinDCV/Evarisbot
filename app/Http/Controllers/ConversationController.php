@@ -188,7 +188,7 @@ class ConversationController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+        $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         $user = auth()->user();
@@ -231,7 +231,7 @@ class ConversationController extends Controller
                 // Resueltos: mostrar TODAS las conversaciones resueltas para todos los usuarios
                 $query->where('status', 'resolved');
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
                 }
@@ -239,7 +239,7 @@ class ConversationController extends Controller
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
@@ -247,7 +247,7 @@ class ConversationController extends Controller
                 // Oncología: conversaciones con etiqueta "Oncología"
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
@@ -422,7 +422,7 @@ class ConversationController extends Controller
             }
         }
 
-        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+        $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         // Si es asesor, verificar si está de turno
@@ -460,7 +460,7 @@ class ConversationController extends Controller
                 // Resueltos: mostrar TODAS las conversaciones resueltas para todos los usuarios
                 $query->where('status', 'resolved');
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
                 }
@@ -468,7 +468,7 @@ class ConversationController extends Controller
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
@@ -476,7 +476,7 @@ class ConversationController extends Controller
                 // Oncología: conversaciones con etiqueta "Oncología"
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
@@ -569,10 +569,12 @@ class ConversationController extends Controller
             return [$conv->is_pinned ? 1 : 0, $conv->last_message_at?->timestamp ?? 0];
         })->values();
         
-        // Cargar la conversación seleccionada con sus mensajes VISIBLES (las respuestas
-        // automáticas de cita marcadas como ocultas no se muestran al asesor).
+        // Cargar la conversación seleccionada con TODOS sus mensajes, incluidas las
+        // respuestas automáticas de cita marcadas como ocultas: en el HILO abierto SÍ
+        // deben verse (p.ej. el "confirmar" del paciente). Siguen ocultas de la LISTA
+        // (no cuentan como no-leídos, ni de vista previa, ni reactivan la vista de trabajo).
         $conversation->load([
-            'messages' => fn ($q) => $q->where('is_hidden', false),
+            'messages',
             'messages.sender',
             'messages.replyTo',
             'messages.reactions',
@@ -1963,7 +1965,7 @@ class ConversationController extends Controller
      */
     public function pollList(Request $request)
     {
-        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+        $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         $user = auth()->user();
@@ -1993,7 +1995,7 @@ class ConversationController extends Controller
                 // Resueltos: mostrar TODAS las conversaciones resueltas (todos los asesores/admin)
                 $query->where('status', 'resolved');
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
                 }
@@ -2001,7 +2003,7 @@ class ConversationController extends Controller
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
@@ -2009,7 +2011,7 @@ class ConversationController extends Controller
                 // Oncología: conversaciones con etiqueta "Oncología"
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
@@ -2115,10 +2117,11 @@ class ConversationController extends Controller
 
         $afterId = (int) $request->query('after', 0);
 
+        // Se entregan TODOS los mensajes nuevos al hilo abierto (incluidas las respuestas
+        // automáticas de cita); solo se ocultan de la LISTA, no del hilo cuando se abre.
         $newMessages = $conversation->messages()
             ->with(['sender', 'replyTo', 'reactions'])
             ->where('id', '>', $afterId)
-            ->where('is_hidden', false) // No entregar respuestas automáticas de cita al hilo
             ->orderBy('id', 'asc')
             ->get();
 

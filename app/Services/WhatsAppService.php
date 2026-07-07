@@ -2266,6 +2266,8 @@ class WhatsAppService
                     })->join("\n\n");
 
                     $responseMessage = "⚠️ *Citas ya procesadas*\n\nSus citas ya se encuentran registradas:\n\n{$citasInfo}\n\nSi necesita realizar cambios adicionales, por favor contacte con un asesor.\n\n_HUV - Evaristo García_";
+                    // Todas las citas ya estaban procesadas: no hay más que hacer en el flujo → sacar de "Todos".
+                    $autoResolveConversation = true;
 
                     foreach ($alreadyProcessed as $a) {
                         $a->update([
@@ -2329,6 +2331,9 @@ class WhatsAppService
 
                     if ($remaining->isEmpty()) {
                         $responseMessage = "❌ *Cancelación*\n\nEstimado usuario/a, para hacer efectiva tu cancelación, por favor envíanos la siguiente información:\n\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\nHasta no enviar la información no se cancelará la consulta.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n🌐 *Página web de citas:* https://citas.huv.gov.co/login\n📞 *Teléfono:* 6206275\n\n_HUV - Evaristo García_";
+                        // Cancelación completa: el flujo automático terminó → sacar de "Todos"
+                        // (si el paciente luego envía la info/documentos, la reactivación la reabre).
+                        $autoResolveConversation = true;
                     } else {
                         $nextInfo = $remaining->map(function ($r) {
                             $h = $this->formatHoraForResponse($r->cithor);
@@ -2383,14 +2388,16 @@ class WhatsAppService
                             'appointment_ids' => $lockedAppointments->pluck('id')->toArray()
                         ]);
 
-                        // Confirmación gestionada 100% por el sistema: cerrar la conversación para
-                        // que no entierre la vista de trabajo de los asesores durante los envíos.
-                        // Solo si nadie la tiene asignada y el único no-leído es el "confirmar" recién
-                        // procesado; si el paciente vuelve a escribir, la reactivación automática la reabre.
+                        // Confirmación/cancelación gestionada 100% por el sistema: sacar la conversación
+                        // de "Todos" (pasa a "Resueltos") para que no entierre la vista de los asesores.
+                        // SOLO si: nadie la tiene asignada Y no hay NINGÚN mensaje real sin leer
+                        // (unread_count = 0). Así se protege a quien envió una duda/documento real
+                        // (esas se quedan en "Todos"). Si el paciente vuelve a escribir, la reactivación
+                        // automática la reabre en "Todos".
                         if ($autoResolveConversation) {
                             $closed = \App\Models\Conversation::where('id', $conversation->id)
                                 ->whereNull('assigned_to')
-                                ->where('unread_count', '<=', 1)
+                                ->where('unread_count', 0)
                                 ->whereIn('status', ['active', 'pending'])
                                 ->update([
                                     'status' => 'resolved',

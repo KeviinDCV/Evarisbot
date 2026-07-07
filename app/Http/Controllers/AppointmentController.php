@@ -133,7 +133,7 @@ class AppointmentController extends Controller
             'remindersStats' => Inertia::defer(function () {
                 // Citas pendientes de pasado mañana (configurable, por defecto 2 días)
                 $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
-                $targetDateString = now()->addDays($daysInAdvance)->startOfDay()->format('Y-m-d');
+                $targetDateString = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay()->format('Y-m-d');
 
                 $pendingCount = $this->serviceQuery()
                     ->whereDate('citfc', '=', $targetDateString)
@@ -145,7 +145,7 @@ class AppointmentController extends Controller
                     ->count();
 
                 // Citas pendientes para MAÑANA (1 día) - botón "Enviar Día Antes"
-                $tomorrowDateString = now()->addDays(1)->startOfDay()->format('Y-m-d');
+                $tomorrowDateString = now()->setTimezone('America/Bogota')->addDays(1)->startOfDay()->format('Y-m-d');
 
                 $pendingTomorrowCount = $this->serviceQuery()
                     ->whereDate('citfc', '=', $tomorrowDateString)
@@ -935,7 +935,7 @@ class AppointmentController extends Controller
             $maxPerDay = (int) Setting::get($this->settingKey('reminder_max_per_day'), '1000'); // Límite diario de Meta
             
             // Calcular fecha objetivo: pasado mañana (2 días desde hoy)
-            $targetDate = now()->addDays($daysInAdvance)->startOfDay();
+            $targetDate = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay();
             $targetDateString = $targetDate->format('Y-m-d');
             
             // PASO 1: Limpiar errores temporales ANTES de consultar
@@ -1161,21 +1161,30 @@ class AppointmentController extends Controller
                 }
             }
             
-            // Marcar como detenido
-            Setting::set($this->settingKey('reminder_paused'), 'true');
+            // Eliminar de la cola los jobs de recordatorio pendientes → el envío se detiene
+            // AL INSTANTE. Sin esto, los jobs quedan y el worker los "vacía" uno cada 3s
+            // (lento) y no se puede volver a enviar de inmediato. Es una acción de
+            // "detener todo", así que limpia cualquier recordatorio pendiente en la cola.
+            $deleted = DB::table('jobs')
+                ->where('payload', 'like', '%SendAppointmentReminderJob%')
+                ->delete();
+
+            // Estado LIMPIO (NO pausado): listo para volver a enviar de inmediato.
+            Setting::set($this->settingKey('reminder_paused'), 'false');
             Setting::set($this->settingKey('reminder_processing'), 'false');
             Setting::remove($this->settingKey('reminder_batch_id'));
             Setting::remove($this->settingKey('reminder_progress_sent'));
             Setting::remove($this->settingKey('reminder_progress_failed'));
             Setting::remove($this->settingKey('reminder_progress_total'));
-            
+
             Log::info('Recordatorios detenidos completamente', [
-                'user_id' => auth()->id()
+                'user_id' => auth()->id(),
+                'jobs_eliminados' => $deleted,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'El envío de recordatorios ha sido detenido completamente'
+                'message' => "Envío detenido. La cola quedó limpia ({$deleted} pendientes eliminados); ya puedes volver a enviar.",
             ]);
         } catch (\Exception $e) {
             Log::error('Error al detener recordatorios', [
@@ -1203,7 +1212,7 @@ class AppointmentController extends Controller
             
             // Obtener configuración
             $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
-            $targetDate = now()->addDays($daysInAdvance)->startOfDay();
+            $targetDate = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay();
             $targetDateString = $targetDate->format('Y-m-d');
             
             // Actualizar solo las citas pendientes para la fecha objetivo
@@ -1272,7 +1281,19 @@ class AppointmentController extends Controller
                             $progressSent = $batch->processedJobs() - $batch->failedJobs;
                             $progressFailed = $batch->failedJobs;
                         } else {
-                            // Batch activo: obtener progreso directamente del batch de Laravel
+                            // El batch dice que sigue activo, pero por drift del contador
+                            // (WithoutOverlapping + batch) pendingJobs puede quedar >0 aunque ya
+                            // no queden jobs en la cola → el envío se "atasca" en 99%. Si no hay
+                            // jobs de ESTE batch pendientes, ya terminó de verdad: limpiar estado.
+                            $jobsLeft = DB::table('jobs')->where('payload', 'like', '%' . $batchId . '%')->count();
+                            if ($jobsLeft === 0) {
+                                DB::table('settings')->where('key', $this->settingKey('reminder_processing'))->update(['value' => 'false']);
+                                DB::table('settings')->where('key', $this->settingKey('reminder_batch_id'))->delete();
+                                Cache::forget('setting.' . $this->settingKey('reminder_processing'));
+                                Cache::forget('setting.' . $this->settingKey('reminder_batch_id'));
+                                $processing = false;
+                            }
+                            // Progreso (real si sigue activo, o final si acaba de terminar).
                             $progressTotal = $batch->totalJobs;
                             $progressSent = $batch->processedJobs() - $batch->failedJobs;
                             $progressFailed = $batch->failedJobs;
@@ -1313,7 +1334,7 @@ class AppointmentController extends Controller
         
         // Obtener citas pendientes de pasado mañana (2 días desde hoy)
         $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
-        $targetDate = now()->addDays($daysInAdvance)->startOfDay();
+        $targetDate = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay();
         $targetDateString = $targetDate->format('Y-m-d');
         
         $pendingCount = $this->serviceQuery()
@@ -1325,7 +1346,7 @@ class AppointmentController extends Controller
             ->count();
         
         // Obtener citas pendientes para MAÑANA (1 día desde hoy)
-        $tomorrowDateString = now()->addDays(1)->format('Y-m-d');
+        $tomorrowDateString = now()->setTimezone('America/Bogota')->addDays(1)->format('Y-m-d');
         $pendingTomorrowCount = $this->serviceQuery()
             ->whereDate('citfc', '=', $tomorrowDateString)
             ->where('reminder_sent', false)

@@ -790,9 +790,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                             <CalendarCheck className="h-3.5 w-3.5" />
                                             {localStats.pending_tomorrow.toLocaleString()} para mañana
                                         </span>
-                                        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${isProcessing ? (isPaused ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300') : 'border-[#d4d8e8] bg-white/60 text-[#6b7494] dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300'}`}>
-                                            {isProcessing && !isPaused ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : isPaused ? <Pause className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                                            {isProcessing ? (isPaused ? 'Pausado' : 'Enviando') : 'Sin proceso activo'}
+                                        <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${isPaused ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300' : (isProcessing ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-[#d4d8e8] bg-white/60 text-[#6b7494] dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300')}`}>
+                                            {isPaused ? <Pause className="h-3.5 w-3.5" /> : (isProcessing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />)}
+                                            {isPaused ? 'Pausado' : (isProcessing ? 'Enviando' : 'Sin proceso activo')}
                                         </span>
                                     </div>
 
@@ -826,11 +826,17 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                             </Button>
                                         </>
                                     )}
-                                    {isProcessing && isPaused && (
-                                        <Button onClick={handleResumeReminders} disabled={isLoading} className="h-9 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
-                                            <Play className="mr-2 h-3.5 w-3.5" />
-                                            {isLoading ? 'Reanudando...' : 'Reanudar'}
-                                        </Button>
+                                    {isPaused && (
+                                        <>
+                                            <Button onClick={handleResumeReminders} disabled={isLoading} className="h-9 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                                <Play className="mr-2 h-3.5 w-3.5" />
+                                                {isLoading ? 'Reanudando...' : 'Reanudar'}
+                                            </Button>
+                                            <Button onClick={handleStopReminders} disabled={isLoading} className="h-9 rounded-xl bg-red-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                                <Square className="mr-2 h-3.5 w-3.5" />
+                                                {isLoading ? 'Deteniendo...' : 'Detener'}
+                                            </Button>
+                                        </>
                                     )}
                                 </div>
                             </div>

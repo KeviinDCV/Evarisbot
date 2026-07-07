@@ -170,6 +170,13 @@ interface Conversation {
         status?: string;
         error_message?: string | null;
     } | null;
+    last_visible_message?: {
+        content: string;
+        created_at: string;
+        is_from_user: boolean;
+        status?: string;
+        error_message?: string | null;
+    } | null;
     messages?: Message[];
     tags?: TagItem[];
     notes?: string | null;
@@ -3379,26 +3386,35 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     {formatTime(conversation.last_message_at)}
                                                 </span>
                                             </div>
-                                            <p className={`text-sm truncate flex items-center gap-1 ${conversation.unread_count > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
-                                                {conversation.last_message && (
-                                                    conversation.last_message.is_from_user ? (
-                                                        <span title="Mensaje del cliente">
-                                                            <CornerDownLeft className="w-3 h-3 text-[#767681] flex-shrink-0" />
+                                            {(() => {
+                                                // Preview: si hay no-leídos, mostrar el último mensaje REAL del paciente
+                                                // (no la confirmación de cita del sistema); si no, el último tal cual.
+                                                const pm = conversation.unread_count > 0
+                                                    ? (conversation.last_visible_message ?? conversation.last_message)
+                                                    : conversation.last_message;
+                                                return (
+                                                    <p className={`text-sm truncate flex items-center gap-1 ${conversation.unread_count > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
+                                                        {pm && (
+                                                            pm.is_from_user ? (
+                                                                <span title="Mensaje del cliente">
+                                                                    <CornerDownLeft className="w-3 h-3 text-[#767681] flex-shrink-0" />
+                                                                </span>
+                                                            ) : pm.status === 'failed' ? (
+                                                                <span title={pm.error_message ? `Error: ${pm.error_message}` : 'Error al enviar'}>
+                                                                    <X className="w-3 h-3 text-red-500 flex-shrink-0" />
+                                                                </span>
+                                                            ) : (
+                                                                <span title="Mensaje enviado">
+                                                                    <CornerDownRight className="w-3 h-3 text-[#2e3f84] dark:text-blue-400 flex-shrink-0" />
+                                                                </span>
+                                                            )
+                                                        )}
+                                                        <span className="truncate">
+                                                            {pm?.content || t('conversations.noMessages')}
                                                         </span>
-                                                    ) : conversation.last_message.status === 'failed' ? (
-                                                        <span title={conversation.last_message.error_message ? `Error: ${conversation.last_message.error_message}` : 'Error al enviar'}>
-                                                            <X className="w-3 h-3 text-red-500 flex-shrink-0" />
-                                                        </span>
-                                                    ) : (
-                                                        <span title="Mensaje enviado">
-                                                            <CornerDownRight className="w-3 h-3 text-[#2e3f84] dark:text-blue-400 flex-shrink-0" />
-                                                        </span>
-                                                    )
-                                                )}
-                                                <span className="truncate">
-                                                    {conversation.last_message?.content || t('conversations.noMessages')}
-                                                </span>
-                                            </p>
+                                                    </p>
+                                                );
+                                            })()}
                                             <div className="flex items-center justify-between mt-1">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status, conversation.is_blocked)}`}></span>

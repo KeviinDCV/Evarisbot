@@ -51,11 +51,23 @@ class Conversation extends Model
     }
 
     /**
-     * Último mensaje de la conversación.
-     * Excluye los ocultos (respuestas automáticas de cita) para que el
-     * preview de la lista no muestre una confirmación/cancelación.
+     * Último mensaje de la conversación: el más reciente, INCLUIDAS las respuestas
+     * automáticas de cita (confirmar/cancelar). Así el preview de la lista muestra el
+     * mensaje real y coincide con la hora por la que se ordena.
+     * Que las confirmaciones no cuenten como no-leídas ni como trabajo del asesor se
+     * maneja aparte (unread_count no se incrementa, assigned_to/resolved_by en null).
      */
     public function lastMessage()
+    {
+        return $this->hasOne(Message::class)->ofMany(['created_at' => 'max', 'id' => 'max']);
+    }
+
+    /**
+     * Último mensaje VISIBLE (excluye las respuestas automáticas de cita ocultas).
+     * Se usa como preview en la lista cuando hay no-leídos: así el asesor ve el mensaje
+     * REAL del paciente y no una confirmación del sistema (ver preview en el frontend).
+     */
+    public function lastVisibleMessage()
     {
         return $this->hasOne(Message::class)->ofMany(
             ['created_at' => 'max', 'id' => 'max'],
