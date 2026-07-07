@@ -4081,10 +4081,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </div>
                                 </div>
 
-                                {/* Estado (indicador mínimo; el detalle vive en el panel derecho) */}
-                                <span className="hidden sm:inline-flex items-center gap-1.5 ml-2 text-xs text-[#5f5e5e] dark:text-neutral-400">
-                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)} ${selectedConversation.status === 'active' && !selectedConversation.is_blocked ? 'status-pulse' : ''}`}></span>
-                                    {getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}
+                                {/* Estado (indicador mínimo; el detalle vive en el panel derecho).
+                                    min-w-0 + truncate: si falta espacio se corta con "…" en vez de
+                                    quedar por debajo de los botones de acción. */}
+                                <span className="hidden sm:inline-flex items-center gap-1.5 ml-2 mr-1 text-xs text-[#5f5e5e] dark:text-neutral-400 min-w-0">
+                                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)} ${selectedConversation.status === 'active' && !selectedConversation.is_blocked ? 'status-pulse' : ''}`}></span>
+                                    <span className="truncate">{getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}</span>
                                 </span>
                             </div>
 
@@ -4723,7 +4725,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </div>
                             </div>
                         ) : (
-                        <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md">
+                        <form onSubmit={handleSubmit} className="px-3 md:px-6 py-3 md:py-4 bg-[#f0f2f5] dark:bg-[hsl(30,4%,10%)]">
                             {/* Reply preview bar */}
                             {replyingTo && (
                                 <div className="mb-2 flex items-center gap-3 px-4 py-2.5 bg-muted dark:bg-neutral-800 rounded-xl border-l-3 border-[#06cf9c]">
@@ -4812,37 +4814,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     className="hidden"
                                 />
 
-                                <div className="relative flex-1 flex items-end bg-muted dark:bg-neutral-800 ring-1 ring-black/5 dark:ring-white/5 rounded-full focus-within:ring-2 focus-within:ring-[#2e3f84]/30 transition-all duration-200 overflow-visible">
+                                <div className="relative flex-1 flex items-end bg-white dark:bg-[hsl(30,4%,18%)] ring-1 ring-black/5 dark:ring-white/[0.04] rounded-full focus-within:ring-2 focus-within:ring-[#2e3f84]/30 transition-all duration-200 overflow-visible">
 
-                                    {/* Botón de adjuntar - Ahora integrado dentro de la burbuja */}
-                                    <button
-                                        type="button"
-                                        aria-label="Adjuntar archivo"
-                                        className="flex-shrink-0 h-[44px] w-12 p-0 rounded-l-full self-end text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
-                                        onClick={() => fileInputRef.current?.click()}
-                                        title="Adjuntar archivo"
-                                    >
-                                        <Paperclip className="w-[22px] h-[22px]" />
-                                    </button>
-
-                                    {/* Botón enviar plantilla WhatsApp */}
-                                    <button
-                                        type="button"
-                                        className="flex-shrink-0 h-[44px] w-10 p-0 self-end text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
-                                        onClick={() => setShowWaTemplateModal(true)}
-                                        title="Enviar plantilla de WhatsApp"
-                                    >
-                                        <FileText className="w-[20px] h-[20px]" />
-                                    </button>
-
-                                    {/* Botón de emojis */}
+                                    {/* Botón de emojis (primero, como WhatsApp) */}
                                     <div className="relative flex-shrink-0 self-end">
                                         <button
                                             type="button"
                                             aria-label="Insertar emoji"
                                             title="Emoji"
                                             onClick={() => setShowEmojiPicker(v => !v)}
-                                            className="h-[44px] w-10 p-0 text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+                                            className="h-[44px] w-12 p-0 rounded-l-full text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
                                         >
                                             <Smile className="w-[22px] h-[22px]" />
                                         </button>
@@ -4874,6 +4855,27 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             )}
                                         </AnimatePresence>
                                     </div>
+
+                                    {/* Botón de adjuntar */}
+                                    <button
+                                        type="button"
+                                        aria-label="Adjuntar archivo"
+                                        className="flex-shrink-0 h-[44px] w-10 p-0 self-end text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        title="Adjuntar archivo"
+                                    >
+                                        <Paperclip className="w-[22px] h-[22px]" />
+                                    </button>
+
+                                    {/* Botón enviar plantilla WhatsApp */}
+                                    <button
+                                        type="button"
+                                        className="flex-shrink-0 h-[44px] w-10 p-0 self-end text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+                                        onClick={() => setShowWaTemplateModal(true)}
+                                        title="Enviar plantilla de WhatsApp"
+                                    >
+                                        <FileText className="w-[20px] h-[20px]" />
+                                    </button>
 
                                     {/* Campo de texto */}
                                     <div className="relative flex-1">

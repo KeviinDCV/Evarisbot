@@ -383,7 +383,10 @@
     *:focus-visible {
         outline: 2px solid #2e3f84;
         outline-offset: 2px;
-        border-radius: inherit;
+        /* Nota: NO usar `border-radius: inherit` aquí — sobreescribe el radio del
+           propio elemento con el del padre y vuelve CUADRADOS los botones redondos
+           (p.ej. el de enviar) al enfocarse. El outline ya sigue el radio propio del
+           elemento en los navegadores modernos. */
     }
 
     .dark *:focus-visible {

@@ -1020,7 +1020,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     </div>
 
                     {/* Lista de Chats */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-6 custom-scrollbar-light">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light">
                         {filteredChats.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-[#767681] p-8">
                                 <MessageSquare className="w-16 h-16 mb-4 text-[#767681]/50" />
@@ -1038,9 +1038,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         key={chat.id}
                                         onClick={() => handleChatSelect(chat)}
                                         onContextMenu={(e) => handleChatContextMenu(e, chat.id)}
-                                        className={`w-full flex items-center gap-4 p-4 mb-1.5 rounded-xl transition-all text-left select-none ${isActive
-                                            ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#2e3f84] dark:border-blue-400 shadow-sm'
-                                            : 'bg-card dark:bg-neutral-800/60 hover:bg-muted/60 dark:hover:bg-neutral-800/80 border-l-4 border-transparent shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
+                                        className={`w-full flex items-center gap-3 pl-3 transition-colors text-left select-none ${isActive
+                                            ? 'bg-[#e9ebf5] dark:bg-neutral-800'
+                                            : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
                                             }`}
                                     >
                                         {/* Avatar */}
@@ -1053,15 +1053,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     <span>{getInitials(chat.name)}</span>
                                                 )}
                                             </div>
-                                            {chat.unread > 0 && (
-                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm border-2 border-[#f3f3f3] dark:border-neutral-900">
-                                                    {chat.unread}
-                                                </div>
-                                            )}
                                         </div>
 
-                                        {/* Info */}
-                                        <div className="flex-grow min-w-0">
+                                        {/* Info (divisor inset estilo WhatsApp: empieza después del avatar) */}
+                                        <div className="flex-grow min-w-0 py-3 pr-3 border-b border-[#ececf3] dark:border-white/[0.06]">
                                             <div className="flex justify-between items-baseline mb-0.5">
                                                 <h3 className="font-bold text-[#1a1c1c] dark:text-neutral-200 truncate text-[15px]">
                                                     {chat.name}
@@ -1071,9 +1066,17 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     {chat.latest_message?.created_at || ''}
                                                 </span>
                                             </div>
-                                            <p className={`text-sm truncate ${chat.unread > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
-                                                {getLastMessagePreview(chat)}
-                                            </p>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className={`text-sm truncate flex-1 min-w-0 ${chat.unread > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
+                                                    {getLastMessagePreview(chat)}
+                                                </p>
+                                                {/* Badge de no-leídos a la derecha (estilo WhatsApp) */}
+                                                {chat.unread > 0 && (
+                                                    <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold">
+                                                        {chat.unread}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div className="flex items-center justify-between mt-1.5">
                                                 <div className="flex items-center gap-1.5">
                                                     <span className={cn('w-2 h-2 rounded-full', chat.type === 'group' ? 'bg-[#2e3f84] dark:bg-blue-400' : 'bg-emerald-500')}></span>
@@ -1280,6 +1283,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             ) : (
                                 <div className="flex flex-col gap-2">
                                     {messages.map((msg, idx) => {
+                                        // Primer mensaje de un grupo (cambia el remitente) → lleva la
+                                        // "colita" de burbuja estilo WhatsApp.
+                                        const isFirstOfGroup = idx === 0 || messages[idx - 1].user?.id !== msg.user?.id;
                                         // Show "Visto por" only on the last message
                                         const isLastMessage = idx === messages.length - 1;
                                         const readersHere: ReadReceipt[] = [];
@@ -1369,8 +1375,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 <div className={`flex flex-col min-w-0 ${msg.is_mine ? 'items-end' : 'items-start'}`}>
                                                 <div
                                                     className={`min-w-0 px-3 pt-2 pb-1 flex flex-col relative ${msg.is_mine
-                                                        ? 'bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] rounded-xl rounded-br-sm shadow-sm'
-                                                        : 'bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                                                        ? `bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] rounded-xl rounded-br-sm shadow-sm ${isFirstOfGroup ? 'bubble-tail-out rounded-tr-none' : ''}`
+                                                        : `bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10 ${isFirstOfGroup ? 'bubble-tail-in rounded-tl-none' : ''}`
                                                         }`}
                                                 >
                                                         {/* Reply quote bubble */}
@@ -1621,7 +1627,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         </div>
 
                         {/* Input Area */}
-                        <form onSubmit={handleSendMessage} className="px-3 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md border-t border-border/70 dark:border-neutral-800">
+                        <form onSubmit={handleSendMessage} className="px-3 md:px-6 py-3 md:py-4 bg-[#f0f2f5] dark:bg-[hsl(30,4%,10%)]">
                             {/* Reply preview bar */}
                             {replyingTo && (
                                 <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-muted dark:bg-neutral-800 rounded-xl border-l-3 border-[#2e3f84] dark:border-blue-400 animate-in slide-in-from-bottom-2 duration-200">
@@ -1665,7 +1671,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     </button>
                                 </div>
                             )}
-                            <div className="flex items-end gap-2 md:gap-3 bg-muted dark:bg-neutral-800 px-3 md:px-4 py-2 rounded-2xl ring-1 ring-black/5 dark:ring-white/10 focus-within:ring-[#2e3f84]/20 transition-all relative">
+                            <div className="flex items-end gap-2 md:gap-3 bg-white dark:bg-[hsl(30,4%,18%)] px-3 md:px-4 py-2 rounded-full ring-1 ring-black/5 dark:ring-white/[0.04] focus-within:ring-2 focus-within:ring-[#2e3f84]/30 transition-all relative">
                                 {/* Hidden file input */}
                                 <input
                                     type="file"
@@ -1743,7 +1749,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
             {/* Modal: Crear nuevo chat o grupo */}
             <Dialog open={showCreateGroup} onOpenChange={setShowCreateGroup}>
-                <DialogContent className="sm:max-w-md card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)] max-h-[95vh] overflow-y-auto custom-scrollbar-light">
+                <DialogContent className="sm:max-w-md card-gradient border border-border dark:border-[hsl(231,20%,22%)] max-h-[90vh] overflow-y-auto overflow-x-hidden custom-scrollbar-light">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Users className="w-6 h-6" />
@@ -1812,8 +1818,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             </div>
                         )}
 
-                        {/* User list */}
-                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar-light border border-border rounded-xl">
+                        {/* User list (filas planas con divisores, estilo WhatsApp) */}
+                        <div className="max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar-light border border-border rounded-xl divide-y divide-[#ececf3] dark:divide-white/[0.06]">
                             {filteredUsers.length === 0 ? (
                                 <div className="p-4 text-center text-sm text-muted-foreground">
                                     No se encontraron usuarios
@@ -1825,9 +1831,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         <button
                                             key={user.id}
                                             onClick={() => toggleUserSelection(user.id)}
-                                            className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${isSelected
-                                                ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)]'
-                                                : 'hover:bg-accent'
+                                            className={`w-full flex items-center gap-3 p-3 transition-colors ${isSelected
+                                                ? 'bg-[#e9ebf5] dark:bg-neutral-800'
+                                                : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
                                                 }`}
                                         >
                                             <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
