@@ -1291,8 +1291,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     useEffect(() => {
         let isActive = true;
 
-        const conversationsInterval = setInterval(async () => {
-            if (!isActive) return;
+        const tick = async () => {
+            if (!isActive || document.hidden) return;
             // NO recargar si el usuario está haciendo scroll (evita saltos)
             if (isScrollingChatsRef.current) return;
 
@@ -1377,11 +1377,19 @@ export default function ConversationsIndex({ conversations: initialConversations
             } catch {
                 // Silenciar errores de polling
             }
-        }, 10000); // 10 segundos — endpoint liviano, no Inertia reload
+        };
+
+        // Gating por visibilidad: mientras la pestaña esté oculta, el guard document.hidden
+        // dentro de tick corta el fetch + re-render; al volver a estar visible refrescamos
+        // de inmediato en vez de esperar el siguiente tick.
+        const conversationsInterval = setInterval(tick, 10000); // 10s — endpoint liviano, no Inertia reload
+        const onVisible = () => { if (!document.hidden) tick(); };
+        document.addEventListener('visibilitychange', onVisible);
 
         return () => {
             isActive = false;
             clearInterval(conversationsInterval);
+            document.removeEventListener('visibilitychange', onVisible);
         };
     }, [filters.status, filters.assigned, filters.search, filters.tag, isAdmin]);
 
@@ -1503,8 +1511,8 @@ export default function ConversationsIndex({ conversations: initialConversations
 
         let isActive = true;
 
-        const messagesInterval = setInterval(async () => {
-            if (!isActive) return;
+        const tick = async () => {
+            if (!isActive || document.hidden) return;
 
             try {
                 const res = await axios.get(`/admin/chat/${selectedConversation.id}/poll-messages?after=${lastMessageIdRef.current}`);
@@ -1575,11 +1583,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                 pollFailuresRef.current += 1;
                 if (pollFailuresRef.current >= 2) setConnectionStale(true);
             }
-        }, 5000);
+        };
+
+        // Pausar mientras la pestaña esté oculta; refrescar al instante al volver a visible.
+        const messagesInterval = setInterval(tick, 5000);
+        const onVisible = () => { if (!document.hidden) tick(); };
+        document.addEventListener('visibilitychange', onVisible);
 
         return () => {
             isActive = false;
             clearInterval(messagesInterval);
+            document.removeEventListener('visibilitychange', onVisible);
         };
     }, [selectedConversation?.id]);
 
@@ -1606,11 +1620,18 @@ export default function ConversationsIndex({ conversations: initialConversations
             csrfPost(`/admin/chat/${selectedConversation.id}/viewing`).catch(() => {});
         };
 
-        // Enviar inmediatamente al abrir y luego cada 10s
+        // Enviar inmediatamente al abrir y luego cada 10s. Mientras la pestaña esté oculta
+        // no se re-señala (el asesor no está viendo de verdad la conversación); al volver a
+        // estar visible se re-señala al instante.
         sendViewing();
-        const viewingInterval = setInterval(sendViewing, 10000);
+        const viewingInterval = setInterval(() => { if (!document.hidden) sendViewing(); }, 10000);
+        const onVisible = () => { if (!document.hidden) sendViewing(); };
+        document.addEventListener('visibilitychange', onVisible);
 
-        return () => clearInterval(viewingInterval);
+        return () => {
+            clearInterval(viewingInterval);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [selectedConversation?.id]);
 
     // Enfocar el composer al abrir una conversación (flujo de teclado del asesor en desktop).

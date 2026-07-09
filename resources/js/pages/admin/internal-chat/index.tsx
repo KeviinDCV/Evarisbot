@@ -314,8 +314,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
         // Immediate first poll
         pollChats();
-        const interval = setInterval(pollChats, 5000);
-        return () => clearInterval(interval);
+        // Gating por visibilidad: no pollear con la pestaña oculta; refrescar al volver.
+        const interval = setInterval(() => { if (!document.hidden) pollChats(); }, 5000);
+        const onVisible = () => { if (!document.hidden) pollChats(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [activeChat?.id]);
 
     // Polling for messages in active chat - using last message ID for reliability
@@ -378,8 +384,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             }
         };
 
-        const interval = setInterval(pollMessages, 3000);
-        return () => clearInterval(interval);
+        const interval = setInterval(() => { if (!document.hidden) pollMessages(); }, 3000);
+        const onVisible = () => { if (!document.hidden) pollMessages(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [activeChat?.id]);
 
     // Fetch messages when active chat changes
@@ -438,9 +449,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         };
 
         fetchReceipts();
-        const id = setInterval(fetchReceipts, 4000);
+        const id = setInterval(() => { if (!document.hidden) fetchReceipts(); }, 4000);
         readReceiptsIntervalRef.current = id;
-        return () => clearInterval(id);
+        const onVisible = () => { if (!document.hidden) fetchReceipts(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            clearInterval(id);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [activeChat?.id]);
 
     // Close media viewer or active chat with Escape key
