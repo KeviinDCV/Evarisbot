@@ -1437,9 +1437,14 @@ class WhatsAppService
                             'status' => 'pending',
                         ]);
 
-                        // Enviar plantilla de saludo por WhatsApp
+                        // Enviar saludo por WhatsApp: como el paciente acaba de completar
+                        // el flujo, la ventana de 24h está abierta y se envía como mensaje
+                        // de sesión libre (evita el tope de marketing / error 131049). Se
+                        // deja la plantilla como respaldo por si la ventana estuviera cerrada.
                         if ($this->isConfigured()) {
-                            $result = $this->sendGreetingTemplate($phoneNumber, $advisorName);
+                            $result = $conversation->isWithinServiceWindow()
+                                ? $this->sendTextMessage($phoneNumber, $greetingText)
+                                : $this->sendGreetingTemplate($phoneNumber, $advisorName);
                             $greetingMessage->update([
                                 'status' => ($result && $result['success']) ? 'sent' : 'failed',
                                 'whatsapp_message_id' => $result['message_id'] ?? null,

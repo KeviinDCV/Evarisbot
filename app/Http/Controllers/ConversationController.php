@@ -1593,12 +1593,22 @@ class ConversationController extends Controller
         }
         $conversation->update($updateData);
 
-        // Enviar usando la plantilla de WhatsApp
+        // Enviar por WhatsApp: dentro de la ventana de 24h se manda como mensaje de
+        // sesión libre (no está sujeto al tope de plantillas de marketing de Meta, evita
+        // el error 131049); fuera de la ventana se usa la plantilla de saludo para
+        // re-enganchar. Ambos métodos devuelven el mismo formato de resultado.
         if ($whatsappService->isConfigured()) {
-            $result = $whatsappService->sendGreetingTemplate(
-                $conversation->phone_number,
-                $advisorName
-            );
+            if ($conversation->isWithinServiceWindow()) {
+                $result = $whatsappService->sendTextMessage(
+                    $conversation->phone_number,
+                    $greetingText
+                );
+            } else {
+                $result = $whatsappService->sendGreetingTemplate(
+                    $conversation->phone_number,
+                    $advisorName
+                );
+            }
 
             if ($result && $result['success']) {
                 $message->update([

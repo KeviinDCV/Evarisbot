@@ -129,6 +129,30 @@ class Conversation extends Model
     }
 
     /**
+     * ¿La conversación está dentro de la ventana de atención de 24h de WhatsApp?
+     *
+     * La ventana se abre con cada mensaje ENTRANTE del paciente (is_from_user=true) y
+     * dura 24h desde ese último entrante. Dentro de la ventana se pueden enviar mensajes
+     * de texto libres (sesión), que NO están sujetos al tope de plantillas de marketing
+     * de Meta (evita el error 131049). Fuera de la ventana solo se pueden enviar plantillas.
+     *
+     * OJO: no se usa last_message_at porque ese campo también se actualiza con mensajes
+     * SALIENTES (respuestas del asesor, recordatorios), así que no refleja el último
+     * entrante. Se consulta el created_at del mensaje entrante más reciente. El reorder()
+     * es necesario porque la relación messages() trae orderBy('created_at','asc').
+     */
+    public function isWithinServiceWindow(): bool
+    {
+        $lastInboundAt = $this->messages()
+            ->where('is_from_user', true)
+            ->reorder('created_at', 'desc')
+            ->value('created_at');
+
+        return $lastInboundAt !== null
+            && $lastInboundAt->greaterThan(now()->subHours(24));
+    }
+
+    /**
      * Scopes para filtrar conversaciones
      */
     public function scopeActive($query)
