@@ -314,11 +314,24 @@ function formatFullDateTime(iso: string) {
 const COMPOSER_EMOJIS = ['😀', '😅', '😂', '🙂', '😉', '😍', '😘', '😊', '👍', '🙏', '👏', '🙌', '👌', '💪', '🎉', '❤️', '🔥', '✅', '⚠️', '❌', '📅', '🕐', '📍', '📎'];
 
 /**
+ * ¿Misma lista de usuarios (id + nombre)? Evita hacer setState con un array nuevo
+ * pero idéntico en cada tick del poll de 5s, que forzaba un re-render completo de
+ * toda la página aunque nada hubiera cambiado.
+ */
+const sameUserList = (
+    a: Array<{ id: number; name: string }>,
+    b: Array<{ id: number; name: string }>,
+) => a.length === b.length && a.every((u, i) => u.id === b[i].id && u.name === b[i].name);
+
+/**
  * Imagen de mensaje con fallback si la URL falla (medios de WhatsApp/Meta que expiran
  * o un corte momentáneo de LAN). Evita el ícono de imagen rota del navegador.
+ * `reserve` reserva un espacio mínimo mientras carga (lazy) para acotar el salto de
+ * layout dentro del hilo; no se usa en stickers, que ya tienen tamaño fijo.
  */
-function ChatImage({ src, alt, className, layoutId }: { src: string; alt?: string; className?: string; layoutId?: string }) {
+function ChatImage({ src, alt, className, layoutId, reserve = false }: { src: string; alt?: string; className?: string; layoutId?: string; reserve?: boolean }) {
     const [errored, setErrored] = useState(false);
+    const [loaded, setLoaded] = useState(false);
     if (errored) {
         return (
             <div className={`flex flex-col items-center justify-center gap-1 bg-black/5 dark:bg-white/5 text-[#667781] dark:text-neutral-400 rounded-xl p-6 min-w-[140px] ${className || ''}`}>
@@ -332,8 +345,10 @@ function ChatImage({ src, alt, className, layoutId }: { src: string; alt?: strin
             layoutId={layoutId}
             src={src}
             alt={alt}
-            className={className}
+            className={`${className || ''} ${reserve && !loaded ? 'min-h-[180px] min-w-[180px] bg-black/5 dark:bg-white/5' : ''}`}
             loading="lazy"
+            decoding="async"
+            onLoad={() => setLoaded(true)}
             onError={() => setErrored(true)}
         />
     );
@@ -1554,25 +1569,41 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Reconciliar reacciones (fallback del broadcast en tiempo real)
                 const reactionUpdates: Array<{ message_id: number; reactions: { id: number; emoji: string; from_user: boolean }[] }> = res.data.reactionUpdates || [];
                 if (reactionUpdates.length > 0) {
+                    // El backend devuelve la ventana de reacciones en CADA tick: solo clonar
+                    // los mensajes cuyas reacciones cambiaron de verdad y devolver `prev` intacto
+                    // si nada cambió (evita un re-render completo cada 5s).
                     setLocalMessages(prev => {
                         const map = new Map(reactionUpdates.map(r => [r.message_id, r.reactions]));
-                        return prev.map(m => map.has(m.id) ? { ...m, reactions: map.get(m.id) } : m);
+                        let changed = false;
+                        const next = prev.map(m => {
+                            if (!map.has(m.id)) return m;
+                            const incoming = map.get(m.id) || [];
+                            if (JSON.stringify(m.reactions || []) === JSON.stringify(incoming)) return m;
+                            changed = true;
+                            return { ...m, reactions: incoming };
+                        });
+                        return changed ? next : prev;
                     });
                 }
 
-                // Update unread count in conversation list
+                // Update unread count in conversation list (solo si cambió de verdad)
                 if (res.data.unread_count !== undefined) {
-                    setLocalConversations(prev =>
-                        prev.map(c => c.id === selectedConversation.id
+                    setLocalConversations(prev => {
+                        const conv = prev.find(c => c.id === selectedConversation.id);
+                        if (!conv || conv.unread_count === res.data.unread_count) return prev;
+                        return prev.map(c => c.id === selectedConversation.id
                             ? { ...c, unread_count: res.data.unread_count }
                             : c
-                        )
-                    );
+                        );
+                    });
                 }
 
-                // Update typing and viewing indicators
-                setTypingUsers(res.data.typing || []);
-                setViewingUsers(res.data.viewing || []);
+                // Update typing and viewing indicators (solo si cambiaron: devolver el mismo
+                // array hace que React se salte el re-render en los ticks sin novedades)
+                const incomingTyping = res.data.typing || [];
+                const incomingViewing = res.data.viewing || [];
+                setTypingUsers(prev => sameUserList(prev, incomingTyping) ? prev : incomingTyping);
+                setViewingUsers(prev => sameUserList(prev, incomingViewing) ? prev : incomingViewing);
 
                 // Polling exitoso: la conexión está sana de nuevo.
                 pollFailuresRef.current = 0;
