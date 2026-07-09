@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Términos de Servicio - Hospital Universitario del Valle</title>
+    <meta name="description" content="Términos de servicio del canal de atención por WhatsApp del Hospital Universitario del Valle.">
     <style>
         * {
             margin: 0;

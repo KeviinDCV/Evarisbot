@@ -125,7 +125,7 @@
     --secondary: #f0f0f0;
     --secondary-foreground: #1c1f2e;
     --muted: #dde1f0;
-    --muted-foreground: #6b7494;
+    --muted-foreground: #5c6485; /* Oscurecido para cumplir contraste AA 4.5:1 sobre el fondo #f0f2f8 */
     --accent: #e8ebf5;
     --accent-foreground: #1c1f2e;
     --destructive: #e5484d; /* Rojo refinado (en vez de rojo puro #ff0000) */

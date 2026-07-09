@@ -110,7 +110,6 @@ export default function Login({ status }: LoginProps) {
                                     onClick={() => setShowPassword(!showPassword)}
                                     className="absolute right-2 flex h-[34px] w-[34px] items-center justify-center rounded-[9px] transition-colors hover:bg-[#2e3f84]/8"
                                     style={{ color: '#7d83ad', background: 'transparent' }}
-                                    tabIndex={-1}
                                     aria-label={showPassword ? t('auth.hidePassword', 'Ocultar contraseña') : t('auth.showPassword', 'Mostrar contraseña')}
                                 >
                                     {showPassword ? <EyeOff className="h-[19px] w-[19px]" /> : <Eye className="h-[19px] w-[19px]" />}

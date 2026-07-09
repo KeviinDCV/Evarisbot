@@ -4,8 +4,9 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="robots" content="noindex, nofollow">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ config('app.name', 'Evarisbot') }}</title>
 
         <link rel="icon" href="/images/favicon.png" type="image/png">
         <link rel="apple-touch-icon" href="/images/favicon.png">

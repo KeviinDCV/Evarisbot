@@ -58,7 +58,7 @@ export default function AuthSimpleLayout({
                     {title}
                 </h2>
                 {description && (
-                    <p className="text-center text-sm" style={{ color: '#7d83ad', marginTop: '-14px', marginBottom: '18px' }}>
+                    <p className="text-center text-sm" style={{ color: '#565b82', marginTop: '-14px', marginBottom: '18px' }}>
                         {description}
                     </p>
                 )}
@@ -68,7 +68,7 @@ export default function AuthSimpleLayout({
                 {/* Footer */}
                 <p
                     className="text-center"
-                    style={{ margin: '30px 0 0', fontSize: '12px', fontWeight: 600, letterSpacing: '.04em', color: '#a4a8c8' }}
+                    style={{ margin: '30px 0 0', fontSize: '12px', fontWeight: 600, letterSpacing: '.04em', color: '#5b6088' }}
                 >
                     Innovación y Desarrollo
                 </p>
