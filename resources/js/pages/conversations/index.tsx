@@ -3379,7 +3379,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 </div>
                                                 <span className={`text-[11px] font-medium flex-shrink-0 ml-2 ${conversation.unread_count > 0 ? 'text-[#5b6bb5] dark:text-blue-400/80' : 'text-[#5f5e5e] dark:text-neutral-500'
                                                     }`}>
-                                                    {formatTime(conversation.last_message_at)}
+                                                    {formatTime(
+                                                        // Fecha coherente con el texto de preview: usar el created_at del
+                                                        // MISMO mensaje mostrado (pm), no last_message_at, que puede quedar
+                                                        // adelantado por eventos sin mensaje visible en el hilo (p. ej. un
+                                                        // mensaje saliente borrado). Fallback a last_message_at si no hay mensaje.
+                                                        (conversation.unread_count > 0
+                                                            ? (conversation.last_visible_message ?? conversation.last_message)
+                                                            : conversation.last_message
+                                                        )?.created_at ?? conversation.last_message_at
+                                                    )}
                                                 </span>
                                             </div>
                                             {(() => {
