@@ -19,9 +19,9 @@ interface LoginProps {
 const inputBaseStyle: React.CSSProperties = {
     width: '100%',
     fontSize: '14px',
-    color: '#2b2f55',
-    background: 'rgba(255,255,255,.55)',
-    border: '1.5px solid rgba(46,63,132,.12)',
+    color: 'var(--auth-input-text)',
+    background: 'var(--auth-input-bg)',
+    border: '1.5px solid var(--auth-input-border)',
     borderRadius: '14px',
     outline: 'none',
     transition: 'border-color .15s, background .15s, box-shadow .15s',
@@ -29,13 +29,13 @@ const inputBaseStyle: React.CSSProperties = {
 
 // Foco: borde navy + glow sutil.
 const handleFieldFocus = (e: FocusEvent<HTMLInputElement>) => {
-    e.currentTarget.style.borderColor = '#2e3f84';
-    e.currentTarget.style.background = 'rgba(255,255,255,.92)';
-    e.currentTarget.style.boxShadow = '0 0 0 4px rgba(46,63,132,.10)';
+    e.currentTarget.style.borderColor = 'var(--auth-input-border-focus)';
+    e.currentTarget.style.background = 'var(--auth-input-bg-focus)';
+    e.currentTarget.style.boxShadow = '0 0 0 4px var(--auth-input-glow)';
 };
 const handleFieldBlur = (e: FocusEvent<HTMLInputElement>) => {
-    e.currentTarget.style.borderColor = 'rgba(46,63,132,.12)';
-    e.currentTarget.style.background = 'rgba(255,255,255,.55)';
+    e.currentTarget.style.borderColor = 'var(--auth-input-border)';
+    e.currentTarget.style.background = 'var(--auth-input-bg)';
     e.currentTarget.style.boxShadow = 'none';
 };
 
@@ -57,7 +57,7 @@ export default function Login({ status }: LoginProps) {
             {status && (
                 <div
                     className="mb-4 rounded-xl text-center text-sm font-medium"
-                    style={{ color: '#2e3f84', background: 'rgba(46,63,132,.07)', padding: '10px 16px' }}
+                    style={{ color: 'var(--auth-status-text)', background: 'var(--auth-status-bg)', padding: '10px 16px' }}
                 >
                     {status}
                 </div>
@@ -68,9 +68,9 @@ export default function Login({ status }: LoginProps) {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                         {/* Usuario */}
                         <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#3a3f63' }}>{t('auth.username')}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--auth-label)' }}>{t('auth.username')}</span>
                             <span className="relative flex items-center">
-                                <Mail className="pointer-events-none absolute left-[15px] h-[18px] w-[18px]" style={{ color: '#9aa0c4' }} />
+                                <Mail className="pointer-events-none absolute left-[15px] h-[18px] w-[18px]" style={{ color: 'var(--auth-icon)' }} />
                                 <input
                                     id="email"
                                     type="email"
@@ -90,9 +90,9 @@ export default function Login({ status }: LoginProps) {
 
                         {/* Contraseña */}
                         <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#3a3f63' }}>{t('common.password')}</span>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--auth-label)' }}>{t('common.password')}</span>
                             <span className="relative flex items-center">
-                                <Lock className="pointer-events-none absolute left-[15px] h-[18px] w-[18px]" style={{ color: '#9aa0c4' }} />
+                                <Lock className="pointer-events-none absolute left-[15px] h-[18px] w-[18px]" style={{ color: 'var(--auth-icon)' }} />
                                 <input
                                     id="password"
                                     type={showPassword ? 'text' : 'password'}
@@ -109,7 +109,7 @@ export default function Login({ status }: LoginProps) {
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
                                     className="absolute right-2 flex h-[34px] w-[34px] items-center justify-center rounded-[9px] transition-colors hover:bg-[#2e3f84]/8"
-                                    style={{ color: '#7d83ad', background: 'transparent' }}
+                                    style={{ color: 'var(--auth-icon)', background: 'transparent' }}
                                     aria-label={showPassword ? t('auth.hidePassword', 'Ocultar contraseña') : t('auth.showPassword', 'Mostrar contraseña')}
                                 >
                                     {showPassword ? <EyeOff className="h-[19px] w-[19px]" /> : <Eye className="h-[19px] w-[19px]" />}
@@ -130,8 +130,8 @@ export default function Login({ status }: LoginProps) {
                             <span
                                 className="relative flex h-[19px] w-[19px] flex-shrink-0 items-center justify-center rounded-md border-[1.5px] transition-colors"
                                 style={{
-                                    borderColor: rememberMe ? '#2e3f84' : '#c3c6e0',
-                                    backgroundColor: rememberMe ? '#2e3f84' : '#ffffff',
+                                    borderColor: rememberMe ? 'var(--auth-accent)' : 'var(--auth-check-border)',
+                                    backgroundColor: rememberMe ? 'var(--auth-accent)' : 'var(--auth-check-bg)',
                                 }}
                             >
                                 {rememberMe && (
@@ -142,7 +142,7 @@ export default function Login({ status }: LoginProps) {
                             </span>
                             <span
                                 className="flex select-none items-center gap-[7px] text-sm font-medium"
-                                style={{ color: rememberMe ? '#2e3f84' : '#5a5f80' }}
+                                style={{ color: rememberMe ? 'var(--auth-remember-text-on)' : 'var(--auth-remember-text)' }}
                             >
                                 <InfinityIcon className="h-3.5 w-3.5 flex-shrink-0" />
                                 Nunca cerrar sesión
@@ -156,7 +156,7 @@ export default function Login({ status }: LoginProps) {
                             tabIndex={4}
                             className="mt-3.5 flex w-full items-center justify-center font-bold text-white"
                             style={{
-                                backgroundColor: '#2e3f84',
+                                backgroundColor: 'var(--auth-accent)',
                                 border: 'none',
                                 borderRadius: '16px',
                                 padding: '17px',
@@ -165,8 +165,8 @@ export default function Login({ status }: LoginProps) {
                                 opacity: processing ? 0.7 : 1,
                                 boxShadow: '0 10px 24px -12px rgba(46,63,132,.55)',
                             }}
-                            onMouseEnter={(e) => { if (!processing) e.currentTarget.style.backgroundColor = '#26356f'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#2e3f84'; }}
+                            onMouseEnter={(e) => { if (!processing) e.currentTarget.style.backgroundColor = 'var(--auth-accent-hover)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--auth-accent)'; }}
                         >
                             {processing && <Spinner className="mr-2" />}
                             {t('auth.login')}
