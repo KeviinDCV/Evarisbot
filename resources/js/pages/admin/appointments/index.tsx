@@ -4,6 +4,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronL
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 // POST de recordatorios vía axios: usa el token CSRF VIVO de la cookie (el <meta> queda
@@ -113,7 +114,9 @@ function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: Metr
     );
 }
 
-export default function AppointmentsIndex({ appointments: initialAppointments = [], totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/appointments', pageTitle = 'Gestión de Citas' }: AppointmentIndexProps) {
+export default function AppointmentsIndex({ appointments: initialAppointments = [], totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/appointments', pageTitle }: AppointmentIndexProps) {
+    const { t } = useTranslation();
+    const resolvedPageTitle = pageTitle ?? t('appointments.pageTitle');
     const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
     const [showFlashMessage, setShowFlashMessage] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
@@ -398,43 +401,43 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 setIsProcessing(false);
                 setProgress(null);
                 // Mostrar información detallada si está disponible
-                let errorMessage = data.message || 'Error al iniciar el envío';
+                let errorMessage = data.message || t('appointments.errorStartSending');
 
                 if (data.debug) {
-                    errorMessage += '\n\nInformación de depuración:';
-                    errorMessage += `\n- Fecha objetivo: ${data.debug.target_date}`;
-                    errorMessage += `\n- Fecha actual: ${data.debug.current_date}`;
-                    errorMessage += `\n- Días de anticipación: ${data.debug.days_in_advance}`;
-                    errorMessage += `\n- Total citas pendientes: ${data.debug.total_pending_appointments}`;
+                    errorMessage += '\n\n' + t('appointments.debugInfoHeader');
+                    errorMessage += `\n${t('appointments.debugTargetDate')} ${data.debug.target_date}`;
+                    errorMessage += `\n${t('appointments.debugCurrentDate')} ${data.debug.current_date}`;
+                    errorMessage += `\n${t('appointments.debugDaysInAdvance')} ${data.debug.days_in_advance}`;
+                    errorMessage += `\n${t('appointments.debugTotalPending')} ${data.debug.total_pending_appointments}`;
 
                     if (data.debug.exact_date_count !== undefined) {
-                        errorMessage += `\n- Citas para fecha objetivo (${data.debug.target_date}): ${data.debug.exact_date_count}`;
+                        errorMessage += `\n${t('appointments.debugAppointmentsTargetDate')} (${data.debug.target_date}): ${data.debug.exact_date_count}`;
                     }
 
                     if (data.debug.tomorrow_count !== undefined) {
                         const tomorrow = new Date();
                         tomorrow.setDate(tomorrow.getDate() + 1);
-                        errorMessage += `\n- Citas para mañana (${tomorrow.toISOString().split('T')[0]}): ${data.debug.tomorrow_count}`;
+                        errorMessage += `\n${t('appointments.debugAppointmentsTomorrow')} (${tomorrow.toISOString().split('T')[0]}): ${data.debug.tomorrow_count}`;
                     }
 
                     if (data.debug.day_after_tomorrow_count !== undefined) {
                         const dayAfter = new Date();
                         dayAfter.setDate(dayAfter.getDate() + 2);
-                        errorMessage += `\n- Citas para pasado mañana (${dayAfter.toISOString().split('T')[0]}): ${data.debug.day_after_tomorrow_count}`;
+                        errorMessage += `\n${t('appointments.debugAppointmentsDayAfter')} (${dayAfter.toISOString().split('T')[0]}): ${data.debug.day_after_tomorrow_count}`;
                     }
 
                     if (data.debug.dates_with_count && data.debug.dates_with_count.length > 0) {
-                        errorMessage += '\n\nFechas con citas pendientes:';
+                        errorMessage += '\n\n' + t('appointments.debugDatesWithPending');
                         data.debug.dates_with_count.slice(0, 10).forEach((item: { date: string; count: number }) => {
-                            errorMessage += `\n  - ${item.date}: ${item.count} citas`;
+                            errorMessage += `\n  - ${item.date}: ${item.count} ${t('appointments.appointmentsSuffix')}`;
                         });
                         if (data.debug.dates_with_count.length > 10) {
-                            errorMessage += `\n  ... y ${data.debug.dates_with_count.length - 10} fechas más`;
+                            errorMessage += `\n  ${t('appointments.debugMoreDates', { count: data.debug.dates_with_count.length - 10 })}`;
                         }
                     } else if (data.debug.available_dates && data.debug.available_dates.length > 0) {
-                        errorMessage += `\n- Fechas disponibles: ${data.debug.available_dates.slice(0, 5).join(', ')}`;
+                        errorMessage += `\n${t('appointments.debugAvailableDates')} ${data.debug.available_dates.slice(0, 5).join(', ')}`;
                         if (data.debug.available_dates.length > 5) {
-                            errorMessage += ` y ${data.debug.available_dates.length - 5} más`;
+                            errorMessage += ` ${t('appointments.debugAndMore', { count: data.debug.available_dates.length - 5 })}`;
                         }
                     }
                 }
@@ -446,7 +449,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al iniciar el envío de recordatorios');
+            alert(t('appointments.errorStartRemindersSending'));
             // Limpiar estado si hay error
             setIsProcessing(false);
             setProgress(null);
@@ -464,11 +467,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 setIsPaused(true);
                 router.reload({ only: ['reminderPaused'] });
             } else {
-                alert(data.message || 'Error al pausar');
+                alert(data.message || t('appointments.errorPause'));
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al pausar el envío de recordatorios');
+            alert(t('appointments.errorPauseReminders'));
         } finally {
             setIsLoading(false);
         }
@@ -483,11 +486,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 setIsPaused(false);
                 router.reload({ only: ['reminderPaused'] });
             } else {
-                alert(data.message || 'Error al reanudar');
+                alert(data.message || t('appointments.errorResume'));
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al reanudar el envío de recordatorios');
+            alert(t('appointments.errorResumeReminders'));
         } finally {
             setIsLoading(false);
         }
@@ -555,11 +558,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
             } else {
                 setIsProcessing(false);
                 setProgress(null);
-                alert(data.message || 'Error al iniciar el envío para mañana');
+                alert(data.message || t('appointments.errorStartTomorrow'));
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al iniciar el envío de recordatorios para mañana');
+            alert(t('appointments.errorStartRemindersTomorrow'));
             setIsProcessing(false);
             setProgress(null);
         } finally {
@@ -568,7 +571,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
     };
 
     const handleStopReminders = async () => {
-        if (!confirm('¿Estás seguro de que deseas detener completamente el envío de recordatorios? Esto cancelará todos los trabajos pendientes.')) {
+        if (!confirm(t('appointments.confirmStopReminders'))) {
             return;
         }
 
@@ -580,13 +583,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 setIsProcessing(false);
                 setIsPaused(false);
                 router.reload({ only: ['remindersStats', 'reminderProcessing', 'reminderPaused'] });
-                alert('El envío de recordatorios ha sido detenido completamente');
+                alert(t('appointments.stopSuccess'));
             } else {
-                alert(data.message || 'Error al detener');
+                alert(data.message || t('appointments.errorStop'));
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al detener el envío de recordatorios');
+            alert(t('appointments.errorStopReminders'));
         } finally {
             setIsLoading(false);
         }
@@ -594,7 +597,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
     return (
         <AdminLayout>
-            <Head title={pageTitle} />
+            <Head title={resolvedPageTitle} />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -605,10 +608,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             </div>
                             <div>
                                 <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                                    {pageTitle}
+                                    {resolvedPageTitle}
                                 </h1>
                                 <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                    Carga citas, controla recordatorios y revisa el estado de envío.
+                                    {t('appointments.headerSubtitle')}
                                 </p>
                             </div>
                         </div>
@@ -616,7 +619,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                         {initialAppointments.length > 0 && (
                             <Button onClick={() => router.visit(`${routePrefix}/view`)} className="h-9 rounded-xl px-5 text-xs font-semibold settings-btn-primary">
                                 <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                                Ver todas las citas
+                                {t('appointments.viewAllAppointments')}
                             </Button>
                         )}
                     </header>
@@ -647,10 +650,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
                     <Deferred data={['appointments', 'totalAppointments', 'remindersStats']} fallback={<AppointmentMetricsSkeleton />}>
                         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                            <MetricCard icon={CalendarCheck} label="Total citas" value={totalAppointments.toLocaleString()} detail={`${initialAppointments.length.toLocaleString()} recientes cargadas`} />
-                            <MetricCard icon={Send} label="Enviados" value={localStats.sent.toLocaleString()} detail={`${dashboardStats.recentSent} en la vista reciente`} tone="success" />
-                            <MetricCard icon={Clock} label="Por enviar" value={localStats.pending.toLocaleString()} detail={`${localStats.pending_tomorrow.toLocaleString()} para mañana`} tone="warning" />
-                            <MetricCard icon={XCircle} label="Fallidos" value={localStats.failed.toLocaleString()} detail={`${dashboardStats.recentCancelled} canceladas recientes`} tone="danger" />
+                            <MetricCard icon={CalendarCheck} label={t('appointments.metricTotalAppointments')} value={totalAppointments.toLocaleString()} detail={`${initialAppointments.length.toLocaleString()} ${t('appointments.metricRecentlyLoaded')}`} />
+                            <MetricCard icon={Send} label={t('appointments.metricSent')} value={localStats.sent.toLocaleString()} detail={`${dashboardStats.recentSent} ${t('appointments.metricInRecentView')}`} tone="success" />
+                            <MetricCard icon={Clock} label={t('appointments.metricPending')} value={localStats.pending.toLocaleString()} detail={`${localStats.pending_tomorrow.toLocaleString()} ${t('appointments.metricForTomorrow')}`} tone="warning" />
+                            <MetricCard icon={XCircle} label={t('appointments.metricFailed')} value={localStats.failed.toLocaleString()} detail={`${dashboardStats.recentCancelled} ${t('appointments.metricRecentCancelled')}`} tone="danger" />
                         </section>
                     </Deferred>
 
@@ -660,9 +663,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             <div className="mb-4">
                                 <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
                                     <FileSpreadsheet className="h-4 w-4" />
-                                    Cargar archivo de citas
+                                    {t('appointments.uploadFileTitle')}
                                 </h2>
-                                <p className="mb-4 text-sm settings-subtitle">Acepta archivos Excel o CSV y actualiza la base de citas del panel.</p>
+                                <p className="mb-4 text-sm settings-subtitle">{t('appointments.uploadFileSubtitle')}</p>
 
                                 <div
                                     onDrop={handleDrop}
@@ -693,13 +696,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                 </div>
                                                 <div>
                                                     <p className="mb-1 text-sm font-semibold settings-title">
-                                                        Arrastra y suelta tu archivo aquí
+                                                        {t('appointments.dropzoneTitle')}
                                                     </p>
                                                     <p className="text-sm settings-subtitle">
-                                                        o <span className="settings-title font-semibold">haz click para seleccionar</span>
+                                                        {t('appointments.dropzoneOr')} <span className="settings-title font-semibold">{t('appointments.dropzoneClickToSelect')}</span>
                                                     </p>
                                                     <p className="text-xs settings-subtitle mt-2">
-                                                        Formatos soportados: .xlsx, .xls, .csv (máx. 10MB)
+                                                        {t('appointments.dropzoneSupportedFormats')}
                                                     </p>
                                                 </div>
                                             </div>
@@ -744,7 +747,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         disabled={processing}
                                         className="h-9 rounded-xl px-5 text-sm font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                        {processing ? 'Subiendo...' : 'Subir archivo'}
+                                        {processing ? t('appointments.uploading') : t('appointments.uploadFileButton')}
                                     </button>
                                 </div>
                             )}
@@ -760,13 +763,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <h3 className="mb-2 font-semibold settings-title">
-                                        Archivo cargado exitosamente
+                                        {t('appointments.fileUploadedSuccess')}
                                     </h3>
                                     <div className="grid gap-2 text-sm settings-subtitle sm:grid-cols-2 lg:grid-cols-4">
-                                        <p><span className="font-semibold settings-title">Nombre:</span> {uploadedFile.name}</p>
-                                        <p><span className="font-semibold settings-title">Tamaño:</span> {formatFileSize(uploadedFile.size)}</p>
-                                        <p><span className="font-semibold settings-title">Registros:</span> {uploadedFile.total_rows || initialAppointments.length} citas</p>
-                                        <p><span className="font-semibold settings-title">Fecha:</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
+                                        <p><span className="font-semibold settings-title">{t('appointments.fileNameLabel')}</span> {uploadedFile.name}</p>
+                                        <p><span className="font-semibold settings-title">{t('appointments.fileSizeLabel')}</span> {formatFileSize(uploadedFile.size)}</p>
+                                        <p><span className="font-semibold settings-title">{t('appointments.fileRecordsLabel')}</span> {uploadedFile.total_rows || initialAppointments.length} {t('appointments.appointmentsSuffix')}</p>
+                                        <p><span className="font-semibold settings-title">{t('appointments.fileDateLabel')}</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
                                     </div>
                                 </div>
                             </div>
@@ -779,25 +782,25 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                 <div className="min-w-0 flex-1">
                                     <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
                                         <Send className="h-4 w-4" />
-                                        Control de envío de recordatorios
+                                        {t('appointments.reminderControlTitle')}
                                     </h2>
                                     <div className="flex flex-wrap gap-2 text-xs">
                                         <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                             <Clock className="h-3.5 w-3.5" />
-                                            {localStats.pending.toLocaleString()} para pasado mañana
+                                            {localStats.pending.toLocaleString()} {t('appointments.forDayAfterTomorrow')}
                                         </span>
                                         <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-semibold text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300">
                                             <CalendarCheck className="h-3.5 w-3.5" />
-                                            {localStats.pending_tomorrow.toLocaleString()} para mañana
+                                            {localStats.pending_tomorrow.toLocaleString()} {t('appointments.forTomorrow')}
                                         </span>
                                         <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${isPaused ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300' : (isProcessing ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-[#d4d8e8] bg-white/60 text-[#6b7494] dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300')}`}>
                                             {isPaused ? <Pause className="h-3.5 w-3.5" /> : (isProcessing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />)}
-                                            {isPaused ? 'Pausado' : (isProcessing ? 'Enviando' : 'Sin proceso activo')}
+                                            {isPaused ? t('appointments.statusPaused') : (isProcessing ? t('appointments.statusSending') : t('appointments.statusNoActiveProcess'))}
                                         </span>
                                     </div>
 
                                     {localStats.pending === 0 && localStats.pending_tomorrow === 0 && (
-                                        <p className="mt-3 text-sm settings-subtitle">No hay recordatorios pendientes para las fechas operativas.</p>
+                                        <p className="mt-3 text-sm settings-subtitle">{t('appointments.noPendingReminders')}</p>
                                     )}
                                 </div>
 
@@ -805,24 +808,24 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                     {!isProcessing && !isPaused && localStats.pending > 0 && (
                                         <Button onClick={handleStartReminders} disabled={isLoading || isProcessing} className="h-9 rounded-xl px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                             <Play className="mr-2 h-3.5 w-3.5" />
-                                            {isLoading || isProcessing ? 'Iniciando...' : `Comenzar (${localStats.pending})`}
+                                            {isLoading || isProcessing ? t('appointments.starting') : t('appointments.startButton', { count: localStats.pending })}
                                         </Button>
                                     )}
                                     {!isProcessing && !isPaused && localStats.pending_tomorrow > 0 && (
                                         <Button onClick={handleStartRemindersDayBefore} disabled={isLoading || isProcessing} className="h-9 rounded-xl px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                             <CalendarCheck className="mr-2 h-3.5 w-3.5" />
-                                            Enviar Día Antes ({localStats.pending_tomorrow})
+                                            {t('appointments.sendDayBefore', { count: localStats.pending_tomorrow })}
                                         </Button>
                                     )}
                                     {isProcessing && !isPaused && (
                                         <>
                                             <Button onClick={handlePauseReminders} disabled={isLoading} className="h-9 rounded-xl px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                                 <Pause className="mr-2 h-3.5 w-3.5" />
-                                                {isLoading ? 'Pausando...' : 'Pausar'}
+                                                {isLoading ? t('appointments.pausing') : t('appointments.pauseButton')}
                                             </Button>
                                             <Button onClick={handleStopReminders} disabled={isLoading} className="h-9 rounded-xl bg-red-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
                                                 <Square className="mr-2 h-3.5 w-3.5" />
-                                                {isLoading ? 'Deteniendo...' : 'Detener'}
+                                                {isLoading ? t('appointments.stopping') : t('appointments.stopButton')}
                                             </Button>
                                         </>
                                     )}
@@ -830,11 +833,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         <>
                                             <Button onClick={handleResumeReminders} disabled={isLoading} className="h-9 rounded-xl bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
                                                 <Play className="mr-2 h-3.5 w-3.5" />
-                                                {isLoading ? 'Reanudando...' : 'Reanudar'}
+                                                {isLoading ? t('appointments.resuming') : t('appointments.resumeButton')}
                                             </Button>
                                             <Button onClick={handleStopReminders} disabled={isLoading} className="h-9 rounded-xl bg-red-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
                                                 <Square className="mr-2 h-3.5 w-3.5" />
-                                                {isLoading ? 'Deteniendo...' : 'Detener'}
+                                                {isLoading ? t('appointments.stopping') : t('appointments.stopButton')}
                                             </Button>
                                         </>
                                     )}
@@ -844,7 +847,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             {isProcessing && progress && progress.total > 0 && (
                                 <div className="mt-4 rounded-xl border border-[#d4d8e8] bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                     <div className="mb-2 flex items-center justify-between gap-3 text-xs settings-subtitle">
-                                        <span>Progreso del envío</span>
+                                        <span>{t('appointments.sendingProgress')}</span>
                                         <span className="font-semibold settings-title">
                                             {progress.percentage}% ({progress.sent + progress.failed} / {progress.total})
                                         </span>
@@ -853,9 +856,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         <div className="h-full rounded-full bg-emerald-500 transition-all duration-500 ease-out" style={{ width: `${Math.min(progress.percentage, 100)}%` }} />
                                     </div>
                                     <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
-                                        <span className="text-emerald-600 dark:text-emerald-300">Enviados: {progress.sent}</span>
-                                        {progress.failed > 0 && <span className="text-red-600 dark:text-red-300">Fallidos: {progress.failed}</span>}
-                                        <span className="settings-subtitle">Pendientes: {progress.pending}</span>
+                                        <span className="text-emerald-600 dark:text-emerald-300">{t('appointments.progressSent')} {progress.sent}</span>
+                                        {progress.failed > 0 && <span className="text-red-600 dark:text-red-300">{t('appointments.progressFailed')} {progress.failed}</span>}
+                                        <span className="settings-subtitle">{t('appointments.progressPending')} {progress.pending}</span>
                                     </div>
                                 </div>
                             )}
@@ -863,13 +866,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             {localStats.pending > 2000 && (
                                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                     <AlertCircle className="mr-1 inline h-4 w-4" />
-                                    <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana. El sistema respetará el límite de 2,000 mensajes por día según las políticas de Meta.
+                                    <strong>{t('appointments.warningLabel')}</strong> {t('appointments.warningLimitDayAfter', { count: localStats.pending })}
                                 </div>
                             )}
                             {localStats.pending_tomorrow > 2000 && (
                                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                     <AlertCircle className="mr-1 inline h-4 w-4" />
-                                    <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio. El sistema respetará el límite de 2,000 mensajes por día.
+                                    <strong>{t('appointments.warningLabel')}</strong> {t('appointments.warningLimitTomorrow', { count: localStats.pending_tomorrow })}
                                 </div>
                             )}
                         </section>
@@ -881,22 +884,22 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
                                     <h2 className="text-base font-semibold settings-title">
-                                        Citas en base de datos ({totalAppointments})
+                                        {t('appointments.appointmentsInDatabase', { count: totalAppointments })}
                                     </h2>
                                     <p className="text-sm settings-subtitle">
-                                        Mostrando últimas {initialAppointments.length} citas (filtradas: {filteredAppointments.length})
+                                        {t('appointments.showingLastAppointments', { shown: initialAppointments.length, filtered: filteredAppointments.length })}
                                     </p>
                                 </div>
 
                                 <div className="flex items-center gap-3">
                                     <div className="relative w-full md:w-80">
-                                        <label htmlFor="appointment-search" className="sr-only">Buscar citas</label>
+                                        <label htmlFor="appointment-search" className="sr-only">{t('appointments.searchAppointmentsLabel')}</label>
                                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 settings-subtitle" />
                                         <input
                                             id="appointment-search"
                                             name="appointment-search"
                                             type="text"
-                                            placeholder="Buscar por paciente, teléfono, médico..."
+                                            placeholder={t('appointments.searchPlaceholder')}
                                             value={searchTerm}
                                             onChange={(e) => handleSearch(e.target.value)}
                                             className="h-9 w-full rounded-xl pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
@@ -908,7 +911,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         className="h-9 shrink-0 rounded-xl px-4 text-xs font-semibold settings-btn-secondary"
                                     >
                                         <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                                        Ver todas las citas
+                                        {t('appointments.viewAllAppointments')}
                                     </Button>
                                 </div>
                             </div>
@@ -921,16 +924,16 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                 #
                                             </th>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Paciente
+                                                {t('appointments.columnPatient')}
                                             </th>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Detalles de Cita
+                                                {t('appointments.columnAppointmentDetails')}
                                             </th>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Profesional
+                                                {t('appointments.columnProfessional')}
                                             </th>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Estado Envío
+                                                {t('appointments.columnSendingStatus')}
                                             </th>
                                         </tr>
                                     </thead>
@@ -982,7 +985,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                 <td className="px-4 py-4 align-top w-[30%] min-w-[220px]">
                                                     <div className="flex flex-col">
                                                         <span className="font-semibold settings-title line-clamp-2 leading-tight" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            Dr(a). {appointment.mednom || '-'}
+                                                            {t('appointments.doctorPrefix')} {appointment.mednom || '-'}
                                                         </span>
                                                         <span className="settings-subtitle mt-1 inline-flex items-center gap-1.5" style={{ fontSize: 'var(--text-xs)' }}>
                                                             <div className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
@@ -997,12 +1000,12 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                         {appointment.reminder_sent ? (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-semibold w-fit">
                                                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                                                Enviado
+                                                                {t('appointments.badgeSent')}
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold w-fit">
                                                                 <Clock className="w-3.5 h-3.5" />
-                                                                Pendiente
+                                                                {t('appointments.badgePending')}
                                                             </span>
                                                         )}
 
@@ -1010,23 +1013,23 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                             <>
                                                                 {appointment.reminder_status === 'confirmed' ? (
                                                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold w-fit">
-                                                                        <CalendarCheck className="w-3.5 h-3.5" /> Confirmada
+                                                                        <CalendarCheck className="w-3.5 h-3.5" /> {t('appointments.badgeConfirmed')}
                                                                     </span>
                                                                 ) : appointment.reminder_status === 'cancelled' ? (
                                                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-semibold w-fit">
-                                                                        <CalendarX className="w-3.5 h-3.5" /> Cancelada
+                                                                        <CalendarX className="w-3.5 h-3.5" /> {t('appointments.badgeCancelled')}
                                                                     </span>
                                                                 ) : appointment.reminder_status === 'failed' ? (
                                                                     <span className="inline-flex items-center gap-1 text-red-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <XCircle className="w-3 h-3" /> Error
+                                                                        <XCircle className="w-3 h-3" /> {t('appointments.badgeError')}
                                                                     </span>
                                                                 ) : appointment.reminder_status && ['delivered', 'read'].includes(appointment.reminder_status) ? (
                                                                     <span className="inline-flex items-center gap-1 text-emerald-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <CheckCircle2 className="w-3 h-3" /> Recibido
+                                                                        <CheckCircle2 className="w-3 h-3" /> {t('appointments.badgeReceived')}
                                                                     </span>
                                                                 ) : (
                                                                     <span className="inline-flex items-center gap-1 text-blue-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <Clock className="w-3 h-3" /> Sin respuesta
+                                                                        <Clock className="w-3 h-3" /> {t('appointments.badgeNoResponse')}
                                                                     </span>
                                                                 )}
                                                             </>
@@ -1043,7 +1046,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             {totalPages > 1 && (
                                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <p className="text-sm settings-subtitle">
-                                        Página {currentPage} de {totalPages}
+                                        {t('appointments.pageOf', { current: currentPage, total: totalPages })}
                                     </p>
                                     <div className="flex gap-2">
                                         <button
@@ -1052,14 +1055,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                             className="flex h-9 items-center gap-2 rounded-xl border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
                                             <ChevronLeft className="w-4 h-4" />
-                                            Anterior
+                                            {t('common.previous')}
                                         </button>
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
                                             className="flex h-9 items-center gap-2 rounded-xl border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
-                                            Siguiente
+                                            {t('common.next')}
                                             <ChevronRight className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -1072,37 +1075,37 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                         <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                         >
                             <h3 className="mb-4 font-semibold settings-title">
-                                Formato del archivo excel
+                                {t('appointments.excelFormatTitle')}
                             </h3>
                             <div className="space-y-3 text-sm settings-subtitle">
-                                <p className="settings-title font-medium">El archivo debe contener las siguientes columnas:</p>
+                                <p className="settings-title font-medium">{t('appointments.excelFormatInstruction')}</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Citead</strong> - Código admisión
+                                        <strong className="settings-title">Citead</strong> - {t('appointments.columnDescCitead')}
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Nom_paciente</strong> - Nombre paciente
+                                        <strong className="settings-title">Nom_paciente</strong> - {t('appointments.columnDescPatientName')}
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Pactel</strong> - Teléfono
+                                        <strong className="settings-title">Pactel</strong> - {t('appointments.columnDescPhone')}
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Citfc</strong> - Fecha cita
+                                        <strong className="settings-title">Citfc</strong> - {t('appointments.columnDescDate')}
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Cithor</strong> - Hora cita
+                                        <strong className="settings-title">Cithor</strong> - {t('appointments.columnDescTime')}
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Mednom</strong> - Nombre médico
+                                        <strong className="settings-title">Mednom</strong> - {t('appointments.columnDescDoctorName')}
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Espnom</strong> - Especialidad
+                                        <strong className="settings-title">Espnom</strong> - {t('appointments.columnDescSpecialty')}
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Citdoc</strong> - Documento
+                                        <strong className="settings-title">Citdoc</strong> - {t('appointments.columnDescDocument')}
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Citobsobs</strong> - Observaciones
+                                        <strong className="settings-title">Citobsobs</strong> - {t('appointments.columnDescObservations')}
                                     </div>
                                 </div>
                             </div>

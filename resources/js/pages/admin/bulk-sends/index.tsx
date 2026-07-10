@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 
 // Las llamadas que MUTAN estado van por axios: así usan el token CSRF vivo (cookie
 // XSRF-TOKEN) y pasan por el interceptor de app.tsx que reintenta 1 vez ante 419.
@@ -377,18 +377,18 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             const placeholder = `{{${paramIdx}}}`;
             let replacement: string;
             if (map.source === 'nombre') {
-                replacement = sample?.name || '[nombre del contacto]';
+                replacement = sample?.name || t('bulkSends.previewNoName');
             } else if (map.source === 'column') {
-                replacement = sample?.params?.[map.column || ''] ?? `[columna: ${map.column}]`;
+                replacement = sample?.params?.[map.column || ''] ?? t('bulkSends.previewColumnFallback', { column: map.column });
             } else if (map.source === 'static') {
-                replacement = map.value || '[valor fijo vacío]';
+                replacement = map.value || t('bulkSends.previewEmptyStatic');
             } else {
-                replacement = '⚠️[sin asignar]';
+                replacement = t('bulkSends.previewUnassigned');
             }
             text = text.split(placeholder).join(replacement);
         });
         return text;
-    }, [selectedTemplate, columnMapping, recipients]);
+    }, [selectedTemplate, columnMapping, recipients, t]);
 
     // Guía del Excel ideal para la plantilla seleccionada: deriva el nombre de cada
     // columna del contexto del texto ("a las ___" → hora) y muestra dónde se usa.
@@ -446,16 +446,16 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             const v = String(value).trim();
             const isDate = DATE_RX.test(v);
             const isTime = TIME_RX.test(v);
-            if (expected === 'time' && isDate) errors.push(`{{${idx}}} va después de "a las…" (espera una HORA) pero recibirá una fecha: "${v}".`);
-            if (expected === 'date' && isTime) errors.push(`{{${idx}}} va en un contexto de FECHA pero recibirá una hora: "${v}".`);
-            if (expected === 'doctor' && (isDate || isTime)) errors.push(`{{${idx}}} va después de "DR.(A)" (espera un nombre) pero recibirá: "${v}".`);
+            if (expected === 'time' && isDate) errors.push(t('bulkSends.validation.expectsTimeGotDate', { token: `{{${idx}}}`, value: v }));
+            if (expected === 'date' && isTime) errors.push(t('bulkSends.validation.expectsDateGotTime', { token: `{{${idx}}}`, value: v }));
+            if (expected === 'doctor' && (isDate || isTime)) errors.push(t('bulkSends.validation.expectsDoctorGotOther', { token: `{{${idx}}}`, value: v }));
         });
 
         const dup = usedCols.filter((c, i) => usedCols.indexOf(c) !== i);
-        [...new Set(dup)].forEach(c => warnings.push(`La columna "${c}" está asignada a más de un parámetro.`));
-        extraColumns.filter(c => !usedCols.includes(c)).forEach(c => warnings.push(`La columna "${c}" del archivo no se usará en el mensaje — verifica que no falte asignarla.`));
+        [...new Set(dup)].forEach(c => warnings.push(t('bulkSends.validation.columnDuplicated', { column: c })));
+        extraColumns.filter(c => !usedCols.includes(c)).forEach(c => warnings.push(t('bulkSends.validation.columnUnused', { column: c })));
         return { errors, warnings };
-    }, [selectedTemplate, templatePlaceholders, columnMapping, recipients, extraColumns]);
+    }, [selectedTemplate, templatePlaceholders, columnMapping, recipients, extraColumns, t]);
 
     const handleSelectTemplate = (templateId: string) => {
         const template = whatsappTemplates.find(t => t.id === Number(templateId));
@@ -551,13 +551,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 if (data && typeof data === 'object') {
                     if (data.errors) {
                         const firstError = Object.values(data.errors).flat()[0] as string;
-                        setError(firstError || 'Error de validación');
+                        setError(firstError || t('bulkSends.validationError'));
                     } else {
-                        setError(data.message || `Error del servidor (${status})`);
+                        setError(data.message || t('bulkSends.serverError', { status }));
                     }
                 } else {
                     const text = typeof data === 'string' ? data : '';
-                    setError(`Error del servidor (${status}): ${text.substring(0, 200)}`);
+                    setError(t('bulkSends.serverErrorWithBody', { status, text: text.substring(0, 200) }));
                 }
                 return;
             }
@@ -570,16 +570,16 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 if (data.extra_columns?.length > 0) {
                     setExtraColumns(data.extra_columns);
                 }
-                setSuccess(`Se cargaron ${data.total} números del archivo ${data.filename}`);
+                setSuccess(t('bulkSends.fileLoadedSuccess', { total: data.total, filename: data.filename }));
                 setTimeout(() => setSuccess(''), 5000);
             } else {
-                setError(data.message || 'Error al procesar el archivo');
+                setError(data.message || t('bulkSends.fileProcessError'));
             }
         } catch (err: any) {
             if (axios.isCancel(err) || err?.code === 'ERR_CANCELED' || err?.code === 'ECONNABORTED' || err?.name === 'CanceledError' || err?.name === 'AbortError') {
-                setError('El archivo es muy grande y tardó demasiado en procesarse. Intente con un archivo más pequeño.');
+                setError(t('bulkSends.fileTooLargeTimeout'));
             } else {
-                setError('Error al subir el archivo. Verifique que el formato sea correcto.');
+                setError(t('bulkSends.fileUploadError'));
             }
         } finally {
             setIsUploading(false);
@@ -607,13 +607,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         const cleanPhone = phone.replace(/[^0-9]/g, '');
         const exists = recipients.some(r => r.phone.replace(/[^0-9]/g, '') === cleanPhone);
         if (exists) {
-            setError('Este número ya está en la lista');
+            setError(t('bulkSends.duplicatePhone'));
             setTimeout(() => setError(''), 3000);
             return;
         }
 
         if (cleanPhone.length < 10) {
-            setError('El número debe tener al menos 10 dígitos');
+            setError(t('bulkSends.phoneMinDigits'));
             setTimeout(() => setError(''), 3000);
             return;
         }
@@ -646,15 +646,15 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     // Paso 1: abrir la confirmación obligatoria (con vista previa y chequeos de coherencia)
     const handleStartSend = () => {
         if (!selectedTemplate) {
-            setError('Seleccione una plantilla de WhatsApp');
+            setError(t('bulkSends.selectTemplateError'));
             return;
         }
         if (recipients.length === 0) {
-            setError('Agregue al menos un destinatario');
+            setError(t('bulkSends.addRecipientError'));
             return;
         }
         if (!mappingComplete) {
-            setError('Asigne un origen a cada parámetro {{N}} de la plantilla antes de enviar.');
+            setError(t('bulkSends.mappingIncompleteError'));
             return;
         }
         setError('');
@@ -699,11 +699,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setShowConfirmSend(false);
                 setTimeout(() => setSuccess(''), 5000);
             } else {
-                setError(data.message || 'Error al iniciar el envío');
+                setError(data.message || t('bulkSends.startSendError'));
                 setShowConfirmSend(false);
             }
         } catch (err) {
-            setError('Error al iniciar el envío masivo');
+            setError(t('bulkSends.startBulkSendError'));
             setShowConfirmSend(false);
         } finally {
             setIsSending(false);
@@ -723,46 +723,46 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setError(data.message);
             }
         } catch (err) {
-            setError('Error al cancelar el envío');
+            setError(t('bulkSends.cancelError'));
         }
     };
 
     const statusLabel = (status: string) => {
         const labels: Record<string, { text: string; color: string }> = {
-            draft: { text: 'Borrador', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
-            processing: { text: 'Procesando', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
-            completed: { text: 'Completado', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
-            sent: { text: 'Enviado', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
-            failed: { text: 'Fallido', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
-            cancelled: { text: 'Cancelado', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
-            pending: { text: 'Pendiente', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
+            draft: { text: t('bulkSends.statusDraft'), color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
+            processing: { text: t('bulkSends.statusProcessing'), color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
+            completed: { text: t('bulkSends.statusCompleted'), color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
+            sent: { text: t('bulkSends.statusSent'), color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
+            failed: { text: t('bulkSends.statusFailed'), color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+            cancelled: { text: t('bulkSends.statusCancelled'), color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
+            pending: { text: t('bulkSends.statusPending'), color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' },
         };
         return labels[status] || { text: status, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300' };
     };
 
     const templateStatusLabel = (status: string) => {
         const labels: Record<string, { text: string; color: string; icon: string }> = {
-            APPROVED: { text: 'Aprobada', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: '✓' },
-            PENDING: { text: 'En revisión', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: '⏳' },
-            REJECTED: { text: 'Rechazada', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: '✗' },
-            PAUSED: { text: 'Pausada', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400', icon: '⏸' },
-            DISABLED: { text: 'Deshabilitada', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300', icon: '⊘' },
+            APPROVED: { text: t('bulkSends.tplStatusApproved'), color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: '✓' },
+            PENDING: { text: t('bulkSends.tplStatusPending'), color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: '⏳' },
+            REJECTED: { text: t('bulkSends.tplStatusRejected'), color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: '✗' },
+            PAUSED: { text: t('bulkSends.tplStatusPaused'), color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400', icon: '⏸' },
+            DISABLED: { text: t('bulkSends.tplStatusDisabled'), color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300', icon: '⊘' },
         };
         return labels[status] || { text: status, color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300', icon: '?' };
     };
 
     const categoryLabel = (cat: string) => {
         const labels: Record<string, { text: string; icon: React.ReactNode }> = {
-            MARKETING: { text: 'Marketing', icon: <Megaphone className="w-3.5 h-3.5" /> },
-            UTILITY: { text: 'Utilidad', icon: <Shield className="w-3.5 h-3.5" /> },
-            AUTHENTICATION: { text: 'Autenticación', icon: <Key className="w-3.5 h-3.5" /> },
+            MARKETING: { text: t('bulkSends.categoryMarketing'), icon: <Megaphone className="w-3.5 h-3.5" /> },
+            UTILITY: { text: t('bulkSends.categoryUtility'), icon: <Shield className="w-3.5 h-3.5" /> },
+            AUTHENTICATION: { text: t('bulkSends.categoryAuthentication'), icon: <Key className="w-3.5 h-3.5" /> },
         };
         return labels[cat] || { text: cat, icon: null };
     };
 
     const handleCreateTemplate = async () => {
         if (!newTplName || !newTplBody || !newTplDisplayName) {
-            setError('Complete los campos obligatorios: nombre técnico, nombre visible y cuerpo del mensaje.');
+            setError(t('bulkSends.createRequiredFieldsError'));
             return;
         }
         setIsCreatingTemplate(true);
@@ -795,10 +795,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setTimeout(() => setSuccess(''), 5000);
                 router.reload();
             } else {
-                setError(data.message || 'Error al crear la plantilla');
+                setError(data.message || t('bulkSends.createTemplateError'));
             }
         } catch {
-            setError('Error al enviar la plantilla a Meta');
+            setError(t('bulkSends.sendTemplateToMetaError'));
         } finally {
             setIsCreatingTemplate(false);
         }
@@ -815,17 +815,17 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setTimeout(() => setSuccess(''), 5000);
                 router.reload();
             } else {
-                setError(data.message || 'Error al sincronizar');
+                setError(data.message || t('bulkSends.syncError'));
             }
         } catch {
-            setError('Error al sincronizar plantillas');
+            setError(t('bulkSends.syncTemplatesError'));
         } finally {
             setIsSyncing(false);
         }
     };
 
     const handleDeleteTemplate = async (id: number, name: string) => {
-        if (!confirm(`¿Eliminar la plantilla "${name}"? Esto también la eliminará de Meta.`)) return;
+        if (!confirm(t('bulkSends.deleteTemplateConfirm', { name }))) return;
         try {
             const response = await csrfDelete(`/admin/bulk-sends/templates/${id}`);
             const data = response.data;
@@ -834,10 +834,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 setTimeout(() => setSuccess(''), 5000);
                 router.reload();
             } else {
-                setError(data.message || 'Error al eliminar');
+                setError(data.message || t('bulkSends.deleteError'));
             }
         } catch {
-            setError('Error al eliminar la plantilla');
+            setError(t('bulkSends.deleteTemplateError'));
         }
     };
 
@@ -855,7 +855,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
     return (
         <AdminLayout>
-            <Head title="Envío Masivo" />
+            <Head title={t('bulkSends.pageTitle')} />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -866,10 +866,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             </div>
                             <div>
                                 <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                                    Envío masivo
+                                    {t('bulkSends.heading')}
                                 </h1>
                                 <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                    Campañas, plantillas aprobadas, progreso y resultados de destinatarios.
+                                    {t('bulkSends.headingSubtitle')}
                                 </p>
                             </div>
                         </div>
@@ -884,7 +884,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 }`}
                             >
                                 <Send className="h-4 w-4" />
-                                Enviar
+                                {t('bulkSends.tabSend')}
                             </button>
                             <button
                                 onClick={() => setActiveTab('templates')}
@@ -895,7 +895,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 }`}
                             >
                                 <MessageSquareText className="h-4 w-4" />
-                                Plantillas ({allTemplates.length})
+                                {t('bulkSends.tabTemplates', { count: allTemplates.length })}
                             </button>
                         </div>
                     </header>
@@ -903,29 +903,29 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <MetricCard
                             icon={Clock}
-                            label="Campañas"
+                            label={t('bulkSends.metricCampaigns')}
                             value={sendMetrics.totalSends.toLocaleString()}
-                            detail={`${sendMetrics.completedSends} completadas · ${sendMetrics.processingSends} activas`}
+                            detail={t('bulkSends.metricCampaignsDetail', { completed: sendMetrics.completedSends, processing: sendMetrics.processingSends })}
                         />
                         <MetricCard
                             icon={Phone}
-                            label="Destinatarios"
+                            label={t('bulkSends.metricRecipients')}
                             value={sendMetrics.totalRecipients.toLocaleString()}
-                            detail={`${sendMetrics.sentRecipients.toLocaleString()} enviados · ${sendMetrics.pendingRecipients.toLocaleString()} pendientes`}
+                            detail={t('bulkSends.metricRecipientsDetail', { sent: sendMetrics.sentRecipients.toLocaleString(), pending: sendMetrics.pendingRecipients.toLocaleString() })}
                             tone="success"
                         />
                         <MetricCard
                             icon={AlertCircle}
-                            label="Errores"
+                            label={t('bulkSends.metricErrors')}
                             value={sendMetrics.failedRecipients.toLocaleString()}
-                            detail={`${sendMetrics.blockedSends} campañas fallidas o canceladas`}
+                            detail={t('bulkSends.metricErrorsDetail', { count: sendMetrics.blockedSends })}
                             tone="danger"
                         />
                         <MetricCard
                             icon={MessageSquareText}
-                            label="Plantillas útiles"
+                            label={t('bulkSends.metricUsableTemplates')}
                             value={templateMetrics.usable.toLocaleString()}
-                            detail={`${templateMetrics.pending} en revisión · ${templateMetrics.rejected} rechazadas`}
+                            detail={t('bulkSends.metricUsableTemplatesDetail', { pending: templateMetrics.pending, rejected: templateMetrics.rejected })}
                             tone="info"
                         />
                     </div>
@@ -960,11 +960,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     <div className="flex items-center gap-2">
                                         <Loader2 className="h-4 w-4 animate-spin text-sky-700 dark:text-sky-300" />
                                         <h3 className="truncate text-base font-bold text-sky-950 dark:text-sky-100">
-                                            {activeProgress.name || 'Envío en progreso'}
+                                            {activeProgress.name || t('bulkSends.sendInProgress')}
                                         </h3>
                                     </div>
                                     <p className="mt-1 truncate text-xs font-medium text-sky-700 dark:text-sky-300">
-                                        {activeProgress.template_name} · {activeProgress.percentage}% procesado
+                                        {t('bulkSends.progressProcessed', { template: activeProgress.template_name, percentage: activeProgress.percentage })}
                                     </p>
                                 </div>
                                 <Button
@@ -974,7 +974,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     className="h-9 rounded-xl"
                                 >
                                     <StopCircle className="mr-1.5 h-4 w-4" />
-                                    Cancelar
+                                    {t('common.cancel')}
                                 </Button>
                             </div>
 
@@ -988,19 +988,19 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                                     <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-background/40">
                                         <div className="text-lg font-bold text-sky-950 dark:text-sky-100">{activeProgress.total.toLocaleString()}</div>
-                                        <div className="text-xs font-semibold uppercase text-sky-700 dark:text-sky-300">Total</div>
+                                        <div className="text-xs font-semibold uppercase text-sky-700 dark:text-sky-300">{t('bulkSends.total')}</div>
                                     </div>
                                     <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-background/40">
                                         <div className="text-lg font-bold text-emerald-700 dark:text-emerald-300">{activeProgress.sent.toLocaleString()}</div>
-                                        <div className="text-xs font-semibold uppercase text-muted-foreground">Enviados</div>
+                                        <div className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.sent')}</div>
                                     </div>
                                     <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-background/40">
                                         <div className="text-lg font-bold text-red-600 dark:text-red-300">{activeProgress.failed.toLocaleString()}</div>
-                                        <div className="text-xs font-semibold uppercase text-muted-foreground">Fallidos</div>
+                                        <div className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.failed')}</div>
                                     </div>
                                     <div className="rounded-xl bg-white/70 px-3 py-2 dark:bg-background/40">
                                         <div className="text-lg font-bold text-amber-700 dark:text-amber-300">{activeProgress.pending.toLocaleString()}</div>
-                                        <div className="text-xs font-semibold uppercase text-muted-foreground">Pendientes</div>
+                                        <div className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.pending')}</div>
                                     </div>
                                 </div>
                             </div>
@@ -1019,19 +1019,19 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-800/60">
                                             <MessageSquareText className="h-4 w-4" />
                                         </span>
-                                        Plantilla y variables
+                                        {t('bulkSends.templateAndVariables')}
                                     </h2>
 
                                     <div className="space-y-3">
                                         <div>
                                             <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Nombre descriptivo del envío (opcional)
+                                                {t('bulkSends.sendNameLabel')}
                                             </label>
                                             <input
                                                 type="text"
                                                 value={sendName}
                                                 onChange={(e) => setSendName(e.target.value)}
-                                                placeholder="Ej: Aviso contrato policía - Feb 2026"
+                                                placeholder={t('bulkSends.sendNamePlaceholder')}
                                                 className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                                 style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                             />
@@ -1039,7 +1039,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                                         <div>
                                             <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Plantilla de WhatsApp *
+                                                {t('bulkSends.whatsappTemplateLabel')}
                                             </label>
                                             {whatsappTemplates.length > 0 ? (
                                                 <div className="space-y-3">
@@ -1048,7 +1048,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         onValueChange={(v) => handleSelectTemplate(v)}
                                                     >
                                                         <SelectTrigger className="w-full h-10 settings-input rounded-xl">
-                                                            <SelectValue placeholder="— Seleccione una plantilla —" />
+                                                            <SelectValue placeholder={t('bulkSends.selectTemplatePlaceholder')} />
                                                         </SelectTrigger>
                                                         <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
                                                             {whatsappTemplates.map((t) => (
@@ -1068,7 +1068,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                             >
                                                                 <span className="flex items-center gap-2 text-sm font-medium text-foreground/80">
                                                                     <Eye className="w-4 h-4" />
-                                                                    Vista previa del mensaje
+                                                                    {t('bulkSends.messagePreview')}
                                                                 </span>
                                                                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${showPreview ? 'rotate-180' : ''}`} />
                                                             </button>
@@ -1078,27 +1078,31 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                         {selectedTemplate.header_format === 'DOCUMENT' && (
                                                                             <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 mb-2 flex items-center gap-2">
                                                                                 <FileText className="w-5 h-5 text-red-500" />
-                                                                                <span className="text-xs text-muted-foreground">Documento PDF adjunto</span>
+                                                                                <span className="text-xs text-muted-foreground">{t('bulkSends.pdfAttached')}</span>
                                                                             </div>
                                                                         )}
                                                                         {selectedTemplate.header_format === 'IMAGE' && (
                                                                             <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 mb-2 flex items-center gap-2">
                                                                                 <Image className="w-5 h-5 text-blue-500" />
-                                                                                <span className="text-xs text-muted-foreground">Imagen adjunta</span>
+                                                                                <span className="text-xs text-muted-foreground">{t('bulkSends.imageAttached')}</span>
                                                                             </div>
                                                                         )}
                                                                         {selectedTemplate.header_format === 'VIDEO' && (
                                                                             <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 mb-2 flex items-center gap-2">
                                                                                 <Video className="w-5 h-5 text-purple-500" />
-                                                                                <span className="text-xs text-muted-foreground">Video adjunto</span>
+                                                                                <span className="text-xs text-muted-foreground">{t('bulkSends.videoAttached')}</span>
                                                                             </div>
                                                                         )}
                                                                         <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
-                                                                            {selectedTemplate.preview_text || 'Sin texto de previsualización disponible.'}
+                                                                            {selectedTemplate.preview_text || t('bulkSends.noPreviewText')}
                                                                         </p>
                                                                     </div>
                                                                     <p className="text-xs text-muted-foreground mt-2">
-                                                                        Template Meta: <span className="font-mono font-medium">{selectedTemplate.meta_template_name}</span> · Idioma: {selectedTemplate.language}
+                                                                        <Trans
+                                                                            i18nKey="bulkSends.templateMetaLanguage"
+                                                                            values={{ name: selectedTemplate.meta_template_name, language: selectedTemplate.language }}
+                                                                            components={{ meta: <span className="font-mono font-medium" /> }}
+                                                                        />
                                                                     </p>
                                                                 </div>
                                                             )}
@@ -1109,10 +1113,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 <div className="text-center py-6 border-2 border-dashed border-border/50 rounded-xl">
                                                     <MessageSquareText className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
                                                     <p className="text-sm text-muted-foreground">
-                                                        No hay plantillas configuradas.
+                                                        {t('bulkSends.noTemplatesConfigured')}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                        Primero apruebe el template en Meta Business y luego agreguelo en la base de datos.
+                                                        {t('bulkSends.noTemplatesHelp')}
                                                     </p>
                                                 </div>
                                             )}
@@ -1123,13 +1127,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             <div className="rounded-xl border border-sky-200/60 dark:border-sky-800/40 bg-sky-50/50 dark:bg-sky-950/20 p-3.5">
                                                 <p className="text-xs font-bold text-sky-800 dark:text-sky-300 mb-2 flex items-center gap-1.5">
                                                     <FileSpreadsheet className="w-3.5 h-3.5" />
-                                                    Así debe ser el Excel para esta plantilla
+                                                    {t('bulkSends.excelGuideTitle')}
                                                 </p>
                                                 <div className="overflow-x-auto custom-scrollbar mb-2.5">
                                                     <table className="text-[11px] border-collapse">
                                                         <thead>
                                                             <tr>
-                                                                {['telefono', ...excelGuide.map(g => g.header)].map((h, i) => (
+                                                                {[t('bulkSends.excelColPhone'), ...excelGuide.map(g => g.header)].map((h, i) => (
                                                                     <th key={i} className="border border-sky-200/80 dark:border-sky-800/60 bg-white dark:bg-neutral-800 px-2.5 py-1 font-mono font-bold text-sky-900 dark:text-sky-200 text-left whitespace-nowrap">
                                                                         {h}
                                                                     </th>
@@ -1151,7 +1155,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     {excelGuide.map(g => (
                                                         <p key={g.idx} className="text-[11px] text-sky-800/80 dark:text-sky-300/80">
                                                             <span className="font-semibold">{g.header}</span>
-                                                            <span className="opacity-75"> se usa en: «{g.context}»</span>
+                                                            <span className="opacity-75">{t('bulkSends.excelUsedIn', { context: g.context })}</span>
                                                         </p>
                                                     ))}
                                                 </div>
@@ -1163,13 +1167,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             <div>
                                                 <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
                                                     <Columns3 className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
-                                                    Mapeo de parámetros
+                                                    {t('bulkSends.paramMapping')}
                                                 </label>
                                                 <p className="text-xs text-muted-foreground mb-3">
-                                                    Asigne el origen de cada parámetro {'{{N}}'} de la plantilla.
+                                                    {t('bulkSends.paramMappingHelp')}
                                                     {extraColumns.length === 0 && recipients.length === 0 && (
                                                         <span className="block mt-1 text-amber-600 dark:text-amber-400">
-                                                            Suba un archivo Excel para poder mapear columnas adicionales.
+                                                            {t('bulkSends.uploadExcelToMap')}
                                                         </span>
                                                     )}
                                                 </p>
@@ -1213,16 +1217,16 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                                 isUnset ? 'border-red-400 ring-1 ring-red-300/60 dark:border-red-500/70' : 'border-gray-200 dark:border-gray-800'
                                                                             )}
                                                                         >
-                                                                            <SelectValue placeholder="— Selecciona el origen —" />
+                                                                            <SelectValue placeholder={t('bulkSends.selectSourcePlaceholder')} />
                                                                         </SelectTrigger>
                                                                         <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
-                                                                            <SelectItem value="__nombre__" className="rounded-lg cursor-pointer">📋 Nombre del contacto</SelectItem>
+                                                                            <SelectItem value="__nombre__" className="rounded-lg cursor-pointer">📋 {t('bulkSends.sourceContactName')}</SelectItem>
                                                                             {extraColumns.map((col) => (
                                                                                 <SelectItem key={col} value={`__col__${col}`} className="rounded-lg cursor-pointer">
-                                                                                    📊 Columna: {col}
+                                                                                    📊 {t('bulkSends.sourceColumn', { col })}
                                                                                 </SelectItem>
                                                                             ))}
-                                                                            <SelectItem value="__static__" className="rounded-lg cursor-pointer">✏️ Valor fijo</SelectItem>
+                                                                            <SelectItem value="__static__" className="rounded-lg cursor-pointer">✏️ {t('bulkSends.sourceStatic')}</SelectItem>
                                                                         </SelectContent>
                                                                     </Select>
                                                                 </div>
@@ -1235,7 +1239,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                             newMapping[String(idx)] = { source: 'static', value: e.target.value };
                                                                             setColumnMapping(newMapping);
                                                                         }}
-                                                                        placeholder="Escriba el valor..."
+                                                                        placeholder={t('bulkSends.staticValuePlaceholder')}
                                                                         className="flex-1 settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm"
                                                                         style={{ height: '2rem', fontSize: '0.8125rem', minWidth: '120px' }}
                                                                     />
@@ -1250,8 +1254,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     <div className="mt-3 bg-green-50/60 dark:bg-green-950/20 rounded-xl p-3 border border-green-200/40 dark:border-green-800/30">
                                                         <p className="text-xs font-medium text-muted-foreground mb-1.5">
                                                             {recipients[0]
-                                                                ? `Así llegará el mensaje a ${recipients[0].name || recipients[0].phone}:`
-                                                                : 'Vista previa del mensaje:'}
+                                                                ? t('bulkSends.previewToRecipient', { recipient: recipients[0].name || recipients[0].phone })
+                                                                : t('bulkSends.messagePreviewColon')}
                                                         </p>
                                                         <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                                                             {renderedPreview}
@@ -1259,7 +1263,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         {!mappingComplete && (
                                                             <p className="mt-2 flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
                                                                 <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                                                                Faltan parámetros por asignar. Revisa el mapeo antes de enviar.
+                                                                {t('bulkSends.missingParamsWarning')}
                                                             </p>
                                                         )}
                                                         {validationIssues.errors.map((msg, i) => (
@@ -1283,7 +1287,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         {selectedTemplate && templatePlaceholders.length === 0 && (
                                             <div>
                                                 <label className="block font-semibold mb-2 settings-label" style={{ fontSize: 'var(--text-sm)' }}>
-                                                    Parámetros del Template (opcionales)
+                                                    {t('bulkSends.templateParamsLabel')}
                                                 </label>
                                                 <div className="space-y-2">
                                                     {templateParams.map((param, index) => (
@@ -1308,7 +1312,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                             value={newParamValue}
                                                             onChange={(e) => setNewParamValue(e.target.value)}
                                                             onKeyDown={(e) => e.key === 'Enter' && addParam()}
-                                                            placeholder={`Valor para {{${templateParams.length + 1}}}`}
+                                                            placeholder={t('bulkSends.paramValuePlaceholder', { token: `{{${templateParams.length + 1}}}` })}
                                                             className="flex-1 settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                                             style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                                         />
@@ -1333,7 +1337,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:ring-sky-800/60">
                                             <Upload className="h-4 w-4" />
                                         </span>
-                                        Cargar destinatarios
+                                        {t('bulkSends.loadRecipients')}
                                     </h2>
 
                                     <div
@@ -1356,7 +1360,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         {isUploading ? (
                                             <div className="flex flex-col items-center gap-2">
                                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                                                <p className="text-sm text-muted-foreground">Procesando archivo...</p>
+                                                <p className="text-sm text-muted-foreground">{t('bulkSends.processingFile')}</p>
                                             </div>
                                         ) : (
                                             <>
@@ -1365,10 +1369,10 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-foreground">
-                                                        Arrastra un archivo Excel aquí
+                                                        {t('bulkSends.dragExcelHere')}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                        .xlsx, .xls, .csv · Columnas: teléfono, nombre, y parámetros extra (fecha, hora, etc.)
+                                                        {t('bulkSends.fileFormatsHelp')}
                                                     </p>
                                                 </div>
                                             </>
@@ -1378,11 +1382,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <div className="mt-3 space-y-1">
                                             <p className="text-sm text-green-600 flex items-center gap-1 font-medium">
                                                 <CheckCircle2 className="w-4 h-4" />
-                                                Archivo cargado: {uploadedFileName}
+                                                {t('bulkSends.fileLoaded', { filename: uploadedFileName })}
                                             </p>
                                             {extraColumns.length > 0 && (
                                                 <p className="text-xs text-blue-600 font-medium">
-                                                    Columnas extra detectadas: {extraColumns.join(', ')} — se enviarán como parámetros por destinatario
+                                                    {t('bulkSends.extraColumnsDetected', { columns: extraColumns.join(', ') })}
                                                 </p>
                                             )}
                                         </div>
@@ -1395,7 +1399,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-800/60">
                                             <Phone className="h-4 w-4" />
                                         </span>
-                                        Agregar número
+                                        {t('bulkSends.addNumber')}
                                     </h2>
 
                                     <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
@@ -1413,7 +1417,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             value={manualName}
                                             onChange={(e) => setManualName(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && addManualRecipient()}
-                                            placeholder="Nombre (opc)"
+                                            placeholder={t('bulkSends.namePlaceholderShort')}
                                             className="flex-1 settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                             style={{ height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)', fontSize: 'var(--text-sm)' }}
                                         />
@@ -1433,12 +1437,12 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 <div className="flex min-h-[460px] flex-1 flex-col rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                     <div className="mb-3 flex items-center justify-between gap-3">
                                         <h2 className="text-base font-bold settings-title">
-                                            Destinatarios ({recipients.length})
+                                            {t('bulkSends.recipientsTitle', { count: recipients.length })}
                                         </h2>
                                         {recipients.length > 0 && (
                                             <Button variant="ghost" size="sm" onClick={clearRecipients} className="h-8 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30">
                                                 <Trash2 className="mr-1 h-4 w-4" />
-                                                Limpiar
+                                                {t('bulkSends.clear')}
                                             </Button>
                                         )}
                                     </div>
@@ -1446,7 +1450,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     {recipients.length === 0 ? (
                                         <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/40 py-12 text-center text-muted-foreground">
                                             <Send className="mx-auto mb-3 h-10 w-10 opacity-20" />
-                                            <p className="text-sm">No hay destinatarios aún</p>
+                                            <p className="text-sm">{t('bulkSends.noRecipientsYet')}</p>
                                         </div>
                                     ) : (
                                         <div className="relative mb-4 flex-1 min-h-0">
@@ -1510,23 +1514,23 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 {isSending ? (
                                                     <>
                                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                        Iniciando envío...
+                                                        {t('bulkSends.startingSend')}
                                                     </>
                                                 ) : (
                                                     <>
                                                         <Send className="w-5 h-5 mr-2" />
-                                                        Enviar a {recipients.length} destinatarios
+                                                        {t('bulkSends.sendToRecipients', { count: recipients.length })}
                                                     </>
                                                 )}
                                             </Button>
                                             {!selectedTemplate && (
                                                 <p className="text-xs text-red-500 mt-2 text-center font-medium">
-                                                    Seleccione una plantilla antes de enviar
+                                                    {t('bulkSends.selectTemplateBeforeSend')}
                                                 </p>
                                             )}
                                             {selectedTemplate && !mappingComplete && (
                                                 <p className="text-xs text-red-500 mt-2 text-center font-medium">
-                                                    Asigne un origen a cada parámetro {'{{N}}'} antes de enviar
+                                                    {t('bulkSends.assignSourceBeforeSend')}
                                                 </p>
                                             )}
                                         </div>
@@ -1541,23 +1545,23 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             <div>
                                 <h2 className="flex items-center gap-2 text-base font-bold settings-title">
                                     <Clock className="h-4 w-4" />
-                                    Historial de envíos
+                                    {t('bulkSends.sendHistory')}
                                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                                         {visibleBulkSends.length.toLocaleString()}
                                     </span>
                                 </h2>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                    {historySearch.trim() ? 'Resultados por campaña, plantilla, teléfono o destinatario.' : 'Ordenado desde el envío más reciente.'}
+                                    {historySearch.trim() ? t('bulkSends.historySearchSubtitle') : t('bulkSends.historyDefaultSubtitle')}
                                 </p>
                             </div>
                             <div className="flex flex-col gap-2 md:flex-row md:items-center">
                                 <div className="flex flex-wrap gap-1 rounded-xl bg-muted/50 p-1">
                                     {([
-                                        { value: 'all' as const, label: 'Todos', count: filteredBulkSends.length },
-                                        { value: 'processing' as const, label: 'En cola', count: filteredBulkSends.filter((item) => item.status === 'processing').length },
-                                        { value: 'completed' as const, label: 'Completados', count: filteredBulkSends.filter((item) => item.status === 'completed').length },
-                                        { value: 'failed' as const, label: 'Fallidos', count: filteredBulkSends.filter((item) => item.status === 'failed').length },
-                                        { value: 'cancelled' as const, label: 'Cancelados', count: filteredBulkSends.filter((item) => item.status === 'cancelled').length },
+                                        { value: 'all' as const, label: t('bulkSends.filterAll'), count: filteredBulkSends.length },
+                                        { value: 'processing' as const, label: t('bulkSends.filterQueued'), count: filteredBulkSends.filter((item) => item.status === 'processing').length },
+                                        { value: 'completed' as const, label: t('bulkSends.filterCompleted'), count: filteredBulkSends.filter((item) => item.status === 'completed').length },
+                                        { value: 'failed' as const, label: t('bulkSends.filterFailed'), count: filteredBulkSends.filter((item) => item.status === 'failed').length },
+                                        { value: 'cancelled' as const, label: t('bulkSends.filterCancelled'), count: filteredBulkSends.filter((item) => item.status === 'cancelled').length },
                                     ]).map((filter) => (
                                         <button
                                             key={filter.value}
@@ -1581,7 +1585,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     <Input
                                         value={historySearch}
                                         onChange={(e) => setHistorySearch(e.target.value)}
-                                        placeholder="Buscar nombre, teléfono o plantilla"
+                                        placeholder={t('bulkSends.searchPlaceholder')}
                                         className="h-9 w-full rounded-xl pl-9 text-sm"
                                     />
                                 </div>
@@ -1592,7 +1596,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             <div className="rounded-xl border border-dashed border-border/70 bg-background/40 py-10 text-center">
                                 <Search className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
                                 <p className="text-sm font-medium text-muted-foreground">
-                                    {isSearching ? 'Buscando...' : historySearch.trim() ? 'No se encontraron resultados' : 'No hay envíos masivos registrados'}
+                                    {isSearching ? t('common.searching') : historySearch.trim() ? t('bulkSends.noSearchResults') : t('bulkSends.noBulkSends')}
                                 </p>
                             </div>
                         ) : (
@@ -1600,13 +1604,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 <table className="w-full min-w-[980px] text-sm">
                                     <thead className="bg-muted/40">
                                         <tr className="border-b border-border/50">
-                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Envío</th>
-                                            <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Estado</th>
-                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Progreso</th>
-                                            <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Resultado</th>
-                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Responsable</th>
-                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Fecha</th>
-                                            <th className="px-3 py-2.5 text-right text-xs font-bold uppercase text-muted-foreground">Acción</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colSend')}</th>
+                                            <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colStatus')}</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colProgress')}</th>
+                                            <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colResult')}</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colResponsible')}</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colDate')}</th>
+                                            <th className="px-3 py-2.5 text-right text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colAction')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1622,7 +1626,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         onClick={() => router.visit(`/admin/bulk-sends/${bs.id}`)}
                                                     >
                                                         <td className="px-3 py-3">
-                                                            <p className="max-w-[260px] truncate font-semibold text-primary hover:underline">{bs.name || 'Sin nombre'}</p>
+                                                            <p className="max-w-[260px] truncate font-semibold text-primary hover:underline">{bs.name || t('bulkSends.unnamed')}</p>
                                                             <p className="mt-0.5 max-w-[260px] truncate font-mono text-xs text-muted-foreground">{bs.template_name}</p>
                                                         </td>
                                                         <td className="px-3 py-3 text-center">
@@ -1633,7 +1637,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         <td className="px-3 py-3">
                                                             <div className="flex items-center justify-between gap-3 text-xs font-semibold text-muted-foreground">
                                                                 <span>{progress}%</span>
-                                                                <span>{bs.total_recipients.toLocaleString()} total</span>
+                                                                <span>{t('bulkSends.totalCount', { total: bs.total_recipients.toLocaleString() })}</span>
                                                             </div>
                                                             <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
                                                                 <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
@@ -1659,7 +1663,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                 }}
                                                             >
                                                                 <Eye className="mr-1.5 h-4 w-4" />
-                                                                Ver
+                                                                {t('bulkSends.view')}
                                                             </Button>
                                                         </td>
                                                     </tr>
@@ -1669,7 +1673,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                 <div className="px-4 py-3">
                                                                     <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-primary/80">
                                                                         <Eye className="h-3.5 w-3.5" />
-                                                                        {bs.matching_recipients!.length} destinatario{bs.matching_recipients!.length !== 1 ? 's' : ''} encontrado{bs.matching_recipients!.length !== 1 ? 's' : ''}
+                                                                        {t('bulkSends.recipientsFound', { count: bs.matching_recipients!.length })}
                                                                     </p>
                                                                     <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                                                                         {bs.matching_recipients!.map((recipient) => {
@@ -1683,7 +1687,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                                 >
                                                                                     <div className="flex items-start justify-between gap-2">
                                                                                         <div className="min-w-0">
-                                                                                            <p className="truncate text-sm font-semibold text-foreground">{recipient.contact_name || 'Sin nombre'}</p>
+                                                                                            <p className="truncate text-sm font-semibold text-foreground">{recipient.contact_name || t('bulkSends.unnamed')}</p>
                                                                                             <p className="mt-0.5 font-mono text-xs text-muted-foreground">{recipient.phone_number}</p>
                                                                                         </div>
                                                                                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${recipientStatus.color}`}>
@@ -1694,7 +1698,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                                         {recipient.error ? (
                                                                                             <p className="line-clamp-2 text-red-600 dark:text-red-300" title={recipient.error}>{recipient.error}</p>
                                                                                         ) : (
-                                                                                            <p className="text-muted-foreground">Sin error registrado · {recipient.sent_at || 'sin fecha de envío'}</p>
+                                                                                            <p className="text-muted-foreground">{t('bulkSends.noErrorRecorded', { sentAt: recipient.sent_at || t('bulkSends.noSentDate') })}</p>
                                                                                         )}
                                                                                     </div>
                                                                                 </button>
@@ -1719,27 +1723,27 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                         <div className="space-y-4">
                             <div className="grid gap-3 md:grid-cols-4">
                                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Registradas</p>
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.tplRegistered')}</p>
                                     <p className="mt-2 text-2xl font-bold text-foreground">{allTemplates.length.toLocaleString()}</p>
                                 </div>
                                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Aprobadas</p>
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.tplApproved')}</p>
                                     <p className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-300">{templateMetrics.approved.toLocaleString()}</p>
                                 </div>
                                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                                    <p className="text-xs font-semibold uppercase text-muted-foreground">En revisión</p>
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.tplUnderReview')}</p>
                                     <p className="mt-2 text-2xl font-bold text-amber-700 dark:text-amber-300">{templateMetrics.pending.toLocaleString()}</p>
                                 </div>
                                 <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                                    <p className="text-xs font-semibold uppercase text-muted-foreground">Usables en envío</p>
+                                    <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.tplUsableInSend')}</p>
                                     <p className="mt-2 text-2xl font-bold text-foreground">{templateMetrics.usable.toLocaleString()}</p>
                                 </div>
                             </div>
 
                             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                 <div>
-                                    <h2 className="text-base font-bold settings-title">Catálogo de plantillas</h2>
-                                    <p className="mt-1 text-xs text-muted-foreground">Estados de Meta y acciones de sincronización.</p>
+                                    <h2 className="text-base font-bold settings-title">{t('bulkSends.templateCatalog')}</h2>
+                                    <p className="mt-1 text-xs text-muted-foreground">{t('bulkSends.templateCatalogSubtitle')}</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                 <Button
@@ -1751,7 +1755,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     }}
                                 >
                                     <FilePlus2 className="mr-2 h-4 w-4" />
-                                    Crear Plantilla
+                                    {t('bulkSends.createTemplate')}
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -1760,7 +1764,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     className="h-9 rounded-xl"
                                 >
                                     <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                                    {isSyncing ? 'Sincronizando...' : 'Sincronizar con Meta'}
+                                    {isSyncing ? t('bulkSends.syncing') : t('bulkSends.syncWithMeta')}
                                 </Button>
                                 </div>
                             </div>
@@ -1768,28 +1772,28 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
                                 <h2 className="mb-4 flex items-center gap-2 text-base font-bold settings-title">
                                     <MessageSquareText className="h-4 w-4" />
-                                    Plantillas de WhatsApp ({allTemplates.length})
+                                    {t('bulkSends.whatsappTemplatesTitle', { count: allTemplates.length })}
                                 </h2>
 
                                 {allTemplates.length === 0 ? (
                                     <div className="text-center py-12">
                                         <MessageSquareText className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
-                                        <p className="text-sm text-muted-foreground">No hay plantillas registradas.</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Cree una nueva plantilla para enviarla a revisión en Meta.</p>
+                                        <p className="text-sm text-muted-foreground">{t('bulkSends.noRegisteredTemplates')}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('bulkSends.noRegisteredTemplatesHelp')}</p>
                                     </div>
                                 ) : (
                                     <div className="overflow-x-auto rounded-xl border border-border/60">
                                         <table className="w-full min-w-[980px] text-sm">
                                             <thead className="bg-muted/40">
                                                 <tr className="border-b border-border/50">
-                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Nombre</th>
-                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Nombre Meta</th>
-                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Categoría</th>
-                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Idioma</th>
-                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Estado</th>
-                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Preview</th>
-                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Creada</th>
-                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Acciones</th>
+                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colName')}</th>
+                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colMetaName')}</th>
+                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colCategory')}</th>
+                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colLanguage')}</th>
+                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colStatus')}</th>
+                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colPreview')}</th>
+                                                    <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colCreated')}</th>
+                                                    <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colActions')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1823,7 +1827,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                 <button
                                                                     onClick={() => handleDeleteTemplate(tpl.id, tpl.name)}
                                                                     className="text-red-400 hover:text-red-600 p-1 transition-colors"
-                                                                    title="Eliminar plantilla"
+                                                                    title={t('bulkSends.deleteTemplateTooltip')}
                                                                 >
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </button>
@@ -1847,7 +1851,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 <div className="flex items-center justify-between p-5 border-b border-border">
                                     <h2 className="font-bold text-lg settings-title flex items-center gap-2">
                                         <Send className="w-5 h-5" />
-                                        Confirmar envío masivo
+                                        {t('bulkSends.confirmBulkSend')}
                                     </h2>
                                     <button onClick={() => setShowConfirmSend(false)} className="text-muted-foreground hover:text-foreground p-1">
                                         <X className="w-5 h-5" />
@@ -1857,7 +1861,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     <div className="flex flex-wrap gap-2 text-sm">
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-medium">
                                             <Phone className="w-3.5 h-3.5" />
-                                            {recipients.length} destinatarios
+                                            {t('bulkSends.recipientsChip', { count: recipients.length })}
                                         </span>
                                         <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 font-medium">
                                             <MessageSquareText className="w-3.5 h-3.5" />
@@ -1867,7 +1871,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                                     <div className="rounded-xl border border-green-200/60 dark:border-green-800/40 bg-green-50/60 dark:bg-green-950/20 p-4">
                                         <p className="text-xs font-semibold text-muted-foreground mb-2">
-                                            Así llegará el mensaje a {recipients[0]?.name || recipients[0]?.phone}:
+                                            {t('bulkSends.previewToRecipient', { recipient: recipients[0]?.name || recipients[0]?.phone })}
                                         </p>
                                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{renderedPreview}</p>
                                     </div>
@@ -1876,7 +1880,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <div className="rounded-xl border border-red-300 dark:border-red-800/60 bg-red-50 dark:bg-red-950/30 p-4 space-y-1.5">
                                             <p className="text-sm font-bold text-red-700 dark:text-red-300 flex items-center gap-1.5">
                                                 <XCircle className="w-4 h-4" />
-                                                Posibles datos cruzados — revisa antes de enviar:
+                                                {t('bulkSends.possibleCrossedData')}
                                             </p>
                                             {validationIssues.errors.map((msg, i) => (
                                                 <p key={i} className="text-xs text-red-700 dark:text-red-300 ml-5">• {msg}</p>
@@ -1902,13 +1906,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             className="mt-0.5 h-4 w-4 accent-[var(--primary-base)]"
                                         />
                                         <span className="text-sm">
-                                            Leí la vista previa y confirmo que <strong>fechas, horas y nombres están en su lugar correcto</strong>.
+                                            <Trans i18nKey="bulkSends.confirmCheckboxText" components={{ strong: <strong /> }} />
                                         </span>
                                     </label>
 
                                     <div className="flex justify-end gap-2 pt-1">
                                         <Button variant="outline" onClick={() => setShowConfirmSend(false)} className="rounded-xl">
-                                            Cancelar
+                                            {t('common.cancel')}
                                         </Button>
                                         <Button
                                             onClick={executeSend}
@@ -1919,12 +1923,12 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             {isSending ? (
                                                 <>
                                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                    Enviando...
+                                                    {t('bulkSends.sending')}
                                                 </>
                                             ) : (
                                                 <>
                                                     <Send className="w-4 h-4 mr-2" />
-                                                    Confirmar y enviar
+                                                    {t('bulkSends.confirmAndSend')}
                                                 </>
                                             )}
                                         </Button>
@@ -1940,7 +1944,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 <div className="flex items-center justify-between p-5 border-b border-border">
                                     <h2 className="font-bold text-lg settings-title flex items-center gap-2">
                                         <FilePlus2 className="w-5 h-5" />
-                                        Crear Plantilla de WhatsApp
+                                        {t('bulkSends.createWhatsappTemplate')}
                                     </h2>
                                     <button onClick={() => setShowCreateModal(false)} className="text-muted-foreground hover:text-foreground p-1">
                                         <X className="w-5 h-5" />
@@ -1951,22 +1955,22 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     {/* Display Name */}
                                     <div>
                                         <label className="block font-semibold mb-1.5 settings-label text-sm">
-                                            Nombre visible *
+                                            {t('bulkSends.displayNameLabel')}
                                         </label>
                                         <input
                                             type="text"
                                             value={newTplDisplayName}
                                             onChange={(e) => handleDisplayNameChange(e.target.value)}
-                                            placeholder="Ej: Recordatorio de cita médica"
+                                            placeholder={t('bulkSends.displayNamePlaceholder')}
                                             className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm"
                                         />
-                                        <p className="text-xs text-muted-foreground mt-1">Nombre que se mostrará en la aplicación.</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('bulkSends.displayNameHelp')}</p>
                                     </div>
 
                                     {/* Technical Name */}
                                     <div>
                                         <label className="block font-semibold mb-1.5 settings-label text-sm">
-                                            Nombre técnico (Meta) *
+                                            {t('bulkSends.technicalNameLabel')}
                                         </label>
                                         <input
                                             type="text"
@@ -1975,14 +1979,14 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             placeholder="recordatorio_cita_medica"
                                             className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm font-mono"
                                         />
-                                        <p className="text-xs text-muted-foreground mt-1">Solo letras minúsculas, números y guiones bajos. Se genera automáticamente.</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{t('bulkSends.technicalNameHelp')}</p>
                                     </div>
 
                                     {/* Category + Language row */}
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block font-semibold mb-1.5 settings-label text-sm">
-                                                Categoría *
+                                                {t('bulkSends.categoryLabel')}
                                             </label>
                                             <Select
                                                 value={newTplCategory}
@@ -1992,15 +1996,15 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
-                                                    <SelectItem value="UTILITY" className="rounded-lg cursor-pointer">Utilidad</SelectItem>
-                                                    <SelectItem value="MARKETING" className="rounded-lg cursor-pointer">Marketing</SelectItem>
-                                                    <SelectItem value="AUTHENTICATION" className="rounded-lg cursor-pointer">Autenticación</SelectItem>
+                                                    <SelectItem value="UTILITY" className="rounded-lg cursor-pointer">{t('bulkSends.categoryUtility')}</SelectItem>
+                                                    <SelectItem value="MARKETING" className="rounded-lg cursor-pointer">{t('bulkSends.categoryMarketing')}</SelectItem>
+                                                    <SelectItem value="AUTHENTICATION" className="rounded-lg cursor-pointer">{t('bulkSends.categoryAuthentication')}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
                                         <div>
                                             <label className="block font-semibold mb-1.5 settings-label text-sm">
-                                                Idioma *
+                                                {t('bulkSends.languageLabel')}
                                             </label>
                                             <Select
                                                 value={newTplLanguage}
@@ -2010,13 +2014,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
-                                                    <SelectItem value="es" className="rounded-lg cursor-pointer">Español</SelectItem>
-                                                    <SelectItem value="es_CO" className="rounded-lg cursor-pointer">Español (Colombia)</SelectItem>
-                                                    <SelectItem value="es_MX" className="rounded-lg cursor-pointer">Español (México)</SelectItem>
-                                                    <SelectItem value="es_AR" className="rounded-lg cursor-pointer">Español (Argentina)</SelectItem>
-                                                    <SelectItem value="en" className="rounded-lg cursor-pointer">Inglés</SelectItem>
-                                                    <SelectItem value="en_US" className="rounded-lg cursor-pointer">Inglés (US)</SelectItem>
-                                                    <SelectItem value="pt_BR" className="rounded-lg cursor-pointer">Portugués (Brasil)</SelectItem>
+                                                    <SelectItem value="es" className="rounded-lg cursor-pointer">{t('bulkSends.langSpanish')}</SelectItem>
+                                                    <SelectItem value="es_CO" className="rounded-lg cursor-pointer">{t('bulkSends.langSpanishCO')}</SelectItem>
+                                                    <SelectItem value="es_MX" className="rounded-lg cursor-pointer">{t('bulkSends.langSpanishMX')}</SelectItem>
+                                                    <SelectItem value="es_AR" className="rounded-lg cursor-pointer">{t('bulkSends.langSpanishAR')}</SelectItem>
+                                                    <SelectItem value="en" className="rounded-lg cursor-pointer">{t('bulkSends.langEnglish')}</SelectItem>
+                                                    <SelectItem value="en_US" className="rounded-lg cursor-pointer">{t('bulkSends.langEnglishUS')}</SelectItem>
+                                                    <SelectItem value="pt_BR" className="rounded-lg cursor-pointer">{t('bulkSends.langPortugueseBR')}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -2025,7 +2029,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     {/* Header (optional) */}
                                     <div>
                                         <label className="block font-semibold mb-1.5 settings-label text-sm">
-                                            Encabezado <span className="font-normal text-muted-foreground">(opcional)</span>
+                                            <Trans i18nKey="bulkSends.headerLabel" components={{ opt: <span className="font-normal text-muted-foreground" /> }} />
                                         </label>
                                         <div className="mb-2">
                                             <Select
@@ -2040,11 +2044,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
-                                                    <SelectItem value="NONE" className="rounded-lg cursor-pointer">Sin encabezado</SelectItem>
-                                                    <SelectItem value="TEXT" className="rounded-lg cursor-pointer">Texto</SelectItem>
-                                                    <SelectItem value="IMAGE" className="rounded-lg cursor-pointer">Imagen</SelectItem>
-                                                    <SelectItem value="VIDEO" className="rounded-lg cursor-pointer">Video</SelectItem>
-                                                    <SelectItem value="DOCUMENT" className="rounded-lg cursor-pointer">Documento</SelectItem>
+                                                    <SelectItem value="NONE" className="rounded-lg cursor-pointer">{t('bulkSends.headerNone')}</SelectItem>
+                                                    <SelectItem value="TEXT" className="rounded-lg cursor-pointer">{t('bulkSends.headerText')}</SelectItem>
+                                                    <SelectItem value="IMAGE" className="rounded-lg cursor-pointer">{t('bulkSends.headerImage')}</SelectItem>
+                                                    <SelectItem value="VIDEO" className="rounded-lg cursor-pointer">{t('bulkSends.headerVideo')}</SelectItem>
+                                                    <SelectItem value="DOCUMENT" className="rounded-lg cursor-pointer">{t('bulkSends.headerDocument')}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -2053,7 +2057,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 type="text"
                                                 value={newTplHeader}
                                                 onChange={(e) => setNewTplHeader(e.target.value)}
-                                                placeholder="Ej: Hospital Universitario del Valle"
+                                                placeholder={t('bulkSends.headerTextPlaceholder')}
                                                 maxLength={60}
                                                 className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm"
                                             />
@@ -2065,16 +2069,16 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     value={newTplHeaderMediaUrl}
                                                     onChange={(e) => setNewTplHeaderMediaUrl(e.target.value)}
                                                     placeholder={
-                                                        newTplHeaderFormat === 'IMAGE' ? 'https://ejemplo.com/imagen.jpg' :
-                                                        newTplHeaderFormat === 'VIDEO' ? 'https://ejemplo.com/video.mp4' :
-                                                        'https://ejemplo.com/documento.pdf'
+                                                        newTplHeaderFormat === 'IMAGE' ? t('bulkSends.imageUrlPlaceholder') :
+                                                        newTplHeaderFormat === 'VIDEO' ? t('bulkSends.videoUrlPlaceholder') :
+                                                        t('bulkSends.documentUrlPlaceholder')
                                                     }
                                                     className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm"
                                                 />
                                                 <p className="text-xs text-muted-foreground">
-                                                    {newTplHeaderFormat === 'IMAGE' && 'Formatos: JPG, PNG. Máx. 5 MB. URL pública accesible.'}
-                                                    {newTplHeaderFormat === 'VIDEO' && 'Formatos: MP4. Máx. 16 MB. URL pública accesible.'}
-                                                    {newTplHeaderFormat === 'DOCUMENT' && 'Formatos: PDF. Máx. 100 MB. URL pública accesible.'}
+                                                    {newTplHeaderFormat === 'IMAGE' && t('bulkSends.imageFormatHelp')}
+                                                    {newTplHeaderFormat === 'VIDEO' && t('bulkSends.videoFormatHelp')}
+                                                    {newTplHeaderFormat === 'DOCUMENT' && t('bulkSends.documentFormatHelp')}
                                                 </p>
                                             </div>
                                         )}
@@ -2083,19 +2087,19 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     {/* Body */}
                                     <div>
                                         <label className="block font-semibold mb-1.5 settings-label text-sm">
-                                            Cuerpo del mensaje *
+                                            {t('bulkSends.bodyLabel')}
                                         </label>
                                         <textarea
                                             value={newTplBody}
                                             onChange={(e) => setNewTplBody(e.target.value)}
-                                            placeholder={"Hola {{1}}, le recordamos su cita el {{2}} a las {{3}}.\n\nUse {{1}}, {{2}}, etc. para parámetros variables."}
+                                            placeholder={t('bulkSends.bodyPlaceholder')}
                                             maxLength={1024}
                                             rows={5}
                                             className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 text-sm resize-none p-3"
                                         />
                                         <div className="flex justify-between mt-1">
                                             <p className="text-xs text-muted-foreground">
-                                                Use {'{{1}}'}, {'{{2}}'}, etc. para parámetros que cambian por destinatario.
+                                                {t('bulkSends.bodyHelp')}
                                             </p>
                                             <span className="text-xs text-muted-foreground">{newTplBody.length}/1024</span>
                                         </div>
@@ -2104,13 +2108,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     {/* Footer (optional) */}
                                     <div>
                                         <label className="block font-semibold mb-1.5 settings-label text-sm">
-                                            Pie de mensaje <span className="font-normal text-muted-foreground">(opcional, máx. 60 car.)</span>
+                                            <Trans i18nKey="bulkSends.footerLabel" components={{ opt: <span className="font-normal text-muted-foreground" /> }} />
                                         </label>
                                         <input
                                             type="text"
                                             value={newTplFooter}
                                             onChange={(e) => setNewTplFooter(e.target.value)}
-                                            placeholder="Ej: No responder a este mensaje"
+                                            placeholder={t('bulkSends.footerPlaceholder')}
                                             maxLength={60}
                                             className="w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 h-10 text-sm"
                                         />
@@ -2122,7 +2126,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                             <div className="px-4 py-2.5 bg-muted/40 border-b border-border/40">
                                                 <span className="flex items-center gap-2 text-sm font-medium text-foreground/80">
                                                     <Eye className="w-4 h-4" />
-                                                    Vista previa
+                                                    {t('bulkSends.preview')}
                                                 </span>
                                             </div>
                                             <div className="p-4 bg-green-50/60 dark:bg-green-950/20">
@@ -2133,19 +2137,19 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     {newTplHeaderFormat === 'IMAGE' && (
                                                         <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-6 mb-2 flex flex-col items-center justify-center gap-1">
                                                             <Image className="w-8 h-8 text-muted-foreground" />
-                                                            <span className="text-xs text-muted-foreground">Imagen</span>
+                                                            <span className="text-xs text-muted-foreground">{t('bulkSends.headerImage')}</span>
                                                         </div>
                                                     )}
                                                     {newTplHeaderFormat === 'VIDEO' && (
                                                         <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-6 mb-2 flex flex-col items-center justify-center gap-1">
                                                             <Video className="w-8 h-8 text-muted-foreground" />
-                                                            <span className="text-xs text-muted-foreground">Video</span>
+                                                            <span className="text-xs text-muted-foreground">{t('bulkSends.headerVideo')}</span>
                                                         </div>
                                                     )}
                                                     {newTplHeaderFormat === 'DOCUMENT' && (
                                                         <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-6 mb-2 flex flex-col items-center justify-center gap-1">
                                                             <FileText className="w-8 h-8 text-muted-foreground" />
-                                                            <span className="text-xs text-muted-foreground">Documento</span>
+                                                            <span className="text-xs text-muted-foreground">{t('bulkSends.headerDocument')}</span>
                                                         </div>
                                                     )}
                                                     <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{newTplBody}</p>
@@ -2160,8 +2164,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     {/* Info box */}
                                     <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40 rounded-xl p-3">
                                         <p className="text-xs text-blue-800 dark:text-blue-300">
-                                            <strong>Nota:</strong> La plantilla será enviada a Meta para revisión. El proceso de aprobación puede tardar desde minutos hasta 24 horas.
-                                            Una vez aprobada, use "Sincronizar con Meta" para actualizar el estado y poder usarla en envíos masivos.
+                                            <Trans i18nKey="bulkSends.createTemplateNote" components={{ b: <strong /> }} />
                                         </p>
                                     </div>
                                 </div>
@@ -2172,7 +2175,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         onClick={() => setShowCreateModal(false)}
                                         className="rounded-xl"
                                     >
-                                        Cancelar
+                                        {t('common.cancel')}
                                     </Button>
                                     <Button
                                         onClick={handleCreateTemplate}
@@ -2186,12 +2189,12 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         {isCreatingTemplate ? (
                                             <>
                                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Enviando a Meta...
+                                                {t('bulkSends.sendingToMeta')}
                                             </>
                                         ) : (
                                             <>
                                                 <Send className="w-4 h-4 mr-2" />
-                                                Enviar a revisión
+                                                {t('bulkSends.sendForReview')}
                                             </>
                                         )}
                                     </Button>

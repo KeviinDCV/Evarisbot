@@ -4,6 +4,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronL
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 // POST de recordatorios vía axios: usa el token CSRF VIVO de la cookie (el <meta> queda
@@ -113,7 +114,9 @@ function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: Metr
     );
 }
 
-export default function AppointmentsIndex({ appointments: initialAppointments = [], totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/oncology-appointments', pageTitle = 'Citas de Oncología' }: AppointmentIndexProps) {
+export default function AppointmentsIndex({ appointments: initialAppointments = [], totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/oncology-appointments', pageTitle }: AppointmentIndexProps) {
+    const { t } = useTranslation();
+    const resolvedPageTitle = pageTitle ?? t('oncology.pageTitle');
     const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
     const [showFlashMessage, setShowFlashMessage] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
@@ -398,43 +401,43 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 setIsProcessing(false);
                 setProgress(null);
                 // Mostrar información detallada si está disponible
-                let errorMessage = data.message || 'Error al iniciar el envío';
+                let errorMessage = data.message || t('oncology.errorStartSending');
 
                 if (data.debug) {
-                    errorMessage += '\n\nInformación de depuración:';
-                    errorMessage += `\n- Fecha objetivo: ${data.debug.target_date}`;
-                    errorMessage += `\n- Fecha actual: ${data.debug.current_date}`;
-                    errorMessage += `\n- Días de anticipación: ${data.debug.days_in_advance}`;
-                    errorMessage += `\n- Total citas pendientes: ${data.debug.total_pending_appointments}`;
+                    errorMessage += `\n\n${t('oncology.debugInfoHeader')}`;
+                    errorMessage += `\n- ${t('oncology.debugTargetDate')} ${data.debug.target_date}`;
+                    errorMessage += `\n- ${t('oncology.debugCurrentDate')} ${data.debug.current_date}`;
+                    errorMessage += `\n- ${t('oncology.debugDaysInAdvance')} ${data.debug.days_in_advance}`;
+                    errorMessage += `\n- ${t('oncology.debugTotalPending')} ${data.debug.total_pending_appointments}`;
 
                     if (data.debug.exact_date_count !== undefined) {
-                        errorMessage += `\n- Citas para fecha objetivo (${data.debug.target_date}): ${data.debug.exact_date_count}`;
+                        errorMessage += `\n- ${t('oncology.debugAppointmentsForTargetDate')} (${data.debug.target_date}): ${data.debug.exact_date_count}`;
                     }
 
                     if (data.debug.tomorrow_count !== undefined) {
                         const tomorrow = new Date();
                         tomorrow.setDate(tomorrow.getDate() + 1);
-                        errorMessage += `\n- Citas para mañana (${tomorrow.toISOString().split('T')[0]}): ${data.debug.tomorrow_count}`;
+                        errorMessage += `\n- ${t('oncology.debugAppointmentsForTomorrow')} (${tomorrow.toISOString().split('T')[0]}): ${data.debug.tomorrow_count}`;
                     }
 
                     if (data.debug.day_after_tomorrow_count !== undefined) {
                         const dayAfter = new Date();
                         dayAfter.setDate(dayAfter.getDate() + 2);
-                        errorMessage += `\n- Citas para pasado mañana (${dayAfter.toISOString().split('T')[0]}): ${data.debug.day_after_tomorrow_count}`;
+                        errorMessage += `\n- ${t('oncology.debugAppointmentsForDayAfter')} (${dayAfter.toISOString().split('T')[0]}): ${data.debug.day_after_tomorrow_count}`;
                     }
 
                     if (data.debug.dates_with_count && data.debug.dates_with_count.length > 0) {
-                        errorMessage += '\n\nFechas con citas pendientes:';
+                        errorMessage += `\n\n${t('oncology.debugDatesWithPending')}`;
                         data.debug.dates_with_count.slice(0, 10).forEach((item: { date: string; count: number }) => {
-                            errorMessage += `\n  - ${item.date}: ${item.count} citas`;
+                            errorMessage += `\n  - ${item.date}: ${item.count} ${t('oncology.appointmentsSuffix')}`;
                         });
                         if (data.debug.dates_with_count.length > 10) {
-                            errorMessage += `\n  ... y ${data.debug.dates_with_count.length - 10} fechas más`;
+                            errorMessage += `\n  ${t('oncology.debugMoreDates', { count: data.debug.dates_with_count.length - 10 })}`;
                         }
                     } else if (data.debug.available_dates && data.debug.available_dates.length > 0) {
-                        errorMessage += `\n- Fechas disponibles: ${data.debug.available_dates.slice(0, 5).join(', ')}`;
+                        errorMessage += `\n- ${t('oncology.debugAvailableDates')} ${data.debug.available_dates.slice(0, 5).join(', ')}`;
                         if (data.debug.available_dates.length > 5) {
-                            errorMessage += ` y ${data.debug.available_dates.length - 5} más`;
+                            errorMessage += ` ${t('oncology.debugAndMore', { count: data.debug.available_dates.length - 5 })}`;
                         }
                     }
                 }
@@ -446,7 +449,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al iniciar el envío de recordatorios');
+            alert(t('oncology.errorStartReminders'));
             // Limpiar estado si hay error
             setIsProcessing(false);
             setProgress(null);
@@ -464,11 +467,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 setIsPaused(true);
                 router.reload({ only: ['reminderPaused'] });
             } else {
-                alert(data.message || 'Error al pausar');
+                alert(data.message || t('oncology.errorPause'));
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al pausar el envío de recordatorios');
+            alert(t('oncology.errorPauseReminders'));
         } finally {
             setIsLoading(false);
         }
@@ -483,11 +486,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 setIsPaused(false);
                 router.reload({ only: ['reminderPaused'] });
             } else {
-                alert(data.message || 'Error al reanudar');
+                alert(data.message || t('oncology.errorResume'));
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al reanudar el envío de recordatorios');
+            alert(t('oncology.errorResumeReminders'));
         } finally {
             setIsLoading(false);
         }
@@ -555,11 +558,11 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
             } else {
                 setIsProcessing(false);
                 setProgress(null);
-                alert(data.message || 'Error al iniciar el envío para mañana');
+                alert(data.message || t('oncology.errorStartTomorrow'));
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al iniciar el envío de recordatorios para mañana');
+            alert(t('oncology.errorStartRemindersTomorrow'));
             setIsProcessing(false);
             setProgress(null);
         } finally {
@@ -568,7 +571,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
     };
 
     const handleStopReminders = async () => {
-        if (!confirm('¿Estás seguro de que deseas detener completamente el envío de recordatorios? Esto cancelará todos los trabajos pendientes.')) {
+        if (!confirm(t('oncology.confirmStopReminders'))) {
             return;
         }
 
@@ -580,13 +583,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 setIsProcessing(false);
                 setIsPaused(false);
                 router.reload({ only: ['remindersStats', 'reminderProcessing', 'reminderPaused'] });
-                alert('El envío de recordatorios ha sido detenido completamente');
+                alert(t('oncology.stopSuccess'));
             } else {
-                alert(data.message || 'Error al detener');
+                alert(data.message || t('oncology.errorStop'));
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error al detener el envío de recordatorios');
+            alert(t('oncology.errorStopReminders'));
         } finally {
             setIsLoading(false);
         }
@@ -594,7 +597,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
     return (
         <AdminLayout>
-            <Head title={pageTitle} />
+            <Head title={resolvedPageTitle} />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -605,10 +608,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             </div>
                             <div>
                                 <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                                    {pageTitle}
+                                    {resolvedPageTitle}
                                 </h1>
                                 <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                    Carga citas, controla recordatorios y revisa el estado de envío.
+                                    {t('oncology.headerSubtitle')}
                                 </p>
                             </div>
                         </div>
@@ -616,7 +619,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                         {initialAppointments.length > 0 && (
                             <Button onClick={() => router.visit(`${routePrefix}/view`)} className="h-9 rounded-lg px-5 text-xs font-semibold settings-btn-primary">
                                 <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                                Ver todas las citas
+                                {t('oncology.viewAllAppointments')}
                             </Button>
                         )}
                     </header>
@@ -647,10 +650,10 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
                     <Deferred data={['appointments', 'totalAppointments', 'remindersStats']} fallback={<AppointmentMetricsSkeleton />}>
                         <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                            <MetricCard icon={CalendarCheck} label="Total citas" value={totalAppointments.toLocaleString()} detail={`${initialAppointments.length.toLocaleString()} recientes cargadas`} />
-                            <MetricCard icon={Send} label="Enviados" value={localStats.sent.toLocaleString()} detail={`${dashboardStats.recentSent} en la vista reciente`} tone="success" />
-                            <MetricCard icon={Clock} label="Por enviar" value={localStats.pending.toLocaleString()} detail={`${localStats.pending_tomorrow.toLocaleString()} para mañana`} tone="warning" />
-                            <MetricCard icon={XCircle} label="Fallidos" value={localStats.failed.toLocaleString()} detail={`${dashboardStats.recentCancelled} canceladas recientes`} tone="danger" />
+                            <MetricCard icon={CalendarCheck} label={t('oncology.metricTotalAppointments')} value={totalAppointments.toLocaleString()} detail={t('oncology.metricRecentlyLoaded', { value: initialAppointments.length.toLocaleString() })} />
+                            <MetricCard icon={Send} label={t('oncology.metricSent')} value={localStats.sent.toLocaleString()} detail={t('oncology.metricInRecentView', { count: dashboardStats.recentSent })} tone="success" />
+                            <MetricCard icon={Clock} label={t('oncology.metricPending')} value={localStats.pending.toLocaleString()} detail={t('oncology.metricForTomorrow', { value: localStats.pending_tomorrow.toLocaleString() })} tone="warning" />
+                            <MetricCard icon={XCircle} label={t('oncology.metricFailed')} value={localStats.failed.toLocaleString()} detail={t('oncology.metricRecentCancelled', { count: dashboardStats.recentCancelled })} tone="danger" />
                         </section>
                     </Deferred>
 
@@ -660,9 +663,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             <div className="mb-4">
                                 <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
                                     <FileSpreadsheet className="h-4 w-4" />
-                                    Cargar archivo de citas
+                                    {t('oncology.uploadSectionTitle')}
                                 </h2>
-                                <p className="mb-4 text-sm settings-subtitle">Acepta archivos Excel o CSV y actualiza la base de citas del panel.</p>
+                                <p className="mb-4 text-sm settings-subtitle">{t('oncology.uploadSectionSubtitle')}</p>
 
                                 <div
                                     onDrop={handleDrop}
@@ -693,13 +696,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                 </div>
                                                 <div>
                                                     <p className="mb-1 text-sm font-semibold settings-title">
-                                                        Arrastra y suelta tu archivo aquí
+                                                        {t('oncology.dropzoneTitle')}
                                                     </p>
                                                     <p className="text-sm settings-subtitle">
-                                                        o <span className="settings-title font-semibold">haz click para seleccionar</span>
+                                                        {t('oncology.dropzoneOr')} <span className="settings-title font-semibold">{t('oncology.dropzoneClickToSelect')}</span>
                                                     </p>
                                                     <p className="text-xs settings-subtitle mt-2">
-                                                        Formatos soportados: .xlsx, .xls, .csv (máx. 10MB)
+                                                        {t('oncology.dropzoneSupportedFormats')}
                                                     </p>
                                                 </div>
                                             </div>
@@ -744,7 +747,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         disabled={processing}
                                         className="h-9 rounded-lg px-5 text-sm font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
                                     >
-                                        {processing ? 'Subiendo...' : 'Subir archivo'}
+                                        {processing ? t('oncology.uploading') : t('oncology.uploadFile')}
                                     </button>
                                 </div>
                             )}
@@ -760,13 +763,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <h3 className="mb-2 font-semibold settings-title">
-                                        Archivo cargado exitosamente
+                                        {t('oncology.fileUploadedSuccess')}
                                     </h3>
                                     <div className="grid gap-2 text-sm settings-subtitle sm:grid-cols-2 lg:grid-cols-4">
-                                        <p><span className="font-semibold settings-title">Nombre:</span> {uploadedFile.name}</p>
-                                        <p><span className="font-semibold settings-title">Tamaño:</span> {formatFileSize(uploadedFile.size)}</p>
-                                        <p><span className="font-semibold settings-title">Registros:</span> {uploadedFile.total_rows || initialAppointments.length} citas</p>
-                                        <p><span className="font-semibold settings-title">Fecha:</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
+                                        <p><span className="font-semibold settings-title">{t('oncology.fileNameLabel')}</span> {uploadedFile.name}</p>
+                                        <p><span className="font-semibold settings-title">{t('oncology.fileSizeLabel')}</span> {formatFileSize(uploadedFile.size)}</p>
+                                        <p><span className="font-semibold settings-title">{t('oncology.fileRecordsLabel')}</span> {uploadedFile.total_rows || initialAppointments.length} {t('oncology.appointmentsSuffix')}</p>
+                                        <p><span className="font-semibold settings-title">{t('oncology.fileDateLabel')}</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
                                     </div>
                                 </div>
                             </div>
@@ -779,25 +782,25 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                 <div className="min-w-0 flex-1">
                                     <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
                                         <Send className="h-4 w-4" />
-                                        Control de envío de recordatorios
+                                        {t('oncology.remindersControlTitle')}
                                     </h2>
                                     <div className="flex flex-wrap gap-2 text-xs">
                                         <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                             <Clock className="h-3.5 w-3.5" />
-                                            {localStats.pending.toLocaleString()} para pasado mañana
+                                            {t('oncology.forDayAfterTomorrow', { value: localStats.pending.toLocaleString() })}
                                         </span>
                                         <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-semibold text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300">
                                             <CalendarCheck className="h-3.5 w-3.5" />
-                                            {localStats.pending_tomorrow.toLocaleString()} para mañana
+                                            {t('oncology.metricForTomorrow', { value: localStats.pending_tomorrow.toLocaleString() })}
                                         </span>
                                         <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 font-semibold ${isProcessing ? (isPaused ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300') : 'border-[#d4d8e8] bg-white/60 text-[#6b7494] dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300'}`}>
                                             {isProcessing && !isPaused ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : isPaused ? <Pause className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                                            {isProcessing ? (isPaused ? 'Pausado' : 'Enviando') : 'Sin proceso activo'}
+                                            {isProcessing ? (isPaused ? t('oncology.statusPaused') : t('oncology.statusSending')) : t('oncology.statusNoActiveProcess')}
                                         </span>
                                     </div>
 
                                     {localStats.pending === 0 && localStats.pending_tomorrow === 0 && (
-                                        <p className="mt-3 text-sm settings-subtitle">No hay recordatorios pendientes para las fechas operativas.</p>
+                                        <p className="mt-3 text-sm settings-subtitle">{t('oncology.noPendingReminders')}</p>
                                     )}
                                 </div>
 
@@ -805,31 +808,31 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                     {!isProcessing && !isPaused && localStats.pending > 0 && (
                                         <Button onClick={handleStartReminders} disabled={isLoading || isProcessing} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                             <Play className="mr-2 h-3.5 w-3.5" />
-                                            {isLoading || isProcessing ? 'Iniciando...' : `Comenzar (${localStats.pending})`}
+                                            {isLoading || isProcessing ? t('oncology.starting') : t('oncology.start', { count: localStats.pending })}
                                         </Button>
                                     )}
                                     {!isProcessing && !isPaused && localStats.pending_tomorrow > 0 && (
                                         <Button onClick={handleStartRemindersDayBefore} disabled={isLoading || isProcessing} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                             <CalendarCheck className="mr-2 h-3.5 w-3.5" />
-                                            Enviar Día Antes ({localStats.pending_tomorrow})
+                                            {t('oncology.sendDayBefore', { count: localStats.pending_tomorrow })}
                                         </Button>
                                     )}
                                     {isProcessing && !isPaused && (
                                         <>
                                             <Button onClick={handlePauseReminders} disabled={isLoading} className="h-9 rounded-lg px-4 text-xs font-semibold settings-btn-primary disabled:cursor-not-allowed disabled:opacity-50">
                                                 <Pause className="mr-2 h-3.5 w-3.5" />
-                                                {isLoading ? 'Pausando...' : 'Pausar'}
+                                                {isLoading ? t('oncology.pausing') : t('oncology.pause')}
                                             </Button>
                                             <Button onClick={handleStopReminders} disabled={isLoading} className="h-9 rounded-lg bg-red-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
                                                 <Square className="mr-2 h-3.5 w-3.5" />
-                                                {isLoading ? 'Deteniendo...' : 'Detener'}
+                                                {isLoading ? t('oncology.stopping') : t('oncology.stop')}
                                             </Button>
                                         </>
                                     )}
                                     {isProcessing && isPaused && (
                                         <Button onClick={handleResumeReminders} disabled={isLoading} className="h-9 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
                                             <Play className="mr-2 h-3.5 w-3.5" />
-                                            {isLoading ? 'Reanudando...' : 'Reanudar'}
+                                            {isLoading ? t('oncology.resuming') : t('oncology.resume')}
                                         </Button>
                                     )}
                                 </div>
@@ -838,7 +841,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             {isProcessing && progress && progress.total > 0 && (
                                 <div className="mt-4 rounded-lg border border-[#d4d8e8] bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                     <div className="mb-2 flex items-center justify-between gap-3 text-xs settings-subtitle">
-                                        <span>Progreso del envío</span>
+                                        <span>{t('oncology.sendingProgress')}</span>
                                         <span className="font-semibold settings-title">
                                             {progress.percentage}% ({progress.sent + progress.failed} / {progress.total})
                                         </span>
@@ -847,9 +850,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         <div className="h-full rounded-full bg-emerald-500 transition-all duration-500 ease-out" style={{ width: `${Math.min(progress.percentage, 100)}%` }} />
                                     </div>
                                     <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
-                                        <span className="text-emerald-600 dark:text-emerald-300">Enviados: {progress.sent}</span>
-                                        {progress.failed > 0 && <span className="text-red-600 dark:text-red-300">Fallidos: {progress.failed}</span>}
-                                        <span className="settings-subtitle">Pendientes: {progress.pending}</span>
+                                        <span className="text-emerald-600 dark:text-emerald-300">{t('oncology.progressSent')} {progress.sent}</span>
+                                        {progress.failed > 0 && <span className="text-red-600 dark:text-red-300">{t('oncology.progressFailed')} {progress.failed}</span>}
+                                        <span className="settings-subtitle">{t('oncology.progressPending')} {progress.pending}</span>
                                     </div>
                                 </div>
                             )}
@@ -857,13 +860,13 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             {localStats.pending > 2000 && (
                                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                     <AlertCircle className="mr-1 inline h-4 w-4" />
-                                    <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana. El sistema respetará el límite de 2,000 mensajes por día según las políticas de Meta.
+                                    <strong>{t('oncology.warningLabel')}</strong> {t('oncology.warningPendingDayAfter', { count: localStats.pending })}
                                 </div>
                             )}
                             {localStats.pending_tomorrow > 2000 && (
                                 <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
                                     <AlertCircle className="mr-1 inline h-4 w-4" />
-                                    <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio. El sistema respetará el límite de 2,000 mensajes por día.
+                                    <strong>{t('oncology.warningLabel')}</strong> {t('oncology.warningPendingTomorrow', { count: localStats.pending_tomorrow })}
                                 </div>
                             )}
                         </section>
@@ -875,22 +878,22 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
                                     <h2 className="text-base font-semibold settings-title">
-                                        Citas en base de datos ({totalAppointments})
+                                        {t('oncology.appointmentsInDatabase', { count: totalAppointments })}
                                     </h2>
                                     <p className="text-sm settings-subtitle">
-                                        Mostrando últimas {initialAppointments.length} citas (filtradas: {filteredAppointments.length})
+                                        {t('oncology.showingLatestAppointments', { count: initialAppointments.length, filtered: filteredAppointments.length })}
                                     </p>
                                 </div>
 
                                 <div className="flex items-center gap-3">
                                     <div className="relative w-full md:w-80">
-                                        <label htmlFor="appointment-search" className="sr-only">Buscar citas</label>
+                                        <label htmlFor="appointment-search" className="sr-only">{t('oncology.searchAppointmentsLabel')}</label>
                                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 settings-subtitle" />
                                         <input
                                             id="appointment-search"
                                             name="appointment-search"
                                             type="text"
-                                            placeholder="Buscar por paciente, teléfono, médico..."
+                                            placeholder={t('oncology.searchPlaceholder')}
                                             value={searchTerm}
                                             onChange={(e) => handleSearch(e.target.value)}
                                             className="h-9 w-full rounded-lg pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
@@ -902,7 +905,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         className="h-9 shrink-0 rounded-lg px-4 text-xs font-semibold settings-btn-secondary"
                                     >
                                         <ExternalLink className="mr-2 h-3.5 w-3.5" />
-                                        Ver todas las citas
+                                        {t('oncology.viewAllAppointments')}
                                     </Button>
                                 </div>
                             </div>
@@ -915,16 +918,16 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                 #
                                             </th>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Paciente
+                                                {t('oncology.columnPatient')}
                                             </th>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Detalles de Cita
+                                                {t('oncology.columnAppointmentDetails')}
                                             </th>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Profesional
+                                                {t('oncology.columnProfessional')}
                                             </th>
                                             <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Estado Envío
+                                                {t('oncology.columnSendStatus')}
                                             </th>
                                         </tr>
                                     </thead>
@@ -976,7 +979,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                 <td className="px-4 py-4 align-top w-[30%] min-w-[220px]">
                                                     <div className="flex flex-col">
                                                         <span className="font-semibold settings-title line-clamp-2 leading-tight" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            Dr(a). {appointment.mednom || '-'}
+                                                            {t('oncology.doctorPrefix')} {appointment.mednom || '-'}
                                                         </span>
                                                         <span className="settings-subtitle mt-1 inline-flex items-center gap-1.5" style={{ fontSize: 'var(--text-xs)' }}>
                                                             <div className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
@@ -991,12 +994,12 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                         {appointment.reminder_sent ? (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-semibold w-fit">
                                                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                                                Enviado
+                                                                {t('oncology.statusSent')}
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold w-fit">
                                                                 <Clock className="w-3.5 h-3.5" />
-                                                                Pendiente
+                                                                {t('oncology.statusPendingRow')}
                                                             </span>
                                                         )}
 
@@ -1004,23 +1007,23 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                                             <>
                                                                 {appointment.reminder_status === 'confirmed' ? (
                                                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold w-fit">
-                                                                        <CalendarCheck className="w-3.5 h-3.5" /> Confirmada
+                                                                        <CalendarCheck className="w-3.5 h-3.5" /> {t('oncology.statusConfirmed')}
                                                                     </span>
                                                                 ) : appointment.reminder_status === 'cancelled' ? (
                                                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-semibold w-fit">
-                                                                        <CalendarX className="w-3.5 h-3.5" /> Cancelada
+                                                                        <CalendarX className="w-3.5 h-3.5" /> {t('oncology.statusCancelled')}
                                                                     </span>
                                                                 ) : appointment.reminder_status === 'failed' ? (
                                                                     <span className="inline-flex items-center gap-1 text-red-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <XCircle className="w-3 h-3" /> Error
+                                                                        <XCircle className="w-3 h-3" /> {t('oncology.statusError')}
                                                                     </span>
                                                                 ) : appointment.reminder_status && ['delivered', 'read'].includes(appointment.reminder_status) ? (
                                                                     <span className="inline-flex items-center gap-1 text-emerald-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <CheckCircle2 className="w-3 h-3" /> Recibido
+                                                                        <CheckCircle2 className="w-3 h-3" /> {t('oncology.statusReceived')}
                                                                     </span>
                                                                 ) : (
                                                                     <span className="inline-flex items-center gap-1 text-blue-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <Clock className="w-3 h-3" /> Sin respuesta
+                                                                        <Clock className="w-3 h-3" /> {t('oncology.statusNoResponse')}
                                                                     </span>
                                                                 )}
                                                             </>
@@ -1037,7 +1040,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             {totalPages > 1 && (
                                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <p className="text-sm settings-subtitle">
-                                        Página {currentPage} de {totalPages}
+                                        {t('oncology.pageOf', { current: currentPage, total: totalPages })}
                                     </p>
                                     <div className="flex gap-2">
                                         <button
@@ -1046,14 +1049,14 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                             className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
                                             <ChevronLeft className="w-4 h-4" />
-                                            Anterior
+                                            {t('common.previous')}
                                         </button>
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
                                             className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
-                                            Siguiente
+                                            {t('common.next')}
                                             <ChevronRight className="w-4 h-4" />
                                         </button>
                                     </div>
@@ -1066,37 +1069,37 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                         <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
                         >
                             <h3 className="mb-4 font-semibold settings-title">
-                                Formato del archivo excel
+                                {t('oncology.excelFormatTitle')}
                             </h3>
                             <div className="space-y-3 text-sm settings-subtitle">
-                                <p className="settings-title font-medium">El archivo debe contener las siguientes columnas:</p>
+                                <p className="settings-title font-medium">{t('oncology.excelFormatIntro')}</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Citead</strong> - Código admisión
+                                        <strong className="settings-title">Citead</strong> - {t('oncology.columnDescCitead')}
                                     </div>
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Nom_paciente</strong> - Nombre paciente
+                                        <strong className="settings-title">Nom_paciente</strong> - {t('oncology.columnDescPatientName')}
                                     </div>
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Pactel</strong> - Teléfono
+                                        <strong className="settings-title">Pactel</strong> - {t('oncology.columnDescPhone')}
                                     </div>
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Citfc</strong> - Fecha cita
+                                        <strong className="settings-title">Citfc</strong> - {t('oncology.columnDescAppointmentDate')}
                                     </div>
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Cithor</strong> - Hora cita
+                                        <strong className="settings-title">Cithor</strong> - {t('oncology.columnDescAppointmentTime')}
                                     </div>
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Mednom</strong> - Nombre médico
+                                        <strong className="settings-title">Mednom</strong> - {t('oncology.columnDescDoctorName')}
                                     </div>
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Espnom</strong> - Especialidad
+                                        <strong className="settings-title">Espnom</strong> - {t('oncology.columnDescSpecialty')}
                                     </div>
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Citdoc</strong> - Documento
+                                        <strong className="settings-title">Citdoc</strong> - {t('oncology.columnDescDocument')}
                                     </div>
                                     <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
-                                        <strong className="settings-title">Citobsobs</strong> - Observaciones
+                                        <strong className="settings-title">Citobsobs</strong> - {t('oncology.columnDescObservations')}
                                     </div>
                                 </div>
                             </div>

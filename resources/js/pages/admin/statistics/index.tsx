@@ -432,28 +432,28 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
     };
 
     const deliveryStatusLabels: Record<string, string> = {
-        pending: 'En cola',
-        sent: 'Enviado',
-        delivered: 'Entregado',
-        read: 'Leído',
-        failed: 'Error',
+        pending: t('statistics.messages.deliveryStatus.pending'),
+        sent: t('statistics.messages.deliveryStatus.sent'),
+        delivered: t('statistics.messages.deliveryStatus.delivered'),
+        read: t('statistics.messages.deliveryStatus.read'),
+        failed: t('statistics.messages.deliveryStatus.failed'),
     };
 
     const deliveryItems = [
-        { key: 'pending', icon: Clock, label: 'En cola', value: statistics.messages.delivery_status.pending, tone: 'warning' as const },
-        { key: 'sent', icon: Send, label: 'Enviados', value: statistics.messages.delivery_status.sent, tone: 'info' as const },
-        { key: 'delivered', icon: CheckCircle2, label: 'Entregados', value: statistics.messages.delivery_status.delivered, tone: 'success' as const },
-        { key: 'read', icon: CheckCircle2, label: 'Leídos', value: statistics.messages.delivery_status.read, tone: 'primary' as const },
-        { key: 'failed', icon: XCircle, label: 'Errores', value: statistics.messages.delivery_status.failed, tone: 'danger' as const },
+        { key: 'pending', icon: Clock, label: t('statistics.messages.deliveryStatus.pending'), value: statistics.messages.delivery_status.pending, tone: 'warning' as const },
+        { key: 'sent', icon: Send, label: t('statistics.messages.sentPlural'), value: statistics.messages.delivery_status.sent, tone: 'info' as const },
+        { key: 'delivered', icon: CheckCircle2, label: t('statistics.messages.deliveredPlural'), value: statistics.messages.delivery_status.delivered, tone: 'success' as const },
+        { key: 'read', icon: CheckCircle2, label: t('statistics.messages.readPlural'), value: statistics.messages.delivery_status.read, tone: 'primary' as const },
+        { key: 'failed', icon: XCircle, label: t('statistics.messages.errors'), value: statistics.messages.delivery_status.failed, tone: 'danger' as const },
     ];
 
     const appointmentItems = [
-        { icon: CalendarDays, label: 'Total cargadas', value: statistics.appointments.total, tone: 'primary' as const },
-        { icon: Send, label: 'Recordatorios enviados', value: statistics.appointments.reminder_sent, tone: 'info' as const },
-        { icon: CheckCircle2, label: 'Confirmadas', value: statistics.appointments.confirmed, tone: 'success' as const },
-        { icon: XCircle, label: 'Canceladas', value: statistics.appointments.cancelled, tone: 'danger' as const },
-        { icon: Clock, label: 'Pendientes', value: statistics.appointments.pending, tone: 'warning' as const },
-        { icon: AlertCircle, label: 'Fallidas', value: statistics.appointments.failed, tone: 'danger' as const },
+        { icon: CalendarDays, label: t('statistics.appointments.totalLoaded'), value: statistics.appointments.total, tone: 'primary' as const },
+        { icon: Send, label: t('statistics.appointments.remindersSent'), value: statistics.appointments.reminder_sent, tone: 'info' as const },
+        { icon: CheckCircle2, label: t('statistics.appointments.confirmed'), value: statistics.appointments.confirmed, tone: 'success' as const },
+        { icon: XCircle, label: t('statistics.appointments.cancelled'), value: statistics.appointments.cancelled, tone: 'danger' as const },
+        { icon: Clock, label: t('statistics.appointments.pending'), value: statistics.appointments.pending, tone: 'warning' as const },
+        { icon: AlertCircle, label: t('statistics.appointments.failed'), value: statistics.appointments.failed, tone: 'danger' as const },
     ];
 
     const conversationItems = [
@@ -484,12 +484,12 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
     }));
 
     const mainStatsData = [
-        { name: 'Mensajes', value: statistics.messages.total },
-        { name: 'Enviados', value: statistics.messages.sent_by_system },
-        { name: 'Recibidos', value: statistics.messages.received_from_users },
-        { name: 'Citas', value: statistics.appointments.total },
-        { name: 'Conversaciones', value: statistics.conversations.total },
-        { name: 'Plantillas', value: statistics.templates.total_sends },
+        { name: t('statistics.chart.messages'), value: statistics.messages.total },
+        { name: t('statistics.chart.sent'), value: statistics.messages.sent_by_system },
+        { name: t('statistics.chart.received'), value: statistics.messages.received_from_users },
+        { name: t('statistics.chart.appointments'), value: statistics.appointments.total },
+        { name: t('statistics.chart.conversations'), value: statistics.conversations.total },
+        { name: t('statistics.chart.templates'), value: statistics.templates.total_sends },
     ];
 
     const usersData = [
@@ -514,12 +514,12 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
     const metricModals: Record<'messages' | 'appointments' | 'conversations' | 'advisors' | 'templates', MetricModalData> = {
         messages: {
             icon: MessageSquare,
-            title: 'Mensajes',
-            headlineLabel: 'Total intercambiados',
+            title: t('statistics.metricModal.messages.title'),
+            headlineLabel: t('statistics.metricModal.messages.headline'),
             headlineValue: statistics.messages.total,
             lines: [
-                { icon: Send, label: 'Enviados por sistema/asesores', value: statistics.messages.sent_by_system, total: statistics.messages.total, tone: 'info' as const },
-                { icon: MessageSquare, label: 'Recibidos de pacientes', value: statistics.messages.received_from_users, total: statistics.messages.total, tone: 'success' as const },
+                { icon: Send, label: t('statistics.metricModal.messages.sentBySystem'), value: statistics.messages.sent_by_system, total: statistics.messages.total, tone: 'info' as const },
+                { icon: MessageSquare, label: t('statistics.metricModal.messages.receivedFromPatients'), value: statistics.messages.received_from_users, total: statistics.messages.total, tone: 'success' as const },
                 ...deliveryItems.map((d) => ({ icon: d.icon, label: d.label, value: d.value, total: outboundTotal, tone: d.tone })),
             ],
             chart: messagesStatusData.length > 0 ? (
@@ -536,8 +536,8 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
         },
         appointments: {
             icon: CalendarCheck2,
-            title: 'Citas',
-            headlineLabel: 'Total cargadas',
+            title: t('statistics.metricModal.appointments.title'),
+            headlineLabel: t('statistics.appointments.totalLoaded'),
             headlineValue: statistics.appointments.total,
             lines: appointmentItems.map((a) => ({ icon: a.icon, label: a.label, value: a.value, total: appointmentTotalForBars, tone: a.tone })),
             chart: appointmentsData.length > 0 ? (
@@ -554,8 +554,8 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
         },
         conversations: {
             icon: Activity,
-            title: 'Conversaciones',
-            headlineLabel: 'Total',
+            title: t('statistics.metricModal.conversations.title'),
+            headlineLabel: t('common.total'),
             headlineValue: statistics.conversations.total,
             lines: conversationItems.map((c) => ({ icon: c.icon, label: c.label, value: c.value, total: conversationTotalForBars, tone: c.tone })),
             chart: (
@@ -572,29 +572,29 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
         },
         advisors: {
             icon: Users,
-            title: 'Asesores',
-            headlineLabel: 'Asesores en el equipo',
+            title: t('statistics.metricModal.advisors.title'),
+            headlineLabel: t('statistics.advisors.inTeam'),
             headlineValue: statistics.advisors.total_advisors,
             lines: [
-                { icon: MessageSquare, label: 'Conversaciones asignadas', value: statistics.advisors.total_conversations, total: undefined, tone: 'info' as const },
-                { icon: CheckCircle2, label: 'Resueltas', value: statistics.advisors.total_resolved, total: Math.max(statistics.advisors.total_conversations, 1), tone: 'success' as const },
-                { icon: CalendarCheck2, label: 'Agendadas', value: statistics.advisors.total_scheduled, total: undefined, tone: 'primary' as const },
-                { icon: Send, label: 'Mensajes enviados', value: statistics.advisors.total_messages_sent, total: undefined, tone: 'info' as const },
-                { icon: TrendingUp, label: 'Resolución promedio (%)', value: statistics.advisors.avg_resolution_rate, total: 100, tone: 'success' as const },
+                { icon: MessageSquare, label: t('statistics.advisors.assignedConversations'), value: statistics.advisors.total_conversations, total: undefined, tone: 'info' as const },
+                { icon: CheckCircle2, label: t('statistics.advisors.resolved'), value: statistics.advisors.total_resolved, total: Math.max(statistics.advisors.total_conversations, 1), tone: 'success' as const },
+                { icon: CalendarCheck2, label: t('statistics.advisors.scheduled'), value: statistics.advisors.total_scheduled, total: undefined, tone: 'primary' as const },
+                { icon: Send, label: t('statistics.advisors.messagesSent'), value: statistics.advisors.total_messages_sent, total: undefined, tone: 'info' as const },
+                { icon: TrendingUp, label: t('statistics.advisors.avgResolutionPercent'), value: statistics.advisors.avg_resolution_rate, total: 100, tone: 'success' as const },
             ],
             chart: null,
         },
         templates: {
             icon: FileText,
-            title: 'Plantillas y equipo',
-            headlineLabel: 'Plantillas',
+            title: t('statistics.metricModal.templates.title'),
+            headlineLabel: t('statistics.chart.templates'),
             headlineValue: statistics.templates.total,
             lines: [
-                { icon: Send, label: 'Envíos totales', value: statistics.templates.total_sends, total: undefined, tone: 'info' as const },
-                { icon: CheckCircle2, label: 'Envíos exitosos', value: statistics.templates.successful_sends, total: Math.max(statistics.templates.total_sends, 1), tone: 'success' as const },
-                { icon: XCircle, label: 'Envíos fallidos', value: statistics.templates.failed_sends, total: Math.max(statistics.templates.total_sends, 1), tone: 'danger' as const },
-                { icon: Users, label: 'Administradores', value: statistics.users.admins, total: Math.max(statistics.users.total, 1), tone: 'primary' as const },
-                { icon: Users, label: 'Asesores', value: statistics.users.advisors, total: Math.max(statistics.users.total, 1), tone: 'info' as const },
+                { icon: Send, label: t('statistics.templates.totalSends'), value: statistics.templates.total_sends, total: undefined, tone: 'info' as const },
+                { icon: CheckCircle2, label: t('statistics.templates.successfulSends'), value: statistics.templates.successful_sends, total: Math.max(statistics.templates.total_sends, 1), tone: 'success' as const },
+                { icon: XCircle, label: t('statistics.templates.failedSends'), value: statistics.templates.failed_sends, total: Math.max(statistics.templates.total_sends, 1), tone: 'danger' as const },
+                { icon: Users, label: t('statistics.users.admins'), value: statistics.users.admins, total: Math.max(statistics.users.total, 1), tone: 'primary' as const },
+                { icon: Users, label: t('statistics.users.advisors'), value: statistics.users.advisors, total: Math.max(statistics.users.total, 1), tone: 'info' as const },
             ],
             chart: usersData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={220}>
@@ -642,7 +642,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                     )}
                                 >
                                     <Table2 className="h-3.5 w-3.5" />
-                                    Tabla
+                                    {t('statistics.viewTable')}
                                 </button>
                                 <button
                                     type="button"
@@ -655,7 +655,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                     )}
                                 >
                                     <BarChart3 className="h-3.5 w-3.5" />
-                                    Gráficos
+                                    {t('statistics.viewCharts')}
                                 </button>
                             </div>
 
@@ -672,11 +672,11 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                     </header>
 
                     <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                        <MetricCard icon={MessageSquare} label="Mensajes" value={formatNumber(statistics.messages.total)} detail={`${formatNumber(statistics.messages.sent_by_system)} enviados`} layoutId="metric-messages" onClick={() => setOpenMetric('messages')} />
-                        <MetricCard icon={CalendarCheck2} label="Citas" value={formatNumber(statistics.appointments.total)} detail={`${formatNumber(statistics.appointments.confirmed)} confirmadas`} tone="success" layoutId="metric-appointments" onClick={() => setOpenMetric('appointments')} />
-                        <MetricCard icon={Activity} label="Conversaciones" value={formatNumber(statistics.conversations.total)} detail={`${formatNumber(statistics.conversations.unread)} sin leer`} tone={statistics.conversations.unread > 0 ? 'warning' : 'info'} layoutId="metric-conversations" onClick={() => setOpenMetric('conversations')} />
-                        <MetricCard icon={Users} label="Asesores" value={formatNumber(statistics.advisors.total_advisors)} detail={`${statistics.advisors.avg_resolution_rate}% resolución promedio`} tone="primary" layoutId="metric-advisors" onClick={() => setOpenMetric('advisors')} />
-                        <MetricCard icon={FileText} label="Plantillas" value={formatNumber(statistics.templates.total)} detail={`${formatNumber(statistics.templates.total_sends)} envíos`} tone="info" layoutId="metric-templates" onClick={() => setOpenMetric('templates')} />
+                        <MetricCard icon={MessageSquare} label={t('statistics.chart.messages')} value={formatNumber(statistics.messages.total)} detail={t('statistics.metricCard.sentDetail', { value: formatNumber(statistics.messages.sent_by_system) })} layoutId="metric-messages" onClick={() => setOpenMetric('messages')} />
+                        <MetricCard icon={CalendarCheck2} label={t('statistics.chart.appointments')} value={formatNumber(statistics.appointments.total)} detail={t('statistics.metricCard.confirmedDetail', { value: formatNumber(statistics.appointments.confirmed) })} tone="success" layoutId="metric-appointments" onClick={() => setOpenMetric('appointments')} />
+                        <MetricCard icon={Activity} label={t('statistics.chart.conversations')} value={formatNumber(statistics.conversations.total)} detail={t('statistics.metricCard.unreadDetail', { value: formatNumber(statistics.conversations.unread) })} tone={statistics.conversations.unread > 0 ? 'warning' : 'info'} layoutId="metric-conversations" onClick={() => setOpenMetric('conversations')} />
+                        <MetricCard icon={Users} label={t('statistics.users.advisors')} value={formatNumber(statistics.advisors.total_advisors)} detail={t('statistics.metricCard.avgResolutionDetail', { value: statistics.advisors.avg_resolution_rate })} tone="primary" layoutId="metric-advisors" onClick={() => setOpenMetric('advisors')} />
+                        <MetricCard icon={FileText} label={t('statistics.chart.templates')} value={formatNumber(statistics.templates.total)} detail={t('statistics.metricCard.sendsDetail', { value: formatNumber(statistics.templates.total_sends) })} tone="info" layoutId="metric-templates" onClick={() => setOpenMetric('templates')} />
                     </section>
 
                     <form onSubmit={handleFilterSubmit} className="card-gradient rounded-2xl border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
@@ -738,7 +738,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
 
                         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs settings-subtitle">
                             <span className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 font-semibold dark:border-white/10 dark:bg-white/[0.04]">
-                                {startDate && endDate ? `${startDate} a ${endDate}` : periodLabel}
+                                {startDate && endDate ? t('statistics.filters.dateRange', { start: startDate, end: endDate }) : periodLabel}
                             </span>
                             {(startDate || endDate) && (
                                 <button
@@ -749,7 +749,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                     }}
                                     className="rounded-md px-2.5 py-1 font-semibold text-[#2e3f84] transition-colors hover:bg-[#2e3f84]/10 dark:text-neutral-100 dark:hover:bg-white/10"
                                 >
-                                    Limpiar rango
+                                    {t('statistics.filters.clearRange')}
                                 </button>
                             )}
                         </div>
@@ -758,20 +758,20 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                     {statistics.costs && (() => {
                         const c = statistics.costs;
                         const catLabels: Record<string, string> = {
-                            marketing: 'Marketing',
-                            utility: 'Utility (recordatorios/citas)',
-                            authentication: 'Autenticación (OTP)',
-                            service: 'Servicio (respuestas 24h)',
+                            marketing: t('statistics.costs.categories.marketing'),
+                            utility: t('statistics.costs.categories.utility'),
+                            authentication: t('statistics.costs.categories.authentication'),
+                            service: t('statistics.costs.categories.service'),
                         };
                         const rows = Object.entries(c.by_category);
                         return (
                             <SectionCard
                                 icon={Wallet}
-                                title="Costo estimado de WhatsApp (Meta)"
-                                subtitle={`Estimación por categoría facturada de Meta · tarifas de Colombia${c.rates_as_of ? ` (${c.rates_as_of})` : ''}`}
+                                title={t('statistics.costs.title')}
+                                subtitle={`${t('statistics.costs.subtitle')}${c.rates_as_of ? ` (${c.rates_as_of})` : ''}`}
                                 action={
                                     <div className="text-right">
-                                        <p className="text-xs settings-subtitle">Estimado del período</p>
+                                        <p className="text-xs settings-subtitle">{t('statistics.costs.periodEstimate')}</p>
                                         <p className="text-2xl font-bold settings-title">{formatMoney(c.total_cost, c.currency)}</p>
                                     </div>
                                 }
@@ -781,10 +781,10 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                         <table className="w-full text-xs">
                                             <thead>
                                                 <tr className="bg-[#2e3f84]/[0.06] text-left settings-subtitle dark:bg-white/[0.05]">
-                                                    <th className="px-3 py-2 font-semibold">Categoría</th>
-                                                    <th className="px-3 py-2 text-right font-semibold">Facturables</th>
-                                                    <th className="px-3 py-2 text-right font-semibold">Tarifa</th>
-                                                    <th className="px-3 py-2 text-right font-semibold">Costo</th>
+                                                    <th className="px-3 py-2 font-semibold">{t('statistics.costs.table.category')}</th>
+                                                    <th className="px-3 py-2 text-right font-semibold">{t('statistics.costs.table.billable')}</th>
+                                                    <th className="px-3 py-2 text-right font-semibold">{t('statistics.costs.table.rate')}</th>
+                                                    <th className="px-3 py-2 text-right font-semibold">{t('statistics.costs.table.cost')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -792,25 +792,25 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                     <tr key={key} className="border-t border-[#d4d8e8]/60 dark:border-white/10">
                                                         <td className="px-3 py-2 settings-title">{catLabels[key] ?? key}</td>
                                                         <td className="px-3 py-2 text-right settings-title">{formatNumber(data.billable)}</td>
-                                                        <td className="px-3 py-2 text-right settings-subtitle">{data.rate === 0 ? 'Gratis' : formatMoney(data.rate, c.currency, 4)}</td>
+                                                        <td className="px-3 py-2 text-right settings-subtitle">{data.rate === 0 ? t('statistics.costs.free') : formatMoney(data.rate, c.currency, 4)}</td>
                                                         <td className="px-3 py-2 text-right font-semibold settings-title">{formatMoney(data.cost, c.currency)}</td>
                                                     </tr>
                                                 ))}
                                                 <tr className="border-t-2 border-[#2e3f84]/25 bg-[#2e3f84]/[0.05] dark:bg-white/[0.04]">
-                                                    <td className="px-3 py-2 font-bold settings-title" colSpan={3}>Total estimado</td>
+                                                    <td className="px-3 py-2 font-bold settings-title" colSpan={3}>{t('statistics.costs.estimatedTotal')}</td>
                                                     <td className="px-3 py-2 text-right font-bold settings-title">{formatMoney(c.total_cost, c.currency)}</td>
                                                 </tr>
                                             </tbody>
                                         </table>
                                     </div>
                                     <div className="flex flex-col gap-2.5">
-                                        <StatLine icon={Send} label="Salientes facturables" value={c.billable_total} tone="warning" />
-                                        <StatLine icon={CheckCircle2} label="Gratis (servicio / ventana 24h)" value={c.free_total} tone="success" />
-                                        <StatLine icon={AlertCircle} label="Sin datos de facturación" value={c.without_pricing} tone="info" />
+                                        <StatLine icon={Send} label={t('statistics.costs.billableOutbound')} value={c.billable_total} tone="warning" />
+                                        <StatLine icon={CheckCircle2} label={t('statistics.costs.freeService')} value={c.free_total} tone="success" />
+                                        <StatLine icon={AlertCircle} label={t('statistics.costs.noBillingData')} value={c.without_pricing} tone="info" />
                                         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
                                             <DollarSign className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                                             <span>
-                                                Estimación con tarifas de Colombia (modelo por mensaje de Meta). Cubre el {c.coverage_percent}% de los mensajes salientes del período; el resto son anteriores a la medición. El cobro real y las facturas están en <span className="font-semibold">Meta Business Manager › Facturación</span>.
+                                                {t('statistics.costs.disclaimer', { percent: c.coverage_percent })} <span className="font-semibold">{t('statistics.costs.metaBillingPath')}</span>.
                                             </span>
                                         </div>
                                     </div>
@@ -821,31 +821,31 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
 
                     {!showCharts ? (
                         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                            <SectionCard icon={Activity} title="Demanda del menú de bienvenida" subtitle="Clasificación automática de lo que solicita cada usuario" className="xl:col-span-2">
+                            <SectionCard icon={Activity} title={t('statistics.flowDemand.title')} subtitle={t('statistics.flowDemand.subtitle')} className="xl:col-span-2">
                                 {(() => {
                                     const fd = statistics.flowDemand;
                                     if (!fd || fd.total === 0) {
                                         return (
                                             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#d4d8e8] py-10 text-center dark:border-white/10">
                                                 <MessageSquare className="mb-3 h-10 w-10 settings-subtitle" />
-                                                <p className="text-sm font-semibold settings-title">Aún no hay datos de demanda</p>
-                                                <p className="mt-1 max-w-md text-xs settings-subtitle">Se llenará automáticamente cuando el menú de bienvenida esté activo y los pacientes lo recorran.</p>
+                                                <p className="text-sm font-semibold settings-title">{t('statistics.flowDemand.emptyTitle')}</p>
+                                                <p className="mt-1 max-w-md text-xs settings-subtitle">{t('statistics.flowDemand.emptyDescription')}</p>
                                             </div>
                                         );
                                     }
-                                    const svcLabels: Record<string, string> = { agendamiento: 'Agendamiento', cancelacion: 'Cancelación', informacion: 'Información', asesor: 'Hablar con asesor' };
-                                    const outLabels: Record<string, string> = { self_service: 'Autoservicio', advisor: 'Pasó a asesor', rejected: 'Rechazó privacidad', in_progress: 'En proceso' };
+                                    const svcLabels: Record<string, string> = { agendamiento: t('statistics.flowDemand.services.scheduling'), cancelacion: t('statistics.flowDemand.services.cancellation'), informacion: t('statistics.flowDemand.services.information'), asesor: t('statistics.flowDemand.services.talkToAdvisor') };
+                                    const outLabels: Record<string, string> = { self_service: t('statistics.flowDemand.outcomes.selfService'), advisor: t('statistics.flowDemand.outcomes.advisor'), rejected: t('statistics.flowDemand.outcomes.rejected'), in_progress: t('statistics.flowDemand.outcomes.inProgress') };
                                     return (
                                         <div className="space-y-4">
                                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                                <MetricCard icon={MessageSquare} label="Flujos" value={formatNumber(fd.total)} detail="iniciados" />
-                                                <MetricCard icon={CheckCircle2} label="Autoservicio" value={`${fd.automation_rate}%`} detail="resueltos sin asesor" tone="success" />
-                                                <MetricCard icon={Activity} label="Llegaron al menú" value={formatNumber(fd.reached_menu)} detail={`${formatNumber(fd.accepted_privacy)} aceptaron`} tone="info" />
-                                                <MetricCard icon={Users} label="A un asesor" value={formatNumber(fd.by_outcome.advisor ?? 0)} detail="requirieron agente" tone="warning" />
+                                                <MetricCard icon={MessageSquare} label={t('statistics.flowDemand.flows')} value={formatNumber(fd.total)} detail={t('statistics.flowDemand.started')} />
+                                                <MetricCard icon={CheckCircle2} label={t('statistics.flowDemand.outcomes.selfService')} value={`${fd.automation_rate}%`} detail={t('statistics.flowDemand.resolvedWithoutAdvisor')} tone="success" />
+                                                <MetricCard icon={Activity} label={t('statistics.flowDemand.reachedMenu')} value={formatNumber(fd.reached_menu)} detail={t('statistics.flowDemand.accepted', { value: formatNumber(fd.accepted_privacy) })} tone="info" />
+                                                <MetricCard icon={Users} label={t('statistics.flowDemand.toAdvisor')} value={formatNumber(fd.by_outcome.advisor ?? 0)} detail={t('statistics.flowDemand.requiredAgent')} tone="warning" />
                                             </div>
                                             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                                                 <div>
-                                                    <h3 className="mb-2 text-xs font-bold settings-title">Por servicio solicitado</h3>
+                                                    <h3 className="mb-2 text-xs font-bold settings-title">{t('statistics.flowDemand.byService')}</h3>
                                                     <div className="space-y-2">
                                                         {Object.entries(fd.by_service).map(([k, v]) => (
                                                             <StatLine key={k} icon={MessageSquare} label={svcLabels[k] ?? k} value={v} total={fd.total} tone="primary" />
@@ -853,7 +853,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <h3 className="mb-2 text-xs font-bold settings-title">Desenlace</h3>
+                                                    <h3 className="mb-2 text-xs font-bold settings-title">{t('statistics.flowDemand.outcome')}</h3>
                                                     <div className="space-y-2">
                                                         {Object.entries(fd.by_outcome).map(([k, v]) => (
                                                             <StatLine key={k} icon={Activity} label={outLabels[k] ?? k} value={v} total={fd.total} tone={k === 'self_service' ? 'success' : k === 'advisor' ? 'warning' : k === 'rejected' ? 'danger' : 'info'} />
@@ -861,19 +861,19 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <h3 className="mb-2 text-xs font-bold settings-title">Régimen</h3>
+                                                    <h3 className="mb-2 text-xs font-bold settings-title">{t('statistics.flowDemand.regimen')}</h3>
                                                     <div className="space-y-2">
                                                         {Object.entries(fd.by_regimen).map(([k, v]) => (
-                                                            <StatLine key={k} icon={Users} label={k === 'subsidiado' ? 'Subsidiado' : k === 'contributivo' ? 'Contributivo' : k} value={v} total={fd.total} tone="info" />
+                                                            <StatLine key={k} icon={Users} label={k === 'subsidiado' ? t('statistics.flowDemand.regimens.subsidized') : k === 'contributivo' ? t('statistics.flowDemand.regimens.contributory') : k} value={v} total={fd.total} tone="info" />
                                                         ))}
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <h3 className="mb-2 text-xs font-bold settings-title">Top EPS</h3>
+                                                    <h3 className="mb-2 text-xs font-bold settings-title">{t('statistics.flowDemand.topEps')}</h3>
                                                     <div className="space-y-2">
                                                         {fd.top_eps.length ? fd.top_eps.map((e) => (
                                                             <StatLine key={e.name} icon={Users} label={e.name} value={e.value} total={fd.total} tone="primary" />
-                                                        )) : <EmptyChart message="Sin datos de EPS" />}
+                                                        )) : <EmptyChart message={t('statistics.flowDemand.noEpsData')} />}
                                                     </div>
                                                 </div>
                                             </div>
@@ -884,22 +884,22 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
 
                             <SectionCard
                                 icon={Users}
-                                title="Rendimiento de asesores"
-                                subtitle="Conversaciones, mensajes enviados y resolución"
+                                title={t('statistics.advisors.performanceTitle')}
+                                subtitle={t('statistics.advisors.performanceSubtitle')}
                                 className="xl:col-span-2"
-                                action={<span className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">Click para detalle</span>}
+                                action={<span className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">{t('statistics.advisors.clickForDetail')}</span>}
                             >
                                 <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                                    <MetricCard icon={Users} label="Asesores" value={statistics.advisors.total_advisors} detail="en el equipo" />
-                                    <MetricCard icon={MessageSquare} label="Conversaciones" value={formatNumber(statistics.advisors.total_conversations)} detail="asignadas" tone="info" />
-                                    <MetricCard icon={CheckCircle2} label="Resueltas" value={formatNumber(statistics.advisors.total_resolved)} detail="cerradas/resueltas" tone="success" />
-                                    <MetricCard icon={Send} label="Mensajes" value={formatNumber(statistics.advisors.total_messages_sent)} detail="enviados" />
-                                    <MetricCard icon={TrendingUp} label="Promedio" value={`${statistics.advisors.avg_resolution_rate}%`} detail="resolución" tone="success" />
+                                    <MetricCard icon={Users} label={t('statistics.users.advisors')} value={statistics.advisors.total_advisors} detail={t('statistics.advisors.onTheTeam')} />
+                                    <MetricCard icon={MessageSquare} label={t('statistics.chart.conversations')} value={formatNumber(statistics.advisors.total_conversations)} detail={t('statistics.advisors.assigned')} tone="info" />
+                                    <MetricCard icon={CheckCircle2} label={t('statistics.advisors.resolved')} value={formatNumber(statistics.advisors.total_resolved)} detail={t('statistics.advisors.closedResolved')} tone="success" />
+                                    <MetricCard icon={Send} label={t('statistics.chart.messages')} value={formatNumber(statistics.advisors.total_messages_sent)} detail={t('statistics.advisors.sentLower')} />
+                                    <MetricCard icon={TrendingUp} label={t('statistics.advisors.average')} value={`${statistics.advisors.avg_resolution_rate}%`} detail={t('statistics.advisors.resolution')} tone="success" />
                                 </div>
 
                                 {statistics.advisors.top_performer && (
                                     <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">
-                                        <span className="font-bold">Mejor desempeño:</span> {statistics.advisors.top_performer.name} con {statistics.advisors.top_performer.resolved_conversations} conversaciones resueltas y {statistics.advisors.top_performer.resolution_rate}% de resolución.
+                                        <span className="font-bold">{t('statistics.advisors.topPerformerLabel')}</span> {statistics.advisors.top_performer.name} {t('statistics.advisors.topPerformerText', { resolved: statistics.advisors.top_performer.resolved_conversations, rate: statistics.advisors.top_performer.resolution_rate })}
                                     </div>
                                 )}
 
@@ -926,18 +926,18 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                     <p className="truncate text-sm font-bold settings-title">{advisor.name}</p>
                                                                 </div>
                                                                 <p className="mt-1 text-xs settings-subtitle">
-                                                                    {formatNumber(advisor.total_conversations)} conv. · {formatNumber(advisor.messages_sent)} mensajes · {formatNumber(advisor.scheduled_conversations)} agendadas
+                                                                    {t('statistics.advisors.rowSummary', { conversations: formatNumber(advisor.total_conversations), messages: formatNumber(advisor.messages_sent), scheduled: formatNumber(advisor.scheduled_conversations) })}
                                                                 </p>
                                                             </div>
                                                         </div>
                                                         <div className="grid grid-cols-3 gap-2 text-right text-xs lg:w-[360px]">
                                                             <div>
                                                                 <p className="font-bold settings-title">{formatNumber(advisor.resolved_conversations)}</p>
-                                                                <p className="settings-subtitle">resueltas</p>
+                                                                <p className="settings-subtitle">{t('statistics.advisors.resolvedLower')}</p>
                                                             </div>
                                                             <div>
                                                                 <p className="font-bold settings-title">{formatNumber(advisor.active_conversations)}</p>
-                                                                <p className="settings-subtitle">activas</p>
+                                                                <p className="settings-subtitle">{t('statistics.advisors.activeLower')}</p>
                                                             </div>
                                                             <div>
                                                                 <span className={cn('inline-flex rounded-md border px-2 py-1 text-[11px] font-bold', toneClasses(rateTone))}>
@@ -999,30 +999,30 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                             {loadingAdvisor ? (
                                                                 <div className="flex items-center justify-center py-8">
                                                                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#2e3f84] border-t-transparent" />
-                                                                    <span className="ml-2 text-xs settings-subtitle">Cargando métricas...</span>
+                                                                    <span className="ml-2 text-xs settings-subtitle">{t('statistics.advisors.loadingMetrics')}</span>
                                                                 </div>
                                                             ) : advisorDetail ? (
                                                                 <div className="space-y-4">
                                                                     <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-                                                                        <MetricCard icon={Send} label="Mensajes" value={advisorDetail.summary.messages_sent} detail="enviados" />
-                                                                        <MetricCard icon={TrendingUp} label="Resolución" value={`${advisorDetail.summary.resolution_rate}%`} detail="tasa" tone="success" />
-                                                                        <MetricCard icon={Timer} label="Resp. prom." value={advisorDetail.summary.avg_response_time_minutes !== null ? `${advisorDetail.summary.avg_response_time_minutes} min` : 'N/A'} detail="tiempo" tone="info" />
-                                                                        <MetricCard icon={CalendarCheck2} label="Agendadas" value={advisorDetail.summary.scheduled_conversations} detail="conversaciones" />
-                                                                        <MetricCard icon={Activity} label="Abiertas" value={advisorDetail.summary.active_conversations + advisorDetail.summary.pending_conversations} detail="activas/pendientes" tone="warning" />
+                                                                        <MetricCard icon={Send} label={t('statistics.chart.messages')} value={advisorDetail.summary.messages_sent} detail={t('statistics.advisors.sentLower')} />
+                                                                        <MetricCard icon={TrendingUp} label={t('statistics.advisors.resolutionCap')} value={`${advisorDetail.summary.resolution_rate}%`} detail={t('statistics.advisors.rate')} tone="success" />
+                                                                        <MetricCard icon={Timer} label={t('statistics.advisors.avgResponse')} value={advisorDetail.summary.avg_response_time_minutes !== null ? t('statistics.advisors.minutesValue', { value: advisorDetail.summary.avg_response_time_minutes }) : 'N/A'} detail={t('statistics.advisors.time')} tone="info" />
+                                                                        <MetricCard icon={CalendarCheck2} label={t('statistics.advisors.scheduled')} value={advisorDetail.summary.scheduled_conversations} detail={t('statistics.advisors.conversationsLower')} />
+                                                                        <MetricCard icon={Activity} label={t('statistics.advisors.open')} value={advisorDetail.summary.active_conversations + advisorDetail.summary.pending_conversations} detail={t('statistics.advisors.activePending')} tone="warning" />
                                                                     </div>
 
                                                                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                                                                         <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                                                                             <h4 className="mb-2 flex items-center gap-2 text-xs font-bold settings-title">
                                                                                 <TrendingUp className="h-3.5 w-3.5" />
-                                                                                Actividad diaria
+                                                                                {t('statistics.advisors.dailyActivity')}
                                                                             </h4>
                                                                             <ResponsiveContainer width="100%" height={150}>
                                                                                 <BarChart data={advisorDetail.daily_activity}>
                                                                                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                                                                                     <XAxis dataKey="label" tick={{ fontSize: 10 }} className="fill-muted-foreground" />
                                                                                     <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" allowDecimals={false} />
-                                                                                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [value, 'Mensajes']} />
+                                                                                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [value, t('statistics.chart.messages')]} />
                                                                                     <Bar dataKey="count" fill={COLORS.primary} radius={[4, 4, 0, 0]} />
                                                                                 </BarChart>
                                                                             </ResponsiveContainer>
@@ -1031,14 +1031,14 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                         <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
                                                                             <h4 className="mb-2 flex items-center gap-2 text-xs font-bold settings-title">
                                                                                 <Timer className="h-3.5 w-3.5" />
-                                                                                Distribución por hora
+                                                                                {t('statistics.advisors.hourlyDistribution')}
                                                                             </h4>
                                                                             <ResponsiveContainer width="100%" height={150}>
                                                                                 <LineChart data={advisorDetail.hourly_distribution}>
                                                                                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                                                                                     <XAxis dataKey="hour" tick={{ fontSize: 9 }} interval={2} className="fill-muted-foreground" />
                                                                                     <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" allowDecimals={false} />
-                                                                                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [value, 'Mensajes']} />
+                                                                                    <Tooltip contentStyle={tooltipStyle} formatter={(value) => [value, t('statistics.chart.messages')]} />
                                                                                     <Line type="monotone" dataKey="count" stroke={COLORS.primary} strokeWidth={2} dot={{ r: 2 }} />
                                                                                 </LineChart>
                                                                             </ResponsiveContainer>
@@ -1047,7 +1047,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
 
                                                                     {Object.keys(advisorDetail.message_types).length > 0 && (
                                                                         <div className="flex flex-wrap gap-2">
-                                                                            <span className="text-xs font-bold settings-title">Tipos de mensaje:</span>
+                                                                            <span className="text-xs font-bold settings-title">{t('statistics.advisors.messageTypes')}</span>
                                                                             {Object.entries(advisorDetail.message_types).map(([type, count]) => (
                                                                                 <span key={type} className="rounded-md border border-[#2e3f84]/15 bg-[#2e3f84]/10 px-2 py-1 text-[11px] font-semibold text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.06] dark:text-neutral-100">
                                                                                     {type}: {count}
@@ -1057,7 +1057,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                     )}
                                                                 </div>
                                                             ) : (
-                                                                <div className="py-6 text-center text-xs settings-subtitle">Error al cargar métricas</div>
+                                                                <div className="py-6 text-center text-xs settings-subtitle">{t('statistics.advisors.errorLoadingMetrics')}</div>
                                                             )}
                                                         </div>
                                                     )}
@@ -1066,13 +1066,13 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="py-8 text-center text-sm settings-subtitle">No hay datos de asesores disponibles</div>
+                                    <div className="py-8 text-center text-sm settings-subtitle">{t('statistics.advisors.noData')}</div>
                                 )}
                             </SectionCard>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                            <SectionCard icon={BarChart3} title="Estadísticas generales" subtitle="Resumen comparativo del período" className="xl:col-span-2">
+                            <SectionCard icon={BarChart3} title={t('statistics.general.title')} subtitle={t('statistics.general.subtitle')} className="xl:col-span-2">
                                 <ResponsiveContainer width="100%" height={280}>
                                     <BarChart data={mainStatsData}>
                                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -1084,7 +1084,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                 </ResponsiveContainer>
                             </SectionCard>
 
-                            <SectionCard icon={PieChartIcon} title={t('statistics.messages.byStatus')} subtitle="Mensajes salientes por estado">
+                            <SectionCard icon={PieChartIcon} title={t('statistics.messages.byStatus')} subtitle={t('statistics.messages.byStatusSubtitle')}>
                                 {messagesStatusData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height={250}>
                                         <PieChart>
@@ -1097,10 +1097,10 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                             <Legend wrapperStyle={{ fontSize: '11px' }} />
                                         </PieChart>
                                     </ResponsiveContainer>
-                                ) : <EmptyChart message="No hay mensajes salientes en este período" />}
+                                ) : <EmptyChart message={t('statistics.messages.noOutbound')} />}
                             </SectionCard>
 
-                            <SectionCard icon={CalendarDays} title={t('statistics.appointments.title')} subtitle="Respuesta de pacientes">
+                            <SectionCard icon={CalendarDays} title={t('statistics.appointments.title')} subtitle={t('statistics.appointments.patientResponseSubtitle')}>
                                 {appointmentsData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height={250}>
                                         <PieChart>
@@ -1113,10 +1113,10 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                             <Legend wrapperStyle={{ fontSize: '11px' }} />
                                         </PieChart>
                                     </ResponsiveContainer>
-                                ) : <EmptyChart message="No hay citas en este período" />}
+                                ) : <EmptyChart message={t('statistics.appointments.noData')} />}
                             </SectionCard>
 
-                            <SectionCard icon={LineChartIcon} title={t('statistics.conversations.title')} subtitle="Distribución por estado">
+                            <SectionCard icon={LineChartIcon} title={t('statistics.conversations.title')} subtitle={t('statistics.conversations.byStatusSubtitle')}>
                                 <ResponsiveContainer width="100%" height={260}>
                                     <BarChart data={conversationsStatusData}>
                                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -1128,7 +1128,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                 </ResponsiveContainer>
                             </SectionCard>
 
-                            <SectionCard icon={Users} title={t('statistics.users.title')} subtitle="Composición del equipo">
+                            <SectionCard icon={Users} title={t('statistics.users.title')} subtitle={t('statistics.users.teamCompositionSubtitle')}>
                                 {usersData.length > 0 ? (
                                     <ResponsiveContainer width="100%" height={260}>
                                         <PieChart>
@@ -1140,10 +1140,10 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                             <Legend wrapperStyle={{ fontSize: '11px' }} />
                                         </PieChart>
                                     </ResponsiveContainer>
-                                ) : <EmptyChart message="No hay usuarios registrados" />}
+                                ) : <EmptyChart message={t('statistics.users.noData')} />}
                             </SectionCard>
 
-                            <SectionCard icon={Users} title="Rendimiento de asesores" subtitle="Resueltas, activas y mensajes enviados" className="xl:col-span-2">
+                            <SectionCard icon={Users} title={t('statistics.advisors.performanceTitle')} subtitle={t('statistics.advisors.chartSubtitle')} className="xl:col-span-2">
                                 {statistics.advisors.advisors.length > 0 ? (
                                     <div className="max-h-[360px] overflow-y-auto pr-1 custom-scrollbar-light">
                                         <div style={{ height: Math.max(260, statistics.advisors.advisors.length * 48) }}>
@@ -1156,12 +1156,12 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                         contentStyle={tooltipStyle}
                                                         formatter={(value, name) => [
                                                             value,
-                                                            name === 'resolved_conversations' ? 'Resueltas' : name === 'active_conversations' ? 'Activas' : name === 'messages_sent' ? 'Mensajes' : name,
+                                                            name === 'resolved_conversations' ? t('statistics.advisors.resolved') : name === 'active_conversations' ? t('statistics.advisors.active') : name === 'messages_sent' ? t('statistics.chart.messages') : name,
                                                         ]}
                                                     />
                                                     <Legend
                                                         wrapperStyle={{ fontSize: '11px' }}
-                                                        formatter={(value) => value === 'resolved_conversations' ? 'Resueltas' : value === 'active_conversations' ? 'Activas' : value === 'messages_sent' ? 'Mensajes' : value}
+                                                        formatter={(value) => value === 'resolved_conversations' ? t('statistics.advisors.resolved') : value === 'active_conversations' ? t('statistics.advisors.active') : value === 'messages_sent' ? t('statistics.chart.messages') : value}
                                                     />
                                                     <Bar dataKey="resolved_conversations" fill={COLORS.success} radius={[0, 4, 4, 0]} />
                                                     <Bar dataKey="active_conversations" fill={COLORS.info} radius={[0, 4, 4, 0]} />
@@ -1170,7 +1170,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                             </ResponsiveContainer>
                                         </div>
                                     </div>
-                                ) : <EmptyChart message="No hay datos de asesores disponibles" />}
+                                ) : <EmptyChart message={t('statistics.advisors.noData')} />}
                             </SectionCard>
                         </div>
                     )}
@@ -1205,7 +1205,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                 <p className="text-xs settings-subtitle">{m.headlineLabel}: <span className="font-bold settings-title">{formatNumber(m.headlineValue)}</span></p>
                                             </div>
                                         </div>
-                                        <button onClick={() => setOpenMetric(null)} className="rounded-full p-2 settings-subtitle transition-colors hover:bg-[#2e3f84]/10 dark:hover:bg-white/10" title="Cerrar">
+                                        <button onClick={() => setOpenMetric(null)} className="rounded-full p-2 settings-subtitle transition-colors hover:bg-[#2e3f84]/10 dark:hover:bg-white/10" title={t('common.close')}>
                                             <XCircle className="h-5 w-5" />
                                         </button>
                                     </div>
