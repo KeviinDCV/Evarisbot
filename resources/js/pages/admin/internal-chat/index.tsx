@@ -1016,7 +1016,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             />
                         </div>
 
-                        <div className="flex items-center gap-1.5 px-1 pt-2 overflow-x-auto custom-scrollbar-light">
+                        <div className="filter-pills-scroll flex items-center gap-1.5 px-1 pt-2 pb-2 overflow-x-auto">
                             {quickChatFilters.map(filter => (
                                 <button
                                     key={filter.value}
@@ -1356,7 +1356,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
                                                                             whileHover={{ scale: 1.35, y: -14, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
                                                                             whileTap={{ scale: 0.9, transition: { duration: 0.12, ease: [0.22, 1, 0.36, 1] } }}
-                                                                            onClick={() => handleReact(msg, emoji)}
+                                                                            // Reaccionar al PRESIONAR (pointerdown), no al click: whileHover/whileTap
+                                                                            // desplazan y encogen el emoji, así que al soltar el puntero ya no está
+                                                                            // encima y el navegador nunca dispara "click" → la reacción se perdía.
+                                                                            onPointerDown={(e) => { if (e.button === 0) handleReact(msg, emoji); }}
+                                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleReact(msg, emoji); } }}
                                                                             aria-label={REACTION_LABELS[emoji]}
                                                                             className="group relative flex items-center justify-center cursor-pointer rounded-full px-1 py-1 text-[26px] leading-none"
                                                                         >
