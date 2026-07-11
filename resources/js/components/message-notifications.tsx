@@ -1,5 +1,6 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // --- Sonido (sintetizado, sin archivos) ---
 let audioCtx: AudioContext | null = null;
@@ -35,6 +36,7 @@ function playDing() {
  * Componente invisible: se monta una vez en el layout (global a toda la app).
  */
 export function MessageNotifications() {
+    const { t } = useTranslation();
     const pendingRef = useRef(0);
     const cleanTitleRef = useRef<string>(typeof document !== 'undefined' ? document.title : '');
     const lastSoundRef = useRef(0);
@@ -69,8 +71,8 @@ export function MessageNotifications() {
             if (!document.hidden) return;
 
             const conv = data?.conversation ?? {};
-            const name = conv.contact_name || conv.phone_number || 'Paciente';
-            const body = (data?.message?.content || 'Nuevo mensaje').toString().slice(0, 120);
+            const name = conv.contact_name || conv.phone_number || t('conversations.patientFallback');
+            const body = (data?.message?.content || t('conversations.newMessage')).toString().slice(0, 120);
             const convId = data?.message?.conversation_id ?? conv.id;
 
             // Sonido (con throttle para no saturar en ráfagas)
@@ -83,12 +85,12 @@ export function MessageNotifications() {
             // Parpadeo del título
             if (!cleanTitleRef.current) cleanTitleRef.current = document.title;
             pendingRef.current += 1;
-            document.title = `(${pendingRef.current}) 💬 Mensaje nuevo · Evarisbot`;
+            document.title = `(${pendingRef.current}) 💬 ${t('conversations.newMessageTitle')} · Evarisbot`;
 
             // Notificación de escritorio (coalescida por tag)
             if ('Notification' in window && Notification.permission === 'granted') {
                 try {
-                    const n = new Notification(`Mensaje nuevo de ${name}`, {
+                    const n = new Notification(t('conversations.newMessageFrom', { name }), {
                         body,
                         tag: 'evarisbot-new-message',
                         icon: '/favicon.ico',
@@ -114,7 +116,7 @@ export function MessageNotifications() {
             window.removeEventListener('focus', restoreTitle);
             document.removeEventListener('visibilitychange', onVisible);
         };
-    }, []);
+    }, [t]);
 
     return null;
 }

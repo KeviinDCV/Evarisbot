@@ -39,7 +39,7 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 interface User {
@@ -237,9 +237,9 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         router.delete(`/admin/users/${userToDelete.id}`, {
             onSuccess: () => {
                 setUserToDelete(null);
-                toast.success('Usuario eliminado');
+                toast.success(t('users.toastDeleted'));
             },
-            onError: () => toast.error('Error al eliminar el usuario'),
+            onError: () => toast.error(t('users.toastDeleteError')),
         });
     };
 
@@ -249,7 +249,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             onSuccess: () => {
                 setShowCreateModal(false);
                 createForm.reset();
-                toast.success('Usuario creado exitosamente');
+                toast.success(t('users.toastCreated'));
             },
         });
     };
@@ -262,7 +262,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             onSuccess: () => {
                 setShowEditModal(false);
                 setUserToEdit(null);
-                toast.success('Usuario actualizado');
+                toast.success(t('users.toastUpdated'));
             },
         });
     };
@@ -291,8 +291,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             preserveScroll: true,
             onSuccess: () => toast.success(
                 user.can_bulk_send
-                    ? `Se removió el acceso a Envío masivo de ${user.name}`
-                    : `${user.name} ahora tiene acceso a Envío masivo`
+                    ? t('users.toastBulkSendRemoved', { name: user.name })
+                    : t('users.toastBulkSendGranted', { name: user.name })
             ),
         });
     };
@@ -325,10 +325,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     </header>
 
                     <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricCard icon={Users} label="Usuarios" value={users.length} detail={`${filteredUsers.length} visibles`} />
-                        <MetricCard icon={Activity} label="En línea" value={stats.online} detail="actividad reciente" active={stats.online > 0} />
-                        <MetricCard icon={ShieldCheck} label="Administradores" value={stats.admins} detail="acceso completo" />
-                        <MetricCard icon={Headphones} label="Asesores" value={stats.advisors} detail={`${stats.bulkEnabled} con envío masivo`} />
+                        <MetricCard icon={Users} label={t('users.metricUsers')} value={users.length} detail={t('users.metricVisible', { count: filteredUsers.length })} />
+                        <MetricCard icon={Activity} label={t('users.metricOnline')} value={stats.online} detail={t('users.metricOnlineDetail')} active={stats.online > 0} />
+                        <MetricCard icon={ShieldCheck} label={t('users.metricAdmins')} value={stats.admins} detail={t('users.metricAdminsDetail')} />
+                        <MetricCard icon={Headphones} label={t('users.metricAdvisors')} value={stats.advisors} detail={t('users.metricAdvisorsDetail', { count: stats.bulkEnabled })} />
                     </section>
 
                     <section className="card-gradient rounded-2xl border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
@@ -353,7 +353,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             type="button"
                                             onClick={() => setSearch('')}
                                             className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[#6b7494] transition-colors hover:bg-black/5 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100"
-                                            aria-label="Limpiar búsqueda"
+                                            aria-label={t('users.clearSearch')}
                                         >
                                             <X className="h-3.5 w-3.5" />
                                         </button>
@@ -387,9 +387,9 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     <section className="card-gradient overflow-hidden rounded-2xl border border-white/40 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="flex flex-col gap-2 border-b border-[#d4d8e8]/80 px-4 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-base font-bold settings-title">Directorio de usuarios</h2>
+                                <h2 className="text-base font-bold settings-title">{t('users.directoryTitle')}</h2>
                                 <p className="mt-1 text-xs settings-subtitle">
-                                    {filteredUsers.length} de {users.length} usuarios
+                                    {t('users.directoryCount', { filtered: filteredUsers.length, total: users.length })}
                                 </p>
                             </div>
                         </div>
@@ -399,17 +399,17 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 <table className="w-full min-w-[900px] text-left">
                                     <thead>
                                         <tr className="border-b border-[#d4d8e8]/80 bg-[#f4f5f9]/70 dark:border-white/10 dark:bg-white/[0.04]">
-                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">Usuario</th>
+                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.tableUser')}</th>
                                             <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.role')}</th>
-                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">Estado</th>
+                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.tableStatus')}</th>
                                             <th className="px-4 py-3.5 text-center text-xs font-semibold settings-title">
                                                 <span className="inline-flex items-center justify-center gap-1.5">
                                                     <Send className="h-3.5 w-3.5" />
-                                                    Envío masivo
+                                                    {t('users.tableBulkSend')}
                                                 </span>
                                             </th>
-                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">Registro</th>
-                                            <th className="px-4 py-3.5 text-right text-xs font-semibold settings-title">Acciones</th>
+                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.tableRegistered')}</th>
+                                            <th className="px-4 py-3.5 text-right text-xs font-semibold settings-title">{t('users.tableActions')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -446,8 +446,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                                 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#2e3f84]/30 focus:ring-offset-2',
                                                                 user.can_bulk_send ? 'bg-[#2e3f84]' : 'bg-slate-300 dark:bg-neutral-700'
                                                             )}
-                                                            aria-label={user.can_bulk_send ? 'Desactivar envío masivo' : 'Activar envío masivo'}
-                                                            title={user.can_bulk_send ? 'Desactivar envío masivo' : 'Activar envío masivo'}
+                                                            aria-label={user.can_bulk_send ? t('users.disableBulkSend') : t('users.enableBulkSend')}
+                                                            title={user.can_bulk_send ? t('users.disableBulkSend') : t('users.enableBulkSend')}
                                                         >
                                                             <span
                                                                 className={cn(
@@ -510,7 +510,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         <DialogHeader>
                             <DialogTitle className="settings-title">{t('users.deleteConfirm')}</DialogTitle>
                             <DialogDescription className="settings-subtitle">
-                                {t('users.deleteMessage')} <strong>{userToDelete?.name}</strong>?
+                                <Trans
+                                    i18nKey="users.deleteMessageFull"
+                                    values={{ name: userToDelete?.name ?? '' }}
+                                    components={{ strong: <strong /> }}
+                                />{' '}
                                 {t('users.deleteWarning')}
                             </DialogDescription>
                         </DialogHeader>
@@ -647,7 +651,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 {t('users.editTitle')}
                             </DialogTitle>
                             <DialogDescription className="text-xs settings-subtitle">
-                                {t('users.editSubtitle')} para {userToEdit?.name}
+                                {t('users.editSubtitleFor', { name: userToEdit?.name })}
                             </DialogDescription>
                         </DialogHeader>
 
@@ -690,7 +694,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 <div className="space-y-1.5">
                                     <Label htmlFor="edit-password" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
-                                        {t('users.newPassword')} <span className="text-[10px] opacity-60">(Opcional)</span>
+                                        {t('users.newPassword')} <span className="text-[10px] opacity-60">{t('users.optional')}</span>
                                     </Label>
                                     <Input
                                         id="edit-password"

@@ -2,6 +2,7 @@ import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
 import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft, Calendar, Download, ArrowUpDown, ArrowUp, ArrowDown, Phone, XCircle, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 
 interface Appointment {
@@ -63,7 +64,9 @@ interface AppointmentsViewProps {
     pageTitle?: string;
 }
 
-export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, sort: initialSort, direction: initialDirection, stats, routePrefix = '/admin/appointments', pageTitle = 'Gestión de Citas' }: AppointmentsViewProps) {
+export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, sort: initialSort, direction: initialDirection, stats, routePrefix = '/admin/appointments', pageTitle }: AppointmentsViewProps) {
+    const { t } = useTranslation();
+    const resolvedPageTitle = pageTitle ?? t('appointments.managementTitle');
     const [filter, setFilter] = useState(initialFilter || 'all');
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
     const [dateFrom, setDateFrom] = useState(initialDateFrom || '');
@@ -147,10 +150,10 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
     };
 
     const filterButtons = [
-        { key: 'all', label: 'Todas', icon: Filter, count: stats.all },
-        { key: 'pending', label: 'Pendientes', icon: Clock, count: stats.pending },
-        { key: 'confirmed', label: 'Confirmadas', icon: CalendarCheck, count: stats.confirmed },
-        { key: 'cancelled', label: 'Canceladas', icon: CalendarX, count: stats.cancelled },
+        { key: 'all', label: t('common.allFeminine'), icon: Filter, count: stats.all },
+        { key: 'pending', label: t('appointments.filterPending'), icon: Clock, count: stats.pending },
+        { key: 'confirmed', label: t('appointments.filterConfirmed'), icon: CalendarCheck, count: stats.confirmed },
+        { key: 'cancelled', label: t('appointments.filterCancelled'), icon: CalendarX, count: stats.cancelled },
     ];
 
     const getStatusBadge = (appointment: Appointment) => {
@@ -158,14 +161,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
             return (
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium">
                     <Clock className="w-3 h-3" />
-                    Pendiente
+                    {t('appointments.badgePending')}
                 </span>
             );
         }
         return (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
                 <CalendarCheck className="w-3 h-3" />
-                Enviado
+                {t('appointments.badgeSent')}
             </span>
         );
     };
@@ -183,7 +186,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
             return (
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
                     <CalendarX className="w-3 h-3" />
-                    Error
+                    {t('appointments.badgeError')}
                 </span>
             );
         }
@@ -192,7 +195,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
             return (
                 <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
                     <CalendarCheck className="w-3 h-3" />
-                    Recibido
+                    {t('appointments.badgeReceived')}
                 </span>
             );
         }
@@ -200,14 +203,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         return (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
                 <Clock className="w-3 h-3" />
-                Sin respuesta
+                {t('appointments.badgeNoResponse')}
             </span>
         );
     };
 
     return (
         <AdminLayout>
-            <Head title={pageTitle} />
+            <Head title={resolvedPageTitle} />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -218,10 +221,10 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                             </div>
                             <div>
                                 <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                                    {pageTitle}
+                                    {resolvedPageTitle}
                                 </h1>
                                 <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                    Visualiza, filtra y exporta las citas con sus estados de recordatorio.
+                                    {t('appointments.viewSubtitle')}
                                 </p>
                             </div>
                         </div>
@@ -229,11 +232,11 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         <div className="flex flex-wrap gap-2">
                             <Button onClick={() => router.get(`${routePrefix}`)} className="h-9 rounded-xl px-4 text-xs font-semibold settings-btn-secondary">
                                 <ArrowLeft className="mr-2 h-3.5 w-3.5" />
-                                Volver a Citas
+                                {t('appointments.backToAppointments')}
                             </Button>
                             <a href={`${routePrefix}/export?filter=${filter}&search=${searchTerm || ''}&date_from=${dateFrom || ''}&date_to=${dateTo || ''}`} className="inline-flex h-9 items-center rounded-xl px-4 text-xs font-semibold settings-btn-primary">
                                 <Download className="mr-2 h-3.5 w-3.5" />
-                                Exportar Excel
+                                {t('appointments.exportExcel')}
                             </a>
                         </div>
                     </header>
@@ -255,7 +258,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
                                         <p className="mt-1 text-lg font-bold leading-tight settings-title">{count.toLocaleString()}</p>
-                                        <p className="mt-1 text-xs settings-subtitle">{key === filter ? 'Filtro activo' : 'Aplicar filtro'}</p>
+                                        <p className="mt-1 text-xs settings-subtitle">{key === filter ? t('appointments.filterActive') : t('appointments.applyFilter')}</p>
                                     </div>
                                 </div>
                             </button>
@@ -266,19 +269,19 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         <div className="mb-4">
                             <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
                                 <Filter className="h-4 w-4" />
-                                Filtros
+                                {t('appointments.filtersTitle')}
                             </h2>
-                            <p className="text-sm settings-subtitle">Busca por datos del paciente, fecha, profesional o especialidad.</p>
+                            <p className="text-sm settings-subtitle">{t('appointments.filtersSubtitle')}</p>
                         </div>
 
                         <div className="mb-4">
                             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold settings-title">
                                 <Calendar className="h-4 w-4" />
-                                Filtrar por Fecha de Cita
+                                {t('appointments.filterByAppointmentDate')}
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div>
-                                    <label htmlFor="date-from" className="block text-xs font-medium settings-label mb-1">Desde</label>
+                                    <label htmlFor="date-from" className="block text-xs font-medium settings-label mb-1">{t('appointments.dateFrom')}</label>
                                     <input
                                         id="date-from"
                                         name="date-from"
@@ -289,7 +292,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     />
                                 </div>
                                 <div>
-                                    <label htmlFor="date-to" className="block text-xs font-medium settings-label mb-1">Hasta</label>
+                                    <label htmlFor="date-to" className="block text-xs font-medium settings-label mb-1">{t('appointments.dateTo')}</label>
                                     <input
                                         id="date-to"
                                         name="date-to"
@@ -305,27 +308,27 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         disabled={!dateFrom && !dateTo}
                                         className="h-9 w-full rounded-xl border border-[#d4d8e8] bg-white px-4 text-sm font-medium text-[#6b7494] transition-all duration-200 hover:border-[#2e3f84] hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300 dark:hover:bg-white/5"
                                     >
-                                        Limpiar Fechas
+                                        {t('appointments.clearDates')}
                                     </button>
                                 </div>
                             </div>
                             {(dateFrom || dateTo) && (
                                 <p className="mt-2 text-xs text-[#2e3f84] dark:text-[hsl(231,55%,70%)] flex items-center gap-1">
                                     <Calendar className="w-3 h-3" />
-                                    Filtrando citas {dateFrom && `desde ${dateFrom}`} {dateFrom && dateTo && '-'} {dateTo && `hasta ${dateTo}`}
+                                    {t('appointments.filteringAppointments')} {dateFrom && t('appointments.fromDate', { date: dateFrom })} {dateFrom && dateTo && '-'} {dateTo && t('appointments.toDate', { date: dateTo })}
                                 </p>
                             )}
                         </div>
 
                         {/* Buscador */}
                         <div className="relative">
-                            <label htmlFor="view-search" className="sr-only">Buscar citas</label>
+                            <label htmlFor="view-search" className="sr-only">{t('appointments.searchAppointmentsLabel')}</label>
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6b7494] dark:text-neutral-400" />
                             <input
                                 id="view-search"
                                 name="view-search"
                                 type="text"
-                                placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
+                                placeholder={t('appointments.viewSearchPlaceholder')}
                                 value={searchTerm}
                                 onChange={(e) => handleSearch(e.target.value)}
                                 className="h-9 w-full rounded-xl pl-10 pr-4 text-sm settings-input outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/10"
@@ -336,10 +339,10 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                     <section className="card-gradient rounded-2xl border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
                         <div className="mb-4">
                             <h2 className="text-base font-semibold settings-title">
-                                Resultados ({appointments.total})
+                                {t('appointments.resultsTitle', { count: appointments.total })}
                             </h2>
                             <p className="text-sm settings-subtitle">
-                                Mostrando {appointments.from} - {appointments.to} de {appointments.total} citas
+                                {t('appointments.showingResults', { from: appointments.from, to: appointments.to, total: appointments.total })}
                             </p>
                         </div>
 
@@ -359,7 +362,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         </th>
                                         <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('nom_paciente')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
-                                                Paciente
+                                                {t('appointments.columnPatient')}
                                                 {sortField === 'nom_paciente' || sortField === 'citide' ? (
                                                     sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
                                                 ) : (
@@ -369,7 +372,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         </th>
                                         <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('citfc')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
-                                                Detalles de Cita
+                                                {t('appointments.columnAppointmentDetails')}
                                                 {sortField === 'citfc' || sortField === 'cithor' ? (
                                                     sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
                                                 ) : (
@@ -379,7 +382,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         </th>
                                         <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('mednom')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
-                                                Profesional
+                                                {t('appointments.columnProfessional')}
                                                 {sortField === 'mednom' || sortField === 'espnom' ? (
                                                     sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
                                                 ) : (
@@ -389,7 +392,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         </th>
                                         <th className="cursor-pointer whitespace-nowrap px-4 py-3 font-semibold settings-title transition-colors hover:bg-black/10 dark:hover:bg-white/10" onClick={() => handleSort('reminder_status')} style={{ fontSize: 'var(--text-sm)' }}>
                                             <div className="flex items-center gap-2">
-                                                Estado Envío
+                                                {t('appointments.columnSendingStatus')}
                                                 {sortField === 'reminder_status' ? (
                                                     sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
                                                 ) : (
@@ -418,7 +421,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                             {appointment.nom_paciente || '-'}
                                                         </span>
                                                         <span className="settings-subtitle mt-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                            CC: {appointment.citide || '-'}
+                                                            {t('appointments.idPrefix')} {appointment.citide || '-'}
                                                         </span>
                                                         <span className="settings-subtitle flex items-center gap-1.5 mt-1.5" style={{ fontSize: 'var(--text-sm)' }}>
                                                             {appointment.pactel ? (
@@ -451,7 +454,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                 <td className="px-4 py-4 align-top w-[30%] min-w-[220px]">
                                                     <div className="flex flex-col">
                                                         <span className="font-semibold settings-title line-clamp-2 leading-tight" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            Dr(a). {appointment.mednom || '-'}
+                                                            {t('appointments.doctorPrefix')} {appointment.mednom || '-'}
                                                         </span>
                                                         <span className="settings-subtitle mt-1.5 inline-flex items-center gap-1.5" style={{ fontSize: 'var(--text-xs)' }}>
                                                             <div className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
@@ -466,12 +469,12 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                         {appointment.reminder_sent ? (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-semibold w-fit">
                                                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                                                Enviado
+                                                                {t('appointments.badgeSent')}
                                                             </span>
                                                         ) : (
                                                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold w-fit">
                                                                 <Clock className="w-3.5 h-3.5" />
-                                                                Pendiente
+                                                                {t('appointments.badgePending')}
                                                             </span>
                                                         )}
 
@@ -479,23 +482,23 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                                             <>
                                                                 {appointment.reminder_status === 'confirmed' ? (
                                                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold w-fit">
-                                                                        <CalendarCheck className="w-3.5 h-3.5" /> Confirmada
+                                                                        <CalendarCheck className="w-3.5 h-3.5" /> {t('appointments.badgeConfirmed')}
                                                                     </span>
                                                                 ) : appointment.reminder_status === 'cancelled' ? (
                                                                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-semibold w-fit">
-                                                                        <CalendarX className="w-3.5 h-3.5" /> Cancelada
+                                                                        <CalendarX className="w-3.5 h-3.5" /> {t('appointments.badgeCancelled')}
                                                                     </span>
                                                                 ) : appointment.reminder_status === 'failed' ? (
                                                                     <span className="inline-flex items-center gap-1 text-red-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <XCircle className="w-3 h-3" /> Error
+                                                                        <XCircle className="w-3 h-3" /> {t('appointments.badgeError')}
                                                                     </span>
                                                                 ) : appointment.reminder_status && ['delivered', 'read'].includes(appointment.reminder_status) ? (
                                                                     <span className="inline-flex items-center gap-1 text-emerald-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <CheckCircle2 className="w-3 h-3" /> Recibido
+                                                                        <CheckCircle2 className="w-3 h-3" /> {t('appointments.badgeReceived')}
                                                                     </span>
                                                                 ) : (
                                                                     <span className="inline-flex items-center gap-1 text-blue-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <Clock className="w-3 h-3" /> Sin respuesta
+                                                                        <Clock className="w-3 h-3" /> {t('appointments.badgeNoResponse')}
                                                                     </span>
                                                                 )}
                                                             </>
@@ -507,7 +510,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     ) : (
                                         <tr>
                                             <td colSpan={5} className="px-4 py-8 text-center settings-subtitle">
-                                                No se encontraron citas con los filtros seleccionados
+                                                {t('appointments.noAppointmentsFound')}
                                             </td>
                                         </tr>
                                     )}
@@ -519,7 +522,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         {appointments.last_page > 1 && (
                             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <p className="text-sm settings-subtitle">
-                                    Página {appointments.current_page} de {appointments.last_page}
+                                    {t('appointments.pageOf', { current: appointments.current_page, total: appointments.last_page })}
                                 </p>
                                 <div className="flex gap-2">
                                     <button
@@ -528,14 +531,14 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                         className="flex h-9 items-center gap-2 rounded-xl border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                     >
                                         <ChevronLeft className="w-4 h-4" />
-                                        Anterior
+                                        {t('common.previous')}
                                     </button>
                                     <button
                                         onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                         disabled={!appointments.next_page_url}
                                         className="flex h-9 items-center gap-2 rounded-xl border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                     >
-                                        Siguiente
+                                        {t('common.next')}
                                         <ChevronRight className="w-4 h-4" />
                                     </button>
                                 </div>

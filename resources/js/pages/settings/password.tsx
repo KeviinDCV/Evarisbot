@@ -4,23 +4,25 @@ import AdminLayout from '@/layouts/admin-layout';
 import { Transition } from '@headlessui/react';
 import { Form, Head } from '@inertiajs/react';
 import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function Password() {
+    const { t } = useTranslation();
     const passwordInput = useRef<HTMLInputElement>(null);
     const currentPasswordInput = useRef<HTMLInputElement>(null);
 
     return (
         <AdminLayout>
-            <Head title="Cambiar Contraseña" />
+            <Head title={t('settings.profile.changePassword')} />
 
             <div className="p-8 space-y-6">
                 <div className="space-y-1">
-                    <h2 className="text-2xl font-bold text-foreground">Cambiar Contraseña</h2>
-                    <p className="text-sm text-muted-foreground">Asegúrate de usar una contraseña segura para proteger tu cuenta</p>
+                    <h2 className="text-2xl font-bold text-foreground">{t('settings.profile.changePassword')}</h2>
+                    <p className="text-sm text-muted-foreground">{t('settings.profile.changePasswordSubtitle')}</p>
                 </div>
 
                     <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
@@ -50,7 +52,7 @@ export default function Password() {
                                 <>
                                     <div className="space-y-2">
                                         <Label htmlFor="current_password" className="text-sm font-medium text-foreground">
-                                            Contraseña Actual
+                                            {t('settings.profile.currentPassword')}
                                         </Label>
 
                                         <Input
@@ -60,7 +62,7 @@ export default function Password() {
                                             type="password"
                                             className="border-0 bg-accent focus:bg-gray-150 shadow-none rounded-xl"
                                             autoComplete="current-password"
-                                            placeholder="Ingresa tu contraseña actual"
+                                            placeholder={t('settings.profile.currentPasswordPlaceholder')}
                                         />
 
                                         <InputError message={errors.current_password} />
@@ -68,7 +70,7 @@ export default function Password() {
 
                                     <div className="space-y-2">
                                         <Label htmlFor="password" className="text-sm font-medium text-foreground">
-                                            Nueva Contraseña
+                                            {t('settings.profile.newPassword')}
                                         </Label>
 
                                         <Input
@@ -78,7 +80,7 @@ export default function Password() {
                                             type="password"
                                             className="border-0 bg-accent focus:bg-gray-150 shadow-none rounded-xl"
                                             autoComplete="new-password"
-                                            placeholder="Mínimo 8 caracteres"
+                                            placeholder={t('users.passwordPlaceholder')}
                                         />
 
                                         <InputError message={errors.password} />
@@ -86,7 +88,7 @@ export default function Password() {
 
                                     <div className="space-y-2">
                                         <Label htmlFor="password_confirmation" className="text-sm font-medium text-foreground">
-                                            Confirmar Nueva Contraseña
+                                            {t('settings.profile.confirmNewPassword')}
                                         </Label>
 
                                         <Input
@@ -95,7 +97,7 @@ export default function Password() {
                                             type="password"
                                             className="border-0 bg-accent focus:bg-gray-150 shadow-none rounded-xl"
                                             autoComplete="new-password"
-                                            placeholder="Repite la nueva contraseña"
+                                            placeholder={t('users.confirmNewPasswordPlaceholder')}
                                         />
 
                                         <InputError message={errors.password_confirmation} />
@@ -106,7 +108,7 @@ export default function Password() {
                                             disabled={processing}
                                             className="bg-primary hover:bg-primary/90 text-white rounded-xl"
                                         >
-                                            {processing ? 'Guardando...' : 'Cambiar Contraseña'}
+                                            {processing ? t('common.saving') : t('settings.profile.changePasswordButton')}
                                         </Button>
 
                                         <Transition
@@ -117,7 +119,7 @@ export default function Password() {
                                             leaveTo="opacity-0"
                                         >
                                             <p className="text-sm text-green-600 font-medium">
-                                                ✓ Contraseña actualizada
+                                                ✓ {t('settings.profile.passwordUpdated')}
                                             </p>
                                         </Transition>
                                     </div>

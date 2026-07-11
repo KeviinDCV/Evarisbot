@@ -235,9 +235,9 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
             preserveScroll: true,
             onSuccess: () => {
                 whatsappForm.reset('whatsapp_token', 'whatsapp_verify_token');
-                toast.success('Configuración de WhatsApp guardada');
+                toast.success(t('settings.whatsapp.savedSuccess'));
             },
-            onError: () => toast.error('Error al guardar la configuración'),
+            onError: () => toast.error(t('settings.saveError')),
         });
     };
 
@@ -247,9 +247,9 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
             preserveScroll: true,
             onSuccess: () => {
                 groqForm.reset('groq_api_key');
-                toast.success('Configuración de Groq guardada');
+                toast.success(t('settings.groq.savedSuccess'));
             },
-            onError: () => toast.error('Error al guardar la configuración'),
+            onError: () => toast.error(t('settings.saveError')),
         });
     };
 
@@ -296,8 +296,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
         }, {
             preserveScroll: true,
             onFinish: () => setSavingAdvisors(false),
-            onSuccess: () => toast.success('Asesores de turno actualizados'),
-            onError: () => toast.error('Error al guardar los asesores'),
+            onSuccess: () => toast.success(t('settings.onDutyAdvisors.savedSuccess')),
+            onError: () => toast.error(t('settings.onDutyAdvisors.saveError')),
         });
     };
 
@@ -319,13 +319,13 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
             } else {
                 setConnectionStatus({
                     type: 'error',
-                    message: data.message || 'No se pudo consultar el perfil de negocio.',
+                    message: data.message || t('settings.whatsapp.profileFetchFailed'),
                 });
             }
         } catch {
             setConnectionStatus({
                 type: 'error',
-                message: 'Error al consultar el perfil de negocio.',
+                message: t('settings.whatsapp.profileFetchError'),
             });
         } finally {
             setLoadingProfile(false);
@@ -356,22 +356,22 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         <StatusTile
                             icon={MessageCircle}
                             title="WhatsApp"
-                            value={settings.whatsapp.is_configured ? 'Conectado' : 'Pendiente'}
-                            detail={settings.whatsapp.phone_id || 'Sin Phone ID'}
+                            value={settings.whatsapp.is_configured ? t('settings.whatsapp.connected') : t('settings.pending')}
+                            detail={settings.whatsapp.phone_id || t('settings.whatsapp.noPhoneId')}
                             active={settings.whatsapp.is_configured}
                         />
                         <StatusTile
                             icon={Headphones}
-                            title="Audios"
-                            value={settings.groq.is_configured ? 'Activo' : 'Pendiente'}
-                            detail="Transcripción automática"
+                            title={t('settings.audioTile.title')}
+                            value={settings.groq.is_configured ? t('settings.active') : t('settings.pending')}
+                            detail={t('settings.audioTile.detail')}
                             active={settings.groq.is_configured}
                         />
                         <StatusTile
                             icon={Users}
-                            title="Turnos"
+                            title={t('settings.shiftsTile.title')}
                             value={`${selectedAdvisors.length}/${advisors.length}`}
-                            detail="asesores activos"
+                            detail={t('settings.shiftsTile.detail')}
                             active={selectedAdvisors.length > 0}
                         />
                     </section>
@@ -382,8 +382,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             title={t('settings.whatsapp.apiTitle')}
                             subtitle={t('settings.whatsapp.configureConnection')}
                             active={settings.whatsapp.is_configured}
-                            activeLabel="Configurado"
-                            inactiveLabel="Requiere datos"
+                            activeLabel={t('settings.configured')}
+                            inactiveLabel={t('settings.whatsapp.requiresData')}
                             actions={settings.whatsapp.is_configured && (
                                 <>
                                     <Button
@@ -413,7 +413,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                         ) : (
                                             <Building2 className="mr-2 h-3.5 w-3.5" />
                                         )}
-                                        Perfil
+                                        {t('settings.whatsapp.profileButton')}
                                     </Button>
                                 </>
                             )}
@@ -421,8 +421,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                         <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
                             <section>
-                                <h3 className="text-[15px] font-bold settings-title">Credenciales</h3>
-                                <p className="mt-1 text-[13px] settings-subtitle">Tokens privados usados por Meta y el webhook.</p>
+                                <h3 className="text-[15px] font-bold settings-title">{t('settings.whatsapp.credentialsTitle')}</h3>
+                                <p className="mt-1 text-[13px] settings-subtitle">{t('settings.whatsapp.credentialsSubtitle')}</p>
                                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <CredentialInput
                                         id="whatsapp_token"
@@ -451,8 +451,8 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             </section>
 
                             <section className="border-t border-[#d4d8e8]/70 pt-6 dark:border-white/10 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-                                <h3 className="text-[15px] font-bold settings-title">Identificadores</h3>
-                                <p className="mt-1 text-[13px] settings-subtitle">IDs operativos de WhatsApp Business.</p>
+                                <h3 className="text-[15px] font-bold settings-title">{t('settings.whatsapp.identifiersTitle')}</h3>
+                                <p className="mt-1 text-[13px] settings-subtitle">{t('settings.whatsapp.identifiersSubtitle')}</p>
                                 <div className="mt-4 space-y-4">
                                     <CredentialInput
                                         id="whatsapp_phone_id"
@@ -512,15 +512,15 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                         <Building2 className="h-4 w-4 text-[#2e3f84] dark:text-neutral-100" />
                                         <h3 className="text-sm font-bold settings-title">WhatsApp Business Profile</h3>
                                     </div>
-                                    <StatusPill active={businessProfile.verified} activeLabel="Verificado" inactiveLabel="No verificado" />
+                                    <StatusPill active={businessProfile.verified} activeLabel={t('settings.whatsapp.verified')} inactiveLabel={t('settings.whatsapp.notVerified')} />
                                 </div>
                                 <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
                                     {[
-                                        ['Nombre', businessProfile.business_name],
-                                        ['Teléfono', businessProfile.phone_number],
+                                        [t('settings.whatsapp.profileName'), businessProfile.business_name],
+                                        [t('settings.whatsapp.profilePhone'), businessProfile.phone_number],
                                         ['Phone ID', businessProfile.phone_number_id],
-                                        ['Calidad', businessProfile.quality_rating],
-                                        ['Límite mensajes', businessProfile.messaging_limit],
+                                        [t('settings.whatsapp.profileQuality'), businessProfile.quality_rating],
+                                        [t('settings.whatsapp.profileMessagingLimit'), businessProfile.messaging_limit],
                                     ].map(([label, value]) => (
                                         <div key={label} className="min-w-0 rounded-xl bg-[#f4f5f9]/70 px-3 py-2 dark:bg-white/[0.04]">
                                             <p className="text-[10px] font-semibold uppercase tracking-normal settings-subtitle">{label}</p>
@@ -556,22 +556,22 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         <form onSubmit={handleGroqSubmit} className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                             <SectionHeader
                                 icon={Headphones}
-                                title="Transcripción de audio"
-                                subtitle="Groq para audios recibidos en WhatsApp."
+                                title={t('settings.groq.title')}
+                                subtitle={t('settings.groq.subtitle')}
                                 active={settings.groq.is_configured}
-                                activeLabel="Activo"
-                                inactiveLabel="Pendiente"
+                                activeLabel={t('settings.active')}
+                                inactiveLabel={t('settings.pending')}
                             />
 
                             <div className="mt-5">
                                 <CredentialInput
                                     id="groq_api_key"
-                                    label="API Key de Groq"
+                                    label={t('settings.groq.apiKeyLabel')}
                                     icon={KeyRound}
                                     type="password"
                                     value={groqForm.data.groq_api_key}
                                     onChange={(value) => groqForm.setData('groq_api_key', value)}
-                                    placeholder={settings.groq.api_key ? 'Actualizar API Key...' : 'gsk_xxxxx...'}
+                                    placeholder={settings.groq.api_key ? t('settings.groq.updateApiKeyPlaceholder') : 'gsk_xxxxx...'}
                                     preview={settings.groq.api_key}
                                     error={groqForm.errors.groq_api_key}
                                 />
@@ -585,12 +585,12 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 {groqForm.processing ? (
                                     <>
                                         <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                                        Guardando...
+                                        {t('common.saving')}
                                     </>
                                 ) : (
                                     <>
                                         <Check className="mr-2 h-3.5 w-3.5" />
-                                        Guardar configuración
+                                        {t('settings.saveConfiguration')}
                                     </>
                                 )}
                             </Button>
@@ -599,11 +599,11 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         <section className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
                             <SectionHeader
                                 icon={Users}
-                                title="Asesores de turno"
-                                subtitle="Conversaciones entrantes y asignación global."
+                                title={t('settings.onDutyAdvisors.title')}
+                                subtitle={t('settings.onDutyAdvisors.subtitle')}
                                 active={selectedAdvisors.length > 0}
                                 activeLabel={`${selectedAdvisors.length}/${advisors.length}`}
-                                inactiveLabel="Sin asesores"
+                                inactiveLabel={t('settings.onDutyAdvisors.noneSelected')}
                             />
 
                             <div className="relative mt-4">
@@ -611,7 +611,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                 <Input
                                     value={advisorSearch}
                                     onChange={(event) => setAdvisorSearch(event.target.value)}
-                                    placeholder="Buscar asesor..."
+                                    placeholder={t('settings.onDutyAdvisors.searchPlaceholder')}
                                     className="h-10 rounded-xl pl-9 pr-9 text-xs settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
                                 />
                                 {advisorSearch && (
@@ -619,7 +619,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                         type="button"
                                         onClick={() => setAdvisorSearch('')}
                                         className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[#6b7494] transition-colors hover:bg-black/5 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100"
-                                        aria-label="Limpiar búsqueda"
+                                        aria-label={t('common.clearSearch')}
                                     >
                                         <X className="h-3.5 w-3.5" />
                                     </button>
@@ -629,15 +629,15 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             {advisors.length === 0 ? (
                                 <div className="py-6 text-center settings-subtitle">
                                     <Users className="mx-auto mb-3 h-8 w-8 opacity-50" />
-                                    <p className="text-sm font-semibold settings-title">No hay asesores registrados</p>
-                                    <p className="mt-1 text-xs">Crea asesores en la sección de usuarios.</p>
+                                    <p className="text-sm font-semibold settings-title">{t('settings.onDutyAdvisors.emptyTitle')}</p>
+                                    <p className="mt-1 text-xs">{t('settings.onDutyAdvisors.emptyDescription')}</p>
                                 </div>
                             ) : (
                                 <>
                                     <div className="mt-3 grid max-h-[220px] grid-cols-1 gap-2 overflow-y-auto pr-1 custom-scrollbar-light xl:grid-cols-2">
                                         {filteredAdvisors.length === 0 ? (
                                             <div className="rounded-xl border border-dashed border-[#d4d8e8] px-4 py-6 text-center text-xs settings-subtitle dark:border-white/10 xl:col-span-2">
-                                                No hay coincidencias para la búsqueda.
+                                                {t('settings.onDutyAdvisors.noResults')}
                                             </div>
                                         ) : (
                                             filteredAdvisors.map((advisor) => {
@@ -690,7 +690,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
 
                                     <div className="mt-4 flex flex-col gap-3 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
                                         <p className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">
-                                            {selectedAdvisors.length} seleccionados
+                                            {t('settings.onDutyAdvisors.selectedCount', { count: selectedAdvisors.length })}
                                         </p>
                                         <Button
                                             type="button"
@@ -701,12 +701,12 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                             {savingAdvisors ? (
                                                 <>
                                                     <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                                                    Guardando...
+                                                    {t('common.saving')}
                                                 </>
                                             ) : (
                                                 <>
                                                     <Check className="mr-2 h-3.5 w-3.5" />
-                                                    Guardar cambios
+                                                    {t('common.saveChanges')}
                                                 </>
                                             )}
                                         </Button>

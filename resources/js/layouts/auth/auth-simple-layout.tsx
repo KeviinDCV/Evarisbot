@@ -2,6 +2,7 @@ import { LanguageSelector } from '@/components/language-selector';
 import { useAppearance } from '@/hooks/use-appearance';
 import { Moon, Sun } from 'lucide-react';
 import { type PropsWithChildren } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface AuthLayoutProps {
     name?: string;
@@ -15,6 +16,7 @@ export default function AuthSimpleLayout({
     description,
 }: PropsWithChildren<AuthLayoutProps>) {
     const { appearance, updateAppearance } = useAppearance();
+    const { t } = useTranslation();
     const isDark =
         appearance === 'dark' ||
         (appearance === 'system' &&
@@ -43,8 +45,8 @@ export default function AuthSimpleLayout({
                     onClick={() => updateAppearance(isDark ? 'light' : 'dark')}
                     className="flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95"
                     style={{ background: 'var(--auth-badge-bg)', color: 'var(--auth-badge-text)' }}
-                    title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-                    aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+                    title={isDark ? t('common.switchToLight') : t('common.switchToDark')}
+                    aria-label={isDark ? t('common.switchToLight') : t('common.switchToDark')}
                 >
                     {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
                 </button>
@@ -92,7 +94,7 @@ export default function AuthSimpleLayout({
                     className="text-center"
                     style={{ margin: '30px 0 0', fontSize: '12px', fontWeight: 600, letterSpacing: '.04em', color: 'var(--auth-subtle)' }}
                 >
-                    Innovación y Desarrollo
+                    {t('auth.footerTagline')}
                 </p>
             </div>
         </div>

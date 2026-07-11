@@ -145,7 +145,7 @@ export default function Login({ status }: LoginProps) {
                                 style={{ color: rememberMe ? 'var(--auth-remember-text-on)' : 'var(--auth-remember-text)' }}
                             >
                                 <InfinityIcon className="h-3.5 w-3.5 flex-shrink-0" />
-                                Nunca cerrar sesión
+                                {t('auth.neverLogout')}
                             </span>
                         </button>
 

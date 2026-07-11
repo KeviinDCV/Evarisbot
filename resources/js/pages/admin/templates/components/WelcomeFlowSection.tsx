@@ -1,4 +1,5 @@
 import { router, useForm } from '@inertiajs/react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,19 +77,20 @@ interface WelcomeFlowSectionProps {
     welcomeFlows: WelcomeFlow[];
 }
 
-const triggerTypeLabels: Record<string, string> = {
-    first_contact: 'Primer contacto',
-    every_new_conversation: 'Cada conversación nueva',
-    always: 'Siempre',
+const triggerTypeLabelKeys: Record<string, string> = {
+    first_contact: 'welcomeFlow.triggerFirstContact',
+    every_new_conversation: 'welcomeFlow.triggerEveryNewConversation',
+    always: 'welcomeFlow.triggerAlways',
 };
 
-const messageTypeLabels: Record<string, string> = {
-    interactive_buttons: 'Botones',
-    wait_response: 'Espera texto',
-    text: 'Texto',
+const messageTypeLabelKeys: Record<string, string> = {
+    interactive_buttons: 'welcomeFlow.messageTypeButtons',
+    wait_response: 'welcomeFlow.messageTypeWaitResponse',
+    text: 'welcomeFlow.messageTypeText',
 };
 
 function FlowStatusPill({ active }: { active: boolean }) {
+    const { t } = useTranslation();
     return (
         <span
             className={cn(
@@ -99,7 +101,7 @@ function FlowStatusPill({ active }: { active: boolean }) {
             )}
         >
             <span className={cn('h-2 w-2 rounded-full', active ? 'bg-emerald-500' : 'bg-slate-400')} />
-            {active ? 'Activo' : 'Inactivo'}
+            {active ? t('welcomeFlow.statusActive') : t('welcomeFlow.statusInactive')}
         </span>
     );
 }
@@ -119,6 +121,7 @@ function StepIcon({ type }: { type: string }) {
 }
 
 export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionProps) {
+    const { t } = useTranslation();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingFlow, setEditingFlow] = useState<WelcomeFlow | null>(null);
     const [expandedFlowId, setExpandedFlowId] = useState<number | null>(null);
@@ -236,18 +239,18 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
             {},
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success('Estado del flujo actualizado'),
-                onError: () => toast.error('Error al actualizar el flujo'),
+                onSuccess: () => toast.success(t('welcomeFlow.statusUpdated')),
+                onError: () => toast.error(t('welcomeFlow.statusUpdateError')),
             }
         );
     };
 
     const deleteFlow = (flowId: number) => {
-        if (confirm('¿Estás seguro de eliminar este flujo de bienvenida?')) {
+        if (confirm(t('welcomeFlow.deleteConfirm'))) {
             router.delete(`/admin/welcome-flows/${flowId}`, {
                 preserveScroll: true,
-                onSuccess: () => toast.success('Flujo eliminado'),
-                onError: () => toast.error('Error al eliminar el flujo'),
+                onSuccess: () => toast.success(t('welcomeFlow.deleted')),
+                onError: () => toast.error(t('welcomeFlow.deleteError')),
             });
         }
     };
@@ -263,28 +266,28 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             <Bot className="h-4.5 w-4.5" />
                         </div>
                         <div className="min-w-0">
-                            <h2 className="text-base font-bold leading-tight settings-title">Menú de bienvenida</h2>
+                            <h2 className="text-base font-bold leading-tight settings-title">{t('welcomeFlow.sectionTitle')}</h2>
                             <p className="mt-1 text-xs settings-subtitle">
-                                {welcomeFlows.length} flujo{welcomeFlows.length === 1 ? '' : 's'} · {activeFlows} activo{activeFlows === 1 ? '' : 's'}
+                                {t('welcomeFlow.flowsCount', { count: welcomeFlows.length })} · {t('welcomeFlow.activeCount', { count: activeFlows })}
                             </p>
                         </div>
                     </div>
                     <Button onClick={openCreateModal} className="h-9 rounded-xl settings-btn-primary text-white">
                         <Plus className="h-4 w-4" />
-                        Nuevo flujo
+                        {t('welcomeFlow.newFlow')}
                     </Button>
                 </div>
 
                 {welcomeFlows.length === 0 ? (
                     <div className="flex min-h-[180px] flex-col items-center justify-center rounded-xl border border-dashed border-[#d4d8e8] p-6 text-center dark:border-white/10">
                         <Workflow className="mb-3 h-10 w-10 settings-subtitle" />
-                        <h3 className="text-base font-bold settings-title">Sin flujos de bienvenida</h3>
+                        <h3 className="text-base font-bold settings-title">{t('welcomeFlow.emptyTitle')}</h3>
                         <p className="mt-2 max-w-lg text-sm settings-subtitle">
-                            Crea un menú de bienvenida para responder automáticamente a los nuevos contactos.
+                            {t('welcomeFlow.emptyDescription')}
                         </p>
                         <Button onClick={openCreateModal} className="mt-4 rounded-xl settings-btn-primary text-white">
                             <Plus className="h-4 w-4" />
-                            Crear flujo
+                            {t('welcomeFlow.createFlow')}
                         </Button>
                     </div>
                 ) : (
@@ -315,8 +318,8 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                     <FlowStatusPill active={flow.is_active} />
                                                 </div>
                                                 <p className="mt-1 truncate text-xs settings-subtitle">
-                                                    {triggerTypeLabels[flow.trigger_type] || flow.trigger_type} · {totalInteractions} paso{totalInteractions === 1 ? '' : 's'}
-                                                    {flow.creator ? ` · creado por ${flow.creator.name}` : ''}
+                                                    {triggerTypeLabelKeys[flow.trigger_type] ? t(triggerTypeLabelKeys[flow.trigger_type]) : flow.trigger_type} · {t('welcomeFlow.stepsCount', { count: totalInteractions })}
+                                                    {flow.creator ? t('welcomeFlow.createdBy', { name: flow.creator.name }) : ''}
                                                 </p>
                                             </div>
                                         </div>
@@ -328,7 +331,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 variant="outline"
                                                 onClick={() => setExpandedFlowId(expanded ? null : flow.id)}
                                                 className="h-8 w-8 rounded-xl settings-btn-secondary"
-                                                title="Ver detalles"
+                                                title={t('welcomeFlow.viewDetails')}
                                             >
                                                 {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                             </Button>
@@ -343,7 +346,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                         ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/10'
                                                         : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-white/10 dark:text-neutral-300 dark:hover:bg-white/[0.05]'
                                                 )}
-                                                title={flow.is_active ? 'Desactivar' : 'Activar'}
+                                                title={flow.is_active ? t('welcomeFlow.deactivate') : t('welcomeFlow.activate')}
                                             >
                                                 {flow.is_active ? <Power className="h-4 w-4" /> : <PowerOff className="h-4 w-4" />}
                                             </Button>
@@ -353,7 +356,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 variant="outline"
                                                 onClick={() => openEditModal(flow)}
                                                 className="h-8 w-8 rounded-xl settings-btn-secondary"
-                                                title="Editar"
+                                                title={t('common.edit')}
                                             >
                                                 <Edit3 className="h-4 w-4" />
                                             </Button>
@@ -363,7 +366,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 variant="outline"
                                                 onClick={() => deleteFlow(flow.id)}
                                                 className="h-8 w-8 rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
-                                                title="Eliminar"
+                                                title={t('common.delete')}
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
@@ -376,7 +379,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 <div className="space-y-3">
                                                     <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
                                                         <Workflow className="h-4 w-4" />
-                                                        Flujo conversacional ({steps.length} pasos)
+                                                        {t('welcomeFlow.conversationalFlow', { count: steps.length })}
                                                     </div>
                                                     {steps.map((step, index) => (
                                                         <div key={step.id} className="rounded-xl border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
@@ -392,12 +395,12 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                                 <span className="text-sm font-semibold settings-title">{step.step_key}</span>
                                                                 <span className="inline-flex items-center gap-1.5 rounded-md border border-[#d4d8e8] bg-white/60 px-2 py-0.5 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">
                                                                     <StepIcon type={step.message_type} />
-                                                                    {messageTypeLabels[step.message_type] || step.message_type}
+                                                                    {messageTypeLabelKeys[step.message_type] ? t(messageTypeLabelKeys[step.message_type]) : step.message_type}
                                                                 </span>
                                                                 {step.is_entry_point && (
                                                                     <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
                                                                         <CircleDot className="h-3 w-3" />
-                                                                        Entrada
+                                                                        {t('welcomeFlow.entryPoint')}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -424,9 +427,9 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                             {step.message_type === 'wait_response' && step.next_step_on_text && (
                                                                 <div className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-[#d4d8e8] bg-white/60 px-2.5 py-1 text-xs font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">
                                                                     <Keyboard className="h-3.5 w-3.5" />
-                                                                    Espera texto
+                                                                    {t('welcomeFlow.messageTypeWaitResponse')}
                                                                     <ArrowRight className="h-3 w-3" />
-                                                                    {step.next_step_on_text === '__complete__' ? 'Fin' : step.next_step_on_text}
+                                                                    {step.next_step_on_text === '__complete__' ? t('welcomeFlow.flowEnd') : step.next_step_on_text}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -436,7 +439,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 <div className="space-y-3">
                                                     <div className="flex items-center gap-2 text-xs font-semibold settings-subtitle">
                                                         <MessageSquare className="h-4 w-4" />
-                                                        Mensaje de bienvenida
+                                                        {t('welcomeFlow.welcomeMessage')}
                                                     </div>
                                                     <MessagePreview>{flow.message}</MessagePreview>
                                                     {buttons.length > 0 && (
@@ -465,23 +468,23 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                     <DialogHeader className="border-b border-[#d4d8e8]/80 px-6 py-4 dark:border-white/10">
                         <DialogTitle className="flex items-center gap-2 text-lg font-bold settings-title">
                             <Bot className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
-                            {editingFlow ? 'Editar flujo de bienvenida' : 'Nuevo flujo de bienvenida'}
+                            {editingFlow ? t('welcomeFlow.editFlowTitle') : t('welcomeFlow.newFlowTitle')}
                         </DialogTitle>
                         <DialogDescription className="text-xs settings-subtitle">
-                            Configura el mensaje, activación y botones del flujo.
+                            {t('welcomeFlow.dialogDescription')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
                         <div className="space-y-1.5">
                             <Label htmlFor="flow-name" className="text-sm font-semibold settings-label">
-                                Nombre del flujo
+                                {t('welcomeFlow.flowNameLabel')}
                             </Label>
                             <Input
                                 id="flow-name"
                                 value={data.name}
                                 onChange={(event) => setData('name', event.target.value)}
-                                placeholder="Ej: Menú de Bienvenida HUV"
+                                placeholder={t('welcomeFlow.flowNamePlaceholder')}
                                 className="h-9 rounded-xl settings-input"
                                 required
                             />
@@ -490,29 +493,29 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
 
                         <div className="space-y-1.5">
                             <Label htmlFor="flow-trigger" className="text-sm font-semibold settings-label">
-                                ¿Cuándo se envía?
+                                {t('welcomeFlow.whenSentLabel')}
                             </Label>
                             <Select value={data.trigger_type} onValueChange={(v) => setData('trigger_type', v)}>
                                 <SelectTrigger id="flow-trigger" className="w-full h-10 settings-input rounded-xl">
-                                    <SelectValue placeholder="Selecciona cuándo se envía" />
+                                    <SelectValue placeholder={t('welcomeFlow.whenSentPlaceholder')} />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
-                                    <SelectItem value="first_contact" className="rounded-lg cursor-pointer">Solo primer contacto</SelectItem>
-                                    <SelectItem value="every_new_conversation" className="rounded-lg cursor-pointer">Cada conversación nueva</SelectItem>
-                                    <SelectItem value="always" className="rounded-lg cursor-pointer">Siempre</SelectItem>
+                                    <SelectItem value="first_contact" className="rounded-lg cursor-pointer">{t('welcomeFlow.triggerFirstContactOption')}</SelectItem>
+                                    <SelectItem value="every_new_conversation" className="rounded-lg cursor-pointer">{t('welcomeFlow.triggerEveryNewConversation')}</SelectItem>
+                                    <SelectItem value="always" className="rounded-lg cursor-pointer">{t('welcomeFlow.triggerAlways')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-1.5">
                             <Label htmlFor="flow-message" className="text-sm font-semibold settings-label">
-                                Mensaje de bienvenida
+                                {t('welcomeFlow.welcomeMessage')}
                             </Label>
                             <Textarea
                                 id="flow-message"
                                 value={data.message}
                                 onChange={(event) => setData('message', event.target.value)}
-                                placeholder="Escribe el mensaje que recibirá el usuario al iniciar la conversación..."
+                                placeholder={t('welcomeFlow.welcomeMessagePlaceholder')}
                                 className="min-h-[132px] rounded-xl settings-input"
                                 required
                             />
@@ -522,18 +525,18 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                         <div className="space-y-3 rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
-                                    <Label className="text-sm font-semibold settings-label">Botones interactivos</Label>
-                                    <p className="mt-1 text-xs settings-subtitle">{data.buttons.length}/3 configurados</p>
+                                    <Label className="text-sm font-semibold settings-label">{t('welcomeFlow.interactiveButtonsLabel')}</Label>
+                                    <p className="mt-1 text-xs settings-subtitle">{t('welcomeFlow.buttonsConfigured', { count: data.buttons.length })}</p>
                                 </div>
                                 <Button type="button" variant="outline" onClick={addButton} disabled={data.buttons.length >= 3} className="h-8 rounded-xl settings-btn-secondary">
                                     <Plus className="h-4 w-4" />
-                                    Añadir
+                                    {t('welcomeFlow.add')}
                                 </Button>
                             </div>
 
                             {data.buttons.length === 0 ? (
                                 <p className="rounded-xl border border-dashed border-[#d4d8e8] p-3 text-sm settings-subtitle dark:border-white/10">
-                                    Sin botones configurados.
+                                    {t('welcomeFlow.noButtonsConfigured')}
                                 </p>
                             ) : (
                                 <div className="space-y-3">
@@ -541,25 +544,25 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                         <div key={`${button.id}-${index}`} className="rounded-xl border border-[#d4d8e8]/80 bg-white/60 p-3 dark:border-white/10 dark:bg-white/[0.04]">
                                             <div className="mb-3 flex items-center gap-2">
                                                 <MousePointerClick className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
-                                                <span className="text-sm font-semibold settings-title">Botón {index + 1}</span>
+                                                <span className="text-sm font-semibold settings-title">{t('welcomeFlow.buttonNumber', { number: index + 1 })}</span>
                                                 <Button
                                                     type="button"
                                                     size="icon"
                                                     variant="ghost"
                                                     onClick={() => removeButton(index)}
                                                     className="ml-auto h-7 w-7 rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
-                                                    title="Eliminar botón"
+                                                    title={t('welcomeFlow.removeButton')}
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
                                             </div>
                                             <div className="grid gap-3 sm:grid-cols-2">
                                                 <div className="space-y-1.5">
-                                                    <Label className="text-xs font-semibold settings-label">Texto</Label>
+                                                    <Label className="text-xs font-semibold settings-label">{t('welcomeFlow.buttonTextLabel')}</Label>
                                                     <Input
                                                         value={button.title}
                                                         onChange={(event) => updateButton(index, 'title', event.target.value)}
-                                                        placeholder="Ej: Acepto"
+                                                        placeholder={t('welcomeFlow.buttonTextPlaceholder')}
                                                         maxLength={20}
                                                         className="h-9 rounded-xl settings-input"
                                                         required
@@ -567,22 +570,22 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                     <p className="text-[11px] settings-subtitle">{button.title.length}/20</p>
                                                 </div>
                                                 <div className="space-y-1.5">
-                                                    <Label className="text-xs font-semibold settings-label">ID</Label>
+                                                    <Label className="text-xs font-semibold settings-label">{t('welcomeFlow.buttonIdLabel')}</Label>
                                                     <Input
                                                         value={button.id}
                                                         onChange={(event) => updateButton(index, 'id', event.target.value)}
-                                                        placeholder="Ej: accept"
+                                                        placeholder={t('welcomeFlow.buttonIdPlaceholder')}
                                                         className="h-9 rounded-xl settings-input"
                                                         required
                                                     />
                                                 </div>
                                             </div>
                                             <div className="mt-3 space-y-1.5">
-                                                <Label className="text-xs font-semibold settings-label">Respuesta automática</Label>
+                                                <Label className="text-xs font-semibold settings-label">{t('welcomeFlow.autoResponseLabel')}</Label>
                                                 <Textarea
                                                     value={data.responses[button.id] || ''}
                                                     onChange={(event) => updateResponse(button.id, event.target.value)}
-                                                    placeholder="Mensaje que se enviará cuando el usuario presione este botón..."
+                                                    placeholder={t('welcomeFlow.autoResponsePlaceholder')}
                                                     className="min-h-[84px] rounded-xl settings-input"
                                                 />
                                             </div>
@@ -594,8 +597,8 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
 
                         <div className="flex items-center justify-between gap-4 rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                             <div>
-                                <p className="text-sm font-semibold settings-title">Activar flujo</p>
-                                <p className="mt-1 text-xs settings-subtitle">Solo puede haber un flujo activo a la vez</p>
+                                <p className="text-sm font-semibold settings-title">{t('welcomeFlow.activateFlow')}</p>
+                                <p className="mt-1 text-xs settings-subtitle">{t('welcomeFlow.singleActiveHint')}</p>
                             </div>
                             <button
                                 type="button"
@@ -604,7 +607,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                     'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200',
                                     data.is_active ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
                                 )}
-                                title={data.is_active ? 'Desactivar' : 'Activar'}
+                                title={data.is_active ? t('welcomeFlow.deactivate') : t('welcomeFlow.activate')}
                             >
                                 <span
                                     className={cn(
@@ -617,11 +620,11 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
 
                         <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
                             <Button type="button" variant="outline" onClick={closeModal} className="h-9 rounded-xl settings-btn-secondary">
-                                Cancelar
+                                {t('common.cancel')}
                             </Button>
                             <Button type="submit" disabled={processing} className="h-9 rounded-xl settings-btn-primary text-white">
                                 <Save className="h-4 w-4" />
-                                {processing ? 'Guardando...' : editingFlow ? 'Actualizar' : 'Crear flujo'}
+                                {processing ? t('common.saving') : editingFlow ? t('welcomeFlow.update') : t('welcomeFlow.createFlow')}
                             </Button>
                         </div>
                     </form>

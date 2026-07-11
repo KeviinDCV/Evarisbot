@@ -149,8 +149,8 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             href: '/admin/appointments',
             icon: Calendar,
             children: [
-                { title: 'General', href: '/admin/appointments' },
-                { title: 'Oncología', href: '/admin/oncology-appointments' },
+                { title: t('navigation.appointmentsGeneral'), href: '/admin/appointments' },
+                { title: t('navigation.appointmentsOncology'), href: '/admin/oncology-appointments' },
             ],
         },
         {

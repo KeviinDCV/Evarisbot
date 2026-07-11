@@ -7,17 +7,19 @@ import {
 import { Appearance, useAppearance } from '@/hooks/use-appearance';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { HTMLAttributes } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function AppearanceToggleDropdown({
     className = '',
     ...props
 }: HTMLAttributes<HTMLDivElement>) {
     const { appearance, updateAppearance } = useAppearance();
+    const { t } = useTranslation();
 
     const options = [
-        { value: 'system' as Appearance, icon: Monitor, label: 'Sistema' },
-        { value: 'light' as Appearance, icon: Sun, label: 'Claro' },
-        { value: 'dark' as Appearance, icon: Moon, label: 'Oscuro' },
+        { value: 'system' as Appearance, icon: Monitor, label: t('common.themeSystem') },
+        { value: 'light' as Appearance, icon: Sun, label: t('common.themeLight') },
+        { value: 'dark' as Appearance, icon: Moon, label: t('common.themeDark') },
     ];
 
     const currentOption = options.find(opt => opt.value === appearance) || options[0];
@@ -29,7 +31,7 @@ export default function AppearanceToggleDropdown({
                 <DropdownMenuTrigger asChild>
                     <button
                         className="flex flex-col items-center gap-0.5 py-2.5 w-full rounded-xl text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-neutral-200 hover:bg-slate-200/60 dark:hover:bg-neutral-800/60 transition-all duration-200"
-                        title="Cambiar tema"
+                        title={t('common.changeTheme')}
                     >
                         <CurrentIcon className="w-5 h-5" />
                         <span className="text-[10px] font-medium leading-tight">

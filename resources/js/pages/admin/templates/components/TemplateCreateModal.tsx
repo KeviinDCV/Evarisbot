@@ -92,9 +92,9 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
 
     const getFileTypeLabel = (type: 'image' | 'video' | 'document') => {
         switch (type) {
-            case 'image': return 'Imagen';
-            case 'video': return 'Video';
-            default: return 'Documento';
+            case 'image': return t('templates.types.image');
+            case 'video': return t('templates.types.video');
+            default: return t('templates.types.document');
         }
     };
 
@@ -128,9 +128,9 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
                 forceFormData: true,
                 onSuccess: () => {
                     handleClose();
-                    toast.success('Plantilla creada exitosamente');
+                    toast.success(t('templates.createdSuccess'));
                 },
-                onError: () => toast.error('Error al crear la plantilla'),
+                onError: () => toast.error(t('templates.createError')),
             });
         });
     };
@@ -196,10 +196,10 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
                     {/* Archivos Adjuntos */}
                     <div className="space-y-1.5">
                         <Label className="text-sm font-semibold settings-label">
-                            Archivos adjuntos (opcional)
+                            {t('templates.attachments')}
                         </Label>
                         <p className="text-xs settings-subtitle mb-2">
-                            Múltiples formatos soportados (JPG, PNG, GIF, MP4, PDF, DOC). Max 20MB p/u.
+                            {t('templates.attachmentsHint')}
                         </p>
 
                         <input
@@ -216,7 +216,7 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
                                 {selectedFiles.map((mediaFile, index) => (
                                     <div key={index} className="p-2 rounded-xl user-stats-box bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800 flex items-center gap-3">
                                         {mediaFile.preview ? (
-                                            <img src={mediaFile.preview} alt="Preview" className="w-10 h-10 object-cover rounded-xl" />
+                                            <img src={mediaFile.preview} alt={t('templates.previewAlt')} className="w-10 h-10 object-cover rounded-xl" />
                                         ) : (
                                             <div className="w-10 h-10 chat-message-sent rounded-xl flex items-center justify-center text-white">
                                                 {getFileIcon(mediaFile.type)}
@@ -242,14 +242,14 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
                             className="w-full py-4 border-2 border-dashed border-[#e2e4ed] dark:border-[hsl(231,20%,25%)] rounded-xl hover:border-[#2e3f84] dark:hover:border-[hsl(231,55%,55%)] transition-all duration-200 flex flex-col items-center gap-1 settings-subtitle"
                         >
                             <Paperclip className="w-5 h-5 mb-1" />
-                            <span className="text-xs font-semibold">Haz clic para adjuntar archivos</span>
+                            <span className="text-xs font-semibold">{t('templates.clickToAttach')}</span>
                         </button>
                     </div>
 
                     {/* Tipo de Plantilla */}
                     <div className="space-y-2">
                         <Label className="text-sm font-semibold settings-label mb-1 block">
-                            Tipo de Plantilla
+                            {t('templates.templateType')}
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <label className="flex items-center space-x-3 p-3 border border-border dark:border-[hsl(231,20%,22%)] rounded-xl cursor-pointer bg-white/50 dark:bg-black/20">
@@ -265,8 +265,8 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
                                 />
                                 <Globe className="w-4 h-4 settings-title flex-shrink-0" />
                                 <div>
-                                    <p className="text-xs font-bold settings-title">Global</p>
-                                    <p className="text-[10px] settings-subtitle leading-tight">Para todos los usuarios</p>
+                                    <p className="text-xs font-bold settings-title">{t('templates.global')}</p>
+                                    <p className="text-[10px] settings-subtitle leading-tight">{t('templates.globalDescription')}</p>
                                 </div>
                             </label>
                             <label className="flex items-center space-x-3 p-3 border border-border dark:border-[hsl(231,20%,22%)] rounded-xl cursor-pointer bg-white/50 dark:bg-black/20">
@@ -279,8 +279,8 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
                                 />
                                 <Users className="w-4 h-4 settings-title flex-shrink-0" />
                                 <div>
-                                    <p className="text-xs font-bold settings-title">Asignada</p>
-                                    <p className="text-[10px] settings-subtitle leading-tight">Solo usuarios elegidos</p>
+                                    <p className="text-xs font-bold settings-title">{t('templates.assigned')}</p>
+                                    <p className="text-[10px] settings-subtitle leading-tight">{t('templates.assignedDescription')}</p>
                                 </div>
                             </label>
                         </div>
@@ -291,7 +291,7 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
                         <div className="space-y-1.5">
                             <Label className="text-sm font-semibold settings-label">
                                 <UserCheck className="inline w-3.5 h-3.5 mr-1.5" />
-                                Asignar a Usuarios
+                                {t('templates.assignToUsers')}
                             </Label>
                             <div className="max-h-32 overflow-y-auto border border-border dark:border-[hsl(231,20%,22%)] rounded-xl p-2 space-y-1">
                                 {users?.map((user) => (

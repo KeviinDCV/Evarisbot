@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import InputError from '@/components/input-error';
 import { ArrowLeft, Users, Globe, UserCheck, X, Image, Video, FileText, Paperclip, Plus } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface ExistingMediaFile {
     url: string;
@@ -44,6 +45,7 @@ interface EditTemplateProps {
 }
 
 export default function EditTemplate({ template, users }: EditTemplateProps) {
+    const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Archivos existentes (ya guardados en el servidor)
@@ -80,9 +82,9 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
 
     const getFileTypeLabel = (type: 'image' | 'video' | 'document') => {
         switch (type) {
-            case 'image': return 'Imagen';
-            case 'video': return 'Video';
-            default: return 'Documento';
+            case 'image': return t('templates.fileTypeImage');
+            case 'video': return t('templates.fileTypeVideo');
+            default: return t('templates.fileTypeDocument');
         }
     };
 
@@ -161,7 +163,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
 
     return (
         <AdminLayout>
-            <Head title={`Editar: ${template.name}`} />
+            <Head title={t('templates.editPageTitle', { name: template.name })} />
 
             <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
                 {/* Container: Centered content box */}
@@ -173,11 +175,11 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                             className="inline-flex items-center text-muted-foreground mb-3 md:mb-4 px-3 py-2 rounded-xl transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/5 hover:text-primary"
                         >
                             <ArrowLeft className="w-4 h-4 mr-2" />
-                            <span className="hidden sm:inline">Volver a plantillas</span>
-                            <span className="sm:hidden">Volver</span>
+                            <span className="hidden sm:inline">{t('templates.backToTemplates')}</span>
+                            <span className="sm:hidden">{t('common.back')}</span>
                         </Link>
-                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-primary">Editar Plantilla</h1>
-                        <p className="text-sm md:text-base text-muted-foreground mt-1">Modifica los datos de la plantilla</p>
+                        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-primary">{t('templates.editTitle')}</h1>
+                        <p className="text-sm md:text-base text-muted-foreground mt-1">{t('templates.editSubtitle')}</p>
                     </div>
 
                     {/* Form: Centered box with natural max-width */}
@@ -186,14 +188,14 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                             {/* Nombre */}
                             <div className="space-y-2">
                                 <Label htmlFor="name" className="text-sm font-medium text-primary">
-                                    Nombre de la Plantilla
+                                    {t('templates.nameLabel')}
                                 </Label>
                                 <Input
                                     id="name"
                                     type="text"
                                     value={form.data.name}
                                     onChange={(e) => form.setData('name', e.target.value)}
-                                    placeholder="Ej: Bienvenida Nuevos Clientes"
+                                    placeholder={t('templates.templateNamePlaceholder')}
                                     className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                     required
                                 />
@@ -203,14 +205,14 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                             {/* Asunto */}
                             <div className="space-y-2">
                                 <Label htmlFor="subject" className="text-sm font-medium text-primary">
-                                    Asunto (Opcional)
+                                    {t('templates.subjectOptional')}
                                 </Label>
                                 <Input
                                     id="subject"
                                     type="text"
                                     value={form.data.subject}
                                     onChange={(e) => form.setData('subject', e.target.value)}
-                                    placeholder="Breve descripción"
+                                    placeholder={t('templates.subjectPlaceholder')}
                                     className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                 />
                                 <InputError message={form.errors.subject} />
@@ -219,10 +221,10 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                             {/* Archivos Adjuntos (Múltiples) */}
                             <div className="space-y-2">
                                 <Label className="text-sm font-medium text-primary">
-                                    Archivos adjuntos
+                                    {t('templates.attachmentsLabel')}
                                 </Label>
                                 <p className="text-xs text-muted-foreground mb-2">
-                                    Puedes adjuntar múltiples imágenes, videos o documentos. Formatos soportados: JPG, PNG, GIF, WebP (se convierte a PNG), MP4, MOV, PDF, DOC. Máximo 20MB por archivo.
+                                    {t('templates.attachmentsHelp')}
                                 </p>
 
                                 <input
@@ -237,7 +239,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                 {/* Archivos existentes */}
                                 {existingFiles.length > 0 && (
                                     <div className="space-y-2 mb-3">
-                                        <p className="text-xs font-medium text-muted-foreground">Archivos actuales:</p>
+                                        <p className="text-xs font-medium text-muted-foreground">{t('templates.currentFiles')}</p>
                                         {existingFiles.map((mediaFile, index) => (
                                             <div
                                                 key={`existing-${index}`}
@@ -245,7 +247,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.type === 'image' ? (
-                                                        <img src={mediaFile.url} alt="Preview" className="w-12 h-12 object-cover rounded-xl" />
+                                                        <img src={mediaFile.url} alt={t('templates.previewAlt')} className="w-12 h-12 object-cover rounded-xl" />
                                                     ) : (
                                                         <div className="w-12 h-12 chat-message-sent rounded-xl flex items-center justify-center text-white">
                                                             {getFileIcon(mediaFile.type)}
@@ -273,7 +275,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                 {/* Nuevos archivos seleccionados */}
                                 {newFiles.length > 0 && (
                                     <div className="space-y-2 mb-3">
-                                        <p className="text-xs font-medium text-muted-foreground">Nuevos archivos:</p>
+                                        <p className="text-xs font-medium text-muted-foreground">{t('templates.newFiles')}</p>
                                         {newFiles.map((mediaFile, index) => (
                                             <div
                                                 key={`new-${index}`}
@@ -281,7 +283,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.preview ? (
-                                                        <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-xl" />
+                                                        <img src={mediaFile.preview} alt={t('templates.previewAlt')} className="w-12 h-12 object-cover rounded-xl" />
                                                     ) : (
                                                         <div className="w-12 h-12 chat-message-sent rounded-xl flex items-center justify-center text-white">
                                                             {getFileIcon(mediaFile.type)}
@@ -290,7 +292,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                                     <div className="flex-1 min-w-0">
                                                         <p className="text-sm font-medium text-primary truncate">{mediaFile.file.name}</p>
                                                         <p className="text-xs text-muted-foreground">
-                                                            {getFileTypeLabel(mediaFile.type)} • {(mediaFile.file.size / 1024 / 1024).toFixed(2)} MB • <span className="text-green-600 dark:text-green-400">Nuevo</span>
+                                                            {getFileTypeLabel(mediaFile.type)} • {(mediaFile.file.size / 1024 / 1024).toFixed(2)} MB • <span className="text-green-600 dark:text-green-400">{t('templates.newFileBadge')}</span>
                                                         </p>
                                                     </div>
                                                     <button
@@ -315,19 +317,19 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                     {totalFiles === 0 ? (
                                         <>
                                             <Paperclip className="w-8 h-8" />
-                                            <span className="text-sm">Haz clic para seleccionar archivos</span>
+                                            <span className="text-sm">{t('templates.clickToSelectFiles')}</span>
                                         </>
                                     ) : (
                                         <>
                                             <Plus className="w-6 h-6" />
-                                            <span className="text-sm">Agregar más archivos</span>
+                                            <span className="text-sm">{t('templates.addMoreFiles')}</span>
                                         </>
                                     )}
                                 </button>
 
                                 {totalFiles > 0 && (
                                     <p className="text-xs text-muted-foreground mt-2">
-                                        {totalFiles} archivo{totalFiles !== 1 ? 's' : ''} en total
+                                        {t('templates.totalFilesCount', { count: totalFiles })}
                                     </p>
                                 )}
                             </div>
@@ -335,7 +337,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                             {/* Tipo de Plantilla */}
                             <div className="space-y-3">
                                 <Label className="text-sm font-medium text-primary">
-                                    Tipo de Plantilla
+                                    {t('templates.typeLabel')}
                                 </Label>
                                 <div className="space-y-2">
                                     <label
@@ -353,8 +355,8 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                         />
                                         <Globe className="w-5 h-5 text-primary" />
                                         <div>
-                                            <p className="font-medium text-primary">Plantilla Global</p>
-                                            <p className="text-sm text-muted-foreground">Disponible para todos los asesores y administradores</p>
+                                            <p className="font-medium text-primary">{t('templates.globalTitle')}</p>
+                                            <p className="text-sm text-muted-foreground">{t('templates.globalDescription')}</p>
                                         </div>
                                     </label>
                                     <label
@@ -369,8 +371,8 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                         />
                                         <Users className="w-5 h-5 text-primary" />
                                         <div>
-                                            <p className="font-medium text-primary">Plantilla Asignada</p>
-                                            <p className="text-sm text-muted-foreground">Disponible solo para los usuarios seleccionados</p>
+                                            <p className="font-medium text-primary">{t('templates.assignedTitle')}</p>
+                                            <p className="text-sm text-muted-foreground">{t('templates.assignedDescription')}</p>
                                         </div>
                                     </label>
                                 </div>
@@ -381,7 +383,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                 <div className="space-y-3">
                                     <Label className="text-sm font-medium text-primary">
                                         <UserCheck className="inline w-4 h-4 mr-2" />
-                                        Asignar a Usuarios
+                                        {t('templates.assignToUsers')}
                                     </Label>
                                     <div
                                         className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-800 rounded-xl p-3 space-y-2 bg-white/50 dark:bg-black/20 template-users-list p-1"
@@ -411,7 +413,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                         ))}
                                     </div>
                                     {form.data.assigned_users.length === 0 && !form.data.is_global && (
-                                        <p className="text-sm text-amber-600 dark:text-amber-400">Debes seleccionar al menos un usuario</p>
+                                        <p className="text-sm text-amber-600 dark:text-amber-400">{t('templates.selectAtLeastOneUser')}</p>
                                     )}
                                 </div>
                             )}
@@ -419,19 +421,19 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                             {/* Contenido */}
                             <div className="space-y-2">
                                 <Label htmlFor="content" className="text-sm font-medium text-primary">
-                                    Contenido del Mensaje
+                                    {t('templates.content')}
                                 </Label>
                                 <Textarea
                                     id="content"
                                     value={form.data.content}
                                     onChange={(e) => form.setData('content', e.target.value)}
-                                    placeholder="Escribe el mensaje aquí..."
+                                    placeholder={t('templates.contentPlaceholder')}
                                     rows={8}
                                     className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                     required
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Caracteres: {form.data.content.length} / 4096
+                                    {t('templates.charactersCount', { count: form.data.content.length })}
                                 </p>
                                 <InputError message={form.errors.content} />
                             </div>
@@ -446,7 +448,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                     className="w-4 h-4 rounded accent-primary"
                                 />
                                 <Label htmlFor="is_active" className="text-sm font-medium text-primary cursor-pointer">
-                                    Plantilla activa
+                                    {t('templates.activeLabel')}
                                 </Label>
                             </div>
 
@@ -457,7 +459,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                     disabled={form.processing}
                                     className="w-full sm:flex-1 h-11 settings-btn-primary rounded-xl font-medium disabled:opacity-50 transition-all"
                                 >
-                                    {form.processing ? 'Guardando...' : 'Guardar Cambios'}
+                                    {form.processing ? t('common.saving') : t('common.saveChanges')}
                                 </Button>
                                 <Link href="/admin/templates" className="w-full sm:flex-1">
                                     <Button
@@ -465,7 +467,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
                                         variant="outline"
                                         className="w-full h-11 settings-btn-secondary rounded-xl font-medium transition-all"
                                     >
-                                        Cancelar
+                                        {t('common.cancel')}
                                     </Button>
                                 </Link>
                             </div>

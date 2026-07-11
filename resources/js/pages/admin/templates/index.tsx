@@ -163,6 +163,8 @@ function SectionCard({ icon: Icon, title, subtitle, action, children, className 
 }
 
 function StatusPill({ active }: { active: boolean }) {
+    const { t } = useTranslation();
+
     return (
         <span
             className={cn(
@@ -173,16 +175,18 @@ function StatusPill({ active }: { active: boolean }) {
             )}
         >
             <span className={cn('h-2 w-2 rounded-full', active ? 'bg-emerald-500' : 'bg-slate-400')} />
-            {active ? 'Activa' : 'Inactiva'}
+            {active ? t('templates.statusLabels.active') : t('templates.statusLabels.inactive')}
         </span>
     );
 }
 
 function ScopePill({ global, assignedCount }: { global: boolean; assignedCount: number }) {
+    const { t } = useTranslation();
+
     return (
         <span className="inline-flex items-center gap-1.5 rounded-md border border-[#d4d8e8] bg-white/50 px-2.5 py-1 text-[11px] font-semibold text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-200">
             {global ? <Globe2 className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
-            {global ? 'Global' : `${assignedCount} asignado${assignedCount === 1 ? '' : 's'}`}
+            {global ? t('templates.global') : t('templates.assignedCount', { count: assignedCount })}
         </span>
     );
 }
@@ -257,7 +261,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
         { value: 'all', label: t('common.all') },
         { value: 'text', label: t('templates.types.text') },
         { value: 'image', label: t('templates.types.image') },
-        { value: 'video', label: 'Video' },
+        { value: 'video', label: t('templates.types.video') },
         { value: 'document', label: t('templates.types.document') },
     ];
 
@@ -300,8 +304,8 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
             {},
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success('Estado de plantilla actualizado'),
-                onError: () => toast.error('Error al actualizar el estado'),
+                onSuccess: () => toast.success(t('templates.statusUpdated')),
+                onError: () => toast.error(t('templates.statusUpdateError')),
             }
         );
     };
@@ -310,8 +314,8 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
         if (confirm(t('templates.deleteConfirm'))) {
             router.delete(`/admin/templates/${templateId}`, {
                 preserveScroll: true,
-                onSuccess: () => toast.success('Plantilla eliminada'),
-                onError: () => toast.error('Error al eliminar la plantilla'),
+                onSuccess: () => toast.success(t('templates.deleted')),
+                onError: () => toast.error(t('templates.deleteError')),
             });
         }
     };
@@ -334,7 +338,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
             case 'image':
                 return t('templates.types.image');
             case 'video':
-                return 'Video';
+                return t('templates.types.video');
             case 'document':
                 return t('templates.types.document');
             default:
@@ -371,21 +375,21 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                     </header>
 
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricCard icon={MessageSquare} label="Total" value={formatNumber(templates.length)} detail={`${formatNumber(stats.active)} activas`} />
-                        <MetricCard icon={Paperclip} label="Con adjuntos" value={formatNumber(stats.withMedia)} detail="imagen, video o documento" tone="info" />
-                        <MetricCard icon={Users} label="Alcance" value={formatNumber(stats.assigned)} detail="plantillas asignadas" tone="warning" />
-                        <MetricCard icon={Bot} label="Bienvenida" value={formatNumber(welcomeFlows.length)} detail={`${formatNumber(stats.activeWelcomeFlows)} flujo activo`} tone="success" />
+                        <MetricCard icon={MessageSquare} label={t('templates.metricTotal')} value={formatNumber(templates.length)} detail={t('templates.metricActiveDetail', { value: formatNumber(stats.active) })} />
+                        <MetricCard icon={Paperclip} label={t('templates.metricWithMedia')} value={formatNumber(stats.withMedia)} detail={t('templates.metricWithMediaDetail')} tone="info" />
+                        <MetricCard icon={Users} label={t('templates.metricReach')} value={formatNumber(stats.assigned)} detail={t('templates.metricReachDetail')} tone="warning" />
+                        <MetricCard icon={Bot} label={t('templates.metricWelcome')} value={formatNumber(welcomeFlows.length)} detail={t('templates.metricWelcomeDetail', { value: formatNumber(stats.activeWelcomeFlows) })} tone="success" />
                     </div>
 
                     {isAdmin && <WelcomeFlowSection welcomeFlows={welcomeFlows} />}
 
                     <SectionCard
                         icon={FileText}
-                        title="Catálogo de plantillas"
-                        subtitle={`${formatNumber(templates.length)} plantilla${templates.length === 1 ? '' : 's'} en la vista actual · ${formatNumber(stats.totalSends)} envíos registrados`}
+                        title={t('templates.catalogTitle')}
+                        subtitle={t('templates.catalogSubtitle', { count: templates.length, countFormatted: formatNumber(templates.length), sends: formatNumber(stats.totalSends) })}
                         action={
                             <span className="hidden rounded-md border border-[#d4d8e8] bg-white/50 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04] sm:inline-flex">
-                                {formatNumber(stats.inactive)} inactivas
+                                {t('templates.inactiveCount', { value: formatNumber(stats.inactive) })}
                             </span>
                         }
                     >
@@ -451,7 +455,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                             </Button>
                             <Button onClick={clearFilters} variant="outline" className="h-9 rounded-xl settings-btn-secondary" disabled={!hasFilters}>
                                 <X className="h-4 w-4" />
-                                Limpiar
+                                {t('common.clear')}
                             </Button>
                         </div>
 
@@ -497,7 +501,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                                                 <ScopePill global={template.is_global} assignedCount={assignedCount} />
                                                             </div>
                                                             <span className="shrink-0 text-xs settings-subtitle">
-                                                                <span className="font-bold settings-title">{formatNumber(template.usage_stats?.total_sends)}</span> envíos
+                                                                <span className="font-bold settings-title">{formatNumber(template.usage_stats?.total_sends)}</span> {t('templates.sends')}
                                                             </span>
                                                         </div>
                                                     </motion.div>
@@ -535,14 +539,14 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                         <StatusPill active={openTemplate.is_active} />
                                     </div>
                                 </div>
-                                <button onClick={() => setOpenTemplate(null)} className="shrink-0 rounded-full p-2 settings-subtitle transition-colors hover:bg-[#2e3f84]/10 dark:hover:bg-white/10" title="Cerrar">
+                                <button onClick={() => setOpenTemplate(null)} className="shrink-0 rounded-full p-2 settings-subtitle transition-colors hover:bg-[#2e3f84]/10 dark:hover:bg-white/10" title={t('common.close')}>
                                     <X className="h-5 w-5" />
                                 </button>
                             </div>
 
                             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="flex-1 space-y-4 overflow-y-auto p-5">
                                 <div>
-                                    <p className="mb-1.5 text-xs font-semibold settings-label">Contenido</p>
+                                    <p className="mb-1.5 text-xs font-semibold settings-label">{t('templates.contentLabel')}</p>
                                     <div className="whitespace-pre-wrap rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 text-sm leading-6 settings-title [overflow-wrap:anywhere] dark:border-white/10 dark:bg-white/[0.03]">
                                         {openTemplate.content}
                                     </div>
@@ -550,11 +554,11 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
 
                                 {(openTemplate.media_files?.length || openTemplate.media_url) && (
                                     <div>
-                                        <p className="mb-1.5 text-xs font-semibold settings-label">Adjuntos</p>
+                                        <p className="mb-1.5 text-xs font-semibold settings-label">{t('templates.attachments')}</p>
                                         <div className="flex flex-wrap gap-2">
                                             {(openTemplate.media_files?.length
                                                 ? openTemplate.media_files
-                                                : [{ url: openTemplate.media_url!, filename: openTemplate.media_filename || 'archivo', type: (openTemplate.message_type === 'image' ? 'image' : openTemplate.message_type === 'video' ? 'video' : 'document') as MediaFile['type'] }]
+                                                : [{ url: openTemplate.media_url!, filename: openTemplate.media_filename || t('templates.fileFallback'), type: (openTemplate.message_type === 'image' ? 'image' : openTemplate.message_type === 'video' ? 'video' : 'document') as MediaFile['type'] }]
                                             ).map((file, i) => (
                                                 file.type === 'image' ? (
                                                     <img key={i} src={file.url} alt={file.filename} className="h-28 w-28 rounded-xl border border-[#d4d8e8] object-cover dark:border-white/10" />
@@ -572,13 +576,13 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
 
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                                        <p className="text-[11px] settings-subtitle">Envíos registrados</p>
+                                        <p className="text-[11px] settings-subtitle">{t('templates.recordedSends')}</p>
                                         <p className="mt-0.5 text-lg font-bold settings-title">{formatNumber(openTemplate.usage_stats?.total_sends)}</p>
                                     </div>
                                     <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                                        <p className="text-[11px] settings-subtitle">Actualización</p>
+                                        <p className="text-[11px] settings-subtitle">{t('templates.lastUpdate')}</p>
                                         <p className="mt-0.5 text-sm font-bold settings-title">{formatDate(openTemplate.updated_at || openTemplate.created_at)}</p>
-                                        <p className="text-[11px] settings-subtitle">{openTemplate.updated_by ? `por ${openTemplate.updated_by}` : `creada por ${openTemplate.created_by}`}</p>
+                                        <p className="text-[11px] settings-subtitle">{openTemplate.updated_by ? t('templates.updatedBy', { name: openTemplate.updated_by }) : t('templates.createdBy', { name: openTemplate.created_by })}</p>
                                     </div>
                                 </div>
                             </motion.div>
@@ -586,17 +590,17 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                             {isAdmin && (
                                 <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#d4d8e8]/80 p-4 dark:border-white/10">
                                     <Button variant="outline" onClick={() => { deleteTemplate(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10">
-                                        <Trash2 className="h-4 w-4" /> Eliminar
+                                        <Trash2 className="h-4 w-4" /> {t('common.delete')}
                                     </Button>
                                     <Button variant="outline" onClick={() => { toggleStatus(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-xl settings-btn-secondary">
                                         {openTemplate.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                                        {openTemplate.is_active ? 'Desactivar' : 'Activar'}
+                                        {openTemplate.is_active ? t('common.deactivate') : t('common.activate')}
                                     </Button>
                                     <Button variant="outline" onClick={() => { setTemplateToEdit(openTemplate); setIsEditModalOpen(true); setOpenTemplate(null); }} className="h-9 rounded-xl settings-btn-secondary">
-                                        <Edit3 className="h-4 w-4" /> Editar
+                                        <Edit3 className="h-4 w-4" /> {t('common.edit')}
                                     </Button>
                                     <Button onClick={() => router.get(`/admin/templates/${openTemplate.id}/send-form`)} className="h-9 rounded-xl settings-btn-primary text-white">
-                                        <Send className="h-4 w-4" /> Enviar
+                                        <Send className="h-4 w-4" /> {t('common.submit')}
                                     </Button>
                                 </div>
                             )}

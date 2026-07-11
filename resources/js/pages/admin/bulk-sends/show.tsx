@@ -2,6 +2,8 @@ import AdminLayout from '@/layouts/admin-layout';
 import { Head, Link } from '@inertiajs/react';
 import { ArrowLeft, CheckCircle2, XCircle, Clock, Search, Phone, User, AlertCircle, Send, FileText } from 'lucide-react';
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -33,31 +35,32 @@ interface BulkSendShowProps {
     recipients: Recipient[];
 }
 
-const statusBadge = (status: string) => {
+const statusBadge = (status: string, t: TFunction) => {
     switch (status) {
         case 'sent':
-            return { text: 'Enviado', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 };
+            return { text: t('bulkSends.statusSent'), color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 };
         case 'failed':
-            return { text: 'Fallido', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: XCircle };
+            return { text: t('bulkSends.statusFailed'), color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: XCircle };
         case 'pending':
-            return { text: 'Pendiente', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock };
+            return { text: t('bulkSends.statusPending'), color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock };
         default:
             return { text: status, color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400', icon: Clock };
     }
 };
 
-const bulkStatusLabel = (status: string) => {
+const bulkStatusLabel = (status: string, t: TFunction) => {
     switch (status) {
-        case 'completed': return { text: 'Completado', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' };
-        case 'processing': return { text: 'En proceso', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
-        case 'failed': return { text: 'Fallido', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
-        case 'cancelled': return { text: 'Cancelado', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
-        case 'draft': return { text: 'Borrador', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' };
+        case 'completed': return { text: t('bulkSends.statusCompleted'), color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' };
+        case 'processing': return { text: t('bulkSends.bulkStatusProcessing'), color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
+        case 'failed': return { text: t('bulkSends.statusFailed'), color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
+        case 'cancelled': return { text: t('bulkSends.statusCancelled'), color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+        case 'draft': return { text: t('bulkSends.statusDraft'), color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' };
         default: return { text: status, color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' };
     }
 };
 
 export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps) {
+    const { t } = useTranslation();
     const [search, setSearch] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('all');
 
@@ -96,7 +99,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
         return { sent, failed, pending, withError };
     }, [recipients]);
 
-    const status = bulkStatusLabel(bulkSend.status);
+    const status = bulkStatusLabel(bulkSend.status, t);
     const pendingCount = bulkSend.total_recipients - bulkSend.sent_count - bulkSend.failed_count;
     const successRate = bulkSend.total_recipients > 0
         ? Math.round((bulkSend.sent_count / bulkSend.total_recipients) * 100)
@@ -104,7 +107,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
 
     return (
         <AdminLayout>
-            <Head title={`Envío masivo: ${bulkSend.name || bulkSend.template_name}`} />
+            <Head title={t('bulkSends.showPageTitle', { name: bulkSend.name || bulkSend.template_name })} />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -114,7 +117,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                             className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                         >
                             <ArrowLeft className="h-4 w-4" />
-                            Volver a envíos masivos
+                            {t('bulkSends.backToBulkSends')}
                         </Link>
 
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -124,7 +127,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                 </div>
                                 <div className="min-w-0">
                                     <h1 className="truncate font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                                        {bulkSend.name || 'Envío masivo'}
+                                        {bulkSend.name || t('bulkSends.heading')}
                                     </h1>
                                     <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
                                         <span className="font-mono font-semibold">{bulkSend.template_name}</span> · {bulkSend.created_by_name} · {bulkSend.created_at}
@@ -139,24 +142,24 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
 
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                         <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase text-muted-foreground">Total</p>
+                            <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.total')}</p>
                             <p className="mt-2 text-2xl font-bold settings-title">{bulkSend.total_recipients.toLocaleString()}</p>
                         </div>
                         <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase text-muted-foreground">Enviados</p>
+                            <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.sent')}</p>
                             <p className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-300">{recipientStats.sent.toLocaleString()}</p>
-                            <p className="text-xs text-muted-foreground">{successRate}% éxito</p>
+                            <p className="text-xs text-muted-foreground">{t('bulkSends.successRateSuffix', { rate: successRate })}</p>
                         </div>
                         <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase text-muted-foreground">Fallidos</p>
+                            <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.failed')}</p>
                             <p className="mt-2 text-2xl font-bold text-red-600 dark:text-red-300">{recipientStats.failed.toLocaleString()}</p>
                         </div>
                         <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase text-muted-foreground">Pendientes</p>
+                            <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.pending')}</p>
                             <p className="mt-2 text-2xl font-bold text-amber-700 dark:text-amber-300">{Math.max(0, pendingCount).toLocaleString()}</p>
                         </div>
                         <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                            <p className="text-xs font-semibold uppercase text-muted-foreground">Con error</p>
+                            <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.statWithError')}</p>
                             <p className="mt-2 text-2xl font-bold text-red-600 dark:text-red-300">{recipientStats.withError.toLocaleString()}</p>
                         </div>
                     </div>
@@ -165,7 +168,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                         <div className="rounded-xl border border-border/60 bg-card/80 p-4 shadow-sm">
                             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold settings-title">
                                 <FileText className="h-4 w-4" />
-                                Mensaje enviado
+                                {t('bulkSends.messageSent')}
                             </h3>
                             <div className="max-w-2xl rounded-xl border border-emerald-200/70 bg-emerald-50/60 p-4 dark:border-emerald-800/50 dark:bg-emerald-950/20">
                                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
@@ -179,7 +182,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <h2 className="flex items-center gap-2 text-base font-bold settings-title">
                                 <Send className="h-4 w-4" />
-                                Destinatarios
+                                {t('bulkSends.recipients')}
                                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                                     {filteredRecipients.length.toLocaleString()}
                                 </span>
@@ -191,17 +194,17 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                     <Input
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
-                                        placeholder="Buscar nombre, teléfono, parámetro o error"
+                                        placeholder={t('bulkSends.searchRecipientsPlaceholder')}
                                         className="h-9 w-full rounded-xl pl-9 text-sm"
                                     />
                                 </div>
 
                                 <div className="flex flex-wrap gap-1 rounded-xl bg-muted/50 p-1">
                                     {[
-                                        { value: 'all', label: 'Todos', count: recipients.length },
-                                        { value: 'sent', label: 'Enviados', count: recipientStats.sent },
-                                        { value: 'failed', label: 'Fallidos', count: recipientStats.failed },
-                                        { value: 'pending', label: 'Pendientes', count: recipientStats.pending },
+                                        { value: 'all', label: t('bulkSends.filterAll'), count: recipients.length },
+                                        { value: 'sent', label: t('bulkSends.sent'), count: recipientStats.sent },
+                                        { value: 'failed', label: t('bulkSends.failed'), count: recipientStats.failed },
+                                        { value: 'pending', label: t('bulkSends.pending'), count: recipientStats.pending },
                                     ].map((f) => (
                                         <button
                                             key={f.value}
@@ -222,7 +225,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                         {filteredRecipients.length === 0 ? (
                             <div className="rounded-xl border border-dashed border-border/70 bg-background/40 py-10 text-center">
                                 <Search className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-                                <p className="text-sm font-medium text-muted-foreground">No se encontraron destinatarios</p>
+                                <p className="text-sm font-medium text-muted-foreground">{t('bulkSends.noRecipientsFound')}</p>
                             </div>
                         ) : (
                             <div className="overflow-x-auto rounded-xl border border-border/60">
@@ -230,19 +233,19 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                     <thead className="bg-muted/40">
                                         <tr className="border-b border-border/50">
                                             <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">#</th>
-                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Nombre</th>
-                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Teléfono</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colName')}</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.columnPhone')}</th>
                                             {paramKeys.map(key => (
                                                 <th key={key} className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{key}</th>
                                             ))}
-                                            <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">Estado</th>
-                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Enviado</th>
-                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">Error</th>
+                                            <th className="px-3 py-2.5 text-center text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.colStatus')}</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.statusSent')}</th>
+                                            <th className="px-3 py-2.5 text-left text-xs font-bold uppercase text-muted-foreground">{t('bulkSends.columnError')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredRecipients.map((r, index) => {
-                                            const badge = statusBadge(r.status);
+                                            const badge = statusBadge(r.status, t);
                                             const Icon = badge.icon;
                                             return (
                                                 <tr key={r.id} className="border-b border-border/30 transition-colors hover:bg-muted/30">
@@ -285,7 +288,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                                                 </span>
                                                             </div>
                                                         ) : (
-                                                            <span className="rounded-md bg-muted/40 px-2 py-1 text-xs text-muted-foreground">Sin error</span>
+                                                            <span className="rounded-md bg-muted/40 px-2 py-1 text-xs text-muted-foreground">{t('bulkSends.noError')}</span>
                                                         )}
                                                     </td>
                                                 </tr>
