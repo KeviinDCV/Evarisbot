@@ -1676,3 +1676,101 @@ tr.table-row-hover:hover {
 .dark .auth-logo {
     filter: brightness(1.7) saturate(1.05);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EL PUESTO — el riel de navegación.
+   El riel no es un menú: es el puesto de turno. En reposo NO lleva una sola
+   letra (así muere el truncamiento de las etiquetas), y su trabajo permanente
+   es responder sin que leas nada: ¿estoy de turno? ¿cuánta presión tengo?
+   Reserva de color (regla, no sugerencia): navy = marca · blanco = dónde estás
+   rojo = un paciente espera · slate = un colega espera · teal = de turno.
+   ══════════════════════════════════════════════════════════════════════════ */
+.puesto-rail {
+    background: linear-gradient(180deg, #3e4f94 0%, #2e3f84 55%, #26356f 100%);
+    box-shadow: 0 24px 60px -20px rgba(46, 63, 132, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+/* En oscuro el navy crudo pelea con el fondo cálido: se hunde y se entibia. */
+.dark .puesto-rail {
+    background: linear-gradient(180deg, #232c5e 0%, #1b2246 55%, #161c3a 100%);
+    box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 180, 120, 0.08);
+}
+/* Grano + luz especular: el monolito lee como metal pulido, no como un div. */
+.puesto-rail::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+}
+.puesto-rail::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(160px circle at var(--mx, -999px) var(--my, -999px), rgba(255, 255, 255, 0.07), transparent 70%);
+}
+
+/* El logo del HUV es line-art AZUL sobre transparente: contra el navy del riel se
+   desvanece. Se aplana a blanco puro (mismo problema que ya resolvía .auth-logo). */
+.puesto-logo {
+    filter: brightness(0) invert(1);
+    opacity: 0.95;
+}
+
+/* El hilo: 2px teal en el borde interno. Sólo existe si estás de turno. */
+.puesto-hilo {
+    background: linear-gradient(to top, rgba(45, 212, 191, 0.6), rgba(45, 212, 191, 0));
+    animation: puesto-breathe 3.2s ease-in-out infinite;
+}
+@keyframes puesto-breathe {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.9; }
+}
+
+/* El momento: al entrar de turno, el edificio se enciende — un barrido sube
+   por el riel, pasa cada icono y se disuelve en el logo. */
+.puesto-sweep {
+    background: linear-gradient(to top, rgba(45, 212, 191, 0), #5eead4, rgba(45, 212, 191, 0));
+    filter: blur(1px);
+    animation: puesto-sweep 900ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes puesto-sweep {
+    0% { opacity: 0; bottom: 0; }
+    10% { opacity: 1; }
+    85% { opacity: 0.9; }
+    100% { opacity: 0; bottom: calc(100% - 40px); }
+}
+
+/* Traza ECG viva mientras estás de turno (un solo elemento, barato). */
+.puesto-ecg path {
+    stroke-dasharray: 18 130;
+    animation: puesto-ecg 3s linear infinite;
+}
+@keyframes puesto-ecg {
+    to { stroke-dashoffset: -148; }
+}
+
+/* La píldora late una sola vez cuando ENTRA un mensaje (delta positivo). */
+.puesto-ping {
+    animation: puesto-ping 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes puesto-ping {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+}
+
+/* "Sin asignar" es el único trabajo que NADIE está haciendo: si persiste, respira. */
+@keyframes puesto-nag {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+    50% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18); }
+}
+.puesto-nag { animation: puesto-nag 2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+    .puesto-hilo, .puesto-sweep, .puesto-ecg path, .puesto-ping, .puesto-nag {
+        animation: none !important;
+    }
+}

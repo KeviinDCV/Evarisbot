@@ -1,4 +1,5 @@
 import AdminLayout from '@/layouts/admin-layout';
+import { AppointmentsScopeSwitch } from '@/components/appointments-scope-switch';
 import { Deferred, Head, useForm, router, usePage } from '@inertiajs/react';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, Phone, type LucideIcon } from 'lucide-react';
 import { FormEventHandler, useState, useMemo, useEffect } from 'react';
@@ -623,6 +624,9 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             </Button>
                         )}
                     </header>
+
+                    {/* El submenú de Citas salió del riel: la sección navega dentro de sí misma. */}
+                    <AppointmentsScopeSwitch />
 
                     {showFlashMessage && (flash?.success || flash?.error) && (
                         <div
