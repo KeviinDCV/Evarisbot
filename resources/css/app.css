@@ -1554,10 +1554,13 @@ tr.table-row-hover:hover {
 /* Layout containment for conversation list items */
 .conv-list-item {
     contain: layout style;
-    /* Las tarjetas fuera del viewport no se renderizan hasta hacer scroll:
-       menos trabajo de layout/paint en cada poll de la lista (cada 10s). */
-    content-visibility: auto;
-    contain-intrinsic-size: auto 84px;
+    /* OJO: NO reintroducir `content-visibility: auto` aquí.
+       Los ítems fuera de pantalla dejaban de renderizarse y su alto se ESTIMABA
+       (contain-intrinsic-size). Con cientos de conversaciones de alto variable, al
+       re-renderizar la lista (marcar resuelto, abrir una conversación) el scrollHeight
+       cambiaba de golpe y el navegador recortaba el scroll: la lista "se iba arriba".
+       Es un bug diario para el asesor a cambio de una micro-optimización de pintado;
+       el poll ya evita trabajo con el guard de scroll y la comparación hasChanges. */
 }
 
 /* ============================================

@@ -1078,6 +1078,20 @@ export default function ConversationsIndex({ conversations: initialConversations
 
         // Si cambió algún filtro, resetear completamente
         if (searchChanged || statusChanged || assignedChanged || tagChanged || specialtyChanged) {
+            // [SCROLL-DIAG] temporal: identificar por qué la lista salta arriba.
+            console.warn('[SCROLL-DIAG] reset por filtro', {
+                searchChanged, statusChanged, assignedChanged, tagChanged, specialtyChanged,
+                de: {
+                    search: lastSearchFilterRef.current, status: lastStatusFilterRef.current,
+                    assigned: lastAssignedFilterRef.current, tag: lastTagFilterRef.current,
+                    specialty: lastSpecialtyFilterRef.current,
+                },
+                a: {
+                    search: currentSearchFilter, status: currentStatusFilter,
+                    assigned: currentAssignedFilter, tag: currentTagFilter, specialty: currentSpecialtyFilter,
+                },
+                scrollTopAntes: conversationsListRef.current?.scrollTop,
+            });
             setLocalConversations(initialConversations);
             setHasMore(initialHasMore);
             setCurrentPage(1);
@@ -1231,6 +1245,33 @@ export default function ConversationsIndex({ conversations: initialConversations
             setIsLoadingMore(false);
         }
     }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor, localConversations, nextCursor]);
+
+    // [SCROLL-DIAG] TEMPORAL: vigila el salto a 0 aunque no venga del reset por filtros.
+    // Distingue "algo llamó scrollTop=0" de "el contenido encogió y el navegador recortó".
+    useEffect(() => {
+        const el = conversationsListRef.current;
+        if (!el) return;
+        let last = el.scrollTop;
+        let lastH = el.scrollHeight;
+        const id = setInterval(() => {
+            const now = el.scrollTop;
+            const h = el.scrollHeight;
+            if (last > 150 && now < 30) {
+                console.warn('[SCROLL-DIAG] SALTO A 0', {
+                    de: last, a: now,
+                    scrollHeightAntes: lastH, scrollHeightAhora: h,
+                    encogio: h < lastH,
+                    diagnostico: h < lastH
+                        ? 'el CONTENIDO encogió -> el navegador recortó el scroll'
+                        : 'la altura no cambió -> algo llamó scrollTop = 0',
+                    items: el.querySelectorAll('.conv-list-item').length,
+                });
+            }
+            last = now;
+            lastH = h;
+        }, 250);
+        return () => clearInterval(id);
+    }, []);
 
     // Detectar scroll al final de la lista de conversaciones + trackear si está scrolleando
     useEffect(() => {
@@ -2758,7 +2799,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success(t('conversations.chatResolved'));
-                    router.get('/admin/chat', params, { preserveState: true, replace: true });
+                    // preserveScroll: el router.post de arriba ya lo llevaba, pero este get
+                    // encadenado no — y sin él Inertia resetea el scroll tras resolver.
+                    router.get('/admin/chat', params, { preserveState: true, preserveScroll: true, replace: true });
                 },
                 onError: () => toast.error(t('conversations.statusChangeError')),
             });
@@ -2794,7 +2837,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success(t('conversations.chatResolved'));
-                    router.get('/admin/chat', params, { preserveState: true, replace: true });
+                    // preserveScroll: el router.post de arriba ya lo llevaba, pero este get
+                    // encadenado no — y sin él Inertia resetea el scroll tras resolver.
+                    router.get('/admin/chat', params, { preserveState: true, preserveScroll: true, replace: true });
                 },
                 onError: () => toast.error(t('conversations.statusChangeError')),
             });
