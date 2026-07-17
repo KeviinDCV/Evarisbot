@@ -1688,9 +1688,11 @@ tr.table-row-hover:hover {
 .puesto-rail {
     background: linear-gradient(180deg, #3e4f94 0%, #2e3f84 55%, #26356f 100%);
     box-shadow: 0 24px 60px -20px rgba(46, 63, 132, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
-    /* Acota el repintado de la luz especular (::after sigue al cursor) y de la traza ECG
-       al propio riel: sin esto el navegador puede invalidar área fuera de él. */
-    contain: layout paint;
+    /* OJO: NO usar `contain: paint` aquí. La contención de paint recorta lo que desborda la
+       caja, y la píldora de no-leídos cuelga a propósito del borde derecho (así los dígitos
+       nunca tapan el icono en el riel de 64px). Con paint, un contador de 3 cifras salía
+       cortado. El coste de repintado real ya lo resuelve el coalescing con rAF de onRailMove. */
+    contain: layout style;
 }
 /* En oscuro el navy crudo pelea con el fondo cálido: se hunde y se entibia. */
 .dark .puesto-rail {
