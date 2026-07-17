@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { type PropsWithChildren, type ReactNode, type PointerEvent as ReactPointerEvent, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { type PropsWithChildren, type ReactNode, type PointerEvent as ReactPointerEvent, type FocusEvent as ReactFocusEvent, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { Users, MessageSquare, Settings, LogOut, Menu, X, FileText, Calendar, BarChart3, Send, MessagesSquare, UserCircle, Lock, PanelLeftClose, PanelLeftOpen, type LucideIcon } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -9,6 +9,7 @@ import { LanguageSelector } from '@/components/language-selector';
 import { useTranslation } from 'react-i18next';
 import AppearanceToggleDropdown from '@/components/appearance-dropdown';
 import { MessageNotifications } from '@/components/message-notifications';
+import { subscribeUnread, getUnread, seedUnreadChat, type UnreadState } from '@/lib/unread-store';
 import { Toaster } from 'sonner';
 
 interface AdminLayoutProps {
@@ -76,10 +77,12 @@ const GROUPS: { key: string; label: string; adminOnly?: boolean; items: NavEntry
     },
 ];
 
-/** Rojo = un paciente espera. Slate = un colega espera. Nada más en el riel puede ir saturado. */
+/** Rojo = un paciente espera. Slate = un colega espera. Nada más en el riel puede ir saturado.
+ *  La barra de señal (decorativa, aria-hidden) puede ir clara; la PÍLDORA lleva dígitos blancos
+ *  de 10px, así que su relleno debe cumplir 4.5:1 con el blanco: #dc2626 = 4.83:1, #475569 = 7.58:1. */
 const TONE = {
-    chat: { bar: '#ef4444', pill: 'bg-[#ef4444]' },
-    internal: { bar: '#94a3b8', pill: 'bg-[#94a3b8]' },
+    chat: { bar: '#ef4444', pill: 'bg-[#dc2626]' },
+    internal: { bar: '#94a3b8', pill: 'bg-[#475569]' },
 } as const;
 
 /** La presión se lee sin leer un dígito. */
@@ -104,15 +107,38 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     const [pinned, setPinned] = useState(readPinned);
     const [carnetOpen, setCarnetOpen] = useState(false);
 
-    const [unreadConversationsCount, setUnreadConversationsCount] = useState(initialUnreadCount);
-    const [unreadInternalChatCount, setUnreadInternalChatCount] = useState(0);
+    // Los contadores viven en un store a nivel de módulo (lib/unread-store): el layout se
+    // re-monta en CADA navegación y, con el bucle dentro de un efecto, cada cambio de página
+    // disparaba dos fetches inmediatos y reiniciaba el temporizador — justo lo que alimentaba
+    // el ERR_NO_BUFFER_SPACE. Fuera de React, el bucle sobrevive a los re-montajes.
+    const [unread, setUnread] = useState<UnreadState>(() => {
+        const current = getUnread();
+        // Semilla del servidor en el primer arranque (aún sin datos del store).
+        return current.chat === 0 && current.internal === 0 ? { chat: initialUnreadCount, internal: 0 } : current;
+    });
+    const unreadConversationsCount = unread.chat;
+    const unreadInternalChatCount = unread.internal;
 
     // Late una sola vez cuando ENTRA un mensaje (delta positivo), no en cada poll.
     const [pingChat, setPingChat] = useState(false);
     const prevChatRef = useRef<number>(initialUnreadCount);
 
+    useEffect(() => {
+        seedUnreadChat(initialUnreadCount);
+        return subscribeUnread((next) => {
+            setUnread(next);
+            if (next.chat > prevChatRef.current) {
+                setPingChat(true);
+                setTimeout(() => setPingChat(false), 560);
+            }
+            prevChatRef.current = next.chat;
+        });
+        // initialUnreadCount cambia con cada respuesta de Inertia; sembrarlo no reinicia el bucle.
+    }, [initialUnreadCount]);
+
     const railRef = useRef<HTMLElement>(null);
     const navRef = useRef<HTMLDivElement>(null);
+    const carnetBtnRef = useRef<HTMLButtonElement>(null);
     const [capsuleTop, setCapsuleTop] = useState<number | null>(null);
 
     const isAdvisor = auth.user.role === 'advisor';
@@ -147,79 +173,6 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
         });
     }, []);
 
-    // ── Contadores de no leídos (conversaciones + chat interno) en UN solo bucle ──
-    //
-    // Antes eran dos efectos que abrían dos peticiones que podían COINCIDIR. En Windows
-    // (artisan serve / Apache) los sockets concurrentes agotan la tabla del sistema y el
-    // navegador tira net::ERR_NO_BUFFER_SPACE. Aquí se piden en SECUENCIA (una tras otra,
-    // nunca dos sockets a la vez desde el layout), con base más larga, jitter para no
-    // sincronizar con los polls de la página de chat, y backoff exponencial ante fallos.
-    useEffect(() => {
-        const controller = new AbortController();
-        let timeoutId: ReturnType<typeof setTimeout> | null = null;
-        let failures = 0;
-        let stopped = false;
-
-        const headers = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
-        const fetchCount = async (url: string): Promise<number | null> => {
-            const res = await fetch(url, { signal: controller.signal, headers });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            return data.count || 0;
-        };
-
-        const poll = async () => {
-            if (stopped) return;
-            if (document.hidden) {
-                timeoutId = setTimeout(poll, 20000);
-                return;
-            }
-            try {
-                const chat = await fetchCount('/admin/chat/unread-count');
-                if (chat !== null) {
-                    setUnreadConversationsCount(chat);
-                    if (chat > prevChatRef.current) {
-                        setPingChat(true);
-                        setTimeout(() => setPingChat(false), 560);
-                    }
-                    prevChatRef.current = chat;
-                }
-                // Secuencial: sólo pedimos el interno cuando el primero ya cerró su socket.
-                const internal = await fetchCount('/admin/internal-chat/unread-count');
-                if (internal !== null) setUnreadInternalChatCount(internal);
-                failures = 0;
-            } catch (error) {
-                if (error instanceof Error && error.name !== 'AbortError') {
-                    failures++;
-                }
-            } finally {
-                if (!stopped) {
-                    // Base 20s + jitter (0–4s) para desincronizar de los polls del chat;
-                    // backoff exponencial hasta 60s ante fallos (incluye ERR_NO_BUFFER_SPACE).
-                    const base = Math.min(20000 * Math.pow(2, failures), 60000);
-                    timeoutId = setTimeout(poll, base + Math.floor(Math.random() * 4000));
-                }
-            }
-        };
-
-        poll();
-
-        const onVisibility = () => {
-            if (!document.hidden && timeoutId) {
-                clearTimeout(timeoutId);
-                failures = 0;
-                poll();
-            }
-        };
-        document.addEventListener('visibilitychange', onVisibility);
-
-        return () => {
-            stopped = true;
-            if (timeoutId) clearTimeout(timeoutId);
-            document.removeEventListener('visibilitychange', onVisibility);
-            controller.abort();
-        };
-    }, []);
 
     /**
      * UNA sola fuente de verdad para el filtro de rol: alimenta el riel, el tablero
@@ -272,6 +225,20 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
         setHoverOpen(false);
     };
 
+    /**
+     * Expandir con TECLADO. hoverOpen sólo lo activaba el puntero, así que quien navega con
+     * Tab recorría una columna de 64px de iconos sin etiqueta. El foco expande al instante:
+     * la espera de 220ms existe para el aleteo del ratón, no para el foco.
+     * (onFocus/onBlur de React burbujean, así que basta ponerlos en el <aside>.)
+     */
+    const onRailFocus = () => setHoverOpen(true);
+    const onRailBlur = (e: ReactFocusEvent<HTMLElement>) => {
+        if (pinned || carnetOpen) return;
+        // El foco sigue dentro del riel: no colapsar.
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setHoverOpen(false);
+    };
+
     const toggleCarnet = () => {
         const next = !carnetOpen;
         setCarnetOpen(next);
@@ -293,14 +260,39 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
     }, [carnetOpen]);
-    /** Luz especular sin un solo re-render de React. */
+    /**
+     * Luz especular sin un solo re-render de React.
+     *
+     * El rect se cachea al entrar (el riel es fixed con inset fijo: su origen no cambia,
+     * ni siquiera durante la transición de ancho) y la escritura de las vars se coalesce
+     * con rAF. Antes se llamaba getBoundingClientRect() en CADA pointermove, y al leerlo
+     * después de escribir las vars forzaba un recálculo de estilo por evento.
+     */
+    const rectRef = useRef<DOMRect | null>(null);
+    const rafRef = useRef<number | null>(null);
+    const posRef = useRef({ x: 0, y: 0 });
+
     const onRailMove = (e: ReactPointerEvent<HTMLElement>) => {
         const el = railRef.current;
         if (!el) return;
-        const r = el.getBoundingClientRect();
-        el.style.setProperty('--mx', `${e.clientX - r.left}px`);
-        el.style.setProperty('--my', `${e.clientY - r.top}px`);
+        const r = rectRef.current ?? (rectRef.current = el.getBoundingClientRect());
+        posRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+        if (rafRef.current !== null) return;
+        rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null;
+            const node = railRef.current;
+            if (!node) return;
+            node.style.setProperty('--mx', `${posRef.current.x}px`);
+            node.style.setProperty('--my', `${posRef.current.y}px`);
+        });
     };
+
+    useEffect(
+        () => () => {
+            if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+        },
+        [],
+    );
 
     // Atajos: Ctrl+B fija/contrae el riel · Esc lo cierra.
     // Ctrl+B es seguro porque ya existe el botón visible ‹| en la cabecera para des-fijar,
@@ -308,26 +300,45 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+                // No secuestrar Ctrl+B mientras se escribe (el composer del chat es un
+                // <textarea>): el asesor podría estar intentando poner negrita.
+                const el = e.target as HTMLElement | null;
+                if (el?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el?.tagName ?? '')) return;
                 e.preventDefault();
                 togglePin();
             }
             if (e.key === 'Escape') {
+                // Cerrar sólo la capa MÁS INTERNA: si el carnet está abierto, Esc lo cierra
+                // y devuelve el foco al avatar — sin colapsar además el riel bajo el usuario.
+                if (carnetOpen) {
+                    setCarnetOpen(false);
+                    carnetBtnRef.current?.focus();
+                    return;
+                }
                 setHoverOpen(false);
-                setCarnetOpen(false);
                 setIsMobileOpen(false);
             }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [togglePin]);
+    }, [togglePin, carnetOpen]);
 
     return (
         <div className="relative min-h-screen bg-background">
+            {/* Bypass Blocks (WCAG 2.4.1, nivel A): sin esto el teclado recorre todo el riel
+                en CADA navegación. Debe ser el primer elemento enfocable del documento. */}
+            <a
+                href="#main-content"
+                className="sr-only rounded-md bg-primary px-4 py-2 text-primary-foreground focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100]"
+            >
+                {t('common.skipToContent')}
+            </a>
+
             {/* Botón de menú en móvil */}
             <button
                 onClick={() => setIsMobileOpen((v) => !v)}
                 className="fixed left-4 top-4 z-[60] rounded-xl bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] p-3 text-white shadow-lg lg:hidden"
-                aria-label={isMobileOpen ? t('common.close', 'Cerrar menú') : t('common.menu', 'Abrir menú')}
+                aria-label={isMobileOpen ? t('common.closeMenu') : t('common.menu')}
                 aria-expanded={isMobileOpen}
             >
                 {isMobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -345,6 +356,8 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                 ref={railRef}
                 onPointerEnter={onRailEnter}
                 onPointerLeave={onRailLeave}
+                onFocus={onRailFocus}
+                onBlur={onRailBlur}
                 onPointerMove={onRailMove}
                 aria-label={t('navigation.main', 'Navegación principal')}
                 className={`puesto-rail fixed bottom-2 left-2 top-2 z-50 flex flex-col rounded-[22px] transition-[width,filter,transform] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
@@ -406,7 +419,9 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                             {/* Alto CONSTANTE: al abrir, los iconos no se mueven ni un píxel. */}
                             <div className="flex h-6 items-center pl-16 pr-3">
                                 <span
-                                    className={`whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.08em] text-white/45 transition-opacity duration-150 ${
+                                    // /70 (no /45): a 10px el contraste manda. La jerarquía la dan
+                                    // el tamaño y el tracking, no bajar el alfa hasta romper AA.
+                                    className={`whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.08em] text-white/70 transition-opacity duration-150 ${
                                         expanded ? 'opacity-100' : 'opacity-0'
                                     }`}
                                 >
@@ -468,6 +483,9 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                             montada en el borde, no una mancha pegada al icono. */}
                                         {tone && count > 0 && (
                                             <span
+                                                // Sin aria-label el lector anunciaba "Conversaciones 239" —
+                                                // un número suelto sin significado.
+                                                aria-label={t('navigation.unreadCount', { count })}
                                                 className={`absolute top-1.5 z-20 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px] text-[10px] font-bold tabular-nums text-white ring-2 ring-[#2e3f84] dark:ring-[#1b2246] ${
                                                     tone.pill
                                                 } ${pingChat && item.badge === 'chat' ? 'puesto-ping' : ''} ${
@@ -480,7 +498,16 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
                                         {/* Tooltip sólo cuando el riel está colapsado */}
                                         {!expanded && (
-                                            <span className="pointer-events-none absolute left-full z-[70] ml-3 hidden whitespace-nowrap rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[13px] font-medium text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 lg:block">
+                                            // group-focus-visible además de hover: con el riel colapsado
+                                            // ésta es la ÚNICA etiqueta visible, y el foco por teclado
+                                            // no expande el riel — sin esto el usuario de teclado no ve nada.
+                                            // aria-hidden: es una ayuda VISUAL que repite el nombre del enlace
+                                            // (que ya está en el span de la etiqueta). Sin esto el lector
+                                            // anunciaba "Conversaciones 239 Conversaciones".
+                                            <span
+                                                aria-hidden
+                                                className="pointer-events-none absolute left-full z-[70] ml-3 hidden whitespace-nowrap rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[13px] font-medium text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:block"
+                                            >
                                                 {t(item.title)}
                                             </span>
                                         )}
@@ -496,6 +523,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                     <div className="mb-2 h-px bg-white/10" />
 
                     <button
+                        ref={carnetBtnRef}
                         onClick={toggleCarnet}
                         aria-haspopup="dialog"
                         aria-expanded={carnetOpen}
@@ -558,7 +586,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                             <span className="block truncate text-[13px] font-semibold text-white">{auth.user?.name}</span>
                             <span
                                 className={`block truncate text-[11px] font-semibold ${
-                                    isAdvisor ? (onDuty ? 'text-[#2dd4bf]' : 'text-white/50') : 'text-white/50'
+                                    isAdvisor ? (onDuty ? 'text-[#2dd4bf]' : 'text-white/60') : 'text-white/60'
                                 }`}
                             >
                                 {isAdvisor
@@ -636,7 +664,9 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
             {/* ══════════════════════ Lienzo ══════════════════════ */}
             <main
-                className={`min-h-screen min-w-0 overflow-x-hidden pt-16 transition-[padding] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] lg:pt-0 ${
+                id="main-content"
+                tabIndex={-1}
+                className={`min-h-screen min-w-0 overflow-x-hidden pt-16 outline-none transition-[padding] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] lg:pt-0 ${
                     pinned ? 'lg:pl-[276px]' : 'lg:pl-20'
                 }`}
             >

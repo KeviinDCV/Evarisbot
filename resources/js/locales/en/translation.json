@@ -59,7 +59,10 @@
     "continue": "Continue",
     "warning": "Warning",
     "institutionalLogoAlt": "Institutional logo",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "menu": "Open menu",
+    "closeMenu": "Close menu",
+    "theme": "Theme"
   },
   "auth": {
     "login": "Login",
@@ -821,7 +824,19 @@
     "platform": "Platform",
     "appointmentsGeneral": "General",
     "appointmentsOncology": "Oncology",
-    "navigationMenu": "Navigation Menu"
+    "navigationMenu": "Navigation Menu",
+    "main": "Main navigation",
+    "admin": "Administrator",
+    "collapseMenu": "Collapse menu",
+    "pinMenu": "Pin menu open",
+    "yourStation": "Your station",
+    "onDuty": "On duty",
+    "offDuty": "Off duty",
+    "onDutyHint": "You receive new conversations.",
+    "offDutyHint": "No conversations are assigned to you.",
+    "dutyReadOnly": "Your shift is assigned by coordination from Settings.",
+    "unreadCount": "{{count}} unread messages",
+    "appointmentsScope": "Appointments scope"
   },
   "statistics": {
     "title": "Statistics",

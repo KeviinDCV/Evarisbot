@@ -59,7 +59,10 @@
     "continue": "Continuar",
     "warning": "Advertencia",
     "institutionalLogoAlt": "Logo institucional",
-    "skipToContent": "Saltar al contenido"
+    "skipToContent": "Saltar al contenido",
+    "menu": "Abrir menú",
+    "closeMenu": "Cerrar menú",
+    "theme": "Tema"
   },
   "auth": {
     "login": "Iniciar sesión",
@@ -821,7 +824,19 @@
     "platform": "Plataforma",
     "appointmentsGeneral": "General",
     "appointmentsOncology": "Oncología",
-    "navigationMenu": "Menú de navegación"
+    "navigationMenu": "Menú de navegación",
+    "main": "Navegación principal",
+    "admin": "Administrador",
+    "collapseMenu": "Contraer menú",
+    "pinMenu": "Fijar menú abierto",
+    "yourStation": "Tu puesto",
+    "onDuty": "De turno",
+    "offDuty": "Fuera de turno",
+    "onDutyHint": "Recibes conversaciones nuevas.",
+    "offDutyHint": "No se te asignan conversaciones.",
+    "dutyReadOnly": "Tu turno lo asigna coordinación desde Configuración.",
+    "unreadCount": "{{count}} mensajes sin leer",
+    "appointmentsScope": "Ámbito de citas"
   },
   "statistics": {
     "title": "Estadísticas",

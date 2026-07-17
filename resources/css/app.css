@@ -1688,6 +1688,9 @@ tr.table-row-hover:hover {
 .puesto-rail {
     background: linear-gradient(180deg, #3e4f94 0%, #2e3f84 55%, #26356f 100%);
     box-shadow: 0 24px 60px -20px rgba(46, 63, 132, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    /* Acota el repintado de la luz especular (::after sigue al cursor) y de la traza ECG
+       al propio riel: sin esto el navegador puede invalidar área fuera de él. */
+    contain: layout paint;
 }
 /* En oscuro el navy crudo pelea con el fondo cálido: se hunde y se entibia. */
 .dark .puesto-rail {
@@ -1762,15 +1765,8 @@ tr.table-row-hover:hover {
     100% { transform: scale(1); }
 }
 
-/* "Sin asignar" es el único trabajo que NADIE está haciendo: si persiste, respira. */
-@keyframes puesto-nag {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-    50% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18); }
-}
-.puesto-nag { animation: puesto-nag 2s ease-in-out infinite; }
-
 @media (prefers-reduced-motion: reduce) {
-    .puesto-hilo, .puesto-sweep, .puesto-ecg path, .puesto-ping, .puesto-nag {
+    .puesto-hilo, .puesto-sweep, .puesto-ecg path, .puesto-ping {
         animation: none !important;
     }
 }

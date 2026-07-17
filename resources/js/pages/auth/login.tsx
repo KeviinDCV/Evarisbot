@@ -77,7 +77,6 @@ export default function Login({ status }: LoginProps) {
                                     name="email"
                                     required
                                     autoFocus
-                                    tabIndex={1}
                                     autoComplete="email"
                                     placeholder={t('auth.emailPlaceholder')}
                                     style={{ ...inputBaseStyle, padding: '15px 16px 15px 44px' }}
@@ -98,7 +97,6 @@ export default function Login({ status }: LoginProps) {
                                     type={showPassword ? 'text' : 'password'}
                                     name="password"
                                     required
-                                    tabIndex={2}
                                     autoComplete="current-password"
                                     placeholder={t('auth.passwordPlaceholder')}
                                     style={{ ...inputBaseStyle, padding: '15px 48px 15px 44px' }}
@@ -124,7 +122,6 @@ export default function Login({ status }: LoginProps) {
                             type="button"
                             onClick={() => setRememberMe(!rememberMe)}
                             className="group mt-0.5 flex w-fit items-center gap-2.5"
-                            tabIndex={3}
                             aria-pressed={rememberMe}
                         >
                             <span
@@ -153,7 +150,6 @@ export default function Login({ status }: LoginProps) {
                         <button
                             type="submit"
                             disabled={processing}
-                            tabIndex={4}
                             className="mt-3.5 flex w-full items-center justify-center font-bold text-white"
                             style={{
                                 backgroundColor: 'var(--auth-accent)',

@@ -19,7 +19,11 @@ export function AppointmentsScopeSwitch() {
     ];
 
     return (
-        <div className="inline-flex rounded-xl border border-[#d4d8e8] bg-white/60 p-1 dark:border-white/10 dark:bg-white/[0.04]">
+        <div
+            role="group"
+            aria-label={t('navigation.appointmentsScope')}
+            className="inline-flex rounded-xl border border-[#d4d8e8] bg-white/60 p-1 dark:border-white/10 dark:bg-white/[0.04]"
+        >
             {scopes.map((scope) => (
                 <Link
                     key={scope.href}

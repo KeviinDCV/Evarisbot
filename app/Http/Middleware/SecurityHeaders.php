@@ -15,8 +15,9 @@ use Symfony\Component\HttpFoundation\Response;
  *  - Content-Security-Policy: app.blade.php usa un <script> de tema inline (evita el
  *    flash de tema) que requeriría nonce/hash; se deja para un endurecimiento posterior.
  *
- * X-Frame-Options usa SAMEORIGIN (no DENY) para no romper posibles previsualizaciones
- * embebidas del mismo origen (p. ej. PDFs).
+ * X-Frame-Options usa DENY: la app no se embebe a sí misma en ningún lado (verificado: cero
+ * iframe/embed/object/frame en resources/js y resources/views). Si algún día se añade una
+ * previsualización embebida del mismo origen, habrá que bajarlo a SAMEORIGIN.
  */
 class SecurityHeaders
 {
@@ -25,7 +26,7 @@ class SecurityHeaders
         $response = $next($request);
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+        $response->headers->set('X-Frame-Options', 'DENY');
         $response->headers->set('Referrer-Policy', 'same-origin');
 
         return $response;

@@ -28,15 +28,28 @@ class WhatsAppWebhookController extends Controller
 
         $verifyToken = Setting::get('whatsapp_verify_token');
 
-        // Verificar que el token coincida
-        if ($mode === 'subscribe' && $token === $verifyToken) {
-            Log::info('Webhook verified successfully');
-            return response($challenge, 200);
+        // FALLAR CERRADO. Setting::get() devuelve null si la fila no existe o su valor está
+        // vacío, y un hub_verify_token omitido también es null: sin esta guarda la condición
+        // null === null dejaba pasar la verificación SIN secreto y reflejaba el challenge a
+        // cualquiera. (SettingsController valida el token como 'nullable', así que un admin
+        // podía vaciarlo desde la UI y abrir el hueco en silencio.)
+        if (!is_string($verifyToken) || $verifyToken === '') {
+            Log::error('Webhook verify rechazado: whatsapp_verify_token no está configurado');
+            return response('Forbidden', 403);
         }
 
+        // hash_equals: comparación en tiempo constante, no filtra el token por timing.
+        if ($mode === 'subscribe' && is_string($token) && hash_equals($verifyToken, $token)) {
+            Log::info('Webhook verified successfully');
+            // text/plain: aunque el challenge se refleje, nunca se interpreta como HTML.
+            // No se castea a int: Meta manda un challenge numérico, pero forzarlo rompería
+            // la verificación si alguna vez no lo fuera. text/plain ya neutraliza el reflejo.
+            return response((string) $challenge, 200, ['Content-Type' => 'text/plain']);
+        }
+
+        // No se registra el token recibido: es dato controlado por quien llama.
         Log::warning('Webhook verification failed', [
             'mode' => $mode,
-            'token' => $token,
         ]);
 
         return response('Forbidden', 403);
