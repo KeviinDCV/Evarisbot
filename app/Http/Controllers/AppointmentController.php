@@ -135,8 +135,11 @@ class AppointmentController extends Controller
                 $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
                 $targetDateString = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay()->format('Y-m-d');
 
+                // where (no whereDate): citfc ya es de tipo DATE, así que DATE(citfc) era
+                // redundante Y anulaba el índice — MySQL escaneaba las ~100k citas calculando
+                // la función fila a fila (medido: 1.941 ms sólo esta consulta).
                 $pendingCount = $this->serviceQuery()
-                    ->whereDate('citfc', '=', $targetDateString)
+                    ->where('citfc', '=', $targetDateString)
                     ->where('reminder_sent', false)
                     ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
                     ->whereNotNull('citfc')
@@ -148,7 +151,7 @@ class AppointmentController extends Controller
                 $tomorrowDateString = now()->setTimezone('America/Bogota')->addDays(1)->startOfDay()->format('Y-m-d');
 
                 $pendingTomorrowCount = $this->serviceQuery()
-                    ->whereDate('citfc', '=', $tomorrowDateString)
+                    ->where('citfc', '=', $tomorrowDateString)
                     ->where('reminder_sent', false)
                     ->whereNull('reminder_error')
                     ->whereNotNull('citfc')
@@ -156,6 +159,11 @@ class AppointmentController extends Controller
                     ->where('pactel', '!=', '')
                     ->count();
 
+                // OJO: NO combinar estos dos COUNT en un SUM(condición) "de una sola pasada".
+                // Se probó y fue 2,5x MÁS LENTO (3.418 ms vs 1.351 ms): COUNT(*) con un índice
+                // que cubre las columnas del WHERE se resuelve leyendo sólo el índice, mientras
+                // que SUM(expresión) obliga a MySQL a leer las filas completas.
+                // Los índices (service, reminder_sent) y (service, reminder_status) los cubren.
                 return [
                     'sent' => $this->serviceQuery()->where('reminder_sent', true)->count(),
                     'pending' => $pendingCount,
@@ -190,11 +198,11 @@ class AppointmentController extends Controller
         $dateTo = $request->get('date_to');
         
         if ($dateFrom) {
-            $query->whereDate('citfc', '>=', $dateFrom);
+            $query->where('citfc', '>=', $dateFrom);
         }
         
         if ($dateTo) {
-            $query->whereDate('citfc', '<=', $dateTo);
+            $query->where('citfc', '<=', $dateTo);
         }
         
         // Búsqueda
@@ -320,10 +328,10 @@ class AppointmentController extends Controller
         $dateTo   = $request->get('date_to');
 
         if ($dateFrom) {
-            $query->whereDate('citfc', '>=', $dateFrom);
+            $query->where('citfc', '>=', $dateFrom);
         }
         if ($dateTo) {
-            $query->whereDate('citfc', '<=', $dateTo);
+            $query->where('citfc', '<=', $dateTo);
         }
 
         // Búsqueda
@@ -942,7 +950,7 @@ class AppointmentController extends Controller
             // Esto permite reintentar citas con errores transitorios (rate limit, timeout, etc.)
             // pero NO limpia errores permanentes (teléfono inválido, formato incorrecto)
             $this->serviceQuery()
-                ->whereDate('citfc', '=', $targetDateString)
+                ->where('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('reminder_error')
                 ->where(function ($q) {
@@ -959,7 +967,7 @@ class AppointmentController extends Controller
             // PASO 2: Obtener citas pendientes EXCLUYENDO las que tienen errores permanentes
             // Esto coincide con el conteo del index page (que también usa whereNull('reminder_error'))
             $appointments = $this->serviceQuery()
-                ->whereDate('citfc', '=', $targetDateString)
+                ->where('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNull('reminder_error') // Excluir errores permanentes (teléfono inválido, etc.)
                 ->whereNotNull('citfc')
@@ -1217,7 +1225,7 @@ class AppointmentController extends Controller
             
             // Actualizar solo las citas pendientes para la fecha objetivo
             $updated = $this->serviceQuery()
-                ->whereDate('citfc', '=', $targetDateString)
+                ->where('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('citfc')
                 ->update(['pactel' => $phoneNumber]);
@@ -1338,7 +1346,7 @@ class AppointmentController extends Controller
         $targetDateString = $targetDate->format('Y-m-d');
         
         $pendingCount = $this->serviceQuery()
-            ->whereDate('citfc', '=', $targetDateString)
+            ->where('citfc', '=', $targetDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error')
             ->whereNotNull('citfc')
@@ -1348,7 +1356,7 @@ class AppointmentController extends Controller
         // Obtener citas pendientes para MAÑANA (1 día desde hoy)
         $tomorrowDateString = now()->setTimezone('America/Bogota')->addDays(1)->format('Y-m-d');
         $pendingTomorrowCount = $this->serviceQuery()
-            ->whereDate('citfc', '=', $tomorrowDateString)
+            ->where('citfc', '=', $tomorrowDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error')
             ->whereNotNull('citfc')
