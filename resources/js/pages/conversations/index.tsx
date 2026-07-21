@@ -447,6 +447,10 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [newChatData, setNewChatData] = useState({ phone_number: '', assigned_to: null as number | null, whatsapp_template_id: null as number | null, template_params: [] as string[] });
     const [newChatError, setNewChatError] = useState('');
     const [isCreatingChat, setIsCreatingChat] = useState(false);
+    // Confirmación obligatoria antes de crear: este formulario ENVÍA un WhatsApp real a un
+    // paciente y le asigna la conversación al asesor. Antes bastaba un Enter en el campo del
+    // teléfono para dispararlo sin querer (45 envíos accidentales en un solo día).
+    const [confirmNewChat, setConfirmNewChat] = useState(false);
     const [advisorSearchQuery, setAdvisorSearchQuery] = useState('');
     const [filterByAdvisor, setFilterByAdvisor] = useState<number | null>(
         filters.assigned && !isNaN(Number(filters.assigned)) ? Number(filters.assigned) : null
@@ -1246,11 +1250,38 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
     }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor, localConversations, nextCursor]);
 
-    // [SCROLL-DIAG] TEMPORAL: vigila el salto a 0 aunque no venga del reset por filtros.
-    // Distingue "algo llamó scrollTop=0" de "el contenido encogió y el navegador recortó".
+    // [SCROLL-DIAG] TEMPORAL. Tres detectores para identificar sin ambigüedad la causa:
+    //  1. Intercepta la ASIGNACIÓN de scrollTop y captura la traza de pila -> línea culpable.
+    //  2. Detecta si el contenedor se RE-MONTA (un nodo nuevo nace en scrollTop 0).
+    //  3. Muestreo periódico -> distingue "encogió el contenido" de "alguien lo asignó".
     useEffect(() => {
         const el = conversationsListRef.current;
         if (!el) return;
+
+        // (1) Interceptar asignaciones de scrollTop
+        const desc =
+            Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop') ??
+            Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop');
+        if (desc?.get && desc?.set) {
+            Object.defineProperty(el, 'scrollTop', {
+                configurable: true,
+                get() {
+                    return desc.get!.call(this);
+                },
+                set(v: number) {
+                    const prev = desc.get!.call(this) as number;
+                    if (v === 0 && prev > 150) {
+                        console.warn(
+                            '[SCROLL-DIAG] ⚠️ ALGUIEN asignó scrollTop = 0 (venía de ' + Math.round(prev) + 'px).\nTRAZA:\n' +
+                                new Error().stack,
+                        );
+                    }
+                    desc.set!.call(this, v);
+                },
+            });
+        }
+
+        // (3) Muestreo: detecta saltos que NO vienen de una asignación
         let last = el.scrollTop;
         let lastH = el.scrollHeight;
         const id = setInterval(() => {
@@ -1258,19 +1289,38 @@ export default function ConversationsIndex({ conversations: initialConversations
             const h = el.scrollHeight;
             if (last > 150 && now < 30) {
                 console.warn('[SCROLL-DIAG] SALTO A 0', {
-                    de: last, a: now,
-                    scrollHeightAntes: lastH, scrollHeightAhora: h,
+                    de: Math.round(last), a: Math.round(now),
+                    altoAntes: lastH, altoAhora: h,
                     encogio: h < lastH,
-                    diagnostico: h < lastH
-                        ? 'el CONTENIDO encogió -> el navegador recortó el scroll'
-                        : 'la altura no cambió -> algo llamó scrollTop = 0',
+                    causa: h < lastH ? 'el CONTENIDO encogió (el navegador recortó)' : 'sin cambio de alto (ver traza arriba, o RE-MONTAJE)',
                     items: el.querySelectorAll('.conv-list-item').length,
                 });
             }
             last = now;
             lastH = h;
-        }, 250);
-        return () => clearInterval(id);
+        }, 200);
+
+        return () => {
+            clearInterval(id);
+            // restaurar el descriptor nativo
+            try { delete (el as unknown as Record<string, unknown>).scrollTop; } catch { /* noop */ }
+        };
+    }, []);
+
+    // (2) [SCROLL-DIAG] TEMPORAL: ¿se re-monta el contenedor de la lista?
+    const listMountCountRef = useRef(0);
+    const setListRef = useCallback((node: HTMLDivElement | null) => {
+        if (node && node !== conversationsListRef.current) {
+            listMountCountRef.current += 1;
+            if (listMountCountRef.current > 1) {
+                console.warn(
+                    '[SCROLL-DIAG] ⚠️ El contenedor de la lista se RE-MONTÓ (montaje #' +
+                        listMountCountRef.current +
+                        '). Un nodo nuevo siempre nace en scrollTop 0 — ésta sería la causa.',
+                );
+            }
+        }
+        conversationsListRef.current = node;
     }, []);
 
     // Detectar scroll al final de la lista de conversaciones + trackear si está scrolleando
@@ -3401,7 +3451,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                     {/* Lista de Conversaciones */}
                     <div
-                        ref={conversationsListRef}
+                        ref={setListRef}
                         className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light"
                     >
                         {listLoading ? (
@@ -5707,6 +5757,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 if (!open) {
                     setNewChatData({ phone_number: '', assigned_to: null, whatsapp_template_id: null, template_params: [] });
                     setNewChatError('');
+                    setConfirmNewChat(false);
                 }
             }}>
                 <DialogContent className="sm:max-w-lg card-gradient border-0 shadow-[0_4px_12px_rgba(46,63,132,0.15),0_8px_24px_rgba(46,63,132,0.2)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3),0_8px_24px_rgba(0,0,0,0.4)] max-h-[85vh] flex flex-col">
@@ -5721,7 +5772,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                     </DialogHeader>
 
 
-                    <form onSubmit={(e) => {
+                    <form
+                        // Enter NO envía: este formulario manda un WhatsApp a un paciente.
+                        // Sólo el botón (o Enter estando enfocado en él) puede dispararlo.
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && (e.target as HTMLElement)?.tagName !== 'BUTTON') {
+                                e.preventDefault();
+                            }
+                        }}
+                        onSubmit={(e) => {
                         e.preventDefault();
                         setNewChatError('');
 
@@ -5732,6 +5791,12 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                         if (!newChatData.whatsapp_template_id) {
                             setNewChatError(t('conversations.templateRequired'));
+                            return;
+                        }
+
+                        // Primer envío: pedir confirmación explícita en vez de mandar ya.
+                        if (!confirmNewChat) {
+                            setConfirmNewChat(true);
                             return;
                         }
 
@@ -5752,9 +5817,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                             } else {
                                 setNewChatError(data.message || t('conversations.createConversationError'));
                             }
+                            setConfirmNewChat(false);
                             setIsCreatingChat(false);
                         }).catch(() => {
                             setNewChatError(t('conversations.createConversationError'));
+                            setConfirmNewChat(false);
                             setIsCreatingChat(false);
                         });
                     }} className="space-y-4 py-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
@@ -5893,11 +5960,25 @@ export default function ConversationsIndex({ conversations: initialConversations
                             </div>
                         )}
 
+                        {/* Confirmación explícita: deja ver A QUIÉN y QUÉ se va a enviar antes de
+                            mandar un WhatsApp real. Evita envíos accidentales al paciente. */}
+                        {confirmNewChat && !isCreatingChat && (
+                            <div className="rounded-lg border-l-4 border-amber-400 bg-amber-50 p-3 dark:border-amber-500 dark:bg-amber-900/20">
+                                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                                    Se enviará un WhatsApp a {newChatData.phone_number}
+                                </p>
+                                <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-300">
+                                    Plantilla: {whatsappTemplates.find((tpl) => tpl.id === newChatData.whatsapp_template_id)?.name ?? '—'}
+                                    {' · '}Pulsa de nuevo para confirmar.
+                                </p>
+                            </div>
+                        )}
+
                         <DialogFooter className="gap-2 pt-2">
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => setShowNewChatModal(false)}
+                                onClick={() => (confirmNewChat ? setConfirmNewChat(false) : setShowNewChatModal(false))}
                                 className="settings-btn-secondary"
                             >
                                 {t('common.cancel')}
@@ -5915,7 +5996,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 ) : (
                                     <>
                                         <Send className="w-4 h-4 mr-2" />
-                                        {t('conversations.startConversation')}
+                                        {confirmNewChat ? 'Confirmar envío' : t('conversations.startConversation')}
                                     </>
                                 )}
                             </Button>
