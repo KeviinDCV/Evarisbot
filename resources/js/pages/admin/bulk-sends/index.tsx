@@ -110,6 +110,9 @@ interface MetricCardProps {
 // --- Detección de tipos para el mapeo de parámetros ---
 // Las plantillas de Meta son posicionales ({{N}} sin nombre); el único indicio del
 // dato que espera cada hueco es el texto que lo precede ("a las {{4}}" → hora).
+/** Máximo de destinatarios que se PINTAN en la vista previa (el envío usa todos). */
+const RECIPIENTS_PREVIEW_LIMIT = 100;
+
 const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const DATE_RX = /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/;
 const TIME_RX = /^\d{1,2}:\d{2}(\s?[ap]\.?\s?m\.?)?$/i;
@@ -191,6 +194,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [extraColumns, setExtraColumns] = useState<string[]>([]);
     const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
     const [showConfirmSend, setShowConfirmSend] = useState(false);
+    // Plantilla de Meta pendiente de borrar (null = diálogo cerrado).
+    const [templateToDelete, setTemplateToDelete] = useState<{ id: number; name: string } | null>(null);
     const [confirmChecked, setConfirmChecked] = useState(false);
     // Ref para leer la muestra del primer destinatario en el auto-mapeo sin que
     // cada cambio de destinatarios pise los ajustes manuales del mapeo.
@@ -825,7 +830,14 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     };
 
     const handleDeleteTemplate = async (id: number, name: string) => {
-        if (!confirm(t('bulkSends.deleteTemplateConfirm', { name }))) return;
+        // Sólo abre el diálogo: el borrado real ocurre en confirmDeleteTemplate.
+        setTemplateToDelete({ id, name });
+    };
+
+    const confirmDeleteTemplate = async () => {
+        if (!templateToDelete) return;
+        const { id } = templateToDelete;
+        setTemplateToDelete(null);
         try {
             const response = await csrfDelete(`/admin/bulk-sends/templates/${id}`);
             const data = response.data;
@@ -1455,7 +1467,11 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                     ) : (
                                         <div className="relative mb-4 flex-1 min-h-0">
                                             <div className="absolute inset-0 overflow-y-auto rounded-xl border border-border/60 bg-background/50 custom-scrollbar-light">
-                                            {recipients.map((r, index) => (
+                                            {/* Sólo se pintan los primeros RECIPIENTS_PREVIEW_LIMIT:
+                                                un Excel real llegó a 2.027 destinatarios y pintarlos
+                                                todos dejaba el navegador pesado JUSTO antes de enviar.
+                                                El envío sigue usando el array completo. */}
+                                            {recipients.slice(0, RECIPIENTS_PREVIEW_LIMIT).map((r, index) => (
                                                 <div
                                                     key={index}
                                                     className="flex items-center justify-between gap-3 border-b border-border/40 px-3 py-2 text-sm last:border-0 hover:bg-muted/50"
@@ -1482,6 +1498,16 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                     </button>
                                                 </div>
                                             ))}
+
+                                            {recipients.length > RECIPIENTS_PREVIEW_LIMIT && (
+                                                <div className="border-t border-border/40 bg-muted/30 px-3 py-2.5 text-center text-xs text-muted-foreground">
+                                                    {t('bulkSends.andMoreRecipients', {
+                                                        count: recipients.length - RECIPIENTS_PREVIEW_LIMIT,
+                                                        defaultValue: '…y {{count}} destinatarios más (se enviará a los {{total}})',
+                                                        total: recipients.length,
+                                                    })}
+                                                </div>
+                                            )}
                                             </div>
                                         </div>
                                     )}
@@ -1845,6 +1871,45 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                     {/* Modal para crear plantilla */}
                     {/* Modal de confirmación de envío: obliga a ver el mensaje final antes de disparar */}
+                    {/* Confirmar borrado de una plantilla de META: es permanente y deja de
+                        poder usarse en los envíos. Antes era un confirm() gris del navegador. */}
+                    {templateToDelete && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                            <div className="card-gradient w-full max-w-md rounded-2xl border border-white/40 shadow-2xl dark:border-white/10">
+                                <div className="p-5">
+                                    <h2 className="text-lg font-bold settings-title">
+                                        {t('bulkSends.deleteTemplateTitle', 'Eliminar plantilla de WhatsApp')}
+                                    </h2>
+                                    <p className="mt-1 text-sm settings-subtitle">
+                                        {t('bulkSends.deleteTemplateIrreversible', 'Se eliminará de Meta y no podrá usarse en los envíos. Esta acción no se puede deshacer.')}
+                                    </p>
+
+                                    <div className="mt-4 rounded-xl border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                        <p className="truncate text-sm font-semibold settings-title">{templateToDelete.name}</p>
+                                    </div>
+
+                                    <div className="mt-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 p-3 dark:border-amber-500 dark:bg-amber-900/20">
+                                        <p className="text-xs font-medium text-amber-900 dark:text-amber-300">
+                                            {t('bulkSends.deleteTemplateWarning', 'Si vuelves a necesitarla tendrás que crearla de nuevo y esperar la aprobación de Meta.')}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
+                                    <Button variant="outline" onClick={() => setTemplateToDelete(null)} className="rounded-xl font-medium settings-btn-secondary">
+                                        {t('common.cancel')}
+                                    </Button>
+                                    <Button
+                                        onClick={confirmDeleteTemplate}
+                                        className="rounded-xl border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md transition-all duration-200 hover:from-red-600 hover:to-red-700"
+                                    >
+                                        {t('common.delete')}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {showConfirmSend && selectedTemplate && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                             <div className="bg-background rounded-2xl border border-border shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
