@@ -401,8 +401,10 @@ class AppointmentReminderService
                "Dirección: " . $this->sedeAddress($appointment) . "\n\n" .
                "Le solicitamos presentarse con 40 minutos de anticipación y portar su documento de identificación, autorización de la eps, orden médica e historia clínica.\n\n" .
                "Para cualquier inquietud o si necesita reprogramar su cita, por favor comuníquese con nosotros.\n\n" .
+               "Recomendación: Si tiene alguna duda al ingresar a nuestras instalaciones, por favor consulte con nuestro personal de orientación. Con gusto le guiaremos hasta su consultorio\n\n" .
                "Atentamente,\n" .
-               "Hospital Universitario del Valle";
+               "Hospital Universitario del Valle\n" .
+               "70 años latiendo juntos.";
     }
     
     /**
