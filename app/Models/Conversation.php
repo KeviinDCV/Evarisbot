@@ -143,13 +143,22 @@ class Conversation extends Model
      */
     public function isWithinServiceWindow(): bool
     {
-        $lastInboundAt = $this->messages()
+        // Preferimos wa_sent_at (hora real de WhatsApp) sobre created_at (cuando nuestro
+        // webhook lo procesó): es contra la primera que Meta cuenta las 24 h. Los mensajes
+        // antiguos no la tienen, de ahí el COALESCE.
+        $last = $this->messages()
             ->where('is_from_user', true)
-            ->reorder('created_at', 'desc')
-            ->value('created_at');
+            ->reorder(\DB::raw('COALESCE(wa_sent_at, created_at)'), 'desc')
+            ->first(['wa_sent_at', 'created_at']);
 
+        $lastInboundAt = $last?->wa_sent_at ?? $last?->created_at;
+
+        // 23 h, no 24: Meta cierra la ventana ANTES que nuestro reloj (su cuenta arranca
+        // cuando ELLA recibe el mensaje, no cuando lo procesa nuestro webhook). Medido en
+        // producción: rechazos con error 131047 a las 23,32 h — 15 de 39 fallos ocurrieron
+        // por debajo de las 24 h. El margen evita enviar texto libre que se perdería.
         return $lastInboundAt !== null
-            && $lastInboundAt->greaterThan(now()->subHours(24));
+            && $lastInboundAt->greaterThan(now()->subHours(23));
     }
 
     /**

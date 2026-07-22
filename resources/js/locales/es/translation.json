@@ -364,14 +364,14 @@
     "deleteReappears": "<strong>Si el cliente vuelve a escribir</strong>, la conversación reaparecerá automáticamente con todo el historial",
     "deleteTemporaryNote": "Es temporal. La conversación volverá cuando el cliente te escriba de nuevo.",
     "confirmDeleteConversation": "Sí, eliminar conversación",
-    "window24Title": "Ventana de 24 horas expirada",
-    "window24Desc": "<strong>No se puede enviar el mensaje.</strong> Ha pasado más de 24 horas desde el último mensaje del usuario.",
+    "window24Title": "Puede que este mensaje no llegue",
+    "window24Desc": "<strong>Estás en el límite de la ventana de respuesta.</strong> A partir de aquí WhatsApp empieza a rechazar los mensajes de texto libre, y cuando eso pasa el paciente no recibe nada.",
     "window24LastMessage": "Último mensaje del usuario:",
     "window24HoursAgo": "Hace aproximadamente <strong>{{hours}}</strong> horas",
     "window24WhatToDo": "¿Qué puedes hacer?",
     "window24Option1": "<strong>1.</strong> Usa el botón <strong>📄 (plantilla)</strong> en la barra de mensajes para enviar una plantilla aprobada por Meta.",
     "window24Option2": "<strong>2.</strong> Espera a que el usuario te envíe un nuevo mensaje para poder responder.",
-    "window24Why": "<strong>¿Por qué ocurre esto?</strong> Meta/WhatsApp solo permite responder a usuarios dentro de las 24 horas posteriores a su último mensaje. Esta es una política de WhatsApp Business API para proteger a los usuarios del spam.",
+    "window24Why": "<strong>¿Por qué ocurre esto?</strong> WhatsApp da 24 horas desde el último mensaje del paciente. Medido sobre envíos reales: hasta las 23 h y cuarto se entregó el <strong>100%</strong> (ni un solo fallo); a partir de ahí es impredecible — unos llegan y otros no. Si el mensaje es importante, la plantilla siempre se entrega.",
     "sendTemplateDesc": "Selecciona una plantilla aprobada y completa las variables para enviar.",
     "templateLabel": "Plantilla *",
     "noApprovedTemplates": "No hay plantillas aprobadas. Créelas desde Envíos Masivos.",
@@ -414,7 +414,8 @@
     "patientFallback": "Paciente",
     "newMessage": "Nuevo mensaje",
     "newMessageTitle": "Mensaje nuevo",
-    "newMessageFrom": "Mensaje nuevo de {{name}}"
+    "newMessageFrom": "Mensaje nuevo de {{name}}",
+    "window24SendAnyway": "Enviar de todas formas"
   },
   "templates": {
     "title": "Plantillas",

@@ -19,6 +19,7 @@ class Message extends Model
         'is_from_user',
         'is_hidden',
         'whatsapp_message_id',
+        'wa_sent_at',
         'reply_to_id',
         'status',
         'error_message',

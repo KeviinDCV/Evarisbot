@@ -993,7 +993,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         setOptimisticMessages([]); // Limpiar mensajes optimistas al cambiar de conversación
         setReplyingTo(null); // Limpiar respuesta al cambiar de conversación
         inputValueRef.current = ''; // Limpiar input de mensaje
-        if (textareaRef.current) textareaRef.current.value = '';
+        if (textareaRef.current) {
+            textareaRef.current.value = '';
+            // Devolver el textarea a su alto original: si no, tras enviar un texto largo
+            // el compositor se quedaba estirado con el placeholder dentro.
+            textareaRef.current.style.height = 'auto';
+        }
         setHasInputText(false);
         previousTextRef.current = '';
         // Initialize local messages from server prop
@@ -2611,6 +2616,9 @@ export default function ConversationsIndex({ conversations: initialConversations
             return;
         }
 
+        // Sin aviso previo de ventana: el mensaje se intenta enviar siempre. Si WhatsApp lo
+        // rechaza (131047), el mensaje queda marcado como fallido con su ✗ en el hilo.
+
         setIsSubmitting(true);
 
         // Guardar conteo de mensajes actual para detectar cuando llegue el real
@@ -2641,7 +2649,12 @@ export default function ConversationsIndex({ conversations: initialConversations
 
         // Limpiar formulario inmediatamente (mejor UX)
         inputValueRef.current = '';
-        if (textareaRef.current) textareaRef.current.value = '';
+        if (textareaRef.current) {
+            textareaRef.current.value = '';
+            // Devolver el textarea a su alto original: si no, tras enviar un texto largo
+            // el compositor se quedaba estirado con el placeholder dentro.
+            textareaRef.current.style.height = 'auto';
+        }
         setHasInputText(false);
         previousTextRef.current = '';
         reset();
@@ -5103,7 +5116,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             defaultValue=""
                                             onChange={(e) => handleMessageChange(e.target.value)}
                                             placeholder={t('conversations.messagePlaceholder')}
-                                            className="flex-1 min-h-[44px] max-h-[120px] py-[10px] pr-4 pl-0 text-sm md:text-base resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-[#767681]"
+                                            // custom-scrollbar: la barra nativa de Windows es gruesa y gris
+                                            // y quedaba fea dentro del compositor redondeado en textos largos.
+                                            className="custom-scrollbar flex-1 min-h-[44px] max-h-[120px] py-[10px] pr-4 pl-0 text-sm md:text-base resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-[#767681]"
                                             onKeyDown={handleTemplateKeyDown}
                                             onPaste={handlePaste}
                                             spellCheck={true}

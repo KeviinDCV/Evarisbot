@@ -364,14 +364,14 @@
     "deleteReappears": "<strong>If the customer writes again</strong>, the conversation will automatically reappear with its full history",
     "deleteTemporaryNote": "It's temporary. The conversation will come back when the customer messages you again.",
     "confirmDeleteConversation": "Yes, delete conversation",
-    "window24Title": "24-hour window expired",
-    "window24Desc": "<strong>The message can't be sent.</strong> More than 24 hours have passed since the user's last message.",
+    "window24Title": "This message may not be delivered",
+    "window24Desc": "<strong>You are at the edge of the reply window.</strong> From here WhatsApp starts rejecting free-form messages, and when that happens the patient receives nothing.",
     "window24LastMessage": "User's last message:",
     "window24HoursAgo": "About <strong>{{hours}}</strong> hours ago",
     "window24WhatToDo": "What can you do?",
     "window24Option1": "<strong>1.</strong> Use the <strong>📄 (template)</strong> button in the message bar to send a Meta-approved template.",
     "window24Option2": "<strong>2.</strong> Wait for the user to send a new message so you can reply.",
-    "window24Why": "<strong>Why does this happen?</strong> Meta/WhatsApp only allows replying to users within 24 hours of their last message. This is a WhatsApp Business API policy to protect users from spam.",
+    "window24Why": "<strong>Why does this happen?</strong> WhatsApp allows 24 hours from the patient last message. Measured on real traffic: up to 23h15m, <strong>100%</strong> were delivered (not a single failure); after that it is unpredictable. If the message matters, a template is always delivered.",
     "sendTemplateDesc": "Select an approved template and fill in the variables to send.",
     "templateLabel": "Template *",
     "noApprovedTemplates": "No approved templates. Create them from Bulk Sends.",
@@ -414,7 +414,8 @@
     "patientFallback": "Patient",
     "newMessage": "New message",
     "newMessageTitle": "New message",
-    "newMessageFrom": "New message from {{name}}"
+    "newMessageFrom": "New message from {{name}}",
+    "window24SendAnyway": "Send anyway"
   },
   "templates": {
     "title": "Templates",

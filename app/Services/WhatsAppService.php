@@ -1924,6 +1924,12 @@ class WhatsAppService
                 'is_from_user' => true,
                 'is_hidden' => $isAppointmentResponse,
                 'whatsapp_message_id' => $messageId,
+                // Hora REAL de envío según WhatsApp (epoch en el webhook). created_at es
+                // cuando NOSOTROS lo procesamos; para la ventana de 24 h manda ésta, que es
+                // contra la que cuenta Meta. Antes se extraía y se descartaba.
+                'wa_sent_at' => is_numeric($timestamp)
+                    ? \Carbon\Carbon::createFromTimestamp((int) $timestamp)
+                    : null,
                 'status' => 'delivered',
                 'reply_to_id' => isset($messageData['context']['id'])
                     ? Message::where('whatsapp_message_id', $messageData['context']['id'])->value('id')
