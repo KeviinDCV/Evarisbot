@@ -506,7 +506,9 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                             // anunciaba "Conversaciones 239 Conversaciones".
                                             <span
                                                 aria-hidden
-                                                className="pointer-events-none absolute left-full z-[70] ml-3 hidden whitespace-nowrap rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[13px] font-medium text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 lg:block"
+                                                // Navy institucional en vez del gris genérico, con una
+                                                // flecha que lo ancla al icono: se lee como parte del riel.
+                                                className="pointer-events-none absolute left-full top-1/2 z-[70] ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#26356f] px-2.5 py-1.5 text-[13px] font-medium text-white opacity-0 shadow-xl ring-1 ring-white/10 transition-opacity duration-150 before:absolute before:right-full before:top-1/2 before:-translate-y-1/2 before:border-4 before:border-transparent before:border-r-[#26356f] before:content-[''] group-hover:opacity-100 group-focus-visible:opacity-100 lg:block"
                                             >
                                                 {t(item.title)}
                                             </span>

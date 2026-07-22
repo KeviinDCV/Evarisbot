@@ -4,6 +4,7 @@ import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
     Bot,
@@ -236,6 +237,8 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [typeFilter, setTypeFilter] = useState(filters.type || 'all');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    // Plantilla pendiente de borrar (null = diálogo cerrado).
+    const [templateToDelete, setTemplateToDelete] = useState<Template | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [templateToEdit, setTemplateToEdit] = useState<Template | null>(null);
     const [openTemplate, setOpenTemplate] = useState<Template | null>(null);
@@ -271,31 +274,38 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
         { value: 'inactive', label: t('common.inactive') },
     ];
 
-    const handleFilter = () => {
-        router.get(
-            '/admin/templates',
-            {
-                search: search.trim(),
-                status: statusFilter,
-                type: typeFilter,
-            },
-            {
-                preserveState: true,
-                preserveScroll: true,
-            }
-        );
-    };
+    /**
+     * Filtrado INSTANTÁNEO en el cliente.
+     *
+     * Antes cada filtro hacía router.get() al servidor: había que escribir y además pulsar
+     * "Filtrar" (los desplegables no hacían nada solos) y esperar una recarga. Con el
+     * catálogo completo ya en memoria (~30 plantillas) no hay motivo para ir al servidor:
+     * la lista se reduce mientras escribes. El backend sigue aceptando los filtros por
+     * querystring, así que los enlaces directos con ?search=... siguen funcionando.
+     */
+    const filteredTemplates = useMemo(() => {
+        const term = search.trim().toLowerCase();
+
+        return templates.filter((template) => {
+            if (statusFilter === 'active' && !template.is_active) return false;
+            if (statusFilter === 'inactive' && template.is_active) return false;
+            if (typeFilter !== 'all' && template.message_type !== typeFilter) return false;
+
+            if (!term) return true;
+            // Busca en nombre, asunto y contenido: el asesor suele recordar una frase,
+            // no el nombre exacto de la plantilla.
+            return (
+                template.name.toLowerCase().includes(term) ||
+                (template.subject ?? '').toLowerCase().includes(term) ||
+                template.content.toLowerCase().includes(term)
+            );
+        });
+    }, [templates, search, statusFilter, typeFilter]);
 
     const clearFilters = () => {
         setSearch('');
         setStatusFilter('all');
         setTypeFilter('all');
-
-        router.get(
-            '/admin/templates',
-            { search: '', status: 'all', type: 'all' },
-            { preserveState: true, preserveScroll: true }
-        );
     };
 
     const toggleStatus = (templateId: number) => {
@@ -310,14 +320,25 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
         );
     };
 
+    /**
+     * Borrado con diálogo propio en vez de confirm() del navegador.
+     * El confirm() nativo no decía QUÉ plantilla se borraba ni cuántas veces se había
+     * usado: se podía eliminar "AGENDAR CITA" (2.590 usos) con un clic distraído.
+     */
     const deleteTemplate = (templateId: number) => {
-        if (confirm(t('templates.deleteConfirm'))) {
-            router.delete(`/admin/templates/${templateId}`, {
-                preserveScroll: true,
-                onSuccess: () => toast.success(t('templates.deleted')),
-                onError: () => toast.error(t('templates.deleteError')),
-            });
-        }
+        const target = templates.find((tpl) => tpl.id === templateId) ?? null;
+        setTemplateToDelete(target);
+    };
+
+    const confirmDeleteTemplate = () => {
+        if (!templateToDelete) return;
+        const id = templateToDelete.id;
+        setTemplateToDelete(null);
+        router.delete(`/admin/templates/${id}`, {
+            preserveScroll: true,
+            onSuccess: () => toast.success(t('templates.deleted')),
+            onError: () => toast.error(t('templates.deleteError')),
+        });
     };
 
     const getTypeIcon = (type: Template['message_type']) => {
@@ -406,7 +427,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                         type="text"
                                         value={search}
                                         onChange={(event) => setSearch(event.target.value)}
-                                        onKeyDown={(event) => event.key === 'Enter' && handleFilter()}
+                                        onKeyDown={(event) => event.key === 'Escape' && setSearch('')}
                                         placeholder={t('templates.searchPlaceholder')}
                                         className="h-9 rounded-xl pl-9 settings-input"
                                     />
@@ -449,21 +470,42 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                 </Select>
                             </div>
 
-                            <Button onClick={handleFilter} className="h-9 rounded-xl settings-btn-primary text-white">
-                                <Search className="h-4 w-4" />
-                                {t('common.filter')}
-                            </Button>
+                            {/* Sin botón "Filtrar": el filtrado es instantáneo al escribir/elegir.
+                                Se muestra cuántas plantillas quedan para dar feedback inmediato. */}
+                            <span className="flex h-9 items-center whitespace-nowrap text-xs font-semibold settings-subtitle">
+                                {hasFilters
+                                    ? t('templates.showingCount', {
+                                          shown: formatNumber(filteredTemplates.length),
+                                          total: formatNumber(templates.length),
+                                          defaultValue: '{{shown}} de {{total}}',
+                                      })
+                                    : null}
+                            </span>
                             <Button onClick={clearFilters} variant="outline" className="h-9 rounded-xl settings-btn-secondary" disabled={!hasFilters}>
                                 <X className="h-4 w-4" />
                                 {t('common.clear')}
                             </Button>
                         </div>
 
-                        {templates.length === 0 ? (
-                            <EmptyState isAdmin={isAdmin} onCreate={() => setIsCreateModalOpen(true)} />
+                        {filteredTemplates.length === 0 ? (
+                            hasFilters ? (
+                                // Sin resultados por los filtros: no es lo mismo que no tener plantillas.
+                                <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+                                    <Search className="h-8 w-8 settings-subtitle opacity-50" />
+                                    <p className="text-sm font-semibold settings-title">{t('templates.noResults', 'Sin resultados')}</p>
+                                    <p className="text-xs settings-subtitle">
+                                        {t('templates.noResultsHint', 'Prueba con otro texto o quita los filtros.')}
+                                    </p>
+                                    <Button onClick={clearFilters} variant="outline" className="h-9 rounded-xl settings-btn-secondary">
+                                        {t('templates.clearFilters', 'Limpiar filtros')}
+                                    </Button>
+                                </div>
+                            ) : (
+                                <EmptyState isAdmin={isAdmin} onCreate={() => setIsCreateModalOpen(true)} />
+                            )
                         ) : (
                             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                                            {templates.map((template) => {
+                                            {filteredTemplates.map((template) => {
                                                 const attachedFiles = template.media_files?.length ?? (template.media_url ? 1 : 0);
                                                 const assignedCount = template.assigned_users?.length ?? 0;
 
@@ -617,6 +659,61 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                 template={templateToEdit}
                 users={users}
             />
+
+            {/* Confirmación de borrado: dice QUÉ se borra y CUÁNTO se usa. */}
+            <Dialog open={templateToDelete !== null} onOpenChange={(open) => !open && setTemplateToDelete(null)}>
+                <DialogContent className="card-gradient rounded-2xl border border-white/40 shadow-2xl dark:border-white/10 sm:max-w-md sm:rounded-2xl">
+                    <DialogHeader>
+                        {/* Título en el tono de la app (no rojo): el color destructivo se
+                            reserva para el botón, que es la acción irreversible. */}
+                        <DialogTitle className="settings-title">
+                            {t('templates.deleteTitle', 'Eliminar plantilla')}
+                        </DialogTitle>
+                        <DialogDescription className="settings-subtitle">
+                            {t('templates.deleteIrreversible', 'Esta acción no se puede deshacer.')}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {templateToDelete && (
+                        <div className="space-y-3">
+                            <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                <p className="truncate text-sm font-semibold settings-title">{templateToDelete.name}</p>
+                                <p className="mt-0.5 text-xs settings-subtitle">
+                                    {t('templates.deleteUsageCount', {
+                                        count: Number(templateToDelete.usage_stats?.total_sends ?? 0),
+                                        value: formatNumber(Number(templateToDelete.usage_stats?.total_sends ?? 0)),
+                                        defaultValue: 'Se ha usado {{value}} veces',
+                                    })}
+                                </p>
+                            </div>
+
+                            {/* Si es muy usada, no basta con informar: hay que frenar al usuario. */}
+                            {Number(templateToDelete.usage_stats?.total_sends ?? 0) >= 100 && (
+                                <div className="rounded-lg border-l-4 border-amber-400 bg-amber-50 p-3 dark:border-amber-500 dark:bg-amber-900/20">
+                                    <p className="text-xs font-medium text-amber-900 dark:text-amber-300">
+                                        {t(
+                                            'templates.deleteHighUsage',
+                                            'Es una de las plantillas más usadas del equipo. Si solo quieres dejar de ofrecerla, considera desactivarla en lugar de eliminarla.',
+                                        )}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setTemplateToDelete(null)} className="rounded-xl font-medium settings-btn-secondary">
+                            {t('common.cancel')}
+                        </Button>
+                        <Button
+                            onClick={confirmDeleteTemplate}
+                            className="rounded-xl border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md transition-all duration-200 hover:from-red-600 hover:to-red-700"
+                        >
+                            {t('common.delete')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AdminLayout>
     );
 }
