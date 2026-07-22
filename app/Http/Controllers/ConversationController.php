@@ -235,6 +235,17 @@ class ConversationController extends Controller
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
                 }
+            } elseif ($request->status === 'confirmed') {
+                // Confirmados: confirmaciones/cancelaciones de cita que el SISTEMA auto-resolvió
+                // (resolved_by NULL) y que por eso no aparecen en "Todos". Las que resolvió un
+                // asesor sí llevan su id, así que quedan fuera de este filtro.
+                $query->where('status', 'resolved')->whereNull('resolved_by');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->whereNull('resolved_by')
+                        ->orderBy('resolved_at', 'desc');
+                }
             } elseif ($request->status === 'scheduled') {
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
@@ -462,6 +473,17 @@ class ConversationController extends Controller
                 if ($user->isAdvisor()) {
                     $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
+                        ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'confirmed') {
+                // Confirmados: confirmaciones/cancelaciones de cita que el SISTEMA auto-resolvió
+                // (resolved_by NULL) y que por eso no aparecen en "Todos". Las que resolvió un
+                // asesor sí llevan su id, así que quedan fuera de este filtro.
+                $query->where('status', 'resolved')->whereNull('resolved_by');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->whereNull('resolved_by')
                         ->orderBy('resolved_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
@@ -2007,6 +2029,17 @@ class ConversationController extends Controller
                 if ($user->isAdvisor()) {
                     $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
+                        ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'confirmed') {
+                // Confirmados: confirmaciones/cancelaciones de cita que el SISTEMA auto-resolvió
+                // (resolved_by NULL) y que por eso no aparecen en "Todos". Las que resolvió un
+                // asesor sí llevan su id, así que quedan fuera de este filtro.
+                $query->where('status', 'resolved')->whereNull('resolved_by');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->whereNull('resolved_by')
                         ->orderBy('resolved_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {

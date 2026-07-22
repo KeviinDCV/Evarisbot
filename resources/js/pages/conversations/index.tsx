@@ -236,7 +236,7 @@ interface WhatsappTemplate {
     default_params?: string[] | null;
 }
 
-type ChatFilterKey = 'all' | 'unanswered' | 'pending_response' | 'resolved' | 'scheduled' | 'oncology' | 'blocked';
+type ChatFilterKey = 'all' | 'unanswered' | 'pending_response' | 'resolved' | 'confirmed' | 'scheduled' | 'oncology' | 'blocked';
 
 type FilterCounts = Record<ChatFilterKey, number>;
 
@@ -245,6 +245,7 @@ const DEFAULT_FILTER_COUNTS: FilterCounts = {
     unanswered: 0,
     pending_response: 0,
     resolved: 0,
+    confirmed: 0,
     scheduled: 0,
     oncology: 0,
     blocked: 0,
@@ -1151,7 +1152,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Ocultar conversaciones resueltas/cerradas/agendadas de "Todos"
                 // EXCEPTO si el filtro activo corresponde o hay filtro de etiqueta/especialidad
                 if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled') {
-                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
+                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
                 return true;
@@ -1162,7 +1163,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
                 if (filters.search && filters.search.trim() !== '') return true;
                 if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled') {
-                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
+                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
                 return true;
@@ -1307,6 +1308,51 @@ export default function ConversationsIndex({ conversations: initialConversations
         };
     }, []);
 
+    /**
+     * Preservar el scroll de la lista frente al bloqueo de scroll de Radix.
+     *
+     * Dialog/Select/DropdownMenu usan react-remove-scroll, que al abrirse aplica
+     * overflow:hidden. La lista de conversaciones tiene su PROPIO scroll: al dejar de
+     * desbordar, el navegador pone su scrollTop a 0, y al cerrarse el overlay ya se perdió
+     * — la lista aparecía "arriba del todo" tras marcar resuelto o abrir "nuevo chat".
+     *
+     * Un solo observador cubre TODOS los overlays: guarda la posición al bloquear y la
+     * restaura al liberar. (En los dropdowns además usamos modal={false}, que evita el
+     * bloqueo de raíz; en los diálogos no se puede, porque necesitan la trampa de foco.)
+     */
+    useEffect(() => {
+        const body = document.body;
+        const isLocked = () => body.hasAttribute('data-scroll-locked') || body.style.overflow === 'hidden';
+        let locked = isLocked();
+        let saved: number | null = null;
+
+        const observer = new MutationObserver(() => {
+            const nowLocked = isLocked();
+            if (nowLocked === locked) return;
+            locked = nowLocked;
+
+            const el = conversationsListRef.current;
+            if (!el) return;
+
+            if (nowLocked) {
+                saved = el.scrollTop;
+            } else if (saved !== null && saved > 0) {
+                const target = saved;
+                saved = null;
+                // Tras el repaint en que Radix devuelve el overflow al body.
+                requestAnimationFrame(() => {
+                    const node = conversationsListRef.current;
+                    if (node && Math.abs(node.scrollTop - target) > 2) {
+                        node.scrollTop = target;
+                    }
+                });
+            }
+        });
+
+        observer.observe(body, { attributes: true, attributeFilter: ['data-scroll-locked', 'style'] });
+        return () => observer.disconnect();
+    }, []);
+
     // (2) [SCROLL-DIAG] TEMPORAL: ¿se re-monta el contenedor de la lista?
     const listMountCountRef = useRef(0);
     const setListRef = useCallback((node: HTMLDivElement | null) => {
@@ -1444,7 +1490,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         // Si hay búsqueda activa, no filtrar por estado/bloqueo (el backend ya respeta search)
                         if (filters.search && filters.search.trim() !== '') return true;
                         if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
-                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
+                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                             if (conv.is_blocked && filters.status !== 'blocked') return false;
                         }
@@ -1456,7 +1502,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     const newConvs = freshConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
                         if (filters.search && filters.search.trim() !== '') return true;
                         if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
-                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved') return false;
+                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                             if (conv.is_blocked && filters.status !== 'blocked') return false;
                         }
@@ -3417,6 +3463,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 { value: 'unanswered', label: t('conversations.pillUnread') },
                                 { value: 'pending_response', label: t('conversations.pillWaiting') },
                                 { value: 'resolved', label: t('conversations.pillResolved') },
+                                // Confirmados: confirmaciones de cita que el sistema auto-resolvió
+                                // y que por eso no salen en "Todos".
+                                { value: 'confirmed', label: t('conversations.pillConfirmed') },
                                 { value: 'scheduled', label: t('conversations.pillScheduled') },
                                 { value: 'oncology', label: t('conversations.pillOncology') },
                                 { value: 'blocked', label: t('conversations.pillBlocked') },
@@ -5169,7 +5218,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${getStatusColor(selectedConversation.status, selectedConversation.is_blocked)}`} />
                                             <span className="text-sm font-medium text-foreground truncate">{getStatusLabel(selectedConversation.status, selectedConversation.is_blocked)}</span>
                                         </span>
-                                        <DropdownMenu>
+                                        {/* modal={false}: sin esto Radix bloquea el scroll (react-remove-scroll)
+                                            aplicando overflow:hidden, y la lista de conversaciones —que tiene
+                                            su propio scroll— deja de desbordar y PIERDE su scrollTop. Al cerrar
+                                            el menú ya se perdió: la lista aparecía "arriba del todo". */}
+                                        <DropdownMenu modal={false}>
                                             <DropdownMenuTrigger asChild>
                                                 <button className="text-xs text-[#2e3f84] dark:text-blue-400 hover:underline flex items-center gap-0.5 flex-shrink-0">{t('common.change')} <ChevronDown className="w-3.5 h-3.5" /></button>
                                             </DropdownMenuTrigger>
