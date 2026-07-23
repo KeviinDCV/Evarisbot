@@ -414,36 +414,43 @@ class StatisticsController extends Controller
         // Obtener todos los asesores
         $advisors = User::where('role', 'advisor')->get();
 
-        $advisorStats = $advisors->map(function ($advisor) use ($startDate, $endDate) {
-            // 1. Estadísticas de Conversaciones (basadas en asignación actual)
-            $convQuery = Conversation::where('assigned_to', $advisor->id);
-            
-            // Si hay filtro de fecha, aplicarlo a la fecha de creación de la conversación
-            if ($startDate && $endDate) {
-                $convQuery->whereBetween('created_at', [$startDate, $endDate]);
-            }
+        // DOS consultas agrupadas para TODOS los asesores, en vez de 6 por cada uno.
+        // Antes este map() disparaba 6 consultas por asesor: con 27 asesores eran ~162
+        // consultas sólo en este bloque (189 en toda la vista). Ahora son 2.
+        $convAgg = Conversation::selectRaw('
+                assigned_to,
+                COUNT(*) AS total,
+                SUM(status IN ("resolved","closed")) AS resolved,
+                SUM(status = "scheduled") AS scheduled,
+                SUM(status = "active") AS active,
+                SUM(unread_count > 0) AS with_unread
+            ')
+            ->whereNotNull('assigned_to')
+            ->when($startDate && $endDate, fn ($q) => $q->whereBetween('created_at', [$startDate, $endDate]))
+            ->groupBy('assigned_to')
+            ->get()
+            ->keyBy('assigned_to');
 
-            // Clonar queries para diferentes conteos
-            $totalConversations = (clone $convQuery)->count();
-            $resolvedConversations = (clone $convQuery)->whereIn('status', ['resolved', 'closed'])->count();
-            $scheduledConversations = (clone $convQuery)->where('status', 'scheduled')->count();
-            $activeConversations = (clone $convQuery)->where('status', 'active')->count();
-            $conversationsWithUnread = (clone $convQuery)->where('unread_count', '>', 0)->count();
+        $msgAgg = Message::selectRaw('sent_by, COUNT(*) AS sent')
+            ->where('is_from_user', false)
+            ->whereNotNull('sent_by')
+            ->when($startDate && $endDate, fn ($q) => $q->whereBetween('created_at', [$startDate, $endDate]))
+            ->groupBy('sent_by')
+            ->pluck('sent', 'sent_by');
 
-            // 2. Estadísticas de Mensajes Enviados (independiente de la asignación actual)
-            // Se cuenta cualquier mensaje enviado por este asesor en el rango de fechas
-            $msgQuery = Message::where('sent_by', $advisor->id)
-                ->where('is_from_user', false);
-            
-            if ($startDate && $endDate) {
-                $msgQuery->whereBetween('created_at', [$startDate, $endDate]);
-            }
-            
-            $messagesSent = $msgQuery->count();
+        $advisorStats = $advisors->map(function ($advisor) use ($convAgg, $msgAgg) {
+            $c = $convAgg->get($advisor->id);
+
+            $totalConversations = (int) ($c->total ?? 0);
+            $resolvedConversations = (int) ($c->resolved ?? 0);
+            $scheduledConversations = (int) ($c->scheduled ?? 0);
+            $activeConversations = (int) ($c->active ?? 0);
+            $conversationsWithUnread = (int) ($c->with_unread ?? 0);
+            $messagesSent = (int) ($msgAgg[$advisor->id] ?? 0);
 
             // Calcular tasa de resolución
-            $resolutionRate = $totalConversations > 0 
-                ? round(($resolvedConversations * 100.0) / $totalConversations, 2) 
+            $resolutionRate = $totalConversations > 0
+                ? round(($resolvedConversations * 100.0) / $totalConversations, 2)
                 : 0;
 
             return [

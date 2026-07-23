@@ -862,8 +862,13 @@ class AppointmentController extends Controller
             'citcon', 'connom', 'citurg', 'citobsobs', 'duracion', 'ageperdes_g', 'dia'
         ];
         
+        // Las citas sin autor (subidas por un usuario que luego se eliminó) siguen
+        // siendo citas reales. Si quedaran fuera de la comparación, volver a cargar
+        // el mismo Excel las reinsertaría y el paciente recibiría dos recordatorios.
         $query = DB::table('appointments')
-            ->where('uploaded_by', $uploadedBy)
+            ->where(function ($q) use ($uploadedBy) {
+                $q->where('uploaded_by', $uploadedBy)->orWhereNull('uploaded_by');
+            })
             ->where('service', $this->service);
         
         // Comparar todos los campos
