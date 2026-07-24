@@ -111,33 +111,53 @@ class StatisticsController extends Controller
     /**
      * Calculate date range based on period or custom dates
      */
+    /**
+     * Zona horaria del negocio. La app corre en UTC y las marcas de tiempo se guardan
+     * en UTC, pero el hospital opera en Colombia (UTC-5).
+     */
+    private const BUSINESS_TZ = 'America/Bogota';
+
+    /**
+     * Ventana de fechas para filtrar columnas created_at (que están en UTC).
+     *
+     * Los días se recortan en hora de COLOMBIA y luego se convierten a UTC, porque es
+     * lo que entiende quien mira el panel: "Hoy" es el día colombiano, no el día UTC.
+     *
+     * Antes se usaba now()->startOfDay() (UTC) directamente: "Hoy" iba de las 19:00 de
+     * ayer a las 18:59 de hoy hora local y, a partir de las 19:00, el panel se vaciaba
+     * porque la ventana ya había saltado al día siguiente.
+     */
     private function calculateDateRange(?string $startDate, ?string $endDate, string $period): array
     {
+        $tz = self::BUSINESS_TZ;
+
         if ($startDate && $endDate) {
             return [
-                \Carbon\Carbon::parse($startDate)->startOfDay(),
-                \Carbon\Carbon::parse($endDate)->endOfDay(),
+                \Carbon\Carbon::parse($startDate, $tz)->startOfDay()->utc(),
+                \Carbon\Carbon::parse($endDate, $tz)->endOfDay()->utc(),
             ];
         }
 
+        $ahora = now()->setTimezone($tz);
+
         return match ($period) {
             'today' => [
-                now()->startOfDay(),
-                now()->endOfDay(),
+                $ahora->copy()->startOfDay()->utc(),
+                $ahora->copy()->endOfDay()->utc(),
             ],
             'week' => [
-                now()->startOfWeek(),
-                now()->endOfWeek(),
+                $ahora->copy()->startOfWeek()->utc(),
+                $ahora->copy()->endOfWeek()->utc(),
             ],
             'month' => [
-                now()->startOfMonth(),
-                now()->endOfMonth(),
+                $ahora->copy()->startOfMonth()->utc(),
+                $ahora->copy()->endOfMonth()->utc(),
             ],
             'year' => [
-                now()->startOfYear(),
-                now()->endOfYear(),
+                $ahora->copy()->startOfYear()->utc(),
+                $ahora->copy()->endOfYear()->utc(),
             ],
-            default => [null, null], // All time
+            default => [null, null], // Todo el tiempo
         };
     }
 
@@ -190,12 +210,6 @@ class StatisticsController extends Controller
      */
     private function getAppointmentStatistics(?\Carbon\Carbon $startDate, ?\Carbon\Carbon $endDate): array
     {
-        // Una sola consulta para total, reminder_sent y estados
-        $baseQuery = Appointment::query();
-        if ($startDate && $endDate) {
-            $baseQuery->whereBetween('created_at', [$startDate, $endDate]);
-        }
-
         // Obtener todo en una sola consulta agregada
         $stats = DB::table('appointments')
             ->selectRaw('
@@ -210,8 +224,18 @@ class StatisticsController extends Controller
                 SUM(CASE WHEN reminder_status = "cancelled" THEN 1 ELSE 0 END) as cancelled
             ');
         
+        // Se filtra por citfc (FECHA DE LA CITA), no por created_at: las citas se insertan
+        // con DB::table()->insert(), que se salta los timestamps de Eloquent, así que
+        // created_at es NULL en las 105.000 filas y whereBetween sobre ella no casaba
+        // NUNCA — cualquier periodo distinto de "todo el tiempo" devolvía 0 citas.
+        //
+        // citfc es de tipo DATE y está en hora de Colombia, mientras que el rango llega
+        // en UTC; se convierte de vuelta a la zona del negocio para comparar días con días.
         if ($startDate && $endDate) {
-            $stats->whereBetween('created_at', [$startDate, $endDate]);
+            $stats->whereBetween('citfc', [
+                $startDate->copy()->setTimezone(self::BUSINESS_TZ)->toDateString(),
+                $endDate->copy()->setTimezone(self::BUSINESS_TZ)->toDateString(),
+            ]);
         }
 
         $result = $stats->first();
@@ -233,6 +257,9 @@ class StatisticsController extends Controller
             'cancelled' => $byStatus['cancelled'],
             'pending' => $byStatus['pending'],
             'failed' => $byStatus['failed'],
+            // Recordatorio entregado y el paciente todavía no ha contestado.
+            // confirmed + cancelled + awaiting_reply = reminder_sent.
+            'awaiting_reply' => $byStatus['sent'] + $byStatus['delivered'] + $byStatus['read'],
             'by_status' => $byStatus,
         ];
     }
@@ -321,7 +348,13 @@ class StatisticsController extends Controller
         $ratesAsOf = (string) config('whatsapp.billing.rates_as_of', '');
 
         // Base: mensajes salientes (los que Meta puede cobrar) del período.
-        $base = DB::table('messages')->where('is_from_user', 0);
+        //
+        // Se excluyen los que acabaron en 'failed': Meta manda el objeto de precio en el
+        // callback 'sent' y luego, si el mensaje resulta no entregable, llega un 'failed'
+        // que no limpia billable. Esos no se cobran, pero aquí se sumaban igual.
+        $base = DB::table('messages')
+            ->where('is_from_user', 0)
+            ->where(fn ($q) => $q->where('status', '<>', 'failed')->orWhereNull('status'));
         if ($startDate && $endDate) {
             $base->whereBetween('created_at', [$startDate, $endDate]);
         }
@@ -362,10 +395,17 @@ class StatisticsController extends Controller
         }
 
         $totalCost = 0.0;
+        $sinTarifa = 0;
         foreach ($byCategory as $cat => $data) {
             $cost = round($data['billable'] * $data['rate'], 2);
             $byCategory[$cat]['cost'] = $cost;
             $totalCost += $cost;
+
+            // Si Meta estrena una categoría que no está en config/whatsapp.php, su tarifa
+            // es 0 y aportaría 0 USD sin avisar. Se cuenta para poder advertirlo.
+            if ($data['rate'] <= 0 && $data['billable'] > 0) {
+                $sinTarifa += $data['billable'];
+            }
         }
 
         // Cobertura: qué porción de los salientes tiene datos de facturación.
@@ -383,6 +423,7 @@ class StatisticsController extends Controller
             'with_pricing' => $withPricing,
             'without_pricing' => max(0, $outbound - $withPricing),
             'coverage_percent' => $outbound > 0 ? round($withPricing / $outbound * 100, 1) : 0,
+            'billable_without_rate' => $sinTarifa,
         ];
     }
 
@@ -448,10 +489,12 @@ class StatisticsController extends Controller
             $conversationsWithUnread = (int) ($c->with_unread ?? 0);
             $messagesSent = (int) ($msgAgg[$advisor->id] ?? 0);
 
-            // Calcular tasa de resolución
+            // null (no 0) cuando no tiene conversaciones asignadas: "sin datos" y "resolvió
+            // el 0%" son cosas distintas, y el frontend pintaba de rojo (bajo rendimiento)
+            // a quien simplemente no tenía carga.
             $resolutionRate = $totalConversations > 0
                 ? round(($resolvedConversations * 100.0) / $totalConversations, 2)
-                : 0;
+                : null;
 
             return [
                 'id' => $advisor->id,
@@ -475,8 +518,14 @@ class StatisticsController extends Controller
         $totalUnread = array_sum(array_column($advisorStats, 'conversations_with_unread'));
         $totalMessages = array_sum(array_column($advisorStats, 'messages_sent'));
         
-        $avgResolutionRate = $totalAdvisors > 0 
-            ? round(array_sum(array_column($advisorStats, 'resolution_rate')) / $totalAdvisors, 2)
+        // Tasa PONDERADA por volumen: resueltas / asignadas sobre el total real.
+        //
+        // Antes era la media aritmética de los porcentajes individuales dividida entre
+        // TODOS los asesores, incluidos los que no tienen ninguna conversación (que
+        // aportaban 0%). Con 10 de 27 asesores sin carga, el panel mostraba 62,12%
+        // cuando el equipo resuelve de verdad el 91,03%.
+        $avgResolutionRate = $totalConversations > 0
+            ? round(($totalResolved * 100.0) / $totalConversations, 2)
             : 0;
 
         // Encontrar al mejor asesor (mayor número de conversaciones resueltas)
@@ -524,7 +573,9 @@ class StatisticsController extends Controller
             'period' => $period,
         ];
 
-        $fileName = 'estadisticas_' . now()->format('Y-m-d_His') . '.xlsx';
+        // Hora de Colombia: con now() (UTC) un archivo bajado a las 15:00 salía marcado
+        // como las 20:00, y los de la tarde aparecían fechados al día siguiente.
+        $fileName = 'estadisticas_' . now()->setTimezone(self::BUSINESS_TZ)->format('Y-m-d_His') . '.xlsx';
 
         $export = new StatisticsExport($statistics, $dateRange);
         return $export->download($fileName);
@@ -561,7 +612,7 @@ class StatisticsController extends Controller
         $pendingConversations = (clone $convQuery)->where('status', 'pending')->count();
 
         // Average response time: time between a user message and the next advisor reply in conversations assigned to this advisor
-        $avgResponseTime = $this->calculateAvgResponseTime($user->id, $dateStart, $dateEnd);
+        $medianResponseTime = $this->calculateMedianResponseTime($user->id, $dateStart, $dateEnd);
 
         // Daily message counts (last 7 days or within range)
         $dailyActivity = $this->getDailyActivity($user->id, $dateStart, $dateEnd);
@@ -571,7 +622,10 @@ class StatisticsController extends Controller
             ->where('sent_by', $user->id)
             ->where('is_from_user', false)
             ->when($dateStart && $dateEnd, fn($q) => $q->whereBetween('created_at', [$dateStart, $dateEnd]))
-            ->selectRaw('HOUR(created_at) as hour, COUNT(*) as count')
+            // created_at está en UTC; la gráfica rotula las barras como hora local, así que
+            // hay que restar las 5 horas de Colombia. Sin esto la jornada salía corrida:
+            // un asesor que trabaja de 06:00 a 16:00 aparecía trabajando de 11:00 a 21:00.
+            ->selectRaw('HOUR(CONVERT_TZ(created_at, "+00:00", "-05:00")) as hour, COUNT(*) as count')
             ->groupBy('hour')
             ->orderBy('hour')
             ->pluck('count', 'hour')
@@ -611,7 +665,7 @@ class StatisticsController extends Controller
                 'resolution_rate' => $totalConversations > 0
                     ? round(($resolvedConversations * 100.0) / $totalConversations, 2)
                     : 0,
-                'avg_response_time_minutes' => $avgResponseTime,
+                'median_response_time_minutes' => $medianResponseTime,
             ],
             'daily_activity' => $dailyActivity,
             'hourly_distribution' => $hourly,
@@ -620,9 +674,14 @@ class StatisticsController extends Controller
     }
 
     /**
-     * Calculate average response time in minutes for an advisor
+     * Tiempo de respuesta TÍPICO (mediana), en minutos, de un asesor.
+     *
+     * Se usa la mediana y no la media porque la distribución tiene una cola muy larga:
+     * medido sobre datos reales, una asesora con mediana de 24 min (y un 30% de respuestas
+     * en menos de 5 min) salía con una media de 3h52m por culpa del 10% de casos que
+     * tardan más de 16 h. La media hacía parecer al equipo diez veces más lento de lo que es.
      */
-    private function calculateAvgResponseTime(int $advisorId, ?\Carbon\Carbon $dateStart, ?\Carbon\Carbon $dateEnd): ?float
+    private function calculateMedianResponseTime(int $advisorId, ?\Carbon\Carbon $dateStart, ?\Carbon\Carbon $dateEnd): ?float
     {
         // Get conversations where this advisor has sent messages
         $conversationIds = Message::where('sent_by', $advisorId)
@@ -635,35 +694,60 @@ class StatisticsController extends Controller
             return null;
         }
 
-        // For each conversation, find pairs: user message -> next advisor reply
-        // Use a raw query for efficiency
+        // Se empareja POR RESPUESTA DEL ASESOR, no por mensaje del paciente.
+        //
+        // Antes se recorría cada mensaje entrante buscando "la siguiente respuesta": si el
+        // paciente escribía 5 mensajes seguidos, los 5 se emparejaban con la MISMA respuesta
+        // (se contaba 4,5 veces de media) y al más antiguo se le imputaba la espera entera.
+        //
+        // Ahora, para cada respuesta se mide desde que el paciente empezó a esperar: el primer
+        // mensaje suyo posterior a la última respuesta de CUALQUIER agente en esa conversación.
+        // Cada respuesta cuenta una sola vez y el número es la espera real del paciente.
         $responseTimes = DB::select("
-            SELECT AVG(response_seconds) as avg_seconds FROM (
-                SELECT TIMESTAMPDIFF(SECOND, user_msg.created_at, advisor_msg.created_at) as response_seconds
-                FROM messages user_msg
-                INNER JOIN messages advisor_msg ON advisor_msg.conversation_id = user_msg.conversation_id
-                    AND advisor_msg.is_from_user = 0
-                    AND advisor_msg.sent_by = ?
-                    AND advisor_msg.created_at > user_msg.created_at
-                    AND advisor_msg.id = (
-                        SELECT MIN(m2.id) FROM messages m2
-                        WHERE m2.conversation_id = user_msg.conversation_id
-                        AND m2.is_from_user = 0
-                        AND m2.sent_by = ?
-                        AND m2.created_at > user_msg.created_at
-                    )
-                WHERE user_msg.is_from_user = 1
-                    AND user_msg.conversation_id IN (" . implode(',', $conversationIds->toArray()) . ")
-                    " . ($dateStart && $dateEnd ? "AND user_msg.created_at BETWEEN ? AND ?" : "") . "
+            SELECT response_seconds FROM (
+                SELECT TIMESTAMPDIFF(
+                    SECOND,
+                    (
+                        SELECT MIN(u.created_at) FROM messages u
+                        WHERE u.conversation_id = a.conversation_id
+                          AND u.is_from_user = 1
+                          AND u.created_at < a.created_at
+                          AND u.created_at > COALESCE((
+                              SELECT MAX(p.created_at) FROM messages p
+                              WHERE p.conversation_id = a.conversation_id
+                                AND p.is_from_user = 0
+                                AND p.created_at < a.created_at
+                          ), '1970-01-01 00:00:00')
+                    ),
+                    a.created_at
+                ) as response_seconds
+                FROM messages a
+                WHERE a.is_from_user = 0
+                  AND a.sent_by = ?
+                  AND a.conversation_id IN (" . implode(',', $conversationIds->toArray()) . ")
+                  " . ($dateStart && $dateEnd ? "AND a.created_at BETWEEN ? AND ?" : "") . "
                 HAVING response_seconds BETWEEN 0 AND 86400
             ) as response_data
+            ORDER BY response_seconds
         ", array_merge(
-            [$advisorId, $advisorId],
+            [$advisorId],
             $dateStart && $dateEnd ? [$dateStart, $dateEnd] : []
         ));
 
-        $avgSeconds = $responseTimes[0]->avg_seconds ?? null;
-        return $avgSeconds !== null ? round($avgSeconds / 60, 1) : null;
+        $segundos = array_column($responseTimes, 'response_seconds');
+        $n = count($segundos);
+
+        if ($n === 0) {
+            return null;
+        }
+
+        // Vienen ya ordenados por la consulta.
+        $medio = intdiv($n, 2);
+        $mediana = $n % 2 === 1
+            ? (float) $segundos[$medio]
+            : ((float) $segundos[$medio - 1] + (float) $segundos[$medio]) / 2;
+
+        return round($mediana / 60, 1);
     }
 
     /**

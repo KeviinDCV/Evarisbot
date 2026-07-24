@@ -901,7 +901,8 @@
       "byStatus": "Por estado",
       "totalLoaded": "Total cargadas",
       "remindersSent": "Recordatorios enviados",
-      "patientResponseSubtitle": "Respuesta de pacientes",
+      "patientResponseSubtitle": "Respuesta de pacientes (solo con recordatorio entregado)",
+      "awaitingReply": "Sin respuesta aún",
       "noData": "No hay citas en este período"
     },
     "conversations": {
@@ -990,6 +991,7 @@
       "closedResolved": "cerradas/resueltas",
       "sentLower": "enviados",
       "average": "Promedio",
+      "noData": "Sin datos",
       "resolution": "resolución",
       "topPerformerLabel": "Mejor desempeño:",
       "topPerformerText": "con {{resolved}} conversaciones resueltas y {{rate}}% de resolución.",
@@ -1000,6 +1002,7 @@
       "resolutionCap": "Resolución",
       "rate": "tasa",
       "avgResponse": "Resp. prom.",
+      "typicalResponse": "Resp. típica",
       "minutesValue": "{{value}} min",
       "time": "tiempo",
       "conversationsLower": "conversaciones",
@@ -1020,7 +1023,7 @@
       "billableOutbound": "Salientes facturables",
       "freeService": "Gratis (servicio / ventana 24h)",
       "noBillingData": "Sin datos de facturación",
-      "disclaimer": "Estimación con tarifas de Colombia (modelo por mensaje de Meta). Cubre el {{percent}}% de los mensajes salientes del período; el resto son anteriores a la medición. El cobro real y las facturas están en",
+      "disclaimer": "Estimación con tarifas de Colombia (modelo por mensaje de Meta). Cubre el {{percent}}% de los mensajes salientes del período; del resto no se recibieron datos de facturación de Meta, así que el coste real es mayor. El cobro real y las facturas están en",
       "metaBillingPath": "Meta Business Manager › Facturación",
       "categories": {
         "marketing": "Marketing",

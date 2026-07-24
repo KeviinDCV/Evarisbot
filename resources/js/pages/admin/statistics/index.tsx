@@ -61,7 +61,8 @@ interface AdvisorDetail {
         active_conversations: number;
         pending_conversations: number;
         resolution_rate: number;
-        avg_response_time_minutes: number | null;
+        /** Mediana (no media): la distribución tiene una cola larga que dispara el promedio. */
+        median_response_time_minutes: number | null;
     };
     daily_activity: Array<{ date: string; label: string; count: number }>;
     hourly_distribution: Array<{ hour: string; count: number }>;
@@ -77,7 +78,8 @@ interface AdvisorSummary {
     active_conversations: number;
     conversations_with_unread: number;
     messages_sent: number;
-    resolution_rate: number;
+    /** null = el asesor no tiene conversaciones asignadas (sin datos), distinto de 0%. */
+    resolution_rate: number | null;
 }
 
 interface Statistics {
@@ -100,6 +102,8 @@ interface Statistics {
         cancelled: number;
         pending: number;
         failed: number;
+        /** Recordatorio entregado, sin respuesta aún. confirmed+cancelled+awaiting_reply = reminder_sent. */
+        awaiting_reply: number;
         by_status: Record<string, number>;
     };
     conversations: {
@@ -225,6 +229,20 @@ const tooltipStyle = {
 
 function formatNumber(value: number | null | undefined) {
     return Number(value ?? 0).toLocaleString('es-CO');
+}
+
+/**
+ * Duración en minutos → texto legible. Antes se rotulaba siempre como "{n} min",
+ * de modo que una espera de 14 horas se leía "860,5 min".
+ */
+function formatDuration(minutes: number | null | undefined) {
+    if (minutes === null || minutes === undefined) return 'N/A';
+    if (minutes < 1) return '< 1 min';
+    if (minutes < 60) return `${Math.round(minutes)} min`;
+
+    const horas = Math.floor(minutes / 60);
+    const resto = Math.round(minutes % 60);
+    return resto === 0 ? `${horas} h` : `${horas} h ${resto} min`;
 }
 
 function formatMoney(value: number | null | undefined, currency = 'USD', maxDigits = 2) {
@@ -471,11 +489,17 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
         value,
     })).filter((item) => item.value > 0);
 
+    // Sólo citas cuyo recordatorio SÍ se entregó: es lo único sobre lo que un paciente
+    // pudo responder, y el gráfico se titula "Respuesta de pacientes".
+    //
+    // Antes se incluían 'pending' y 'failed' (citas que nunca recibieron recordatorio, así
+    // que el paciente no pudo contestar) y se omitía 'sent' (entregado y aún sin respuesta),
+    // que es justo la categoría más relevante: eran 24.606 citas invisibles, el 23% del total.
+    // Con esto los tres trozos suman exactamente reminder_sent.
     const appointmentsData = [
         { name: t('statistics.appointments.confirmed'), value: statistics.appointments.confirmed, color: COLORS.success },
         { name: t('statistics.appointments.cancelled'), value: statistics.appointments.cancelled, color: COLORS.danger },
-        { name: t('statistics.appointments.pending'), value: statistics.appointments.pending, color: COLORS.warning },
-        { name: t('statistics.appointments.failed'), value: statistics.appointments.failed, color: COLORS.info },
+        { name: t('statistics.appointments.awaitingReply'), value: statistics.appointments.awaiting_reply, color: COLORS.warning },
     ].filter((item) => item.value > 0);
 
     const conversationsStatusData = conversationItems.map((item) => ({
@@ -907,7 +931,13 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                     <div className="space-y-2">
                                         {statistics.advisors.advisors.map((advisor) => {
                                             const expanded = expandedAdvisor === advisor.id;
-                                            const rateTone = advisor.resolution_rate >= 70 ? 'success' : advisor.resolution_rate >= 40 ? 'warning' : 'danger';
+                                            // resolution_rate es null cuando el asesor no tiene
+                                            // conversaciones asignadas: eso es "sin datos", no un 0%.
+                                            // Antes caía en el tramo <40 y se pintaba en rojo, señalando
+                                            // como bajo rendimiento a quien no tenía carga.
+                                            const rate = advisor.resolution_rate;
+                                            const rateTone =
+                                                rate === null ? 'info' : rate >= 70 ? 'success' : rate >= 40 ? 'warning' : 'danger';
 
                                             return (
                                                 <div key={advisor.id} className="overflow-hidden rounded-xl border border-[#d4d8e8]/80 bg-white/45 dark:border-white/10 dark:bg-white/[0.03]">
@@ -941,7 +971,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                             </div>
                                                             <div>
                                                                 <span className={cn('inline-flex rounded-md border px-2 py-1 text-[11px] font-bold', toneClasses(rateTone))}>
-                                                                    {advisor.resolution_rate}%
+                                                                    {rate === null ? t('statistics.advisors.noData') : `${rate}%`}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -1006,7 +1036,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                     <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
                                                                         <MetricCard icon={Send} label={t('statistics.chart.messages')} value={advisorDetail.summary.messages_sent} detail={t('statistics.advisors.sentLower')} />
                                                                         <MetricCard icon={TrendingUp} label={t('statistics.advisors.resolutionCap')} value={`${advisorDetail.summary.resolution_rate}%`} detail={t('statistics.advisors.rate')} tone="success" />
-                                                                        <MetricCard icon={Timer} label={t('statistics.advisors.avgResponse')} value={advisorDetail.summary.avg_response_time_minutes !== null ? t('statistics.advisors.minutesValue', { value: advisorDetail.summary.avg_response_time_minutes }) : 'N/A'} detail={t('statistics.advisors.time')} tone="info" />
+                                                                        <MetricCard icon={Timer} label={t('statistics.advisors.typicalResponse')} value={formatDuration(advisorDetail.summary.median_response_time_minutes)} detail={t('statistics.advisors.time')} tone="info" />
                                                                         <MetricCard icon={CalendarCheck2} label={t('statistics.advisors.scheduled')} value={advisorDetail.summary.scheduled_conversations} detail={t('statistics.advisors.conversationsLower')} />
                                                                         <MetricCard icon={Activity} label={t('statistics.advisors.open')} value={advisorDetail.summary.active_conversations + advisorDetail.summary.pending_conversations} detail={t('statistics.advisors.activePending')} tone="warning" />
                                                                     </div>

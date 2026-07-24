@@ -901,7 +901,8 @@
       "byStatus": "By Status",
       "totalLoaded": "Total loaded",
       "remindersSent": "Reminders sent",
-      "patientResponseSubtitle": "Patient response",
+      "patientResponseSubtitle": "Patient response (delivered reminders only)",
+      "awaitingReply": "No reply yet",
       "noData": "No appointments in this period"
     },
     "conversations": {
@@ -990,6 +991,7 @@
       "closedResolved": "closed/resolved",
       "sentLower": "sent",
       "average": "Average",
+      "noData": "No data",
       "resolution": "resolution",
       "topPerformerLabel": "Top performer:",
       "topPerformerText": "with {{resolved}} resolved conversations and {{rate}}% resolution.",
@@ -1000,6 +1002,7 @@
       "resolutionCap": "Resolution",
       "rate": "rate",
       "avgResponse": "Avg. response",
+      "typicalResponse": "Typical response",
       "minutesValue": "{{value}} min",
       "time": "time",
       "conversationsLower": "conversations",
@@ -1020,7 +1023,7 @@
       "billableOutbound": "Billable outbound",
       "freeService": "Free (service / 24h window)",
       "noBillingData": "No billing data",
-      "disclaimer": "Estimate using Colombia rates (Meta per-message model). Covers {{percent}}% of outbound messages in the period; the rest predate measurement. Actual charges and invoices are in",
+      "disclaimer": "Estimate using Colombia rates (Meta per-message model). Covers {{percent}}% of outbound messages in the period; no billing data was received from Meta for the rest, so the real cost is higher. Actual charges and invoices are in",
       "metaBillingPath": "Meta Business Manager › Billing",
       "categories": {
         "marketing": "Marketing",

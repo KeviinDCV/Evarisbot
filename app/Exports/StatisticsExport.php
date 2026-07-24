@@ -341,7 +341,14 @@ class StatisticsExport
         $this->styleSubtitle($sheet, $row);
         $row++;
 
-        foreach ($this->statistics['conversations']['by_status'] as $status => $count) {
+        // getConversationStatistics() no devuelve 'by_status' (eso es de citas): los estados
+        // vienen como claves sueltas. Antes se recorría una clave inexistente y la sección
+        // "Por Estado" del Excel salía siempre vacía.
+        // Se excluyen 'total' (no es un estado) y 'unread' (contador transversal).
+        $conversaciones = $this->statistics['conversations'] ?? [];
+        $estados = array_diff_key($conversaciones, array_flip(['total', 'unread']));
+
+        foreach ($estados as $status => $count) {
             $this->styleDataRow($sheet, $row, $dataRow % 2 == 0);
             $sheet->setCellValue('A' . $row, ucfirst($status));
             $sheet->setCellValue('B' . $row, $count);
@@ -647,7 +654,11 @@ class StatisticsExport
             $sheet->setCellValue('D' . $row, $advisor['active_conversations']);
             $sheet->setCellValue('E' . $row, $advisor['conversations_with_unread']);
             $sheet->setCellValue('F' . $row, $advisor['messages_sent']);
-            $sheet->setCellValue('G' . $row, $advisor['resolution_rate'] . '%');
+            // resolution_rate es null si el asesor no tiene conversaciones asignadas.
+            // Sin esto la celda saldría como un "%" suelto.
+            $sheet->setCellValue('G' . $row, $advisor['resolution_rate'] === null
+                ? 'Sin datos'
+                : $advisor['resolution_rate'] . '%');
             
             // Centrar valores numéricos
             $sheet->getStyle('B' . $row . ':G' . $row)->applyFromArray([
