@@ -5904,7 +5904,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     placeholder="3001234567 o +573001234567"
                                     value={newChatData.phone_number}
                                     onChange={(e) => setNewChatData({ ...newChatData, phone_number: e.target.value })}
-                                    className="pl-10 settings-input rounded-xl"
+                                    // El padding izquierdo va en style (no en pl-10): el Input base trae px-3,
+                                    // que en Tailwind 4 genera `padding-inline` y le gana a `pl-10`, dejando el
+                                    // texto encimado con el icono. El style inline gana con certeza y no toca el CSS global.
+                                    style={{ paddingLeft: '2.5rem' }}
+                                    className="settings-input rounded-xl"
                                 />
                             </div>
                             <p className="text-xs text-muted-foreground">
