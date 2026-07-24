@@ -92,7 +92,12 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         });
     };
 
-    const handleFilterChange = (newFilter: string) => {
+    const handleFilterChange = (clickedFilter: string) => {
+        // Volver a pulsar el filtro activo lo quita (vuelve a "Todas"). Sin esto, una vez
+        // aplicado un filtro no había forma de soltarlo salvo pulsando "Todas" a propósito.
+        // "Todas" ya ES el estado sin filtro, así que no se alterna consigo mismo.
+        const newFilter = clickedFilter === filter && clickedFilter !== 'all' ? 'all' : clickedFilter;
+
         setFilter(newFilter);
         router.get(`${routePrefix}/view`, {
             filter: newFilter,
@@ -258,7 +263,13 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <div className="min-w-0 flex-1">
                                         <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
                                         <p className="mt-1 text-lg font-bold leading-tight settings-title">{count.toLocaleString()}</p>
-                                        <p className="mt-1 text-xs settings-subtitle">{key === filter ? t('appointments.filterActive') : t('appointments.applyFilter')}</p>
+                                        <p className="mt-1 text-xs settings-subtitle">
+                                            {key !== filter
+                                                ? t('appointments.applyFilter')
+                                                : key === 'all'
+                                                    ? t('appointments.filterActive')
+                                                    : t('appointments.removeFilter')}
+                                        </p>
                                     </div>
                                 </div>
                             </button>

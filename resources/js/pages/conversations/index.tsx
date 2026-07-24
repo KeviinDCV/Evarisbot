@@ -375,7 +375,10 @@ function WaTemplateSelect({
     const { t } = useTranslation();
     return (
         <Select
-            value={value ? String(value) : undefined}
+            // '' y no undefined: con undefined el Select nace NO controlado y al elegir plantilla
+            // pasa a controlado, lo que React avisa por consola ("changing from uncontrolled to
+            // controlled") en cada apertura del modal. Mismo patrón que el selector de Envío masivo.
+            value={value ? String(value) : ''}
             onValueChange={(val) => onChange(val ? Number(val) : null)}
         >
             <SelectTrigger className="w-full !h-11 settings-input rounded-xl data-[placeholder]:text-muted-foreground">
@@ -1088,20 +1091,6 @@ export default function ConversationsIndex({ conversations: initialConversations
 
         // Si cambió algún filtro, resetear completamente
         if (searchChanged || statusChanged || assignedChanged || tagChanged || specialtyChanged) {
-            // [SCROLL-DIAG] temporal: identificar por qué la lista salta arriba.
-            console.warn('[SCROLL-DIAG] reset por filtro', {
-                searchChanged, statusChanged, assignedChanged, tagChanged, specialtyChanged,
-                de: {
-                    search: lastSearchFilterRef.current, status: lastStatusFilterRef.current,
-                    assigned: lastAssignedFilterRef.current, tag: lastTagFilterRef.current,
-                    specialty: lastSpecialtyFilterRef.current,
-                },
-                a: {
-                    search: currentSearchFilter, status: currentStatusFilter,
-                    assigned: currentAssignedFilter, tag: currentTagFilter, specialty: currentSpecialtyFilter,
-                },
-                scrollTopAntes: conversationsListRef.current?.scrollTop,
-            });
             setLocalConversations(initialConversations);
             setHasMore(initialHasMore);
             setCurrentPage(1);
@@ -1256,63 +1245,6 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
     }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor, localConversations, nextCursor]);
 
-    // [SCROLL-DIAG] TEMPORAL. Tres detectores para identificar sin ambigüedad la causa:
-    //  1. Intercepta la ASIGNACIÓN de scrollTop y captura la traza de pila -> línea culpable.
-    //  2. Detecta si el contenedor se RE-MONTA (un nodo nuevo nace en scrollTop 0).
-    //  3. Muestreo periódico -> distingue "encogió el contenido" de "alguien lo asignó".
-    useEffect(() => {
-        const el = conversationsListRef.current;
-        if (!el) return;
-
-        // (1) Interceptar asignaciones de scrollTop
-        const desc =
-            Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop') ??
-            Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop');
-        if (desc?.get && desc?.set) {
-            Object.defineProperty(el, 'scrollTop', {
-                configurable: true,
-                get() {
-                    return desc.get!.call(this);
-                },
-                set(v: number) {
-                    const prev = desc.get!.call(this) as number;
-                    if (v === 0 && prev > 150) {
-                        console.warn(
-                            '[SCROLL-DIAG] ⚠️ ALGUIEN asignó scrollTop = 0 (venía de ' + Math.round(prev) + 'px).\nTRAZA:\n' +
-                                new Error().stack,
-                        );
-                    }
-                    desc.set!.call(this, v);
-                },
-            });
-        }
-
-        // (3) Muestreo: detecta saltos que NO vienen de una asignación
-        let last = el.scrollTop;
-        let lastH = el.scrollHeight;
-        const id = setInterval(() => {
-            const now = el.scrollTop;
-            const h = el.scrollHeight;
-            if (last > 150 && now < 30) {
-                console.warn('[SCROLL-DIAG] SALTO A 0', {
-                    de: Math.round(last), a: Math.round(now),
-                    altoAntes: lastH, altoAhora: h,
-                    encogio: h < lastH,
-                    causa: h < lastH ? 'el CONTENIDO encogió (el navegador recortó)' : 'sin cambio de alto (ver traza arriba, o RE-MONTAJE)',
-                    items: el.querySelectorAll('.conv-list-item').length,
-                });
-            }
-            last = now;
-            lastH = h;
-        }, 200);
-
-        return () => {
-            clearInterval(id);
-            // restaurar el descriptor nativo
-            try { delete (el as unknown as Record<string, unknown>).scrollTop; } catch { /* noop */ }
-        };
-    }, []);
-
     /**
      * Preservar el scroll de la lista frente al bloqueo de scroll de Radix.
      *
@@ -1356,22 +1288,6 @@ export default function ConversationsIndex({ conversations: initialConversations
 
         observer.observe(body, { attributes: true, attributeFilter: ['data-scroll-locked', 'style'] });
         return () => observer.disconnect();
-    }, []);
-
-    // (2) [SCROLL-DIAG] TEMPORAL: ¿se re-monta el contenedor de la lista?
-    const listMountCountRef = useRef(0);
-    const setListRef = useCallback((node: HTMLDivElement | null) => {
-        if (node && node !== conversationsListRef.current) {
-            listMountCountRef.current += 1;
-            if (listMountCountRef.current > 1) {
-                console.warn(
-                    '[SCROLL-DIAG] ⚠️ El contenedor de la lista se RE-MONTÓ (montaje #' +
-                        listMountCountRef.current +
-                        '). Un nodo nuevo siempre nace en scrollTop 0 — ésta sería la causa.',
-                );
-            }
-        }
-        conversationsListRef.current = node;
     }, []);
 
     // Detectar scroll al final de la lista de conversaciones + trackear si está scrolleando
@@ -3513,7 +3429,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                     {/* Lista de Conversaciones */}
                     <div
-                        ref={setListRef}
+                        ref={conversationsListRef}
                         className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light"
                     >
                         {listLoading ? (
@@ -5892,7 +5808,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                             setConfirmNewChat(false);
                             setIsCreatingChat(false);
                         });
-                    }} className="space-y-4 py-4 overflow-y-auto custom-scrollbar flex-1 min-h-0">
+                    }}
+                    // px-2 + -mx-2: overflow-y-auto obliga a overflow-x a valer 'auto' (regla CSS:
+                    // si un eje deja de ser 'visible', el otro también), así que este form recorta
+                    // por los lados. Sin padding horizontal, el borde y la sombra de los campos
+                    // quedaban cortados a izquierda y derecha. El padding da holgura para pintarlos
+                    // y el margen negativo la descuenta, así la alineación no se mueve.
+                    className="space-y-4 py-4 px-2 -mx-2 overflow-y-auto custom-scrollbar flex-1 min-h-0"
+                    >
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
                                 {t('conversations.phoneNumber')} *
@@ -5904,11 +5827,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     placeholder="3001234567 o +573001234567"
                                     value={newChatData.phone_number}
                                     onChange={(e) => setNewChatData({ ...newChatData, phone_number: e.target.value })}
-                                    // El padding izquierdo va en style (no en pl-10): el Input base trae px-3,
-                                    // que en Tailwind 4 genera `padding-inline` y le gana a `pl-10`, dejando el
-                                    // texto encimado con el icono. El style inline gana con certeza y no toca el CSS global.
-                                    style={{ paddingLeft: '2.5rem' }}
-                                    className="settings-input rounded-xl"
+                                    className="pl-10 settings-input rounded-xl"
                                 />
                             </div>
                             <p className="text-xs text-muted-foreground">

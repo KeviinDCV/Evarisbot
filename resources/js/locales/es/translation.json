@@ -1604,6 +1604,7 @@
     "exportExcel": "Exportar Excel",
     "filterActive": "Filtro activo",
     "applyFilter": "Aplicar filtro",
+    "removeFilter": "Pulsa para quitar",
     "filtersTitle": "Filtros",
     "filtersSubtitle": "Busca por datos del paciente, fecha, profesional o especialidad.",
     "filterByAppointmentDate": "Filtrar por Fecha de Cita",

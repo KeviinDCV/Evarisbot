@@ -1604,6 +1604,7 @@
     "exportExcel": "Export to Excel",
     "filterActive": "Active filter",
     "applyFilter": "Apply filter",
+    "removeFilter": "Click to remove",
     "filtersTitle": "Filters",
     "filtersSubtitle": "Search by patient details, date, professional or specialty.",
     "filterByAppointmentDate": "Filter by Appointment Date",
