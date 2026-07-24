@@ -845,18 +845,13 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
 
                     {!showCharts ? (
                         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+                            {/* El menú de bienvenida está apagado casi siempre; sin recorridos, este
+                                panel entero se oculta en vez de ocupar media pantalla con ceros.
+                                Si se reactiva el flujo y llegan datos, vuelve a aparecer solo. */}
+                            {(statistics.flowDemand?.total ?? 0) > 0 && (
                             <SectionCard icon={Activity} title={t('statistics.flowDemand.title')} subtitle={t('statistics.flowDemand.subtitle')} className="xl:col-span-2">
                                 {(() => {
-                                    const fd = statistics.flowDemand;
-                                    if (!fd || fd.total === 0) {
-                                        return (
-                                            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#d4d8e8] py-10 text-center dark:border-white/10">
-                                                <MessageSquare className="mb-3 h-10 w-10 settings-subtitle" />
-                                                <p className="text-sm font-semibold settings-title">{t('statistics.flowDemand.emptyTitle')}</p>
-                                                <p className="mt-1 max-w-md text-xs settings-subtitle">{t('statistics.flowDemand.emptyDescription')}</p>
-                                            </div>
-                                        );
-                                    }
+                                    const fd = statistics.flowDemand!;
                                     const svcLabels: Record<string, string> = { agendamiento: t('statistics.flowDemand.services.scheduling'), cancelacion: t('statistics.flowDemand.services.cancellation'), informacion: t('statistics.flowDemand.services.information'), asesor: t('statistics.flowDemand.services.talkToAdvisor') };
                                     const outLabels: Record<string, string> = { self_service: t('statistics.flowDemand.outcomes.selfService'), advisor: t('statistics.flowDemand.outcomes.advisor'), rejected: t('statistics.flowDemand.outcomes.rejected'), in_progress: t('statistics.flowDemand.outcomes.inProgress') };
                                     return (
@@ -905,6 +900,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                     );
                                 })()}
                             </SectionCard>
+                            )}
 
                             <SectionCard
                                 icon={Users}

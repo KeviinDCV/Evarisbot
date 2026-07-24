@@ -305,11 +305,17 @@ class StatisticsController extends Controller
      */
     private function getTemplateStatistics(?\Carbon\Carbon $startDate, ?\Carbon\Carbon $endDate): array
     {
-        // Una sola consulta para templates y sends
-        $stats = DB::table('template_sends')
+        // Los envíos salen de bulk_send_recipients, no de template_sends.
+        //
+        // template_sends la llena TemplateSendService (pantalla "enviar plantilla"), que
+        // nunca se ha usado: 0 filas, así que el panel mostraba siempre "0 envíos". Los
+        // envíos de plantillas que SÍ ocurren son los masivos, y los 94 lotes existentes
+        // llevan todos template_name. Esta tabla además tiene created_at, así que respeta
+        // el filtro de fechas (templates.usage_count no serviría: es un contador acumulado).
+        $stats = DB::table('bulk_send_recipients')
             ->selectRaw('
-                SUM(successful_sends) as successful_sends,
-                SUM(failed_sends) as failed_sends
+                SUM(CASE WHEN status = "sent" THEN 1 ELSE 0 END) as successful_sends,
+                SUM(CASE WHEN status = "failed" THEN 1 ELSE 0 END) as failed_sends
             ');
 
         if ($startDate && $endDate) {
@@ -317,13 +323,12 @@ class StatisticsController extends Controller
         }
 
         $result = $stats->first();
-        $totalTemplates = Template::count();
 
         $successfulSends = (int) ($result->successful_sends ?? 0);
         $failedSends = (int) ($result->failed_sends ?? 0);
 
         return [
-            'total' => $totalTemplates,
+            'total' => Template::count(),
             'successful_sends' => $successfulSends,
             'failed_sends' => $failedSends,
             'total_sends' => $successfulSends + $failedSends,
