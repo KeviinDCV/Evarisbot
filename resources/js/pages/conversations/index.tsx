@@ -1096,8 +1096,18 @@ export default function ConversationsIndex({ conversations: initialConversations
             setCurrentPage(1);
             setNextCursor(null);
             hasLoadedExtraPagesRef.current = false;
-            // Resetear scroll al inicio cuando cambian los filtros
-            if (conversationsListRef.current) {
+
+            // Saltar arriba SOLO si el usuario cambió el filtro estando en la lista.
+            //
+            // Abrir un chat navega a /admin/chat/{id}, que va SIN los query params de filtro,
+            // así que `filters` llega vacío y esto parecía un cambio de filtro sin serlo. Al
+            // resolver ocurre lo inverso: router.get('/admin/chat', params) los devuelve y
+            // "cambian" otra vez. Ése era el salto a la parte de arriba al resolver o al
+            // crear un chat: un filtro que en realidad nunca cambió.
+            //
+            // selectedChanged distingue ambos casos: si además cambió qué conversación está
+            // abierta, fue una navegación y no se toca el scroll.
+            if (!selectedChanged && conversationsListRef.current) {
                 conversationsListRef.current.scrollTop = 0;
             }
             return;
@@ -1276,12 +1286,18 @@ export default function ConversationsIndex({ conversations: initialConversations
             } else if (saved !== null && saved > 0) {
                 const target = saved;
                 saved = null;
-                // Tras el repaint en que Radix devuelve el overflow al body.
-                requestAnimationFrame(() => {
+                // Tras el repaint en que Radix devuelve el overflow al body. Se re-afirma en
+                // el fotograma siguiente porque el re-render que dispara cerrar el overlay
+                // puede llegar después y pisar la restauración.
+                const restaurar = () => {
                     const node = conversationsListRef.current;
                     if (node && Math.abs(node.scrollTop - target) > 2) {
                         node.scrollTop = target;
                     }
+                };
+                requestAnimationFrame(() => {
+                    restaurar();
+                    requestAnimationFrame(restaurar);
                 });
             }
         });
@@ -3432,7 +3448,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                         ref={conversationsListRef}
                         className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light"
                     >
-                        {listLoading ? (
+                        {/* El esqueleto SOLO en la primera carga (lista aún vacía).
+                            Al recargar una lista que ya tiene elementos, sustituirlos por el
+                            esqueleto colapsaba el alto del contenido y el navegador ponía
+                            scrollTop a 0: ése era el salto a la parte de arriba al resolver
+                            una conversación o al crear un chat nuevo (ambos hacen una recarga
+                            parcial de 'conversations'). Manteniendo los elementos montados,
+                            el alto no cambia y el scroll se queda donde estaba. */}
+                        {listLoading && localConversations.length === 0 ? (
                             <ConversationListSkeleton />
                         ) : localConversations.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-[#767681] p-8">
