@@ -251,6 +251,7 @@
     "pillWaiting": "Waiting",
     "pillResolved": "Resolved",
     "pillConfirmed": "Confirmed",
+    "pillCancelled": "Cancelled",
     "pillScheduled": "Scheduled",
     "pillOncology": "Oncology",
     "pillBlocked": "Blocked",

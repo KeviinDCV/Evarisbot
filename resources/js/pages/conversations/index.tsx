@@ -236,7 +236,7 @@ interface WhatsappTemplate {
     default_params?: string[] | null;
 }
 
-type ChatFilterKey = 'all' | 'unanswered' | 'pending_response' | 'resolved' | 'confirmed' | 'scheduled' | 'oncology' | 'blocked';
+type ChatFilterKey = 'all' | 'unanswered' | 'pending_response' | 'resolved' | 'confirmed' | 'cancelled' | 'scheduled' | 'oncology' | 'blocked';
 
 type FilterCounts = Record<ChatFilterKey, number>;
 
@@ -246,6 +246,7 @@ const DEFAULT_FILTER_COUNTS: FilterCounts = {
     pending_response: 0,
     resolved: 0,
     confirmed: 0,
+    cancelled: 0,
     scheduled: 0,
     oncology: 0,
     blocked: 0,
@@ -1156,7 +1157,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Ocultar conversaciones resueltas/cerradas/agendadas de "Todos"
                 // EXCEPTO si el filtro activo corresponde o hay filtro de etiqueta/especialidad
                 if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled') {
-                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed') return false;
+                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed' && filters.status !== 'cancelled') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
                 return true;
@@ -1167,7 +1168,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             const newConvs = initialConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
                 if (filters.search && filters.search.trim() !== '') return true;
                 if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled') {
-                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed') return false;
+                    if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed' && filters.status !== 'cancelled') return false;
                     if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                 }
                 return true;
@@ -1427,7 +1428,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         // Si hay búsqueda activa, no filtrar por estado/bloqueo (el backend ya respeta search)
                         if (filters.search && filters.search.trim() !== '') return true;
                         if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
-                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed') return false;
+                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed' && filters.status !== 'cancelled') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                             if (conv.is_blocked && filters.status !== 'blocked') return false;
                         }
@@ -1439,7 +1440,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     const newConvs = freshConversations.filter(c => !existingIds.has(c.id)).filter(conv => {
                         if (filters.search && filters.search.trim() !== '') return true;
                         if (!filters.tag && !filters.specialty && filters.status !== 'oncology' && filters.status !== 'scheduled' && filters.status !== 'blocked') {
-                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed') return false;
+                            if ((conv.status === 'resolved' || conv.status === 'closed') && filters.status !== 'resolved' && filters.status !== 'confirmed' && filters.status !== 'cancelled') return false;
                             if (conv.status === 'scheduled' && filters.status !== 'scheduled') return false;
                             if (conv.is_blocked && filters.status !== 'blocked') return false;
                         }
@@ -3411,6 +3412,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 // Confirmados: confirmaciones de cita que el sistema auto-resolvió
                                 // y que por eso no salen en "Todos".
                                 { value: 'confirmed', label: t('conversations.pillConfirmed') },
+                                // Cancelados: el paciente canceló su cita respondiendo al recordatorio.
+                                { value: 'cancelled', label: t('conversations.pillCancelled') },
                                 { value: 'scheduled', label: t('conversations.pillScheduled') },
                                 { value: 'oncology', label: t('conversations.pillOncology') },
                                 { value: 'blocked', label: t('conversations.pillBlocked') },

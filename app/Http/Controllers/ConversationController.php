@@ -246,6 +246,24 @@ class ConversationController extends Controller
                         ->whereNull('resolved_by')
                         ->orderBy('resolved_at', 'desc');
                 }
+            } elseif ($request->status === 'cancelled') {
+                // Cancelados: el paciente canceló su cita respondiendo al recordatorio.
+                //
+                // Se identifica por la CITA enlazada (appointments.reminder_status), no por el
+                // estado de la conversación: cancelar sólo auto-resuelve si no quedaban mensajes
+                // sin leer, así que algunas siguen activas y deben salir igual.
+                //
+                // whereExists y no whereIn con subconsulta: medido, 8 ms frente a 257 ms.
+                $cancelada = fn ($q) => $q->selectRaw('1')->from('appointments')
+                    ->whereColumn('appointments.conversation_id', 'conversations.id')
+                    ->where('appointments.reminder_status', 'cancelled');
+
+                $query->whereExists($cancelada);
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereExists($cancelada)
+                        ->orderBy('updated_at', 'desc');
+                }
             } elseif ($request->status === 'scheduled') {
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
@@ -485,6 +503,24 @@ class ConversationController extends Controller
                         ->where('status', 'resolved')
                         ->whereNull('resolved_by')
                         ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'cancelled') {
+                // Cancelados: el paciente canceló su cita respondiendo al recordatorio.
+                //
+                // Se identifica por la CITA enlazada (appointments.reminder_status), no por el
+                // estado de la conversación: cancelar sólo auto-resuelve si no quedaban mensajes
+                // sin leer, así que algunas siguen activas y deben salir igual.
+                //
+                // whereExists y no whereIn con subconsulta: medido, 8 ms frente a 257 ms.
+                $cancelada = fn ($q) => $q->selectRaw('1')->from('appointments')
+                    ->whereColumn('appointments.conversation_id', 'conversations.id')
+                    ->where('appointments.reminder_status', 'cancelled');
+
+                $query->whereExists($cancelada);
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereExists($cancelada)
+                        ->orderBy('updated_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
@@ -2041,6 +2077,24 @@ class ConversationController extends Controller
                         ->where('status', 'resolved')
                         ->whereNull('resolved_by')
                         ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'cancelled') {
+                // Cancelados: el paciente canceló su cita respondiendo al recordatorio.
+                //
+                // Se identifica por la CITA enlazada (appointments.reminder_status), no por el
+                // estado de la conversación: cancelar sólo auto-resuelve si no quedaban mensajes
+                // sin leer, así que algunas siguen activas y deben salir igual.
+                //
+                // whereExists y no whereIn con subconsulta: medido, 8 ms frente a 257 ms.
+                $cancelada = fn ($q) => $q->selectRaw('1')->from('appointments')
+                    ->whereColumn('appointments.conversation_id', 'conversations.id')
+                    ->where('appointments.reminder_status', 'cancelled');
+
+                $query->whereExists($cancelada);
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereExists($cancelada)
+                        ->orderBy('updated_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
