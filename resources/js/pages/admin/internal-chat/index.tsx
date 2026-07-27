@@ -137,7 +137,6 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
     // Read receipts: who has read the chat
     const [readReceipts, setReadReceipts] = useState<ReadReceipt[]>([]);
-    const readReceiptsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Group creation modal
     const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -375,6 +374,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         return changed ? next : prev;
                     });
                 }
+
+                // Vistos: llegan con este mismo sondeo, así no hace falta un intervalo aparte.
+                if (Array.isArray(res.data?.receipts)) {
+                    setReadReceipts(res.data.receipts);
+                }
             } catch (e: any) {
                 // If chat was deleted (404), stop polling and clear
                 if (e?.response?.status === 404) {
@@ -412,6 +416,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         lastMessageIdRef.current = msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
                         setActiveChatInfo(res.data.chat || null);
                     }
+                    // Vistos ya vienen en la carga inicial.
+                    setReadReceipts(Array.isArray(res.data?.receipts) ? res.data.receipts : []);
                 })
                 .catch(console.error);
 
@@ -432,34 +438,50 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         }
     }, [activeChat?.id, messages.length]);
 
-    // Poll read receipts every 4 seconds while a chat is active
+    // Los vistos ya no tienen sondeo propio: llegan con la carga inicial y con el sondeo de
+    // mensajes (cada 3 s). Eran una tercera petición por usuario cada 4 s sólo para esto.
+    // Aquí sólo queda limpiarlos al salir del chat.
     useEffect(() => {
-        if (!activeChat) {
-            setReadReceipts([]);
-            return;
+        if (!activeChat) setReadReceipts([]);
+    }, [activeChat?.id]);
+
+    /**
+     * A qué mensaje le corresponde el visto de cada persona.
+     *
+     * El backend guarda un puntero por participante (hasta cuándo leyó), no una marca por
+     * mensaje. Antes el visto sólo se pintaba en el ÚLTIMO mensaje del chat: si alguien
+     * había leído hasta el mensaje 5 de 7, su visto no aparecía en ninguna parte (medido:
+     * le pasaba al 37,9% de los participantes con lectura registrada).
+     *
+     * Ahora cada persona se ancla al último mensaje MÍO que alcanzó a leer, como en WhatsApp:
+     * el visto es sobre lo que tú escribiste, no bajo mensajes ajenos.
+     */
+    const receiptsByMessageId = useMemo(() => {
+        const mapa = new Map<number, ReadReceipt[]>();
+        if (readReceipts.length === 0) return mapa;
+
+        // messages viene en orden cronológico ascendente.
+        const mios = messages.filter(m => m.is_mine);
+        if (mios.length === 0) return mapa;
+
+        for (const r of readReceipts) {
+            const leidoHasta = new Date(r.last_read_at).getTime();
+
+            let destino: MessageItem | null = null;
+            for (const m of mios) {
+                if (new Date(m.created_at_full).getTime() <= leidoHasta) destino = m;
+                else break; // ordenados: a partir de aquí ya son posteriores a su lectura
+            }
+
+            if (destino) {
+                const lista = mapa.get(destino.id);
+                if (lista) lista.push(r);
+                else mapa.set(destino.id, [r]);
+            }
         }
 
-        const fetchReceipts = async () => {
-            try {
-                const res = await axios.get(`/admin/internal-chat/${activeChat.id}/read-receipts`);
-                if (res.data?.receipts) {
-                    setReadReceipts(res.data.receipts);
-                }
-            } catch {
-                // silently ignore
-            }
-        };
-
-        fetchReceipts();
-        const id = setInterval(() => { if (!document.hidden) fetchReceipts(); }, 4000);
-        readReceiptsIntervalRef.current = id;
-        const onVisible = () => { if (!document.hidden) fetchReceipts(); };
-        document.addEventListener('visibilitychange', onVisible);
-        return () => {
-            clearInterval(id);
-            document.removeEventListener('visibilitychange', onVisible);
-        };
-    }, [activeChat?.id]);
+        return mapa;
+    }, [messages, readReceipts]);
 
     // Close media viewer or active chat with Escape key
     useEffect(() => {
@@ -1304,18 +1326,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         // Primer mensaje de un grupo (cambia el remitente) → lleva la
                                         // "colita" de burbuja estilo WhatsApp.
                                         const isFirstOfGroup = idx === 0 || messages[idx - 1].user?.id !== msg.user?.id;
-                                        // Show "Visto por" only on the last message
-                                        const isLastMessage = idx === messages.length - 1;
-                                        const readersHere: ReadReceipt[] = [];
-                                        if (isLastMessage) {
-                                            const msgAt = new Date(msg.created_at_full).getTime();
-                                            for (const r of readReceipts) {
-                                                const readAt = new Date(r.last_read_at).getTime();
-                                                if (readAt >= msgAt) {
-                                                    readersHere.push(r);
-                                                }
-                                            }
-                                        }
+                                        // Quién llegó a leer hasta aquí (ver receiptsByMessageId).
+                                        const readersHere = receiptsByMessageId.get(msg.id) ?? [];
 
                                         return (
                                             <div

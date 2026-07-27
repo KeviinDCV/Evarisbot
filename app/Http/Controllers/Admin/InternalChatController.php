@@ -220,6 +220,8 @@ class InternalChatController extends Controller
         return response()->json([
             'chat' => $chatData,
             'messages' => $messages,
+            // Vistos en la carga inicial: así el frontend ya no necesita su propio sondeo.
+            'receipts' => $this->receiptsFor($chat, $userId),
         ]);
     }
 
@@ -529,7 +531,32 @@ class InternalChatController extends Controller
         return response()->json([
             'messages' => $messages,
             'updates'  => $updates,
+            // Los vistos viajan con el sondeo de mensajes: antes tenían su propio intervalo
+            // de 4 s, que era una tercera petición por usuario sólo para esto.
+            'receipts' => $this->receiptsFor($chat, $userId),
         ]);
+    }
+
+    /**
+     * Vistos del chat: hasta cuándo ha leído cada participante (menos uno mismo).
+     *
+     * El modelo es un puntero por participante (last_read_at), no una marca por mensaje;
+     * el frontend lo traduce a "hasta qué mensaje llegó cada quien".
+     */
+    private function receiptsFor(InternalChat $chat, int $userId): array
+    {
+        return InternalChatParticipant::where('internal_chat_id', $chat->id)
+            ->where('user_id', '!=', $userId)
+            ->whereNotNull('last_read_at')
+            ->with('user:id,name')
+            ->get()
+            ->map(fn ($p) => [
+                'user_id'      => $p->user_id,
+                'user_name'    => $p->user->name ?? '',
+                'last_read_at' => $p->last_read_at->toISOString(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**
@@ -600,18 +627,7 @@ class InternalChatController extends Controller
             return response()->json(['error' => 'No autorizado'], 403);
         }
 
-        $receipts = InternalChatParticipant::where('internal_chat_id', $chat->id)
-            ->where('user_id', '!=', $userId)
-            ->whereNotNull('last_read_at')
-            ->with('user')
-            ->get()
-            ->map(fn($p) => [
-                'user_id'      => $p->user_id,
-                'user_name'    => $p->user->name,
-                'last_read_at' => $p->last_read_at->toISOString(),
-            ]);
-
-        return response()->json(['receipts' => $receipts]);
+        return response()->json(['receipts' => $this->receiptsFor($chat, $userId)]);
     }
 
     /**
