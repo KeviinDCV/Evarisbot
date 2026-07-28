@@ -38,7 +38,7 @@ import {
     X,
     type LucideIcon,
 } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -147,6 +147,32 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     const { t } = useTranslation();
     const [search, setSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+
+    /**
+     * Refresco del estado de conexión.
+     *
+     * is_online se calcula en el servidor (actividad en los últimos 5 minutos), así que sin
+     * esto la lista mostraría siempre la foto del momento en que se abrió la página y el
+     * orden "conectados primero" quedaría congelado.
+     *
+     * Cada 30 s basta de sobra para una ventana de 5 minutos, y sólo con la pestaña visible:
+     * este servidor ya ha tenido problemas de agotamiento de sockets por sondeos simultáneos.
+     * Es una recarga parcial (sólo la prop 'users') y conserva búsqueda, filtro y scroll.
+     */
+    useEffect(() => {
+        const refrescar = () => {
+            if (document.hidden) return;
+            router.reload({ only: ['users'] });
+        };
+
+        const id = setInterval(refrescar, 30000);
+        document.addEventListener('visibilitychange', refrescar);
+
+        return () => {
+            clearInterval(id);
+            document.removeEventListener('visibilitychange', refrescar);
+        };
+    }, []);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -180,12 +206,18 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     const filteredUsers = useMemo(() => {
         const searchTerm = search.trim().toLowerCase();
 
-        return users.filter((user) => {
+        const visibles = users.filter((user) => {
             const matchesSearch = !searchTerm || `${user.name} ${user.email}`.toLowerCase().includes(searchTerm);
             const matchesRole = roleFilter === 'all' || user.role === roleFilter;
 
             return matchesSearch && matchesRole;
         });
+
+        // Los conectados arriba. Se ordena SÓLO por ese criterio: Array.sort es estable,
+        // así que dentro de cada grupo se conserva el orden que manda el servidor (los más
+        // recientes primero). Ordenar además por última actividad haría saltar las filas
+        // cada vez que alguien hace algo.
+        return visibles.sort((a, b) => Number(b.is_online) - Number(a.is_online));
     }, [roleFilter, search, users]);
 
     const roleOptions: { value: RoleFilter; label: string }[] = [
