@@ -156,9 +156,9 @@ const toneClasses: Record<NonNullable<MetricCardProps['tone']>, string> = {
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
     return (
-        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5">
             <div className="flex items-center gap-3">
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${toneClasses[tone]}`}>
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${toneClasses[tone]}`}>
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -873,7 +873,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <Send className="h-5 w-5" />
                             </div>
                             <div>
@@ -886,7 +886,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             </div>
                         </div>
 
-                        <div className="flex w-full gap-1 rounded-xl border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:w-fit">
+                        <div className="flex w-full gap-1 rounded-xl bg-white/70 p-1 dark:bg-white/[0.04] sm:w-fit">
                             <button
                                 onClick={() => setActiveTab('send')}
                                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 sm:flex-none ${
@@ -1026,7 +1026,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                             {/* Columna izquierda: Template y destinatarios */}
                             <div className="space-y-4">
                                 {/* Seleccionar Template */}
-                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                                     <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
                                         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-800/60">
                                             <MessageSquareText className="h-4 w-4" />
@@ -1062,7 +1062,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                         <SelectTrigger className="w-full h-10 settings-input rounded-xl">
                                                             <SelectValue placeholder={t('bulkSends.selectTemplatePlaceholder')} />
                                                         </SelectTrigger>
-                                                        <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                        <SelectContent className="rounded-xl max-h-[320px]">
                                                             {whatsappTemplates.map((t) => (
                                                                 <SelectItem key={t.id} value={String(t.id)} className="rounded-lg cursor-pointer">
                                                                     {t.header_format && ['DOCUMENT', 'IMAGE', 'VIDEO'].includes(t.header_format) ? '📎 ' : ''}{t.name}
@@ -1073,7 +1073,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                                                     {/* Preview del template seleccionado */}
                                                     {selectedTemplate && (
-                                                        <div className="border border-border/60 rounded-xl overflow-hidden">
+                                                        <div className="rounded-xl overflow-hidden">
                                                             <button
                                                                 onClick={() => setShowPreview(!showPreview)}
                                                                 className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
@@ -1231,7 +1231,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                                         >
                                                                             <SelectValue placeholder={t('bulkSends.selectSourcePlaceholder')} />
                                                                         </SelectTrigger>
-                                                                        <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                                        <SelectContent className="rounded-xl max-h-[320px]">
                                                                             <SelectItem value="__nombre__" className="rounded-lg cursor-pointer">📋 {t('bulkSends.sourceContactName')}</SelectItem>
                                                                             {extraColumns.map((col) => (
                                                                                 <SelectItem key={col} value={`__col__${col}`} className="rounded-lg cursor-pointer">
@@ -1344,7 +1344,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
 
                                 {/* Subir archivo */}
-                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                                     <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
                                         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/30 dark:text-sky-300 dark:ring-sky-800/60">
                                             <Upload className="h-4 w-4" />
@@ -1406,7 +1406,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
 
                                 {/* Agregar manual */}
-                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                                     <h2 className="mb-3 flex items-center gap-2 text-base font-bold settings-title">
                                         <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-800/60">
                                             <Phone className="h-4 w-4" />
@@ -1446,7 +1446,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                             {/* Columna derecha: Vista previa de destinatarios */}
                             <div className="flex flex-col gap-4">
-                                <div className="flex min-h-[460px] flex-1 flex-col rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="flex min-h-[460px] flex-1 flex-col rounded-2xl bg-card/80 p-4 shadow-sm">
                                     <div className="mb-3 flex items-center justify-between gap-3">
                                         <h2 className="text-base font-bold settings-title">
                                             {t('bulkSends.recipientsTitle', { count: recipients.length })}
@@ -1466,7 +1466,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         </div>
                                     ) : (
                                         <div className="relative mb-4 flex-1 min-h-0">
-                                            <div className="absolute inset-0 overflow-y-auto rounded-xl border border-border/60 bg-background/50 custom-scrollbar-light">
+                                            <div className="absolute inset-0 overflow-y-auto rounded-xl bg-background/50 custom-scrollbar-light">
                                             {/* Sólo se pintan los primeros RECIPIENTS_PREVIEW_LIMIT:
                                                 un Excel real llegó a 2.027 destinatarios y pintarlos
                                                 todos dejaba el navegador pesado JUSTO antes de enviar.
@@ -1566,7 +1566,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                         </div>
                     )}
 
-                    <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                    <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                         <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <div>
                                 <h2 className="flex items-center gap-2 text-base font-bold settings-title">
@@ -1626,7 +1626,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto rounded-xl border border-border/60">
+                            <div className="overflow-x-auto rounded-xl">
                                 <table className="w-full min-w-[980px] text-sm">
                                     <thead className="bg-muted/40">
                                         <tr className="border-b border-border/50">
@@ -1748,25 +1748,25 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     {activeTab === 'templates' && (
                         <div className="space-y-4">
                             <div className="grid gap-3 md:grid-cols-4">
-                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.tplRegistered')}</p>
                                     <p className="mt-2 text-2xl font-bold text-foreground">{allTemplates.length.toLocaleString()}</p>
                                 </div>
-                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.tplApproved')}</p>
                                     <p className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-300">{templateMetrics.approved.toLocaleString()}</p>
                                 </div>
-                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.tplUnderReview')}</p>
                                     <p className="mt-2 text-2xl font-bold text-amber-700 dark:text-amber-300">{templateMetrics.pending.toLocaleString()}</p>
                                 </div>
-                                <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                                <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                                     <p className="text-xs font-semibold uppercase text-muted-foreground">{t('bulkSends.tplUsableInSend')}</p>
                                     <p className="mt-2 text-2xl font-bold text-foreground">{templateMetrics.usable.toLocaleString()}</p>
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card/80 p-4 shadow-sm">
                                 <div>
                                     <h2 className="text-base font-bold settings-title">{t('bulkSends.templateCatalog')}</h2>
                                     <p className="mt-1 text-xs text-muted-foreground">{t('bulkSends.templateCatalogSubtitle')}</p>
@@ -1795,7 +1795,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                 </div>
                             </div>
 
-                            <div className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm">
+                            <div className="rounded-2xl bg-card/80 p-4 shadow-sm">
                                 <h2 className="mb-4 flex items-center gap-2 text-base font-bold settings-title">
                                     <MessageSquareText className="h-4 w-4" />
                                     {t('bulkSends.whatsappTemplatesTitle', { count: allTemplates.length })}
@@ -1808,7 +1808,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         <p className="text-xs text-muted-foreground mt-1">{t('bulkSends.noRegisteredTemplatesHelp')}</p>
                                     </div>
                                 ) : (
-                                    <div className="overflow-x-auto rounded-xl border border-border/60">
+                                    <div className="overflow-x-auto rounded-xl">
                                         <table className="w-full min-w-[980px] text-sm">
                                             <thead className="bg-muted/40">
                                                 <tr className="border-b border-border/50">
@@ -1875,7 +1875,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                         poder usarse en los envíos. Antes era un confirm() gris del navegador. */}
                     {templateToDelete && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                            <div className="card-gradient w-full max-w-md rounded-2xl border border-white/40 shadow-2xl dark:border-white/10">
+                            <div className="card-gradient w-full max-w-md rounded-2xl shadow-2xl">
                                 <div className="p-5">
                                     <h2 className="text-lg font-bold settings-title">
                                         {t('bulkSends.deleteTemplateTitle', 'Eliminar plantilla de WhatsApp')}
@@ -1884,7 +1884,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                         {t('bulkSends.deleteTemplateIrreversible', 'Se eliminará de Meta y no podrá usarse en los envíos. Esta acción no se puede deshacer.')}
                                     </p>
 
-                                    <div className="mt-4 rounded-xl border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                    <div className="mt-4 rounded-xl bg-white/50 p-3 dark:bg-white/[0.04]">
                                         <p className="truncate text-sm font-semibold settings-title">{templateToDelete.name}</p>
                                     </div>
 
@@ -2060,7 +2060,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 <SelectTrigger className="w-full h-10 settings-input rounded-xl">
                                                     <SelectValue />
                                                 </SelectTrigger>
-                                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                <SelectContent className="rounded-xl max-h-[320px]">
                                                     <SelectItem value="UTILITY" className="rounded-lg cursor-pointer">{t('bulkSends.categoryUtility')}</SelectItem>
                                                     <SelectItem value="MARKETING" className="rounded-lg cursor-pointer">{t('bulkSends.categoryMarketing')}</SelectItem>
                                                     <SelectItem value="AUTHENTICATION" className="rounded-lg cursor-pointer">{t('bulkSends.categoryAuthentication')}</SelectItem>
@@ -2078,7 +2078,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 <SelectTrigger className="w-full h-10 settings-input rounded-xl">
                                                     <SelectValue />
                                                 </SelectTrigger>
-                                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                <SelectContent className="rounded-xl max-h-[320px]">
                                                     <SelectItem value="es" className="rounded-lg cursor-pointer">{t('bulkSends.langSpanish')}</SelectItem>
                                                     <SelectItem value="es_CO" className="rounded-lg cursor-pointer">{t('bulkSends.langSpanishCO')}</SelectItem>
                                                     <SelectItem value="es_MX" className="rounded-lg cursor-pointer">{t('bulkSends.langSpanishMX')}</SelectItem>
@@ -2108,7 +2108,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 <SelectTrigger className="w-full h-10 settings-input rounded-xl">
                                                     <SelectValue />
                                                 </SelectTrigger>
-                                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                                <SelectContent className="rounded-xl max-h-[320px]">
                                                     <SelectItem value="NONE" className="rounded-lg cursor-pointer">{t('bulkSends.headerNone')}</SelectItem>
                                                     <SelectItem value="TEXT" className="rounded-lg cursor-pointer">{t('bulkSends.headerText')}</SelectItem>
                                                     <SelectItem value="IMAGE" className="rounded-lg cursor-pointer">{t('bulkSends.headerImage')}</SelectItem>
@@ -2187,7 +2187,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                                     {/* Preview */}
                                     {newTplBody && (
-                                        <div className="border border-border/60 rounded-xl overflow-hidden">
+                                        <div className="rounded-xl overflow-hidden">
                                             <div className="px-4 py-2.5 bg-muted/40 border-b border-border/40">
                                                 <span className="flex items-center gap-2 text-sm font-medium text-foreground/80">
                                                     <Eye className="w-4 h-4" />

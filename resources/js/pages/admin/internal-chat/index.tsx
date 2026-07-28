@@ -1155,7 +1155,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                     return (
                         <div
-                            className="fixed z-50 min-w-[224px] overflow-hidden rounded-xl border border-border card-gradient py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+                            className="fixed z-50 min-w-[224px] overflow-hidden rounded-xl card-gradient py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
                             style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -1358,7 +1358,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                     transition={{ type: 'spring', stiffness: 500, damping: 22 }}
                                                                     style={{ transformOrigin: 'bottom center' }}
                                                                     className={cn(
-                                                                        'absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2 py-1.5',
+                                                                        'absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-white dark:bg-neutral-800 shadow-xl px-2 py-1.5',
                                                                         msg.is_mine ? 'right-0' : 'left-0'
                                                                     )}
                                                                 >
@@ -1410,7 +1410,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 <div
                                                     className={`min-w-0 px-3 pt-2 pb-1 flex flex-col relative ${msg.is_mine
                                                         ? `bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] rounded-xl rounded-br-sm shadow-sm ${isFirstOfGroup ? 'bubble-tail-out rounded-tr-none' : ''}`
-                                                        : `bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10 ${isFirstOfGroup ? 'bubble-tail-in rounded-tl-none' : ''}`
+                                                        : `bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 rounded-xl rounded-bl-sm shadow-sm ${isFirstOfGroup ? 'bubble-tail-in rounded-tl-none' : ''}`
                                                         }`}
                                                 >
                                                         {/* Reply quote bubble */}
@@ -1519,7 +1519,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* File / Document */}
                                                         {(msg.type === 'document') && msg.file_url && (
-                                                            <div className="flex items-center gap-4 bg-background dark:bg-neutral-700/50 p-4 rounded-lg border border-border/20 dark:border-neutral-600/30 mb-2">
+                                                            <div className="flex items-center gap-4 bg-background dark:bg-neutral-700/50 p-4 rounded-lg mb-2">
                                                                 <div className="w-12 h-12 bg-[#2e3f84]/10 dark:bg-blue-500/20 rounded flex items-center justify-center text-[#2e3f84] dark:text-blue-300">
                                                                     <FileText className="w-6 h-6" />
                                                                 </div>
@@ -1644,7 +1644,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     })}
                                     {aiTyping && (
                                         <div className="flex justify-start px-1">
-                                            <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-card dark:bg-neutral-800 border border-border/60 dark:border-neutral-700 px-3 py-2 shadow-sm">
+                                            <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-card dark:bg-neutral-800 px-3 py-2 shadow-sm">
                                                 <span className="text-base">🤖</span>
                                                 <span className="text-xs text-[#5f5e5e] dark:text-neutral-400">{t('internalChat.aiTyping')}</span>
                                                 <span className="flex gap-1">
@@ -1728,7 +1728,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 <div className="relative flex-1">
                                     {/* @Mentions dropdown */}
                                     {showMentions && mentionUsers.length > 0 && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-3 bg-card dark:bg-neutral-800 border border-border dark:border-neutral-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
+                                        <div className="absolute bottom-full left-0 right-0 mb-3 bg-card dark:bg-neutral-800 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
                                             {mentionUsers.map((user, i) => (
                                                 <button
                                                     key={user.id}
@@ -1783,7 +1783,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
             {/* Modal: Crear nuevo chat o grupo */}
             <Dialog open={showCreateGroup} onOpenChange={setShowCreateGroup}>
-                <DialogContent className="sm:max-w-md card-gradient border border-border dark:border-[hsl(231,20%,22%)] max-h-[90vh] overflow-y-auto overflow-x-hidden custom-scrollbar-light">
+                <DialogContent className="sm:max-w-md card-gradient max-h-[90vh] overflow-y-auto overflow-x-hidden custom-scrollbar-light">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Users className="w-6 h-6" />
@@ -1853,7 +1853,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         )}
 
                         {/* User list (filas planas con divisores, estilo WhatsApp) */}
-                        <div className="max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar-light border border-border rounded-xl divide-y divide-[#ececf3] dark:divide-white/[0.06]">
+                        <div className="max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar-light rounded-xl divide-y divide-[#ececf3] dark:divide-white/[0.06]">
                             {filteredUsers.length === 0 ? (
                                 <div className="p-4 text-center text-sm text-muted-foreground">
                                     {t('internalChat.noUsersFound')}
@@ -1940,7 +1940,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     setAddParticipantIds([]);
                 }
             }}>
-                <DialogContent className="sm:max-w-md card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
+                <DialogContent className="sm:max-w-md card-gradient">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Users className="w-5 h-5" />
@@ -2098,7 +2098,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
             {/* Modal: Renombrar grupo */}
             <Dialog open={showRenameModal} onOpenChange={setShowRenameModal}>
-                <DialogContent className="sm:max-w-sm card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
+                <DialogContent className="sm:max-w-sm card-gradient">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Pencil className="w-5 h-5" />

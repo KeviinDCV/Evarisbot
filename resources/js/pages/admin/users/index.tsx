@@ -87,7 +87,7 @@ function getInitials(name: string) {
 
 function MetricCard({ icon: Icon, label, value, detail, active = false }: MetricCardProps) {
     return (
-        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5">
             <div className="flex items-center gap-3">
                 <div
                     className={cn(
@@ -305,7 +305,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <Users className="h-5 w-5" />
                             </div>
                             <div>
@@ -331,7 +331,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         <MetricCard icon={Headphones} label={t('users.metricAdvisors')} value={stats.advisors} detail={t('users.metricAdvisorsDetail', { count: stats.bulkEnabled })} />
                     </section>
 
-                    <section className="card-gradient rounded-2xl border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                    <section className="card-gradient rounded-2xl p-4 shadow-lg shadow-[#2e3f84]/5">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                             <div className="min-w-0 flex-1">
                                 <Label htmlFor="user-search" className="mb-2 block text-xs font-semibold settings-label">
@@ -363,7 +363,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                             <div className="min-w-0">
                                 <p className="mb-2 text-xs font-semibold settings-label">{t('users.role')}</p>
-                                <div className="inline-flex w-full rounded-xl border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:w-auto">
+                                <div className="inline-flex w-full rounded-xl bg-white/70 p-1 dark:bg-white/[0.04] sm:w-auto">
                                     {roleOptions.map((option) => (
                                         <button
                                             key={option.value}
@@ -384,7 +384,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </div>
                     </section>
 
-                    <section className="card-gradient overflow-hidden rounded-2xl border border-white/40 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                    <section className="card-gradient overflow-hidden rounded-2xl shadow-lg shadow-[#2e3f84]/5">
                         <div className="flex flex-col gap-2 border-b border-[#d4d8e8]/80 px-4 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <h2 className="text-base font-bold settings-title">{t('users.directoryTitle')}</h2>
@@ -483,7 +483,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                             size="sm"
                                                             variant="outline"
                                                             onClick={() => setUserToDelete(user)}
-                                                            className="h-8 w-8 rounded-xl border-red-200 p-0 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10"
+                                                            className="h-8 w-8 rounded-xl border-0 p-0 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-500/10"
                                                             title={t('common.delete')}
                                                         >
                                                             <Trash2 className="h-3.5 w-3.5" />
@@ -506,7 +506,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </div>
 
                 <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
-                    <DialogContent className="card-gradient rounded-2xl border border-white/40 shadow-2xl dark:border-white/10 sm:rounded-2xl">
+                    <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl">
                         <DialogHeader>
                             <DialogTitle className="settings-title">{t('users.deleteConfirm')}</DialogTitle>
                             <DialogDescription className="settings-subtitle">
@@ -532,7 +532,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </Dialog>
 
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-                    <DialogContent className="card-gradient overflow-hidden rounded-2xl border border-white/40 p-0 shadow-2xl dark:border-white/10 sm:max-w-xl sm:rounded-2xl">
+                    <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl">
                         <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
                             <DialogTitle className="flex items-center gap-2 text-xl settings-title">
                                 <UserCircle className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
@@ -622,7 +622,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         <SelectTrigger className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
-                                        <SelectContent className="card-gradient rounded-xl border border-white/40 p-1 shadow-lg dark:border-white/10">
+                                        <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
                                             <SelectItem value="advisor" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
                                             <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
@@ -644,7 +644,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </Dialog>
 
                 <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-                    <DialogContent className="card-gradient overflow-hidden rounded-2xl border border-white/40 p-0 shadow-2xl dark:border-white/10 sm:max-w-xl sm:rounded-2xl">
+                    <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl">
                         <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
                             <DialogTitle className="flex items-center gap-2 text-xl settings-title">
                                 <Edit3 className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
@@ -733,7 +733,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         <SelectTrigger className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
-                                        <SelectContent className="card-gradient rounded-xl border border-white/40 p-1 shadow-lg dark:border-white/10">
+                                        <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
                                             <SelectItem value="advisor" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
                                             <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>

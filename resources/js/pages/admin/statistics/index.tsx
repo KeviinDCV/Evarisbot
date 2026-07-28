@@ -286,10 +286,10 @@ function barColor(tone: StatLineProps['tone'] = 'primary') {
 }
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'primary', onClick, layoutId }: MetricCardProps) {
-    const base = 'card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10';
+    const base = 'card-gradient rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5';
     const inner = (
         <div className="flex items-center gap-3">
-            <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border', toneClasses(tone))}>
+            <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', toneClasses(tone))}>
                 <Icon className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
@@ -321,10 +321,10 @@ function MetricCard({ icon: Icon, label, value, detail, tone = 'primary', onClic
 
 function SectionCard({ icon: Icon, title, subtitle, className, children, action }: SectionCardProps) {
     return (
-        <section className={cn('card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10', className)}>
+        <section className={cn('card-gradient rounded-2xl p-5 shadow-lg shadow-[#2e3f84]/5', className)}>
             <div className="mb-4 flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10">
                 <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
                         <Icon className="h-4.5 w-4.5" />
                     </div>
                     <div className="min-w-0">
@@ -640,7 +640,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <BarChart3 className="h-5 w-5" />
                             </div>
                             <div>
@@ -654,7 +654,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
-                            <div className="inline-flex rounded-xl border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04]">
+                            <div className="inline-flex rounded-xl bg-white/70 p-1 dark:bg-white/[0.04]">
                                 <button
                                     type="button"
                                     onClick={() => setShowCharts(false)}
@@ -703,11 +703,11 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                         <MetricCard icon={FileText} label={t('statistics.chart.templates')} value={formatNumber(statistics.templates.total)} detail={t('statistics.metricCard.sendsDetail', { value: formatNumber(statistics.templates.total_sends) })} tone="info" layoutId="metric-templates" onClick={() => setOpenMetric('templates')} />
                     </section>
 
-                    <form onSubmit={handleFilterSubmit} className="card-gradient rounded-2xl border border-white/40 p-4 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                    <form onSubmit={handleFilterSubmit} className="card-gradient rounded-2xl p-4 shadow-lg shadow-[#2e3f84]/5">
                         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_auto] xl:items-end">
                             <div>
                                 <Label className="mb-2 block text-xs font-semibold settings-label">{t('statistics.filters.period')}</Label>
-                                <div className="grid grid-cols-2 gap-1 rounded-xl border border-[#d4d8e8] bg-white/70 p-1 dark:border-white/10 dark:bg-white/[0.04] sm:grid-cols-5">
+                                <div className="grid grid-cols-2 gap-1 rounded-xl bg-white/70 p-1 dark:bg-white/[0.04] sm:grid-cols-5">
                                     {periodOptions.map((option) => (
                                         <button
                                             key={option.value}
@@ -761,7 +761,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                         </div>
 
                         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs settings-subtitle">
-                            <span className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 font-semibold dark:border-white/10 dark:bg-white/[0.04]">
+                            <span className="rounded-md bg-white/70 px-2.5 py-1 font-semibold dark:bg-white/[0.04]">
                                 {startDate && endDate ? t('statistics.filters.dateRange', { start: startDate, end: endDate }) : periodLabel}
                             </span>
                             {(startDate || endDate) && (
@@ -801,7 +801,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                 }
                             >
                                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
-                                    <div className="overflow-hidden rounded-xl border border-[#d4d8e8]/80 dark:border-white/10">
+                                    <div className="overflow-hidden rounded-xl">
                                         <table className="w-full text-xs">
                                             <thead>
                                                 <tr className="bg-[#2e3f84]/[0.06] text-left settings-subtitle dark:bg-white/[0.05]">
@@ -907,7 +907,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                 title={t('statistics.advisors.performanceTitle')}
                                 subtitle={t('statistics.advisors.performanceSubtitle')}
                                 className="xl:col-span-2"
-                                action={<span className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">{t('statistics.advisors.clickForDetail')}</span>}
+                                action={<span className="rounded-md bg-white/70 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:bg-white/[0.04]">{t('statistics.advisors.clickForDetail')}</span>}
                             >
                                 <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                                     <MetricCard icon={Users} label={t('statistics.users.advisors')} value={statistics.advisors.total_advisors} detail={t('statistics.advisors.onTheTeam')} />
@@ -936,7 +936,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                 rate === null ? 'info' : rate >= 70 ? 'success' : rate >= 40 ? 'warning' : 'danger';
 
                                             return (
-                                                <div key={advisor.id} className="overflow-hidden rounded-xl border border-[#d4d8e8]/80 bg-white/45 dark:border-white/10 dark:bg-white/[0.03]">
+                                                <div key={advisor.id} className="overflow-hidden rounded-xl bg-white/45 dark:bg-white/[0.03]">
                                                     <button
                                                         type="button"
                                                         onClick={() => toggleAdvisorDetail(advisor.id)}
@@ -1038,7 +1038,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                     </div>
 
                                                                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                                                                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                        <div className="rounded-xl bg-white/45 p-3 dark:bg-white/[0.03]">
                                                                             <h4 className="mb-2 flex items-center gap-2 text-xs font-bold settings-title">
                                                                                 <TrendingUp className="h-3.5 w-3.5" />
                                                                                 {t('statistics.advisors.dailyActivity')}
@@ -1054,7 +1054,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                                             </ResponsiveContainer>
                                                                         </div>
 
-                                                                        <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                        <div className="rounded-xl bg-white/45 p-3 dark:bg-white/[0.03]">
                                                                             <h4 className="mb-2 flex items-center gap-2 text-xs font-bold settings-title">
                                                                                 <Timer className="h-3.5 w-3.5" />
                                                                                 {t('statistics.advisors.hourlyDistribution')}
@@ -1219,7 +1219,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                 <motion.div
                                     layoutId={`metric-${openMetric}`}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="card-gradient max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/50 p-6 shadow-2xl dark:border-white/10"
+                                    className="card-gradient max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl p-6 shadow-2xl"
                                 >
                                     <div className="mb-4 flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-3">
@@ -1243,7 +1243,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                             ))}
                                         </div>
                                         {m.chart && (
-                                            <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                            <div className="rounded-xl bg-white/45 p-3 dark:bg-white/[0.03]">
                                                 {m.chart}
                                             </div>
                                         )}

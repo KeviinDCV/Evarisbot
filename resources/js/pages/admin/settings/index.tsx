@@ -118,7 +118,7 @@ function StatusPill({ active, activeLabel, inactiveLabel }: StatusPillProps) {
 
 function StatusTile({ icon: Icon, title, value, detail, active }: StatusTileProps) {
     return (
-        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5">
             <div className="flex items-center gap-3">
                 <div
                     className={cn(
@@ -147,7 +147,7 @@ function SectionHeader({ icon: Icon, title, subtitle, active, activeLabel, inact
     return (
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -339,7 +339,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex items-start gap-3">
-                        <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                        <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
                             <SlidersHorizontal className="h-5 w-5" />
                         </div>
                         <div>
@@ -376,7 +376,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         />
                     </section>
 
-                    <form onSubmit={handleWhatsAppSubmit} className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10 md:p-6">
+                    <form onSubmit={handleWhatsAppSubmit} className="card-gradient rounded-2xl p-5 shadow-lg shadow-[#2e3f84]/5 md:p-6">
                         <SectionHeader
                             icon={MessageCircle}
                             title={t('settings.whatsapp.apiTitle')}
@@ -478,7 +478,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         </div>
 
                         {settings.whatsapp.webhook_url && (
-                            <div className="mt-5 rounded-xl border border-[#d4d8e8]/80 bg-white/55 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+                            <div className="mt-5 rounded-xl bg-white/55 px-4 py-3 dark:bg-white/[0.03]">
                                 <div className="flex items-center gap-2 text-xs font-semibold settings-label">
                                     <ShieldCheck className="h-4 w-4" />
                                     Webhook URL
@@ -506,7 +506,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                         )}
 
                         {businessProfile && (
-                            <div className="mt-5 rounded-xl border border-[#d4d8e8]/80 bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                            <div className="mt-5 rounded-xl bg-white/55 p-4 dark:bg-white/[0.03]">
                                 <div className="mb-4 flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-2">
                                         <Building2 className="h-4 w-4 text-[#2e3f84] dark:text-neutral-100" />
@@ -553,7 +553,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                     </form>
 
                     <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[2fr_3fr]">
-                        <form onSubmit={handleGroqSubmit} className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                        <form onSubmit={handleGroqSubmit} className="card-gradient rounded-2xl p-5 shadow-lg shadow-[#2e3f84]/5">
                             <SectionHeader
                                 icon={Headphones}
                                 title={t('settings.groq.title')}
@@ -596,7 +596,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             </Button>
                         </form>
 
-                        <section className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+                        <section className="card-gradient rounded-2xl p-5 shadow-lg shadow-[#2e3f84]/5">
                             <SectionHeader
                                 icon={Users}
                                 title={t('settings.onDutyAdvisors.title')}
@@ -689,7 +689,7 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                                     </div>
 
                                     <div className="mt-4 flex flex-col gap-3 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-                                        <p className="rounded-md border border-[#d4d8e8] bg-white/70 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">
+                                        <p className="rounded-md bg-white/70 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:bg-white/[0.04]">
                                             {t('settings.onDutyAdvisors.selectedCount', { count: selectedAdvisors.length })}
                                         </p>
                                         <Button

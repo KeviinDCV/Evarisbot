@@ -144,7 +144,7 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto card-gradient rounded-2xl border border-border dark:border-[hsl(231,20%,22%)] p-0 gap-0">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto card-gradient rounded-2xl p-0 gap-0">
                 <DialogHeader className="px-6 py-4 border-b border-border dark:border-[hsl(231,20%,22%)]">
                     <DialogTitle className="settings-title flex items-center gap-2 text-xl">
                         <MessageSquare className="w-5 h-5 text-primary" />
@@ -214,7 +214,7 @@ export default function TemplateCreateModal({ isOpen, onClose, users }: Template
                         {selectedFiles.length > 0 && (
                             <div className="space-y-2 mb-3">
                                 {selectedFiles.map((mediaFile, index) => (
-                                    <div key={index} className="p-2 rounded-xl user-stats-box bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800 flex items-center gap-3">
+                                    <div key={index} className="p-2 rounded-xl user-stats-box bg-white/50 dark:bg-black/20 flex items-center gap-3">
                                         {mediaFile.preview ? (
                                             <img src={mediaFile.preview} alt={t('templates.previewAlt')} className="w-10 h-10 object-cover rounded-xl" />
                                         ) : (

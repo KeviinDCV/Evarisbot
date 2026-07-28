@@ -128,7 +128,7 @@ function toneClasses(tone: MetricCardProps['tone'] = 'primary') {
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
     return (
-        <div className="card-gradient rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5">
             <div className="flex items-center gap-3">
                 <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border', toneClasses(tone))}>
                     <Icon className="h-5 w-5" />
@@ -145,10 +145,10 @@ function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: Metr
 
 function SectionCard({ icon: Icon, title, subtitle, action, children, className }: SectionCardProps) {
     return (
-        <section className={cn('card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10', className)}>
+        <section className={cn('card-gradient rounded-2xl p-5 shadow-lg shadow-[#2e3f84]/5', className)}>
             <div className="mb-4 flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10">
                 <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
                         <Icon className="h-4.5 w-4.5" />
                     </div>
                     <div className="min-w-0">
@@ -185,7 +185,7 @@ function ScopePill({ global, assignedCount }: { global: boolean; assignedCount: 
     const { t } = useTranslation();
 
     return (
-        <span className="inline-flex items-center gap-1.5 rounded-md border border-[#d4d8e8] bg-white/50 px-2.5 py-1 text-[11px] font-semibold text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-200">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-white/50 px-2.5 py-1 text-[11px] font-semibold text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-200">
             {global ? <Globe2 className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
             {global ? t('templates.global') : t('templates.assignedCount', { count: assignedCount })}
         </span>
@@ -377,7 +377,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                 <div className="mx-auto max-w-7xl space-y-6">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <FileText className="h-5 w-5" />
                             </div>
                             <div className="min-w-0">
@@ -409,7 +409,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                         title={t('templates.catalogTitle')}
                         subtitle={t('templates.catalogSubtitle', { count: templates.length, countFormatted: formatNumber(templates.length), sends: formatNumber(stats.totalSends) })}
                         action={
-                            <span className="hidden rounded-md border border-[#d4d8e8] bg-white/50 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04] sm:inline-flex">
+                            <span className="hidden rounded-md bg-white/50 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04] sm:inline-flex">
                                 {t('templates.inactiveCount', { value: formatNumber(stats.inactive) })}
                             </span>
                         }
@@ -442,7 +442,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                     <SelectTrigger id="template-status" className="w-full h-9 settings-input rounded-xl">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                    <SelectContent className="rounded-xl max-h-[320px]">
                                         {statusOptions.map((option) => (
                                             <SelectItem key={option.value} value={option.value} className="rounded-lg cursor-pointer">
                                                 {option.label}
@@ -460,7 +460,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                     <SelectTrigger id="template-type" className="w-full h-9 settings-input rounded-xl">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                    <SelectContent className="rounded-xl max-h-[320px]">
                                         {typeOptions.map((option) => (
                                             <SelectItem key={option.value} value={option.value} className="rounded-lg cursor-pointer">
                                                 {option.label}
@@ -517,7 +517,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                                         whileHover={{ y: -3 }}
                                                         whileTap={{ scale: 0.98 }}
                                                         transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                                                        className="card-gradient flex cursor-pointer flex-col gap-3 rounded-2xl border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 hover:shadow-md hover:shadow-[#2e3f84]/10 dark:border-white/10"
+                                                        className="card-gradient flex cursor-pointer flex-col gap-3 rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5 hover:shadow-md hover:shadow-[#2e3f84]/10"
                                                     >
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="min-w-0 flex-1">
@@ -569,7 +569,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                         <motion.div
                             layoutId={`template-${openTemplate.id}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="card-gradient flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/50 shadow-2xl dark:border-white/10"
+                            className="card-gradient flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl shadow-2xl"
                         >
                             <div className="flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 p-5 dark:border-white/10">
                                 <div className="min-w-0">
@@ -617,11 +617,11 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                 )}
 
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl bg-white/45 p-3 dark:bg-white/[0.03]">
                                         <p className="text-[11px] settings-subtitle">{t('templates.recordedSends')}</p>
                                         <p className="mt-0.5 text-lg font-bold settings-title">{formatNumber(openTemplate.usage_stats?.total_sends)}</p>
                                     </div>
-                                    <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-xl bg-white/45 p-3 dark:bg-white/[0.03]">
                                         <p className="text-[11px] settings-subtitle">{t('templates.lastUpdate')}</p>
                                         <p className="mt-0.5 text-sm font-bold settings-title">{formatDate(openTemplate.updated_at || openTemplate.created_at)}</p>
                                         <p className="text-[11px] settings-subtitle">{openTemplate.updated_by ? t('templates.updatedBy', { name: openTemplate.updated_by }) : t('templates.createdBy', { name: openTemplate.created_by })}</p>
@@ -662,7 +662,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
 
             {/* Confirmación de borrado: dice QUÉ se borra y CUÁNTO se usa. */}
             <Dialog open={templateToDelete !== null} onOpenChange={(open) => !open && setTemplateToDelete(null)}>
-                <DialogContent className="card-gradient rounded-2xl border border-white/40 shadow-2xl dark:border-white/10 sm:max-w-md sm:rounded-2xl">
+                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:max-w-md sm:rounded-2xl">
                     <DialogHeader>
                         {/* Título en el tono de la app (no rojo): el color destructivo se
                             reserva para el botón, que es la acción irreversible. */}
@@ -676,7 +676,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
 
                     {templateToDelete && (
                         <div className="space-y-3">
-                            <div className="rounded-xl border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                            <div className="rounded-xl bg-white/50 p-3 dark:bg-white/[0.04]">
                                 <p className="truncate text-sm font-semibold settings-title">{templateToDelete.name}</p>
                                 <p className="mt-0.5 text-xs settings-subtitle">
                                     {t('templates.deleteUsageCount', {

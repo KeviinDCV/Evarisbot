@@ -385,7 +385,7 @@ function WaTemplateSelect({
             <SelectTrigger className="w-full !h-11 settings-input rounded-xl data-[placeholder]:text-muted-foreground">
                 <SelectValue placeholder={placeholder ?? t('conversations.selectTemplatePlaceholder')} />
             </SelectTrigger>
-            <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+            <SelectContent className="rounded-xl max-h-[320px]">
                 {templates.map((tpl) => {
                     const isMarketing = tpl.category === 'MARKETING';
                     const categoryLabel = isMarketing
@@ -2993,7 +2993,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                     {/* Panel unificado de filtros */}
                                     {showFiltersPanel && (
-                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-xl shadow-xl border border-border py-1 z-[100] w-64 max-h-[70vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 data-[side=bottom]:slide-in-from-top-2 duration-200">
+                                        <div className="absolute right-0 top-full mt-1 card-gradient rounded-xl shadow-xl py-1 z-[100] w-64 max-h-[70vh] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 data-[side=bottom]:slide-in-from-top-2 duration-200">
                                             {/* Sección: Estado */}
                                             <div>
                                                 <button
@@ -3688,7 +3688,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </button>
 
                                     {showBulkAssignMenu && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-card rounded-xl shadow-xl border border-border py-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-card rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                                             <div className="px-3 py-1.5 text-xs font-semibold text-muted-foreground uppercase">
                                                 {t('conversations.assignTo')}
                                             </div>
@@ -3808,7 +3808,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                         return (
                             <div
-                                className="fixed card-gradient rounded-xl shadow-xl border border-border py-2 z-50 min-w-[240px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200"
+                                className="fixed card-gradient rounded-xl shadow-xl py-2 z-50 min-w-[240px] overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-200"
                                 style={{
                                     left: `${adjustedX}px`,
                                     top: showUpwards ? 'auto' : `${contextMenu.y}px`,
@@ -5012,7 +5012,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                                     exit={{ opacity: 0, scale: 0.9, y: 8 }}
                                                     transition={{ duration: 0.14 }}
-                                                    className="absolute bottom-full left-0 mb-2 z-50 grid grid-cols-6 gap-1 p-2 rounded-2xl bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl w-[252px]"
+                                                    className="absolute bottom-full left-0 mb-2 z-50 grid grid-cols-6 gap-1 p-2 rounded-2xl bg-white dark:bg-neutral-800 shadow-xl w-[252px]"
                                                 >
                                                     {COMPOSER_EMOJIS.map((emoji) => (
                                                         <button
@@ -5070,7 +5070,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                                         {/* Dropdown de plantillas */}
                                         {showTemplates && filteredTemplates.length > 0 && (
-                                            <div className="absolute bottom-full -left-12 right-0 mb-3 bg-card border border-border/80 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                            <div className="absolute bottom-full -left-12 right-0 mb-3 bg-card rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                                                 {filteredTemplates.map((template, index) => (
                                                     <div
                                                         key={template.id}
@@ -5092,7 +5092,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         {/* Indicador de autocorrección */}
                                         {lastCorrection && (
                                             <div className="absolute bottom-full left-0 mb-3 animate-in fade-in slide-in-from-bottom-1 duration-200">
-                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-background/95 backdrop-blur border border-border rounded-full shadow-lg">
+                                                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-background/95 backdrop-blur rounded-full shadow-lg">
                                                     <Check className="w-3.5 h-3.5 text-green-500" />
                                                     <span className="text-[11px] md:text-xs">
                                                         <span className="line-through text-muted-foreground mr-1">{lastCorrection.original}</span>
@@ -5252,7 +5252,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </div>
                                             <div className="flex gap-1">
                                                 <button onClick={() => { if (newTagName.trim()) { createTag(newTagName.trim(), newTagColor).then((tag) => { if (tag) { attachTag(selectedConversation.id, tag.id); setNewTagName(''); setShowTagSubmenu(false); } }); } }} className="flex-1 px-2 py-1.5 text-xs bg-primary text-white rounded-lg">{t('common.create')}</button>
-                                                <button onClick={() => { setShowTagSubmenu(false); setNewTagName(''); }} className="px-3 py-1.5 text-xs border border-border rounded-lg">{t('common.cancel')}</button>
+                                                <button onClick={() => { setShowTagSubmenu(false); setNewTagName(''); }} className="px-3 py-1.5 text-xs rounded-lg">{t('common.cancel')}</button>
                                             </div>
                                         </div>
                                     )}
@@ -5597,7 +5597,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 if (val) previewBody = previewBody.replace(`{{${idx + 1}}}`, val);
                             });
                             return (
-                                <div className="border border-border/60 rounded-xl overflow-hidden">
+                                <div className="rounded-xl overflow-hidden">
                                     <div className="px-3 py-2 bg-muted/40 border-b border-border/40">
                                         <span className="flex items-center gap-2 text-xs font-medium text-foreground/80">
                                             <Eye className="w-3.5 h-3.5" />
@@ -5930,7 +5930,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 if (val) previewBody = previewBody.replace(`{{${idx + 1}}}`, val);
                             });
                             return (
-                                <div className="border border-border/60 rounded-xl overflow-hidden">
+                                <div className="rounded-xl overflow-hidden">
                                     <div className="px-3 py-2 bg-muted/40 border-b border-border/40">
                                         <span className="text-xs font-medium text-foreground/80">{t('conversations.preview')}</span>
                                     </div>
@@ -5960,7 +5960,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <SelectTrigger className="w-full h-10 settings-input rounded-xl">
                                     <SelectValue placeholder={t('conversations.myself')} />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                <SelectContent className="rounded-xl max-h-[320px]">
                                     <SelectItem value="__self__" className="rounded-lg cursor-pointer">{t('conversations.myself')}</SelectItem>
                                     {users.filter(user => user.id !== auth.user.id).map((user) => (
                                         <SelectItem key={user.id} value={String(user.id)} className="rounded-lg cursor-pointer">
@@ -6237,7 +6237,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         onContextMenu={(e) => { e.preventDefault(); setAdvisorMenu(null); }}
                     />
                     <div
-                        className="fixed w-[232px] overflow-hidden rounded-xl border border-border bg-card py-1.5 shadow-xl dark:bg-neutral-800"
+                        className="fixed w-[232px] overflow-hidden rounded-xl bg-card py-1.5 shadow-xl dark:bg-neutral-800"
                         style={{ zIndex: 2147483647, top: Math.max(8, Math.min(advisorMenu.y, window.innerHeight - 116)), left: Math.max(8, Math.min(advisorMenu.x, window.innerWidth - 240)) }}
                     >
                         <div className="px-3 pb-1.5 pt-1">
@@ -6265,7 +6265,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
             {/* Confirmación de "Limpiar" (acción destructiva, reversible) */}
             <Dialog open={!!advisorToClear} onOpenChange={(open) => !open && setAdvisorToClear(null)}>
-                <DialogContent className="card-gradient rounded-2xl border border-white/40 shadow-2xl dark:border-white/10 sm:rounded-2xl">
+                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Eraser className="h-5 w-5 text-red-600 dark:text-red-300" />

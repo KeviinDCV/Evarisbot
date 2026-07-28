@@ -184,7 +184,7 @@ export default function EditTemplate({ template, users }: EditTemplateProps) {
 
                     {/* Form: Centered box with natural max-width */}
                     <div className="max-w-2xl mx-auto">
-                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                             {/* Nombre */}
                             <div className="space-y-2">
                                 <Label htmlFor="name" className="text-sm font-medium text-primary">

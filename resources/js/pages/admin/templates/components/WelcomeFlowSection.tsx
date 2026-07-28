@@ -259,10 +259,10 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
 
     return (
         <>
-            <section className="card-gradient rounded-2xl border border-white/40 p-5 shadow-lg shadow-[#2e3f84]/5 dark:border-white/10">
+            <section className="card-gradient rounded-2xl p-5 shadow-lg shadow-[#2e3f84]/5">
                 <div className="mb-4 flex flex-col gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex min-w-0 items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
                             <Bot className="h-4.5 w-4.5" />
                         </div>
                         <div className="min-w-0">
@@ -382,7 +382,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                         {t('welcomeFlow.conversationalFlow', { count: steps.length })}
                                                     </div>
                                                     {steps.map((step, index) => (
-                                                        <div key={step.id} className="rounded-xl border border-[#d4d8e8]/80 bg-white/50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                        <div key={step.id} className="rounded-xl bg-white/50 p-3 dark:bg-white/[0.03]">
                                                             <div className="mb-3 flex flex-wrap items-center gap-2">
                                                                 <span
                                                                     className={cn(
@@ -464,7 +464,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
             </section>
 
             <Dialog open={isModalOpen} onOpenChange={(open) => (open ? setIsModalOpen(true) : closeModal())}>
-                <DialogContent className="card-gradient max-h-[90vh] gap-0 overflow-y-auto rounded-2xl border border-white/40 p-0 shadow-xl dark:border-white/10 sm:max-w-2xl">
+                <DialogContent className="card-gradient max-h-[90vh] gap-0 overflow-y-auto rounded-2xl p-0 shadow-xl sm:max-w-2xl">
                     <DialogHeader className="border-b border-[#d4d8e8]/80 px-6 py-4 dark:border-white/10">
                         <DialogTitle className="flex items-center gap-2 text-lg font-bold settings-title">
                             <Bot className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
@@ -499,7 +499,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                 <SelectTrigger id="flow-trigger" className="w-full h-10 settings-input rounded-xl">
                                     <SelectValue placeholder={t('welcomeFlow.whenSentPlaceholder')} />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-xl border border-[#e9edef] dark:border-neutral-700 max-h-[320px]">
+                                <SelectContent className="rounded-xl max-h-[320px]">
                                     <SelectItem value="first_contact" className="rounded-lg cursor-pointer">{t('welcomeFlow.triggerFirstContactOption')}</SelectItem>
                                     <SelectItem value="every_new_conversation" className="rounded-lg cursor-pointer">{t('welcomeFlow.triggerEveryNewConversation')}</SelectItem>
                                     <SelectItem value="always" className="rounded-lg cursor-pointer">{t('welcomeFlow.triggerAlways')}</SelectItem>
@@ -522,7 +522,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             {errors.message && <p className="text-xs text-red-500">{errors.message}</p>}
                         </div>
 
-                        <div className="space-y-3 rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="space-y-3 rounded-xl bg-white/45 p-4 dark:bg-white/[0.03]">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <Label className="text-sm font-semibold settings-label">{t('welcomeFlow.interactiveButtonsLabel')}</Label>
@@ -541,7 +541,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             ) : (
                                 <div className="space-y-3">
                                     {data.buttons.map((button, index) => (
-                                        <div key={`${button.id}-${index}`} className="rounded-xl border border-[#d4d8e8]/80 bg-white/60 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                        <div key={`${button.id}-${index}`} className="rounded-xl bg-white/60 p-3 dark:bg-white/[0.04]">
                                             <div className="mb-3 flex items-center gap-2">
                                                 <MousePointerClick className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
                                                 <span className="text-sm font-semibold settings-title">{t('welcomeFlow.buttonNumber', { number: index + 1 })}</span>
@@ -595,7 +595,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             )}
                         </div>
 
-                        <div className="flex items-center justify-between gap-4 rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                        <div className="flex items-center justify-between gap-4 rounded-xl bg-white/45 p-4 dark:bg-white/[0.03]">
                             <div>
                                 <p className="text-sm font-semibold settings-title">{t('welcomeFlow.activateFlow')}</p>
                                 <p className="mt-1 text-xs settings-subtitle">{t('welcomeFlow.singleActiveHint')}</p>

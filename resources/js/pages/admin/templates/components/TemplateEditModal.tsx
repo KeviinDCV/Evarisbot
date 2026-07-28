@@ -196,7 +196,7 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto card-gradient rounded-2xl border border-border dark:border-[hsl(231,20%,22%)] p-0 gap-0">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto card-gradient rounded-2xl p-0 gap-0">
                 <DialogHeader className="px-6 py-4 border-b border-border dark:border-[hsl(231,20%,22%)]">
                     <DialogTitle className="settings-title flex items-center gap-2 text-xl">
                         <Edit className="w-5 h-5 text-primary" />

@@ -135,7 +135,7 @@ export default function CreateTemplate() {
 
                     {/* Form */}
                     <div className="max-w-2xl mx-auto">
-                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                             {/* Nombre */}
                             <div className="space-y-2">
                                 <Label htmlFor="name" className="text-sm font-medium settings-label">
@@ -197,7 +197,7 @@ export default function CreateTemplate() {
                                         {selectedFiles.map((mediaFile, index) => (
                                             <div
                                                 key={index}
-                                                className="p-3 rounded-xl user-stats-box bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800"
+                                                className="p-3 rounded-xl user-stats-box bg-white/50 dark:bg-black/20"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.preview ? (

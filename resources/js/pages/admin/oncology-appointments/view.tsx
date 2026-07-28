@@ -221,7 +221,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <CalendarCheck className="h-5 w-5" />
                             </div>
                             <div>
@@ -257,7 +257,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/60 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/60 text-[#2e3f84] dark:bg-white/[0.04] dark:text-neutral-100">
                                         <Icon className="h-5 w-5" />
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -276,7 +276,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         ))}
                     </section>
 
-                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                    <section className="card-gradient rounded-lg p-5 shadow-sm shadow-[#2e3f84]/5">
                         <div className="mb-4">
                             <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
                                 <Filter className="h-4 w-4" />
@@ -317,7 +317,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <button
                                         onClick={handleClearDates}
                                         disabled={!dateFrom && !dateTo}
-                                        className="h-9 w-full rounded-lg border border-[#d4d8e8] bg-white px-4 text-sm font-medium text-[#6b7494] transition-all duration-200 hover:border-[#2e3f84] hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300 dark:hover:bg-white/5"
+                                        className="h-9 w-full rounded-lg bg-white px-4 text-sm font-medium text-[#6b7494] transition-all duration-200 hover:border-[#2e3f84] hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-neutral-300 dark:hover:bg-white/5"
                                     >
                                         {t('appointments.clearDates')}
                                     </button>
@@ -347,7 +347,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                         </div>
                     </section>
 
-                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                    <section className="card-gradient rounded-lg p-5 shadow-sm shadow-[#2e3f84]/5">
                         <div className="mb-4">
                             <h2 className="text-base font-semibold settings-title">
                                 {t('appointments.resultsCount', { count: appointments.total })}
@@ -357,7 +357,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                             </p>
                         </div>
 
-                        <div className="overflow-x-auto rounded-lg border border-[#d4d8e8] dark:border-white/10">
+                        <div className="overflow-x-auto rounded-lg">
                             <table className="w-full text-left border-collapse">
                                 <thead className="border-b border-border bg-black/5 dark:border-white/10 dark:bg-white/5">
                                     <tr>
@@ -539,7 +539,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <button
                                         onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                         disabled={!appointments.prev_page_url}
-                                        className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
+                                        className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                     >
                                         <ChevronLeft className="w-4 h-4" />
                                         {t('common.previous')}
@@ -547,7 +547,7 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
                                     <button
                                         onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
                                         disabled={!appointments.next_page_url}
-                                        className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
+                                        className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                     >
                                         {t('common.next')}
                                         <ChevronRight className="w-4 h-4" />

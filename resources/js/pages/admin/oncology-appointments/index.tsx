@@ -100,9 +100,9 @@ const toneClasses: Record<NonNullable<MetricCardProps['tone']>, string> = {
 
 function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
     return (
-        <div className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <div className="card-gradient rounded-lg p-4 shadow-sm shadow-[#2e3f84]/5">
             <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${toneClasses[tone]}`}>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
                     <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -604,7 +604,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
                     <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#d4d8e8] bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-100">
+                            <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
                                 <CalendarCheck className="h-5 w-5" />
                             </div>
                             <div>
@@ -661,7 +661,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                         </section>
                     </Deferred>
 
-                    <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
+                    <section className="card-gradient rounded-lg p-5 shadow-sm shadow-[#2e3f84]/5"
                     >
                         <form onSubmit={submit}>
                             <div className="mb-4">
@@ -712,7 +712,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                             </div>
                                         </label>
                                     ) : (
-                                        <div className="flex items-center justify-between rounded-lg border border-white/50 bg-white/55 p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                                        <div className="flex items-center justify-between rounded-lg bg-white/55 p-3 shadow-sm dark:bg-white/[0.03]">
                                             <div className="flex items-center gap-4">
                                                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
                                                     <FileSpreadsheet className="h-5 w-5" />
@@ -759,7 +759,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                     </section>
 
                     {uploadedFile && (
-                        <section className="card-gradient rounded-lg border border-white/50 p-4 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
+                        <section className="card-gradient rounded-lg p-4 shadow-sm shadow-[#2e3f84]/5"
                         >
                             <div className="flex items-start gap-4">
                                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -781,7 +781,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                     )}
 
                     {(remindersStats || localStats) && (
-                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                        <section className="card-gradient rounded-lg p-5 shadow-sm shadow-[#2e3f84]/5">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                 <div className="min-w-0 flex-1">
                                     <h2 className="mb-1 flex items-center gap-2 text-base font-semibold settings-title">
@@ -843,7 +843,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             </div>
 
                             {isProcessing && progress && progress.total > 0 && (
-                                <div className="mt-4 rounded-lg border border-[#d4d8e8] bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                <div className="mt-4 rounded-lg bg-white/55 p-4 dark:bg-white/[0.03]">
                                     <div className="mb-2 flex items-center justify-between gap-3 text-xs settings-subtitle">
                                         <span>{t('oncology.sendingProgress')}</span>
                                         <span className="font-semibold settings-title">
@@ -878,7 +878,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
 
                     <Deferred data="appointments" fallback={<AppointmentsTableSkeleton />}>
                     {initialAppointments.length > 0 && (
-                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+                        <section className="card-gradient rounded-lg p-5 shadow-sm shadow-[#2e3f84]/5">
                             <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                 <div>
                                     <h2 className="text-base font-semibold settings-title">
@@ -914,7 +914,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto rounded-lg border border-[#d4d8e8] dark:border-white/10">
+                            <div className="overflow-x-auto rounded-lg">
                                 <table className="w-full text-left border-collapse">
                                     <thead className="border-b border-border bg-black/5 dark:border-white/10 dark:bg-white/5">
                                         <tr>
@@ -1050,7 +1050,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                             disabled={currentPage === 1}
-                                            className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
+                                            className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
                                             <ChevronLeft className="w-4 h-4" />
                                             {t('common.previous')}
@@ -1058,7 +1058,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                                         <button
                                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                             disabled={currentPage === totalPages}
-                                            className="flex h-9 items-center gap-2 rounded-lg border border-[#d4d8e8] px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
+                                            className="flex h-9 items-center gap-2 rounded-lg px-3 text-sm settings-title transition-all duration-200 hover:bg-[#f8f9fc] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:hover:bg-white/5"
                                         >
                                             {t('common.next')}
                                             <ChevronRight className="w-4 h-4" />
@@ -1070,7 +1070,7 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                     )}
 
                     {initialAppointments.length === 0 && (
-                        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10"
+                        <section className="card-gradient rounded-lg p-5 shadow-sm shadow-[#2e3f84]/5"
                         >
                             <h3 className="mb-4 font-semibold settings-title">
                                 {t('oncology.excelFormatTitle')}
@@ -1078,31 +1078,31 @@ export default function AppointmentsIndex({ appointments: initialAppointments = 
                             <div className="space-y-3 text-sm settings-subtitle">
                                 <p className="settings-title font-medium">{t('oncology.excelFormatIntro')}</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citead</strong> - {t('oncology.columnDescCitead')}
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Nom_paciente</strong> - {t('oncology.columnDescPatientName')}
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Pactel</strong> - {t('oncology.columnDescPhone')}
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citfc</strong> - {t('oncology.columnDescAppointmentDate')}
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Cithor</strong> - {t('oncology.columnDescAppointmentTime')}
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Mednom</strong> - {t('oncology.columnDescDoctorName')}
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Espnom</strong> - {t('oncology.columnDescSpecialty')}
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citdoc</strong> - {t('oncology.columnDescDocument')}
                                     </div>
-                                    <div className="rounded-lg border border-[#d4d8e8] bg-white/55 p-2 text-xs settings-subtitle dark:border-white/10 dark:bg-white/[0.03]">
+                                    <div className="rounded-lg bg-white/55 p-2 text-xs settings-subtitle dark:bg-white/[0.03]">
                                         <strong className="settings-title">Citobsobs</strong> - {t('oncology.columnDescObservations')}
                                     </div>
                                 </div>
@@ -1130,7 +1130,7 @@ function AppointmentMetricsSkeleton() {
 
 function AppointmentsTableSkeleton() {
     return (
-        <section className="card-gradient rounded-lg border border-white/50 p-5 shadow-sm shadow-[#2e3f84]/5 dark:border-white/10">
+        <section className="card-gradient rounded-lg p-5 shadow-sm shadow-[#2e3f84]/5">
             <div className="mb-4 flex flex-col gap-2">
                 <Skeleton className="h-5 w-64" />
                 <Skeleton className="h-4 w-48" />
