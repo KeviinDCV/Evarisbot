@@ -20,6 +20,31 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Plantillas que cancelan una cita
+    |--------------------------------------------------------------------------
+    |
+    | Al enviar una de estas (por envío masivo o desde el chat), la cita que
+    | menciona el mensaje se marca como 'cancelled'. Sin esto, el WhatsApp salía
+    | pero la cita seguía "confirmada", y el bot contradecía al asesor diciéndole
+    | al paciente que su cita estaba CONFIRMADA.
+    |
+    | date_param / time_param = número de parámetro ({{2}}, {{3}}…) que lleva la
+    | fecha y la hora en esa plantilla. Si añades una plantilla nueva, comprueba
+    | su orden de parámetros antes de listarla aquí.
+    |
+    | NO se incluyen a propósito las de reprogramación ni cambio de horario: ahí
+    | la cita no se cancela, se mueve, y marcarlas 'cancelled' sería incorrecto.
+    |
+    */
+
+    'cancellation_templates' => [
+        // "…su cita médica programada para el {{2}} a las {{3}} ha sido cancelada."
+        'cancelacion_cita' => ['date_param' => 2, 'time_param' => 3],
+        'cancelacion_de_citas_por_festivo_13_julio' => ['date_param' => 2, 'time_param' => 3],
+    ],
+
     'billing' => [
 
         // Moneda en la que están expresadas las tarifas de abajo.

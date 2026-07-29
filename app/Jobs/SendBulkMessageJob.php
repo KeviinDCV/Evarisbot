@@ -233,6 +233,15 @@ class SendBulkMessageJob implements ShouldQueue
                     ]);
                 }
 
+                // Si era una cancelación, dejar la cita en 'cancelled'. Sin esto el mensaje
+                // salía pero la cita seguía "confirmada" y el bot contradecía al asesor.
+                \App\Services\AppointmentCancellationSync::fromTemplate(
+                    $phoneNumber,
+                    $bulkSend->template_name,
+                    $paramValues,
+                    'envío masivo #' . $bulkSend->id
+                );
+
                 Log::info('Mensaje masivo enviado', [
                     'recipient_id' => $this->recipientId,
                     'phone' => $phoneNumber,

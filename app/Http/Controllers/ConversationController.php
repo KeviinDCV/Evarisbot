@@ -1781,6 +1781,16 @@ class ConversationController extends Controller
 
                 // Actualizar timestamp
                 $conversation->update(['last_message_at' => now()]);
+
+                // Si era una cancelación, dejar la cita en 'cancelled'. Sin esto el asesor
+                // avisaba al paciente pero la cita seguía "confirmada", y el bot le respondía
+                // lo contrario si volvía a escribir.
+                \App\Services\AppointmentCancellationSync::fromTemplate(
+                    $conversation->phone_number,
+                    $whatsappTemplate->meta_template_name,
+                    $templateParams,
+                    'chat (asesor ' . (auth()->user()?->name ?? '?') . ')'
+                );
             } else {
                 $message->update([
                     'status' => 'failed',
@@ -1934,12 +1944,20 @@ class ConversationController extends Controller
                     'status' => 'sent',
                     'whatsapp_message_id' => $result['message_id'] ?? null,
                 ]);
+
+                // Conversación nueva abierta con una plantilla de cancelación: misma regla.
+                \App\Services\AppointmentCancellationSync::fromTemplate(
+                    $phoneNumber,
+                    $whatsappTemplate->meta_template_name,
+                    $templateParams,
+                    'nueva conversación (asesor ' . (auth()->user()?->name ?? '?') . ')'
+                );
             } else {
                 $message->update([
                     'status' => 'failed',
                     'error_message' => $result['error'] ?? 'Error desconocido al enviar mensaje',
                 ]);
-                
+
                 return response()->json([
                     'success' => false,
                     'message' => 'No se pudo enviar el mensaje: ' . ($result['error'] ?? 'Error desconocido'),
