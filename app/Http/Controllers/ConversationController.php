@@ -2308,11 +2308,38 @@ class ConversationController extends Controller
      */
     public function typing(Conversation $conversation)
     {
+        // Aviso entre asesores (para ver que un compañero ya está respondiendo).
         cache()->put(
             'typing_' . $conversation->id . '_' . auth()->id(),
             now(),
             10 // expires in 10 seconds
         );
+
+        // Y el "escribiendo…" que ve el PACIENTE en WhatsApp.
+        //
+        // El frontend llama a esto cada 4 s mientras se teclea, pero el indicador de Meta
+        // dura unos 25 s: refrescarlo cada 4 s serían 15 peticiones por minuto y asesor.
+        // Con este candado de 20 s se envía como mucho una vez por conversación en ese
+        // lapso, sin que el indicador llegue a apagarse.
+        $candado = 'wa_typing_' . $conversation->id;
+        if (!cache()->has($candado)) {
+            cache()->put($candado, true, 20);
+
+            // Necesita el id de un mensaje ENTRANTE; el más reciente es el que vale.
+            $ultimoEntrante = $conversation->messages()
+                ->where('is_from_user', true)
+                ->whereNotNull('whatsapp_message_id')
+                ->reorder('created_at', 'desc')
+                ->value('whatsapp_message_id');
+
+            if ($ultimoEntrante) {
+                try {
+                    app(\App\Services\WhatsAppService::class)->sendTypingIndicator($ultimoEntrante);
+                } catch (\Throwable $e) {
+                    // Es cosmético: nunca debe entorpecer al asesor que está escribiendo.
+                }
+            }
+        }
 
         return response()->json(['ok' => true]);
     }

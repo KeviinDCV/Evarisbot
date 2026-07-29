@@ -561,7 +561,55 @@ class WhatsAppService
     }
 
     /**
-     * Marcar mensaje como leído
+     * Mostrarle al paciente el "escribiendo…" de WhatsApp.
+     *
+     * En la Cloud API el indicador NO es una llamada aparte: viaja junto al acuse de
+     * lectura, en la misma petición. Se muestra unos 25 segundos, o hasta que se envía
+     * el mensaje (lo que ocurra antes), y necesita el id de un mensaje ENTRANTE.
+     *
+     * Es cosmético: si Meta lo rechaza (por ejemplo, con la ventana de 24 h cerrada),
+     * no se registra como error ni se reintenta.
+     */
+    public function sendTypingIndicator(string $messageId): bool
+    {
+        if (!$this->isConfigured()) {
+            return false;
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken($this->token)
+                ->timeout(4)
+                ->connectTimeout(2)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
+                    'messaging_product' => 'whatsapp',
+                    'status' => 'read',
+                    'message_id' => $messageId,
+                    'typing_indicator' => ['type' => 'text'],
+                ]);
+
+            if (!$response->successful()) {
+                Log::info('Indicador de escritura no aceptado por Meta', [
+                    'status' => $response->status(),
+                    'body' => mb_substr($response->body(), 0, 200),
+                ]);
+            }
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::info('Indicador de escritura: excepción', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
+     * Marcar un mensaje como leído en WhatsApp (el doble check azul del paciente).
+     *
+     * Marcar uno marca también todos los anteriores de esa conversación, así que basta
+     * con enviar el ÚLTIMO entrante sin leer.
+     *
+     * Va con su propio cliente HTTP, más impaciente que el general: esto se ejecuta al
+     * abrir un chat, y el cliente normal (timeout 10 s con 2 reintentos) podría dejar la
+     * pantalla colgada hasta 30 s. Es un acuse de recibo: si no llega, no pasa nada.
      */
     public function markAsRead(string $messageId): bool
     {
@@ -570,7 +618,9 @@ class WhatsAppService
         }
 
         try {
-            $response = $this->httpClient()
+            $response = \Illuminate\Support\Facades\Http::withToken($this->token)
+                ->timeout(4)
+                ->connectTimeout(2)
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
                     'messaging_product' => 'whatsapp',
                     'status' => 'read',

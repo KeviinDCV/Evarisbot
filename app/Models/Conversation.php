@@ -112,12 +112,36 @@ class Conversation extends Model
      */
     public function markAsRead(): void
     {
+        // Último entrante pendiente ANTES de marcarlos: es el que se envía a Meta para que
+        // el paciente vea el doble check azul (marcar uno marca todos los anteriores).
+        // reorder() porque la relación messages() ya viene ordenada ascendente.
+        $ultimoEntrante = $this->messages()
+            ->where('is_from_user', true)
+            ->where('status', '!=', 'read')
+            ->whereNotNull('whatsapp_message_id')
+            ->reorder('created_at', 'desc')
+            ->value('whatsapp_message_id');
+
         $this->update(['unread_count' => 0]);
-        
+
         $this->messages()
             ->where('is_from_user', true)
             ->where('status', '!=', 'read')
             ->update(['status' => 'read']);
+
+        // Acuse de recibo hacia el paciente. Hasta ahora sólo se marcaba leído por dentro:
+        // el paciente se quedaba con el check gris aunque el asesor ya hubiera leído.
+        // Es "mejor esfuerzo": si Meta no responde, el chat se abre igual.
+        if ($ultimoEntrante) {
+            try {
+                app(\App\Services\WhatsAppService::class)->markAsRead($ultimoEntrante);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('No se pudo enviar el acuse de lectura', [
+                    'conversation_id' => $this->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**
