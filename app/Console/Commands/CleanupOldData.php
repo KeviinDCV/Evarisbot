@@ -10,9 +10,10 @@ use Illuminate\Support\Facades\Log;
 
 class CleanupOldData extends Command
 {
-    protected $signature = 'cleanup:old-data 
+    protected $signature = 'cleanup:old-data
                             {--days=30 : Días de antigüedad para limpiar mensajes}
-                            {--dry-run : Ver qué se eliminaría sin hacerlo}';
+                            {--dry-run : Ver qué se eliminaría sin hacerlo}
+                            {--incluir-mensajes : Borrar TAMBIÉN los mensajes de conversaciones resueltas (destructivo e irreversible)}';
 
     protected $description = 'Limpia datos antiguos de la base de datos para liberar memoria';
 
@@ -32,14 +33,24 @@ class CleanupOldData extends Command
         try {
             $cutoffDate = now()->subDays($days);
             
-            // 1. Limpiar mensajes antiguos de conversaciones cerradas
+            // 1. Mensajes antiguos de conversaciones resueltas.
+            //
+            // Hay que pedirlo con --incluir-mensajes. Antes se borraban siempre, y una
+            // sola ejecución (hacia el 24-jun-2026) se llevó el historial anterior al
+            // 25-may: las conversaciones quedaron visibles pero vacías, y sin copias de
+            // seguridad no hay forma de recuperarlo. El resto de la limpieza (jobs,
+            // caché, sesiones, lotes) no destruye nada y sigue funcionando igual.
+            $incluirMensajes = $this->option('incluir-mensajes');
+
             $messagesQuery = Message::whereHas('conversation', function($query) {
                 $query->whereIn('status', ['resolved', 'closed']);
             })->where('created_at', '<', $cutoffDate);
-            
-            $messagesCount = $messagesQuery->count();
-            
-            if (!$dryRun && $messagesCount > 0) {
+
+            $messagesCount = $incluirMensajes ? $messagesQuery->count() : 0;
+
+            if (!$incluirMensajes) {
+                $this->line('⏭️  Mensajes: NO se tocan (usa --incluir-mensajes si de verdad quieres borrarlos)');
+            } elseif (!$dryRun && $messagesCount > 0) {
                 $messagesQuery->delete();
                 $this->info("✅ Eliminados {$messagesCount} mensajes antiguos");
             } else {

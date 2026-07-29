@@ -102,23 +102,22 @@ Schedule::command('conversations:mark-confirmations-read')
 // Se activan configurando OPTIMIZATION_ENABLED=true en .env
 // ============================================================================
 
-// Limpieza de datos antiguos (mensajes, jobs, sesiones)
-// Se ejecuta diariamente a las 3:00 AM para no interferir con producción
-Schedule::command('cleanup:old-data')
-    ->dailyAt(config('optimization.cleanup_data.time', '03:00'))
-    ->timezone('America/Bogota')
-    ->withoutOverlapping()
-    ->onOneServer()
-    ->when(function () {
-        return config('optimization.enabled', false) 
-            && config('optimization.cleanup_data.enabled', false);
-    })
-    ->onSuccess(function () {
-        \Illuminate\Support\Facades\Log::info('✅ Limpieza de datos completada automáticamente');
-    })
-    ->onFailure(function () {
-        \Illuminate\Support\Facades\Log::error('❌ Error en limpieza automática de datos');
-    });
+// ─────────────────────────────────────────────────────────────────────────────
+// cleanup:old-data DESPROGRAMADO A PROPÓSITO — NO VOLVER A AÑADIRLO
+//
+// Este comando borra los mensajes de más de N días (30 por defecto) de las
+// conversaciones resueltas o cerradas. Se ejecutó una vez hacia el 24-jun-2026 y
+// se perdió el historial anterior al 25-may: febrero, marzo y abril quedaron sin
+// el 92-99% de sus mensajes, y mayo sin el 40%. Las conversaciones sobrevivieron
+// vacías, así que en la lista se ven pero al abrirlas dicen "No hay mensajes".
+//
+// No hay copias de seguridad: lo borrado no se puede recuperar.
+//
+// El historial de conversaciones con pacientes es información clínica y
+// administrativa del hospital; no se borra por antigüedad. Si algún día hace
+// falta liberar espacio, hay que hacerlo de forma explícita y supervisada, no
+// en una tarea nocturna automática.
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Limpieza de logs antiguos
 // Se ejecuta diariamente a las 3:30 AM
