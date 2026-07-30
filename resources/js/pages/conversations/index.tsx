@@ -62,7 +62,7 @@ import {
     ArrowLeft,
     Image as ImageIcon,
 } from 'lucide-react';
-import { FormEvent, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { FormEvent, memo, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
@@ -314,6 +314,66 @@ function formatFullDateTime(iso: string) {
 
 // Emojis frecuentes para el picker del composer (sin dependencias pesadas)
 const COMPOSER_EMOJIS = ['😀', '😅', '😂', '🙂', '😉', '😍', '😘', '😊', '👍', '🙏', '👏', '🙌', '👌', '💪', '🎉', '❤️', '🔥', '✅', '⚠️', '❌', '📅', '🕐', '📍', '📎'];
+
+/**
+ * Selector de emojis del compositor, con su propio estado.
+ *
+ * Antes el abierto/cerrado vivía en el componente de conversaciones (6.000+ líneas y sin
+ * memoizar), así que cada clic re-renderizaba TODA la vista: la lista de chats, el hilo de
+ * mensajes con sus burbujas, reacciones y acciones al pasar el ratón. De ahí que abrir
+ * 24 emojis se sintiera lento — el coste no era el picker, era todo lo demás.
+ *
+ * Aislado aquí, abrirlo sólo redibuja estos 24 botones.
+ */
+const ComposerEmojiPicker = memo(function ComposerEmojiPicker({
+    onSelect,
+}: {
+    onSelect: (emoji: string) => void;
+}) {
+    const { t } = useTranslation();
+    const [abierto, setAbierto] = useState(false);
+
+    return (
+        <div className="relative flex-shrink-0 self-end">
+            <button
+                type="button"
+                aria-label={t('conversations.insertEmoji')}
+                title={t('conversations.emoji')}
+                onClick={() => setAbierto((v) => !v)}
+                className="h-[44px] w-12 p-0 rounded-l-full text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+            >
+                <Smile className="w-[22px] h-[22px]" />
+            </button>
+            {abierto && (
+                <div className="fixed inset-0 z-40" onClick={() => setAbierto(false)} />
+            )}
+            <AnimatePresence>
+                {abierto && (
+                    <motion.div
+                        key="emoji-pop"
+                        initial={{ opacity: 0, scale: 0.9, y: 8 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 8 }}
+                        transition={{ duration: 0.14 }}
+                        className="absolute bottom-full left-0 mb-2 z-50 grid grid-cols-6 gap-1 p-2 rounded-2xl bg-white dark:bg-neutral-800 shadow-xl w-[252px]"
+                    >
+                        {COMPOSER_EMOJIS.map((emoji) => (
+                            <button
+                                key={emoji}
+                                type="button"
+                                aria-label={t('conversations.insertEmojiNamed', { emoji })}
+                                onClick={() => onSelect(emoji)}
+                                className="text-[22px] leading-none rounded-lg p-1 hover:bg-muted dark:hover:bg-neutral-700 transition-colors"
+                            >
+                                {emoji}
+                            </button>
+                        ))}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+});
 
 /**
  * ¿Misma lista de usuarios (id + nombre)? Evita hacer setState con un array nuevo
@@ -775,6 +835,13 @@ export default function ConversationsIndex({ conversations: initialConversations
         });
     };
 
+    // insertEmoji se recrea en cada render (acaba dependiendo de la conversación abierta),
+    // así que el memo del selector no serviría de nada. Con esta referencia viva el callback
+    // que recibe es siempre el mismo, pero por dentro llama a la versión actual.
+    const insertEmojiRef = useRef(insertEmoji);
+    insertEmojiRef.current = insertEmoji;
+    const insertEmojiEstable = useCallback((emoji: string) => insertEmojiRef.current(emoji), []);
+
     // Seleccionar una plantilla
     const selectTemplate = (template: Template) => {
         const currentValue = inputValueRef.current;
@@ -877,8 +944,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Indicador de conexión inestable (fallos consecutivos de polling / navegador offline)
     const [connectionStale, setConnectionStale] = useState(false);
     const pollFailuresRef = useRef(0);
-    // Picker de emojis del composer y arrastrar-soltar archivos
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    // El abierto/cerrado del selector de emojis ahora vive dentro de ComposerEmojiPicker,
+    // para que abrirlo no re-renderice toda esta vista.
     const [isFileDragging, setIsFileDragging] = useState(false);
     // Búsqueda dentro de la conversación abierta
     const [showInChatSearch, setShowInChatSearch] = useState(false);
@@ -4991,44 +5058,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <div className="relative flex-1 flex items-end bg-white dark:bg-[hsl(30,4%,18%)] ring-1 ring-black/5 dark:ring-white/[0.04] rounded-full focus-within:ring-2 focus-within:ring-[#2e3f84]/30 transition-all duration-200 overflow-visible">
 
                                     {/* Botón de emojis (primero, como WhatsApp) */}
-                                    <div className="relative flex-shrink-0 self-end">
-                                        <button
-                                            type="button"
-                                            aria-label={t('conversations.insertEmoji')}
-                                            title={t('conversations.emoji')}
-                                            onClick={() => setShowEmojiPicker(v => !v)}
-                                            className="h-[44px] w-12 p-0 rounded-l-full text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
-                                        >
-                                            <Smile className="w-[22px] h-[22px]" />
-                                        </button>
-                                        {showEmojiPicker && (
-                                            <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)} />
-                                        )}
-                                        <AnimatePresence>
-                                            {showEmojiPicker && (
-                                                <motion.div
-                                                    key="emoji-pop"
-                                                    initial={{ opacity: 0, scale: 0.9, y: 8 }}
-                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                    exit={{ opacity: 0, scale: 0.9, y: 8 }}
-                                                    transition={{ duration: 0.14 }}
-                                                    className="absolute bottom-full left-0 mb-2 z-50 grid grid-cols-6 gap-1 p-2 rounded-2xl bg-white dark:bg-neutral-800 shadow-xl w-[252px]"
-                                                >
-                                                    {COMPOSER_EMOJIS.map((emoji) => (
-                                                        <button
-                                                            key={emoji}
-                                                            type="button"
-                                                            aria-label={t('conversations.insertEmojiNamed', { emoji })}
-                                                            onClick={() => insertEmoji(emoji)}
-                                                            className="text-[22px] leading-none rounded-lg p-1 hover:bg-muted dark:hover:bg-neutral-700 transition-colors"
-                                                        >
-                                                            {emoji}
-                                                        </button>
-                                                    ))}
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
+                                    <ComposerEmojiPicker onSelect={insertEmojiEstable} />
 
                                     {/* Botón de adjuntar */}
                                     <button
