@@ -546,6 +546,16 @@ html.dark::-webkit-scrollbar-thumb:hover,
     background: rgba(180, 175, 170, 0.3);
 }
 
+/* A .custom-scrollbar-light le faltaban el hover y el color de Firefox en oscuro:
+   heredaba los claros (#2e3f84 sobre fondo oscuro) y el pulgar apenas se distinguía. */
+.dark .custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
+    background: rgba(180, 175, 170, 0.45);
+}
+
+.dark .custom-scrollbar-light {
+    scrollbar-color: rgba(180, 175, 170, 0.3) rgba(35, 33, 31, 0.5);
+}
+
 .dark .custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
     background: rgba(180, 175, 170, 0.45);
 }

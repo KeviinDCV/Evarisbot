@@ -160,17 +160,38 @@ export default function UsersIndex({ users }: UsersIndexProps) {
      * Es una recarga parcial (sólo la prop 'users') y conserva búsqueda, filtro y scroll.
      */
     useEffect(() => {
+        let ultimo = Date.now();
+        let enVuelo = false;
+
         const refrescar = () => {
-            if (document.hidden) return;
-            router.reload({ only: ['users'] });
+            if (document.hidden || enVuelo) return;
+            // 'focus' y 'visibilitychange' llegan casi juntos al volver a la pestaña;
+            // sin esta guarda se lanzarían dos recargas seguidas.
+            if (Date.now() - ultimo < 5000) return;
+
+            enVuelo = true;
+            ultimo = Date.now();
+            router.reload({
+                only: ['users'],
+                onFinish: () => {
+                    enVuelo = false;
+                },
+            });
         };
 
         const id = setInterval(refrescar, 30000);
         document.addEventListener('visibilitychange', refrescar);
+        // 'focus' además de 'visibilitychange': si el usuario se va a OTRA APLICACIÓN
+        // (no a otra pestaña), Chrome sigue teniendo la pestaña por visible y
+        // visibilitychange no llega nunca — pero congela los temporizadores de las
+        // ventanas en segundo plano. Sin esto había que recargar a mano para ver
+        // quién estaba conectado, que es justo lo que se reportó.
+        window.addEventListener('focus', refrescar);
 
         return () => {
             clearInterval(id);
             document.removeEventListener('visibilitychange', refrescar);
+            window.removeEventListener('focus', refrescar);
         };
     }, []);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
