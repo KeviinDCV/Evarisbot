@@ -1417,7 +1417,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                         {msg.reply_to && (
                                                             <div
                                                                 className={`mb-2 px-3 py-2 rounded-lg border-l-3 cursor-pointer transition-colors ${msg.is_mine
-                                                                    ? 'bg-white/10 border-blue-300 hover:bg-white/15'
+                                                                    ? 'bg-black/5 border-[#2e3f84] hover:bg-black/10 dark:bg-white/10 dark:border-blue-300 dark:hover:bg-white/15'
                                                                     : 'bg-[#2e3f84]/5 dark:bg-blue-500/10 border-[#2e3f84] dark:border-blue-400 hover:bg-[#2e3f84]/10 dark:hover:bg-blue-500/15'
                                                                 }`}
                                                                 onClick={() => {
@@ -1429,10 +1429,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                     }
                                                                 }}
                                                             >
-                                                                <p className={`text-[11px] font-bold mb-0.5 ${msg.is_mine ? 'text-blue-200' : 'text-[#2e3f84] dark:text-blue-400'}`}>
+                                                                <p className={`text-[11px] font-bold mb-0.5 ${msg.is_mine ? 'text-[#2e3f84] dark:text-blue-200' : 'text-[#2e3f84] dark:text-blue-400'}`}>
                                                                     {msg.reply_to.user_name}
                                                                 </p>
-                                                                <p className={`text-xs truncate max-w-[250px] ${msg.is_mine ? 'text-white/70' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
+                                                                <p className={`text-xs truncate max-w-[250px] ${msg.is_mine ? 'text-[#3b4a54] dark:text-white/70' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
                                                                     {msg.reply_to.type === 'image' ? t('internalChat.previewPhoto')
                                                                         : msg.reply_to.type === 'video' ? t('internalChat.previewVideo')
                                                                         : msg.reply_to.type === 'audio' ? t('internalChat.previewAudio')

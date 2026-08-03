@@ -43,6 +43,10 @@ return [
         // "…su cita médica programada para el {{2}} a las {{3}} ha sido cancelada."
         'cancelacion_cita' => ['date_param' => 2, 'time_param' => 3],
         'cancelacion_de_citas_por_festivo_13_julio' => ['date_param' => 2, 'time_param' => 3],
+        // Mismo texto que la anterior salvo la frase intermedia: ésta remite a la EPS
+        // en vez de prometer que el hospital llamará. Sustituye a 'cancelacion_de_cita',
+        // que se creó en Meta pegando la vista previa y quedó con cero parámetros.
+        'cancelacion_de_cita_v2' => ['date_param' => 2, 'time_param' => 3],
     ],
 
     'billing' => [

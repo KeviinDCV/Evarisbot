@@ -4615,10 +4615,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             }
                                                         }}
                                                     >
-                                                        <p className="font-bold text-[#06cf9c] mb-0.5">
+                                                        <p className="font-bold text-[#12634a] dark:text-[#06cf9c] mb-0.5">
                                                             {message.reply_to.is_from_user ? (selectedConversation?.contact_name || t('conversations.customer')) : (message.reply_to.sender?.name || t('conversations.agent'))}
                                                         </p>
-                                                        <p className={`truncate max-w-[250px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-400' : 'text-[#557d6b] dark:text-white/55'}`}>
+                                                        <p className={`truncate max-w-[250px] ${message.is_from_user ? 'text-[#4a5860] dark:text-neutral-400' : 'text-[#3b4a54] dark:text-white/55'}`}>
                                                             {message.reply_to.message_type === 'image' ? t('conversations.mediaPhoto')
                                                                 : message.reply_to.message_type === 'video' ? t('conversations.mediaVideo')
                                                                 : message.reply_to.message_type === 'audio' ? t('conversations.mediaAudio')

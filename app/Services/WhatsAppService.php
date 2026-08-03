@@ -8,6 +8,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageReaction;
 use App\Models\Setting;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -863,6 +864,30 @@ class WhatsAppService
     }
 
     /**
+     * Nombre de la plantilla de saludo que hay que usar ahora mismo.
+     *
+     * Está en la BD y no fija en el código para poder conmutar a saludo_asesor_v2
+     * en cuanto Meta la apruebe, sin desplegar nada. Si la consulta falla o no hay
+     * ninguna activa y aprobada, cae a la de siempre: antes dejar al asesor con el
+     * saludo antiguo que dejarlo sin saludo.
+     */
+    private function activeGreetingTemplateName(): string
+    {
+        try {
+            return DB::table('whatsapp_templates')
+                ->where('meta_template_name', 'like', 'saludo_asesor%')
+                ->where('is_active', 1)
+                ->where('status', 'APPROVED')
+                ->orderByDesc('id')
+                ->value('meta_template_name') ?: 'saludo_asesor';
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo resolver la plantilla de saludo, se usa saludo_asesor', ['error' => $e->getMessage()]);
+
+            return 'saludo_asesor';
+        }
+    }
+
+    /**
      * Enviar plantilla de saludo de asesor
      * Esta plantilla debe estar aprobada en Meta con el nombre 'saludo_asesor'
      */
@@ -879,7 +904,7 @@ class WhatsAppService
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'template',
                 'template' => [
-                    'name' => 'saludo_asesor',
+                    'name' => $this->activeGreetingTemplateName(),
                     'language' => ['code' => 'es_CO'],
                     'components' => [
                         [

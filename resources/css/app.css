@@ -394,6 +394,59 @@
     }
 }
 
+/* Barra de desplazamiento GLOBAL.
+   Las reglas de abajo solo alcanzan a los contenedores que llevan .custom-scrollbar,
+   así que el scroll de la página —y el de cualquier zona sin esa clase— salía con la
+   barra del sistema operativo: ancha, gris y ajena al diseño, en todas las vistas.
+   Va con el selector universal a propósito: cualquier regla con clase la gana por
+   especificidad, de modo que .custom-scrollbar y .filter-pills-scroll siguen mandando
+   donde ya se usan. */
+html {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(46, 63, 132, 0.28) transparent;
+}
+
+html.dark {
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* El borde transparente + background-clip deja aire a los lados: el pulgar se ve
+   fino y redondeado sin que la zona de arrastre se quede en 4px, que es incómoda. */
+*::-webkit-scrollbar-thumb {
+    background-color: rgba(46, 63, 132, 0.28);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(46, 63, 132, 0.45);
+}
+
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* html no tiene ancestro, así que necesita su propio selector además de `.dark *`. */
+html.dark::-webkit-scrollbar-thumb,
+.dark *::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+html.dark::-webkit-scrollbar-thumb:hover,
+.dark *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
 /* Custom Scrollbar Styles */
 .custom-scrollbar::-webkit-scrollbar {
     width: 6px;

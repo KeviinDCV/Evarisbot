@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head, router } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, Send, X, AlertCircle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2, RefreshCw, FilePlus2, Shield, Megaphone, Key, Globe, Image, Video, FileText, ArrowRight, Columns3, type LucideIcon } from 'lucide-react';
+import { Upload, FileSpreadsheet, Send, X, AlertCircle, AlertTriangle, CheckCircle2, XCircle, Clock, Trash2, StopCircle, Plus, Phone, ChevronDown, MessageSquareText, Eye, Search, Loader2, RefreshCw, FilePlus2, Shield, Megaphone, Key, Globe, Image, Video, FileText, ArrowRight, Columns3, type LucideIcon } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -114,8 +114,12 @@ interface MetricCardProps {
 const RECIPIENTS_PREVIEW_LIMIT = 100;
 
 const normalizeText = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-const DATE_RX = /^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/;
-const TIME_RX = /^\d{1,2}:\d{2}(\s?[ap]\.?\s?m\.?)?$/i;
+// Acepta tanto el formato que la gente escribe a mano (30/07/2026, 9:30 a.m.) como el
+// que produce el propio sistema al exportar: citfc es DATE -> "2026-07-30" y cithor es
+// TIME -> "09:30:00", con segundos. Sin esto, un Excel sacado de la aplicación dejaba
+// los huecos de fecha y hora SIN asignar y había que mapearlos a mano uno por uno.
+const DATE_RX = /^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{1,2}-\d{1,2})$/;
+const TIME_RX = /^\d{1,2}:\d{2}(:\d{2})?(\s?[ap]\.?\s?m\.?)?$/i;
 
 type SlotType = 'nombre' | 'date' | 'time' | 'doctor' | 'especialidad' | 'any';
 
@@ -427,6 +431,25 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             return { idx, header, sample, context: `…${clean(before)}___${clean(after)}…` };
         });
     }, [selectedTemplate, templatePlaceholders]);
+
+    // Salud de la plantilla ELEGIDA, antes de hablar de columnas.
+    //
+    // Caso real (30-jul): 'cancelacion_de_cita' se creó en Meta copiando y pegando la
+    // vista previa de ESTA pantalla, marcadores incluidos. Quedó aprobada con CERO {{N}}
+    // y con "[nombre del contacto]" y "⚠️[sin asignar]" como texto fijo. Meta no lo
+    // detecta: para ella es texto corriente. Aquí sí, porque reconocemos nuestros propios
+    // marcadores. Sin este aviso la pantalla no decía nada y parecía un fallo del mapeo.
+    const templateHealth = useMemo(() => {
+        const body = selectedTemplate?.preview_text;
+        if (!body) return null;
+        // Marcadores que solo existen en la previsualización: si viajaron a Meta, la
+        // plantilla se construyó mal y el paciente los leería tal cual.
+        const leftovers = [t('bulkSends.previewUnassigned'), t('bulkSends.previewNoName')]
+            .filter((marker) => marker && body.includes(marker));
+        if (leftovers.length > 0) return { kind: 'broken' as const, leftovers };
+        if (templatePlaceholders.length === 0) return { kind: 'noParams' as const, leftovers: [] };
+        return null;
+    }, [selectedTemplate, templatePlaceholders, t]);
 
     // Coherencia del mapeo: detecta fechas donde va una hora, horas donde va una
     // fecha o un nombre de médico, columnas duplicadas y columnas sin usar.
@@ -1133,6 +1156,30 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                                                 </div>
                                             )}
                                         </div>
+
+                                        {/* Plantilla mal construida o sin parámetros: decirlo, no callar */}
+                                        {templateHealth && (
+                                            <div className={`rounded-xl border p-3.5 ${templateHealth.kind === 'broken'
+                                                ? 'border-red-300 dark:border-red-800/60 bg-red-50 dark:bg-red-950/20'
+                                                : 'border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/20'
+                                            }`}>
+                                                <p className={`text-xs font-bold mb-1.5 flex items-center gap-1.5 ${templateHealth.kind === 'broken'
+                                                    ? 'text-red-800 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'
+                                                }`}>
+                                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                                    {templateHealth.kind === 'broken'
+                                                        ? t('bulkSends.templateBrokenTitle')
+                                                        : t('bulkSends.templateNoParamsTitle')}
+                                                </p>
+                                                <p className={`text-[11px] leading-relaxed ${templateHealth.kind === 'broken'
+                                                    ? 'text-red-800/90 dark:text-red-300/85' : 'text-amber-800/90 dark:text-amber-300/85'
+                                                }`}>
+                                                    {templateHealth.kind === 'broken'
+                                                        ? t('bulkSends.templateBrokenHelp', { markers: templateHealth.leftovers.join('  ') })
+                                                        : t('bulkSends.templateNoParamsHelp')}
+                                                </p>
+                                            </div>
+                                        )}
 
                                         {/* Guía: formato de Excel sugerido para la plantilla seleccionada */}
                                         {selectedTemplate && excelGuide && (

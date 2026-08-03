@@ -1149,7 +1149,15 @@ class BulkSendController extends Controller
                         'status' => $mt['status'],
                         'category' => $mt['category'] ?? $local->category,
                         'meta_template_id' => $mt['id'],
-                        'is_active' => $mt['status'] === 'APPROVED',
+                        // La sincronización solo puede APAGAR (si Meta deja de aprobarla),
+                        // nunca encender. Antes ponía is_active = (status === APPROVED) a secas,
+                        // así que cada sincronización resucitaba lo que un administrador había
+                        // desactivado a mano: volvía hello_world, volvería cancelacion_de_cita
+                        // (rota, sin parámetros), y se reactivaba la nueva_conversacion vieja
+                        // deshaciendo el trabajo del comando que activa la v2. Como no hay
+                        // interruptor en la interfaz, resucitarlas dejaba a los asesores
+                        // eligiendo plantillas retiradas a propósito.
+                        'is_active' => $local->is_active && $mt['status'] === 'APPROVED',
                     ];
 
                     if ($headerFormat) {
