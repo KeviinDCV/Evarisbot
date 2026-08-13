@@ -880,6 +880,50 @@ class BulkSendController extends Controller
     /**
      * Cancelar envío masivo
      */
+    /**
+     * Borra de la cola los SendBulkMessageJob de unos destinatarios concretos.
+     *
+     * Solo toca trabajos aún NO reservados (reserved_at nulo): si el worker ya cogió
+     * uno, dejarlo terminar es más seguro que arrancárselo — como mucho enviará ese.
+     * El id del destinatario se lee del payload serializado, así que un job de otro
+     * envío jamás se ve afectado.
+     */
+    private function purgarTrabajosEncolados($recipientIds): int
+    {
+        $buscar = collect($recipientIds)->map(fn ($id) => (int) $id)->flip();
+        if ($buscar->isEmpty()) {
+            return 0;
+        }
+
+        $borrados = 0;
+        DB::table('jobs')->whereNull('reserved_at')->orderBy('id')
+            ->select('id', 'payload')->chunk(500, function ($lote) use ($buscar, &$borrados) {
+                $aBorrar = [];
+                foreach ($lote as $job) {
+                    if (! str_contains($job->payload, 'SendBulkMessageJob')) {
+                        continue;
+                    }
+                    // Hay que decodificar el JSON antes de buscar. En el texto crudo del
+                    // payload las comillas van escapadas (s:11:\"recipientId\";) y una
+                    // expresión regular directa no casa nunca: falla en silencio, que es
+                    // lo peor de todo — parece que purga y deja la cola igual.
+                    $datos = json_decode($job->payload, true);
+                    $cmd = $datos['data']['command'] ?? '';
+                    if (preg_match('/"recipientId";i:(\d+);/', $cmd, $m)
+                        && $buscar->has((int) $m[1])) {
+                        $aBorrar[] = $job->id;
+                    }
+                }
+                if ($aBorrar) {
+                    $borrados += DB::table('jobs')->whereIn('id', $aBorrar)->delete();
+                }
+            });
+
+        Log::info('Trabajos de envío masivo purgados de la cola tras cancelar', ['borrados' => $borrados]);
+
+        return $borrados;
+    }
+
     public function cancel(BulkSend $bulkSend)
     {
         if ($bulkSend->status !== 'processing') {
@@ -900,9 +944,20 @@ class BulkSendController extends Controller
             $bulkSend->update(['status' => 'cancelled']);
 
             // Marcar destinatarios pendientes como cancelados
+            $idsCancelados = BulkSendRecipient::where('bulk_send_id', $bulkSend->id)
+                ->where('status', 'pending')
+                ->pluck('id');
+
             BulkSendRecipient::where('bulk_send_id', $bulkSend->id)
                 ->where('status', 'pending')
                 ->update(['status' => 'failed', 'error' => 'Envío cancelado por el usuario']);
+
+            // Y sacar sus trabajos de la cola. Marcar el envío en la base NO bastaba:
+            // los jobs seguían encolados y el worker los iba masticando uno a uno a
+            // ~3 s cada uno. Con miles pendientes, el SIGUIENTE envío se quedaba media
+            // hora detrás de basura, mostrando 0% mientras la consola parecía a tope.
+            // Pasó dos veces el 12-ago y desconcertó a todo el mundo.
+            $this->purgarTrabajosEncolados($idsCancelados);
 
             return response()->json([
                 'success' => true,
@@ -1157,7 +1212,18 @@ class BulkSendController extends Controller
                         // deshaciendo el trabajo del comando que activa la v2. Como no hay
                         // interruptor en la interfaz, resucitarlas dejaba a los asesores
                         // eligiendo plantillas retiradas a propósito.
-                        'is_active' => $local->is_active && $mt['status'] === 'APPROVED',
+                        // Distinguimos dos situaciones que antes se confundían:
+                        //
+                        // 1) La plantilla acaba de pasar a APPROVED (estaba PENDING o
+                        //    REJECTED): se activa, porque nadie la había retirado — solo
+                        //    estaba esperando a Meta. Sin esto quedaba aprobada pero
+                        //    invisible, y había que activarla a mano cada vez.
+                        // 2) Ya estaba APPROVED y alguien la desactivó a propósito
+                        //    (hello_world, la cancelacion_de_cita rota): se respeta.
+                        //
+                        // Y si Meta le retira la aprobación, se apaga en cualquier caso.
+                        'is_active' => $mt['status'] === 'APPROVED'
+                            && ($local->status !== 'APPROVED' || $local->is_active),
                     ];
 
                     if ($headerFormat) {

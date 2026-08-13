@@ -224,6 +224,15 @@ class SendBulkMessageJob implements ShouldQueue
                         'status' => 'sent',
                         'sent_by' => $bulkSend->created_by,
                     ]);
+
+                    // Poner al día la fecha de última actividad.
+                    //
+                    // El firstOrCreate de arriba solo aplica 'last_message_at' cuando CREA
+                    // la conversación; si ya existía —el caso normal— se quedaba con la
+                    // fecha antigua. La lista ORDENA por este campo pero MUESTRA la hora del
+                    // último mensaje, así que un envío masivo salía con la hora de hoy pero
+                    // colocado semanas atrás, y los asesores no lo encontraban.
+                    $conversation->forceFill(['last_message_at' => now()])->save();
                 } catch (\Exception $localErr) {
                     Log::warning('Mensaje masivo enviado pero error al registrar localmente', [
                         'recipient_id' => $this->recipientId,

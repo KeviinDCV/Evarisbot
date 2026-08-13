@@ -2893,6 +2893,15 @@ export default function ConversationsIndex({ conversations: initialConversations
         const convId = selectedConversation.id;
 
         if (status === 'resolved') {
+            // ¿Estaba el asesor leyendo al final del chat? Hay que preguntarlo AHORA,
+            // antes de que el router recargue y el contenedor pierda la posición.
+            //
+            // Al resolver se vuelven a pedir los props y la lista de mensajes se remonta,
+            // así que el contenedor se va arriba. El efecto de auto-scroll no lo rescata
+            // porque solo actúa cuando AUMENTA el número de mensajes, y aquí es el mismo.
+            // Resultado: el chat "se subía" cada vez que se marcaba como resuelto.
+            const estabaAlFinal = checkIfAtBottom();
+
             // Quitar inmediatamente del listado local para que desaparezca
             setLocalConversations(prev => prev.filter(c => c.id !== convId));
 
@@ -2910,7 +2919,20 @@ export default function ConversationsIndex({ conversations: initialConversations
                     toast.success(t('conversations.chatResolved'));
                     // preserveScroll: el router.post de arriba ya lo llevaba, pero este get
                     // encadenado no — y sin él Inertia resetea el scroll tras resolver.
-                    router.get('/admin/chat', params, { preserveState: true, preserveScroll: true, replace: true });
+                    router.get('/admin/chat', params, {
+                        preserveState: true,
+                        preserveScroll: true,
+                        replace: true,
+                        // preserveScroll solo cuida el scroll del documento, no el de este
+                        // panel. Si el asesor estaba abajo lo devolvemos ahí una vez pintado,
+                        // y sin animación: no se movió a propósito, así que no debe verse
+                        // ningún desplazamiento.
+                        onFinish: () => {
+                            if (estabaAlFinal) {
+                                requestAnimationFrame(() => scrollToBottom(false));
+                            }
+                        },
+                    });
                 },
                 onError: () => toast.error(t('conversations.statusChangeError')),
             });
@@ -2932,6 +2954,10 @@ export default function ConversationsIndex({ conversations: initialConversations
         setContextMenu(null);
 
         if (status === 'resolved') {
+            // Mismo cuidado que en handleStatusChange: resolver desde el menú de la lista
+            // recarga los props igual, y si hay un chat abierto al final se iría arriba.
+            const estabaAlFinal = checkIfAtBottom();
+
             // Quitar inmediatamente del listado local para que desaparezca
             setLocalConversations(prev => prev.filter(c => c.id !== conversationId));
 
@@ -2948,7 +2974,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                     toast.success(t('conversations.chatResolved'));
                     // preserveScroll: el router.post de arriba ya lo llevaba, pero este get
                     // encadenado no — y sin él Inertia resetea el scroll tras resolver.
-                    router.get('/admin/chat', params, { preserveState: true, preserveScroll: true, replace: true });
+                    router.get('/admin/chat', params, {
+                        preserveState: true,
+                        preserveScroll: true,
+                        replace: true,
+                        onFinish: () => {
+                            if (estabaAlFinal) {
+                                requestAnimationFrame(() => scrollToBottom(false));
+                            }
+                        },
+                    });
                 },
                 onError: () => toast.error(t('conversations.statusChangeError')),
             });
