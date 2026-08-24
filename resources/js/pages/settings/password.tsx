@@ -1,4 +1,5 @@
 import PasswordController from '@/actions/App/Http/Controllers/Settings/PasswordController';
+import CapsLockWarning, { useCapsLock } from '@/components/caps-lock-warning';
 import InputError from '@/components/input-error';
 import AdminLayout from '@/layouts/admin-layout';
 import { Transition } from '@headlessui/react';
@@ -12,6 +13,8 @@ import { Label } from '@/components/ui/label';
 
 export default function Password() {
     const { t } = useTranslation();
+    const mayusActual = useCapsLock();
+    const mayusNueva = useCapsLock();
     const passwordInput = useRef<HTMLInputElement>(null);
     const currentPasswordInput = useRef<HTMLInputElement>(null);
 
@@ -63,8 +66,10 @@ export default function Password() {
                                             className="border-0 bg-accent focus:bg-gray-150 shadow-none rounded-xl"
                                             autoComplete="current-password"
                                             placeholder={t('settings.profile.currentPasswordPlaceholder')}
+                                            {...mayusActual.props}
                                         />
 
+                                        <CapsLockWarning visible={mayusActual.activo} />
                                         <InputError message={errors.current_password} />
                                     </div>
 
@@ -81,8 +86,10 @@ export default function Password() {
                                             className="border-0 bg-accent focus:bg-gray-150 shadow-none rounded-xl"
                                             autoComplete="new-password"
                                             placeholder={t('users.passwordPlaceholder')}
+                                            {...mayusNueva.props}
                                         />
 
+                                        <CapsLockWarning visible={mayusNueva.activo} />
                                         <InputError message={errors.password} />
                                     </div>
 

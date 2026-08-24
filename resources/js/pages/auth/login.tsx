@@ -1,3 +1,4 @@
+import CapsLockWarning, { useCapsLock } from '@/components/caps-lock-warning';
 import InputError from '@/components/input-error';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
@@ -6,7 +7,7 @@ import { Form, Head } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ArrowBigUp, Eye, EyeOff, Infinity as InfinityIcon, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, Infinity as InfinityIcon, Lock, Mail } from 'lucide-react';
 import type { FocusEvent, KeyboardEvent } from 'react';
 
 interface LoginProps {
@@ -43,20 +44,7 @@ export default function Login({ status }: LoginProps) {
     const { t } = useTranslation();
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
-    // Bloq Mayús: la causa más común de "mi contraseña no funciona". El navegador
-    // solo informa del estado dentro de un evento de teclado o ratón, así que se
-    // consulta en cada pulsación y también al enfocar el campo (por si ya venía
-    // activado antes de tocar nada).
-    const [capsLock, setCapsLock] = useState(false);
-    const revisarMayus = (e: KeyboardEvent<HTMLInputElement> | FocusEvent<HTMLInputElement>) => {
-        // getModifierState solo existe en eventos de teclado y ratón; al enfocar con
-        // el ratón llega dentro del evento nativo, y al enfocar por teclado (Tab) no
-        // hay dato fiable hasta la primera pulsación.
-        const nativo = e.nativeEvent as unknown as { getModifierState?: (k: string) => boolean };
-        if (typeof nativo?.getModifierState === 'function') {
-            setCapsLock(nativo.getModifierState('CapsLock'));
-        }
-    };
+    const mayus = useCapsLock();
 
     // Refresca la cookie XSRF-TOKEN al montar para que el primer envío del login use un token
     // vivo y no choque con uno caducado/rotado (evita el 419 + reintento que ensucia la consola).
@@ -114,11 +102,7 @@ export default function Login({ status }: LoginProps) {
                                     autoComplete="current-password"
                                     placeholder={t('auth.passwordPlaceholder')}
                                     style={{ ...inputBaseStyle, padding: '15px 48px 15px 44px' }}
-                                    onFocus={(e) => { handleFieldFocus(e); revisarMayus(e); }}
-                                    onBlur={(e) => { handleFieldBlur(e); setCapsLock(false); }}
-                                    onKeyDown={revisarMayus}
-                                    onKeyUp={revisarMayus}
-                                    aria-describedby={capsLock ? 'aviso-mayus' : undefined}
+                                    {...mayus.combinar({ onFocus: handleFieldFocus, onBlur: handleFieldBlur })}
                                 />
                                 <button
                                     type="button"
@@ -130,17 +114,7 @@ export default function Login({ status }: LoginProps) {
                                     {showPassword ? <EyeOff className="h-[19px] w-[19px]" /> : <Eye className="h-[19px] w-[19px]" />}
                                 </button>
                             </span>
-                            {capsLock && (
-                                <span
-                                    id="aviso-mayus"
-                                    role="status"
-                                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5"
-                                    style={{ background: '#fef3c7', color: '#92400e', fontSize: '12px', fontWeight: 600 }}
-                                >
-                                    <ArrowBigUp className="h-4 w-4 shrink-0" />
-                                    {t('auth.capsLockOn', 'Bloq Mayús está activado')}
-                                </span>
-                            )}
+                            <CapsLockWarning visible={mayus.activo} />
                             <InputError message={errors.password} />
                         </label>
 
