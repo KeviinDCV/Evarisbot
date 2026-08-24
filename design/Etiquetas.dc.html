@@ -70,6 +70,12 @@
               </sc-for>
             </div>
           </sc-if>
+          <sc-if value="{{f.muestraEstado}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 5px; margin-top: 5px">
+              <span style="width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; {{f.puntoEstado}}"></span>
+              <span style="font-size: 11px; color: #5f5e5e">{{f.textoEstado}}</span>
+            </div>
+          </sc-if>
         </div>
       </div>
     </sc-for>
@@ -96,16 +102,35 @@ class Component extends DCLogic {
       estilo: 'background:' + T[k].bg + ';color:' + T[k].fg,
       punto: 'background:' + T[k].pt,
     });
+    // 'active' es el estado por defecto de casi toda la lista: anunciarlo en cada
+    // fila no informa de nada. Solo se muestra el estado cuando SE SALE de lo normal.
+    const E = {
+      pending:   { texto: 'Pendiente', pt: '#eab308' },
+      scheduled: { texto: 'Agendada',  pt: '#6366f1' },
+      resolved:  { texto: 'Resuelta',  pt: '#9ca3af' },
+      blocked:   { texto: 'Bloqueada', pt: '#dc2626' },
+    };
     const filas = [
-      { inicial: 'M', nombre: 'María Fernanda Ocampo', hora: '14:32', mensaje: 'Buenos días, quisiera saber si mi cita sigue en pie', sinLeer: 2, tags: ['agendado', 'asmet'] },
-      { inicial: 'J', nombre: 'Jorge Humberto Pejendino', hora: '14:18', mensaje: 'Confirmar', sinLeer: 1, tags: ['oncologia'] },
-      { inicial: 'L', nombre: 'Luz Marina Caicedo', hora: '13:47', mensaje: 'Muchas gracias por la información', sinLeer: 0, tags: [] },
-      { inicial: 'C', nombre: 'Carlos Armando Mira', hora: '12:05', mensaje: 'Tú: Le confirmamos su cita para el 26 de agosto', sinLeer: 0, tags: ['agendado', 'nuevaeps'] },
-      { inicial: 'A', nombre: 'Ana Milena Truyo', hora: '11:22', mensaje: 'Necesito reprogramar, no puedo asistir', sinLeer: 3, tags: ['arl'] },
-      { inicial: 'E', nombre: 'Elizabeth Castillo', hora: '10:58', mensaje: 'Cancelar', sinLeer: 0, tags: ['aic'] },
+      { inicial: 'M', nombre: 'María Fernanda Ocampo', hora: '14:32', mensaje: 'Buenos días, quisiera saber si mi cita sigue en pie', sinLeer: 2, estado: 'active', tags: ['agendado', 'asmet'] },
+      { inicial: 'J', nombre: 'Jorge Humberto Pejendino', hora: '14:18', mensaje: 'Confirmar', sinLeer: 1, estado: 'active', tags: ['oncologia'] },
+      { inicial: 'L', nombre: 'Luz Marina Caicedo', hora: '13:47', mensaje: 'Muchas gracias por la información', sinLeer: 0, estado: 'active', tags: [] },
+      { inicial: 'C', nombre: 'Carlos Armando Mira', hora: '12:05', mensaje: 'Tú: Le confirmamos su cita para el 26 de agosto', sinLeer: 0, estado: 'scheduled', tags: ['agendado', 'nuevaeps'] },
+      { inicial: 'A', nombre: 'Ana Milena Truyo', hora: '11:22', mensaje: 'Necesito reprogramar, no puedo asistir', sinLeer: 3, estado: 'active', tags: ['arl'] },
+      { inicial: 'E', nombre: 'Elizabeth Castillo', hora: '10:58', mensaje: 'Cancelar', sinLeer: 0, estado: 'pending', tags: ['aic'] },
+      { inicial: 'V', nombre: 'Víctor Manuel Ortiz', hora: '09:41', mensaje: 'Tú: ¡Muchas gracias!', sinLeer: 0, estado: 'resolved', tags: [] },
     ];
     return {
-      filas: filas.map((f) => ({ ...f, tieneTags: f.tags.length > 0, tags: f.tags.map(vestir) })),
+      filas: filas.map((f) => {
+        const e = E[f.estado];
+        return {
+          ...f,
+          tieneTags: f.tags.length > 0,
+          tags: f.tags.map(vestir),
+          muestraEstado: !!e,
+          textoEstado: e ? e.texto : '',
+          puntoEstado: e ? 'background:' + e.pt : '',
+        };
+      }),
     };
   }
 }
