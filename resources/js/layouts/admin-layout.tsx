@@ -56,7 +56,7 @@ type NavEntry = {
 const GROUPS: { key: string; label: string; adminOnly?: boolean; items: NavEntry[] }[] = [
     {
         key: 'trabajo',
-        label: 'Trabajo',
+        label: 'navigation.groupWork',
         items: [
             { href: '/admin/chat', title: 'navigation.conversations', icon: MessageSquare, badge: 'chat' },
             { href: '/admin/internal-chat', title: 'navigation.internalChat', icon: MessagesSquare, badge: 'internal' },
@@ -66,7 +66,7 @@ const GROUPS: { key: string; label: string; adminOnly?: boolean; items: NavEntry
     },
     {
         key: 'gestion',
-        label: 'Gestión',
+        label: 'navigation.groupManagement',
         adminOnly: true,
         items: [
             { href: '/admin/appointments', title: 'navigation.appointments', icon: Calendar, alsoMatches: ['/admin/oncology-appointments'] },
@@ -425,7 +425,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                         expanded ? 'opacity-100' : 'opacity-0'
                                     }`}
                                 >
-                                    {group.label}
+                                    {t(group.label)}
                                 </span>
                             </div>
 
@@ -439,6 +439,7 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
                                     <Link
                                         key={item.href}
                                         href={item.href}
+                                        prefetch
                                         data-active={active ? 'true' : undefined}
                                         onClick={() => setIsMobileOpen(false)}
                                         aria-current={active ? 'page' : undefined}

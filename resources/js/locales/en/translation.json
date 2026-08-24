@@ -840,7 +840,9 @@
         "offDutyHint": "No conversations are assigned to you.",
         "dutyReadOnly": "Your shift is assigned by coordination from Settings.",
         "unreadCount": "{{count}} unread messages",
-        "appointmentsScope": "Appointments scope"
+        "appointmentsScope": "Appointments scope",
+        "groupWork": "Work",
+        "groupManagement": "Management"
     },
     "statistics": {
         "title": "Statistics",

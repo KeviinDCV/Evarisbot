@@ -840,7 +840,9 @@
         "offDutyHint": "No se te asignan conversaciones.",
         "dutyReadOnly": "Tu turno lo asigna coordinación desde Configuración.",
         "unreadCount": "{{count}} mensajes sin leer",
-        "appointmentsScope": "Ámbito de citas"
+        "appointmentsScope": "Ámbito de citas",
+        "groupWork": "Trabajo",
+        "groupManagement": "Gestión"
     },
     "statistics": {
         "title": "Estadísticas",
