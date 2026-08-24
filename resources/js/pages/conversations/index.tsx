@@ -3692,9 +3692,38 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 );
                                             })()}
                                             <div className="flex items-center justify-between mt-1">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status, conversation.is_blocked)}`}></span>
-                                                    <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-neutral-400">{getStatusLabel(conversation.status, conversation.is_blocked)}</span>
+                                                {/* Etiquetas del paciente, o el estado cuando se sale de lo normal.
+                                                    Antes esta línea decía siempre "Activa": como la lista ya filtra las
+                                                    resueltas, ese texto se repetía en casi todas las filas y ocupaba sitio
+                                                    sin informar de nada. Ahora el hueco lo aprovechan las etiquetas, que sí
+                                                    distinguen una conversación de otra, y el estado solo aparece cuando NO
+                                                    es 'active' (pendiente, agendada, resuelta, bloqueada). */}
+                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                    {conversation.tags && conversation.tags.length > 0 ? (
+                                                        <>
+                                                            {conversation.tags.slice(0, 2).map((tag) => (
+                                                                <span
+                                                                    key={tag.id}
+                                                                    className="inline-flex flex-shrink-0 items-center gap-1 rounded-md px-1.5 py-[1px] text-[10px] font-semibold"
+                                                                    style={{ backgroundColor: `${tag.color}1f`, color: tag.color }}
+                                                                    title={tag.name}
+                                                                >
+                                                                    <span className="h-[5px] w-[5px] flex-shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                                                                    <span className="max-w-[92px] truncate">{tag.name}</span>
+                                                                </span>
+                                                            ))}
+                                                            {conversation.tags.length > 2 && (
+                                                                <span className="flex-shrink-0 text-[10px] font-semibold text-[#767681] dark:text-neutral-500">
+                                                                    +{conversation.tags.length - 2}
+                                                                </span>
+                                                            )}
+                                                        </>
+                                                    ) : (conversation.status !== 'active' || conversation.is_blocked) ? (
+                                                        <>
+                                                            <span className={`w-2 h-2 rounded-full ${getStatusColor(conversation.status, conversation.is_blocked)}`}></span>
+                                                            <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-neutral-400">{getStatusLabel(conversation.status, conversation.is_blocked)}</span>
+                                                        </>
+                                                    ) : null}
                                                 </div>
                                                 {/* Mostrar quién resolvió la conversación */}
                                                 {conversation.status === 'resolved' && conversation.resolved_by_user && (() => {
@@ -3713,26 +3742,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     </span>
                                                 )}
                                             </div>
-                                            {/* Etiquetas de la conversación */}
-                                            {conversation.tags && conversation.tags.length > 0 && (
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                    {conversation.tags.slice(0, 3).map((tag) => (
-                                                        <span
-                                                            key={tag.id}
-                                                            className="text-[10px] text-white px-1.5 py-0.5 rounded-sm truncate max-w-[70px]"
-                                                            style={{ backgroundColor: tag.color }}
-                                                            title={tag.name}
-                                                        >
-                                                            {tag.name}
-                                                        </span>
-                                                    ))}
-                                                    {conversation.tags.length > 3 && (
-                                                        <span className="text-[10px] text-muted-foreground px-1">
-                                                            +{conversation.tags.length - 3}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
+                                            {/* Las etiquetas se pintan más arriba, en el sitio que antes ocupaba la
+                                                línea de estado. Aquí había un segundo bloque que las repetía en una
+                                                línea propia: se retiró para no duplicarlas y para no gastar altura. */}
                                             {/* Especialidad */}
                                             {conversation.specialty && (
                                                 <div className="flex items-center gap-1 mt-1">
