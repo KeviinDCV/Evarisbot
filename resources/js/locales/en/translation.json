@@ -1039,7 +1039,11 @@
                 "billable": "Billable",
                 "rate": "Rate",
                 "cost": "Cost"
-            }
+            },
+            "evolution": "Cost over the period",
+            "groupBy": "Group by",
+            "byDay": "By day",
+            "byMonth": "By month"
         },
         "flowDemand": {
             "title": "Welcome menu demand",

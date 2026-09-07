@@ -126,6 +126,8 @@ interface Statistics {
         currency: string;
         rates_as_of: string;
         by_category: Record<string, { billable: number; free: number; rate: number; cost: number }>;
+        // Un punto por día (hora Colombia) con facturables y coste; el mes se agrega aquí.
+        series?: { day: string; billable: number; cost: number }[];
         total_cost: number;
         billable_total: number;
         free_total: number;
@@ -371,6 +373,9 @@ function EmptyChart({ message }: { message: string }) {
 function StatisticsView({ statistics }: StatisticsViewProps) {
     const { t } = useTranslation();
     const [period, setPeriod] = useState(statistics.date_range.period || 'all');
+    // Granularidad de la evolución de costes. Solo afecta a cómo se agrupa lo que ya
+    // vino del servidor, así que cambiarla no dispara ninguna petición.
+    const [costGroup, setCostGroup] = useState<'day' | 'month'>('day');
     const [startDate, setStartDate] = useState(statistics.date_range.start || '');
     const [endDate, setEndDate] = useState(statistics.date_range.end || '');
     const [expandedAdvisor, setExpandedAdvisor] = useState<number | null>(null);
@@ -839,6 +844,68 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Evolución del coste dentro del período elegido arriba. El servidor
+                                    manda un punto por día; "Por mes" se agrega aquí mismo, así el
+                                    cambio es instantáneo y no hay que volver a consultar. */}
+                                {c.series && c.series.length > 0 && (() => {
+                                    const porMes = new Map<string, { day: string; billable: number; cost: number }>();
+                                    for (const p of c.series) {
+                                        const k = p.day.slice(0, 7);
+                                        const acc = porMes.get(k) ?? { day: k, billable: 0, cost: 0 };
+                                        acc.billable += p.billable;
+                                        acc.cost += p.cost;
+                                        porMes.set(k, acc);
+                                    }
+                                    const puntos = costGroup === 'month' ? [...porMes.values()] : c.series;
+                                    const etiqueta = (d: string) => {
+                                        const [y, m, dd] = d.split('-');
+                                        return costGroup === 'month'
+                                            ? new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('es-CO', { month: 'short', year: '2-digit' })
+                                            : `${dd}/${m}`;
+                                    };
+                                    const datos = puntos.map((p) => ({ name: etiqueta(p.day), cost: Number(p.cost.toFixed(2)), billable: p.billable }));
+                                    return (
+                                        <div className="mt-4 border-t border-[#d4d8e8]/60 pt-4 dark:border-white/10">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                                                <p className="text-xs font-semibold settings-title">{t('statistics.costs.evolution')}</p>
+                                                <div className="inline-flex rounded-lg bg-[#2e3f84]/[0.06] p-0.5 dark:bg-white/[0.06]" role="group" aria-label={t('statistics.costs.groupBy')}>
+                                                    {(['day', 'month'] as const).map((g) => (
+                                                        <button
+                                                            key={g}
+                                                            type="button"
+                                                            onClick={() => setCostGroup(g)}
+                                                            aria-pressed={costGroup === g}
+                                                            className={`rounded-md px-3 py-1 text-[11px] font-semibold transition-colors ${
+                                                                costGroup === g
+                                                                    ? 'bg-[#2e3f84] text-white shadow-sm'
+                                                                    : 'settings-subtitle hover:text-[#2e3f84] dark:hover:text-white'
+                                                            }`}
+                                                        >
+                                                            {g === 'day' ? t('statistics.costs.byDay') : t('statistics.costs.byMonth')}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <ResponsiveContainer width="100%" height={200}>
+                                                <BarChart data={datos}>
+                                                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                                                    <XAxis dataKey="name" tick={{ fontSize: 9 }} className="fill-muted-foreground" interval="preserveStartEnd" />
+                                                    <YAxis tick={{ fontSize: 10 }} className="fill-muted-foreground" tickFormatter={(v) => formatMoney(v, c.currency)} width={64} />
+                                                    <Tooltip
+                                                        contentStyle={tooltipStyle}
+                                                        formatter={(value: number, name: string) =>
+                                                            name === 'cost'
+                                                                ? [formatMoney(value, c.currency), t('statistics.costs.table.cost')]
+                                                                : [formatNumber(value), t('statistics.costs.table.billable')]
+                                                        }
+                                                    />
+                                                    <Bar dataKey="cost" fill={COLORS.info} radius={[6, 6, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    );
+                                })()}
                             </SectionCard>
                         );
                     })()}

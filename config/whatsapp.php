@@ -47,6 +47,9 @@ return [
         // en vez de prometer que el hospital llamará. Sustituye a 'cancelacion_de_cita',
         // que se creó en Meta pegando la vista previa y quedó con cero parámetros.
         'cancelacion_de_cita_v2' => ['date_param' => 2, 'time_param' => 3],
+        // Tercera variante: ni promete llamada ni remite a la EPS, sólo la disculpa.
+        // Mismo orden de parámetros que las anteriores: {{2}} fecha, {{3}} hora.
+        'cancelacion_de_cita_sin_reprogramacion' => ['date_param' => 2, 'time_param' => 3],
     ],
 
     'billing' => [

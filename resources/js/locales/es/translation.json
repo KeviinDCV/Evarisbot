@@ -1039,7 +1039,11 @@
                 "billable": "Facturables",
                 "rate": "Tarifa",
                 "cost": "Costo"
-            }
+            },
+            "evolution": "Evolución del coste en el período",
+            "groupBy": "Agrupar por",
+            "byDay": "Por día",
+            "byMonth": "Por mes"
         },
         "flowDemand": {
             "title": "Demanda del menú de bienvenida",

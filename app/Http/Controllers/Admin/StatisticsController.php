@@ -417,10 +417,34 @@ class StatisticsController extends Controller
         $outbound = (int) (clone $base)->count();
         $withPricing = (int) (clone $base)->whereNotNull('pricing_category')->count();
 
+        // Evolución diaria del coste dentro del período. Se agrupa por día en hora de
+        // Colombia (created_at está en UTC); el frontend suma por mes cuando el usuario
+        // lo pide, así una sola consulta sirve para las dos vistas. Solo facturables:
+        // los gratuitos no mueven el coste y ensuciarían las barras.
+        $series = [];
+        $porDia = (clone $base)
+            ->where('billable', 1)
+            ->whereNotNull('pricing_category')
+            ->selectRaw("DATE(CONVERT_TZ(created_at, '+00:00', '-05:00')) AS dia, pricing_category, COUNT(*) AS cnt")
+            ->groupBy('dia', 'pricing_category')
+            ->orderBy('dia')
+            ->get();
+        foreach ($porDia as $r) {
+            $dia = (string) $r->dia;
+            $series[$dia] ??= ['day' => $dia, 'billable' => 0, 'cost' => 0.0];
+            $series[$dia]['billable'] += (int) $r->cnt;
+            $series[$dia]['cost'] += (int) $r->cnt * (float) ($rates[$r->pricing_category] ?? 0);
+        }
+        foreach ($series as &$s) {
+            $s['cost'] = round($s['cost'], 2);
+        }
+        unset($s);
+
         return [
             'currency' => $currency,
             'rates_as_of' => $ratesAsOf,
             'by_category' => $byCategory,
+            'series' => array_values($series),
             'total_cost' => round($totalCost, 2),
             'billable_total' => $billableTotal,
             'free_total' => $freeTotal,

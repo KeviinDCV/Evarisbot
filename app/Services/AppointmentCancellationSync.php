@@ -101,6 +101,25 @@ class AppointmentCancellationSync
     }
 
     /** "29/07/2026", "2026-07-29" → "2026-07-29" */
+    /**
+     * Meses en español tal y como los escriben los asesores, con sus abreviaturas.
+     * "setiembre" está a propósito: es válido en español y aparece escrito así.
+     */
+    private const MESES = [
+        'enero' => 1, 'ene' => 1,
+        'febrero' => 2, 'feb' => 2,
+        'marzo' => 3, 'mar' => 3,
+        'abril' => 4, 'abr' => 4,
+        'mayo' => 5, 'may' => 5,
+        'junio' => 6, 'jun' => 6,
+        'julio' => 7, 'jul' => 7,
+        'agosto' => 8, 'ago' => 8,
+        'septiembre' => 9, 'setiembre' => 9, 'sept' => 9, 'sep' => 9,
+        'octubre' => 10, 'oct' => 10,
+        'noviembre' => 11, 'nov' => 11,
+        'diciembre' => 12, 'dic' => 12,
+    ];
+
     private static function aFecha(?string $v): ?string
     {
         $v = trim((string) $v);
@@ -112,7 +131,58 @@ class AppointmentCancellationSync
                 return $d->format('Y-m-d');
             }
         }
-        return null;
+
+        return self::aFechaConMesEnLetra($v);
+    }
+
+    /**
+     * "04 SEPTIEMBRE 2026", "09/SEPTIEMBRE/2026", "9 de septiembre de 2026" → "2026-09-09"
+     *
+     * Los asesores escriben el mes con letra al abrir una conversación nueva, y hasta
+     * ahora eso se rechazaba: el WhatsApp salía, la cita seguía "confirmada" y el bot
+     * terminaba contradiciendo al asesor. Es el caso mayoritario de los fallos vistos
+     * en el registro, no un formato raro.
+     */
+    private static function aFechaConMesEnLetra(string $v): ?string
+    {
+        // Minúsculas y sin tildes, para que "MARZO" y "marzo" den lo mismo.
+        $t = mb_strtolower($v, 'UTF-8');
+        $t = strtr($t, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u']);
+
+        // Barras, guiones, puntos y comas valen como separador; el "de" sobra.
+        $t = preg_replace('/[\/\-.,]+/', ' ', $t);
+        $t = preg_replace('/\bde\b/', ' ', $t);
+        $t = trim(preg_replace('/\s+/', ' ', $t));
+
+        $partes = explode(' ', $t);
+        if (count($partes) !== 3) {
+            return null;
+        }
+
+        // El año es la parte de cuatro cifras y siempre va al final.
+        [$p1, $p2, $anio] = $partes;
+        if (! preg_match('/^\d{4}$/', $anio)) {
+            return null;
+        }
+
+        // Se admiten los dos órdenes: "4 septiembre" y "septiembre 4".
+        if (ctype_digit($p1) && isset(self::MESES[$p2])) {
+            $dia = (int) $p1;
+            $mes = self::MESES[$p2];
+        } elseif (isset(self::MESES[$p1]) && ctype_digit($p2)) {
+            $mes = self::MESES[$p1];
+            $dia = (int) $p2;
+        } else {
+            return null;
+        }
+
+        // checkdate rechaza el 31 de febrero en vez de dejar que PHP lo desplace al mes
+        // siguiente. Aquí eso importa: desplazar la fecha cancelaría una cita que no era.
+        if (! checkdate($mes, $dia, (int) $anio)) {
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', (int) $anio, $mes, $dia);
     }
 
     /** "9:30 AM", "09:30", "9:30 a. m." → "09:30:00" */
