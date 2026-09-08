@@ -220,6 +220,8 @@ interface Template {
     media_url?: string | null;
     media_filename?: string | null;
     media_files?: MediaFile[];
+    /** Lo pone el backend: true si es una plantilla personal del propio asesor. */
+    is_personal?: boolean;
 }
 
 interface WhatsappTemplate {
@@ -569,6 +571,17 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [waTemplateId, setWaTemplateId] = useState<number | null>(null);
     const [waTemplateParams, setWaTemplateParams] = useState<string[]>([]);
     const [isSendingWaTemplate, setIsSendingWaTemplate] = useState(false);
+    // Plantillas personales: cada asesor crea las suyas y sólo él las ve.
+    // Las recién creadas se guardan aparte porque el prop `templates` sólo se
+    // recalcula al cargar la conversación. Refrescarlo con un router.reload parcial
+    // no sirve: el listener de navegación deja el hilo abierto en esqueleto, ya que
+    // su rama else-if sólo mira la URL y no el `only` de la visita.
+    const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+    const [nuevaPlantillaNombre, setNuevaPlantillaNombre] = useState('');
+    const [nuevaPlantillaTexto, setNuevaPlantillaTexto] = useState('');
+    const [guardandoPlantilla, setGuardandoPlantilla] = useState(false);
+    const [errorPlantilla, setErrorPlantilla] = useState<string | null>(null);
+    const [plantillasPropiasNuevas, setPlantillasPropiasNuevas] = useState<Template[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const conversationsListRef = useRef<HTMLDivElement>(null);
@@ -751,9 +764,53 @@ export default function ConversationsIndex({ conversations: initialConversations
     };
 
     // Filtrar plantillas basadas en el texto después de /
-    const filteredTemplates = useMemo(() => templates.filter(template =>
-        template.name.toLowerCase().includes(templateFilter.toLowerCase())
-    ), [templates, templateFilter]);
+    // Se añaden las creadas en esta misma sesión: sin esto, una plantilla recién
+    // guardada no aparecería tras la "/" hasta cambiar de conversación. Se descartan
+    // por id las que ya vengan en el prop, para no duplicarlas tras ese recálculo.
+    const filteredTemplates = useMemo(() => {
+        const yaEnElProp = new Set(templates.map(t => t.id));
+        const propias = plantillasPropiasNuevas.filter(t => !yaEnElProp.has(t.id));
+        return [...templates, ...propias].filter(template =>
+            template.name.toLowerCase().includes(templateFilter.toLowerCase())
+        );
+    }, [templates, plantillasPropiasNuevas, templateFilter]);
+
+    // Abre el modal con el texto que hay ahora mismo en el compositor. Ese texto vive
+    // en un ref, no en estado: el compositor está construido así a propósito para no
+    // re-renderizar el chat entero en cada tecla.
+    const abrirGuardarPlantilla = () => {
+        setNuevaPlantillaTexto(inputValueRef.current ?? '');
+        setNuevaPlantillaNombre('');
+        setErrorPlantilla(null);
+        setShowSaveTemplateModal(true);
+    };
+
+    const guardarPlantillaPersonal = async () => {
+        if (guardandoPlantilla) return;
+        setGuardandoPlantilla(true);
+        setErrorPlantilla(null);
+        try {
+            const res = await csrfPost('/admin/my-templates', {
+                name: nuevaPlantillaNombre.trim(),
+                content: nuevaPlantillaTexto,
+            });
+            if (res.status === 201 && res.data?.template) {
+                setPlantillasPropiasNuevas(prev => [...prev, res.data.template]);
+                setShowSaveTemplateModal(false);
+                return;
+            }
+            // 422 de validación: Laravel devuelve { errors: { campo: [mensaje] } }.
+            const errores = res.data?.errors;
+            const primero = errores ? Object.values(errores)[0] : null;
+            setErrorPlantilla(
+                Array.isArray(primero) ? String(primero[0]) : t('conversations.saveTemplateError')
+            );
+        } catch {
+            setErrorPlantilla(t('conversations.saveTemplateError'));
+        } finally {
+            setGuardandoPlantilla(false);
+        }
+    };
 
     // Manejar cambios en el input de mensaje
     const handleMessageChange = (value: string) => {
@@ -5128,6 +5185,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         <FileText className="w-[20px] h-[20px]" />
                                     </button>
 
+                                    {/* Guardar el mensaje actual como plantilla personal */}
+                                    <button
+                                        type="button"
+                                        className="flex-shrink-0 h-[44px] w-10 p-0 self-end text-[#767681] hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors flex items-center justify-center"
+                                        onClick={abrirGuardarPlantilla}
+                                        title={t('conversations.saveAsTemplate')}
+                                    >
+                                        <StickyNote className="w-[20px] h-[20px]" />
+                                    </button>
+
                                     {/* Campo de texto */}
                                     <div className="relative flex-1">
                                         <Textarea
@@ -5157,7 +5224,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             }`}
                                                         onClick={() => selectTemplate(template)}
                                                     >
-                                                        <div className="font-medium text-sm">{template.name}</div>
+                                                        <div className="font-medium text-sm flex items-center gap-2">
+                                                            <span className="truncate">{template.name}</span>
+                                                            {template.is_personal && (
+                                                                <span className="flex-shrink-0 text-[10px] font-semibold px-1.5 py-[1px] rounded bg-primary/10 text-primary">
+                                                                    {t('conversations.templateMine')}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <div className="text-xs text-muted-foreground truncate mt-1">
                                                             {template.content}
                                                         </div>
@@ -5581,6 +5655,68 @@ export default function ConversationsIndex({ conversations: initialConversations
                             className="w-full settings-btn-primary"
                         >
                             {t('common.understood')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal: guardar el mensaje actual como plantilla personal */}
+            <Dialog open={showSaveTemplateModal} onOpenChange={(open) => {
+                setShowSaveTemplateModal(open);
+                if (!open) setErrorPlantilla(null);
+            }}>
+                <DialogContent className="sm:max-w-lg card-gradient border-0 shadow-[0_4px_12px_rgba(46,63,132,0.15),0_8px_24px_rgba(46,63,132,0.2)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.3),0_8px_24px_rgba(0,0,0,0.4)]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
+                            <StickyNote className="w-6 h-6 text-primary dark:text-[hsl(231,55%,70%)]" />
+                            {t('conversations.saveTemplateTitle')}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {t('conversations.saveTemplateHint')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium" htmlFor="nueva-plantilla-nombre">
+                                {t('conversations.saveTemplateName')}
+                            </label>
+                            <Input
+                                id="nueva-plantilla-nombre"
+                                value={nuevaPlantillaNombre}
+                                onChange={(e) => setNuevaPlantillaNombre(e.target.value)}
+                                placeholder={t('conversations.saveTemplateNamePlaceholder')}
+                                maxLength={60}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium" htmlFor="nueva-plantilla-texto">
+                                {t('conversations.saveTemplateContent')}
+                            </label>
+                            <Textarea
+                                id="nueva-plantilla-texto"
+                                value={nuevaPlantillaTexto}
+                                onChange={(e) => setNuevaPlantillaTexto(e.target.value)}
+                                className="custom-scrollbar min-h-[120px] max-h-[240px]"
+                                maxLength={4096}
+                            />
+                            {!nuevaPlantillaTexto.trim() && (
+                                <p className="text-xs text-muted-foreground">{t('conversations.saveTemplateEmpty')}</p>
+                            )}
+                        </div>
+                        {errorPlantilla && (
+                            <p className="text-sm text-destructive">{errorPlantilla}</p>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowSaveTemplateModal(false)} disabled={guardandoPlantilla}>
+                            {t('common.cancel')}
+                        </Button>
+                        <Button
+                            onClick={guardarPlantillaPersonal}
+                            disabled={guardandoPlantilla || !nuevaPlantillaNombre.trim() || !nuevaPlantillaTexto.trim()}
+                        >
+                            {guardandoPlantilla && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            {t('conversations.saveTemplateSave')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

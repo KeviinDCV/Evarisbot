@@ -190,6 +190,19 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     
     // Plantillas - Solo lectura para asesores
     Route::get('templates', [\App\Http\Controllers\Admin\TemplateController::class, 'index'])->name('templates.index');
+
+    // Plantillas personales: cada asesor crea las suyas y sólo él las ve.
+    //
+    // Van en ESTE grupo (auth + verified) y no en el de role:admin de arriba, porque el
+    // destinatario es el asesor. Devuelven JSON y se llaman con axios desde el chat, para
+    // no re-renderizar una página que lleva mucho estado en memoria.
+    Route::controller(\App\Http\Controllers\PersonalTemplateController::class)
+        ->prefix('my-templates')->name('my-templates.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::put('/{template}', 'update')->name('update');
+            Route::delete('/{template}', 'destroy')->name('destroy');
+        });
 });
 
 // Webhook de WhatsApp (sin autenticación)

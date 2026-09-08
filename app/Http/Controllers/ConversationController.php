@@ -657,7 +657,7 @@ class ConversationController extends Controller
         // Obtener plantillas activas (globales o asignadas al usuario actual)
         $templates = Template::active()
             ->availableForUser(auth()->id())
-            ->select(['id', 'name', 'content', 'message_type', 'media_url', 'media_filename', 'media_files'])
+            ->select(['id', 'name', 'content', 'message_type', 'media_url', 'media_filename', 'media_files', 'is_global'])
             ->get()
             ->map(function ($template) {
                 return [
@@ -668,6 +668,9 @@ class ConversationController extends Controller
                     'media_url' => $template->media_url,
                     'media_filename' => $template->media_filename,
                     'media_files' => $template->getMediaFilesArray(),
+                    // Marca para el desplegable del "/": distingue las plantillas propias
+                    // del catálogo institucional que comparten los 30 asesores.
+                    'is_personal' => ! $template->is_global,
                 ];
             });
 

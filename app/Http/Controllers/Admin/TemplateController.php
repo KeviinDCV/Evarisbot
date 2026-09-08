@@ -97,7 +97,23 @@ class TemplateController extends Controller
      */
     public function index(Request $request)
     {
+        // Catálogo institucional, más lo que haya creado uno mismo.
+        //
+        // Sin este filtro el listado devolvía TODAS las plantillas del sistema. Y como
+        // GET /admin/templates queda fuera de role:admin —la declaración suelta de
+        // routes/web.php gana a la del Route::resource por orden de registro—, cualquier
+        // asesor autenticado podía leer el contenido íntegro de las plantillas privadas
+        // de los demás. Hoy no se nota, porque las 27 existentes son globales; en cuanto
+        // haya personales sería una fuga directa.
+        //
+        // Se deja pasar 'created_by' además de 'is_global' para no romper la asignación a
+        // usuarios que ya existe en el panel de admin: si sólo se filtrara por globales,
+        // el admin crearía una plantilla asignada y desaparecería del listado.
         $query = Template::with(['creator', 'updater', 'assignedUsers'])
+            ->where(function ($q) {
+                $q->where('is_global', true)
+                    ->orWhere('created_by', auth()->id());
+            })
             ->orderBy('created_at', 'desc');
 
         // Filtrar por estado activo/inactivo
