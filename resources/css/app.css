@@ -2,6 +2,57 @@
 
 @import "tw-animate-css";
 
+/* Instrument Sans auto-hospedada (antes venía de fonts.bunny.net):
+   el panel corre en red interna y no debe depender de un CDN externo. */
+@font-face {
+    font-family: 'Instrument Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/instrument-sans-latin-400-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Instrument Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/fonts/instrument-sans-latin-ext-400-normal.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Instrument Sans';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('/fonts/instrument-sans-latin-500-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Instrument Sans';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url('/fonts/instrument-sans-latin-ext-500-normal.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Instrument Sans';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/fonts/instrument-sans-latin-600-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Instrument Sans';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url('/fonts/instrument-sans-latin-ext-600-normal.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 
@@ -64,23 +115,23 @@
 
 :root {
     --background: #f0f2f8; /* Fondo principal claro */
-    --foreground: #000000; /* Negro */
+    --foreground: #1c1f2e; /* Slate azulado oscuro (en vez de negro puro: más suave a la vista) */
     --card: #ffffff;
-    --card-foreground: #000000;
+    --card-foreground: #1c1f2e;
     --popover: #ffffff;
-    --popover-foreground: #000000;
+    --popover-foreground: #1c1f2e;
     --primary: #2e3f84; /* Color institucional */
     --primary-foreground: #ffffff;
     --secondary: #f0f0f0;
-    --secondary-foreground: #000000;
+    --secondary-foreground: #1c1f2e;
     --muted: #dde1f0;
-    --muted-foreground: #6b7494;
+    --muted-foreground: #5c6485; /* Oscurecido para cumplir contraste AA 4.5:1 sobre el fondo #f0f2f8 */
     --accent: #e8ebf5;
-    --accent-foreground: #000000;
-    --destructive: #ff0000;
+    --accent-foreground: #1c1f2e;
+    --destructive: #e5484d; /* Rojo refinado (en vez de rojo puro #ff0000) */
     --destructive-foreground: #ffffff;
-    --border: #e0e0e0;
-    --input: #e0e0e0;
+    --border: #d9deec; /* Borde con tinte azul para armonizar con la paleta */
+    --input: #d9deec;
     --ring: #2e3f84;
     --chart-1: #2e3f84;
     --chart-2: #4a5bb5;
@@ -323,20 +374,77 @@
         @apply bg-background text-foreground;
     }
 
-    /* Eliminar el outline del navegador en todos los elementos */
-    *:focus,
-    *:focus-visible {
-        outline: none !important;
-        box-shadow: none !important;
+    /* Ocultar el outline SOLO cuando el foco viene del mouse/touch; mantener un
+       anillo visible para navegación por teclado (accesibilidad WCAG 2.4.7). */
+    *:focus:not(:focus-visible) {
+        outline: none;
     }
 
-    /* Eliminar el borde azul en botones en algunos navegadores */
-    button:focus,
-    input:focus,
-    textarea:focus,
-    select:focus {
-        outline: none !important;
+    *:focus-visible {
+        outline: 2px solid #2e3f84;
+        outline-offset: 2px;
+        /* Nota: NO usar `border-radius: inherit` aquí — sobreescribe el radio del
+           propio elemento con el del padre y vuelve CUADRADOS los botones redondos
+           (p.ej. el de enviar) al enfocarse. El outline ya sigue el radio propio del
+           elemento en los navegadores modernos. */
     }
+
+    .dark *:focus-visible {
+        outline-color: #53bdeb;
+    }
+}
+
+/* Barra de desplazamiento GLOBAL.
+   Las reglas de abajo solo alcanzan a los contenedores que llevan .custom-scrollbar,
+   así que el scroll de la página —y el de cualquier zona sin esa clase— salía con la
+   barra del sistema operativo: ancha, gris y ajena al diseño, en todas las vistas.
+   Va con el selector universal a propósito: cualquier regla con clase la gana por
+   especificidad, de modo que .custom-scrollbar y .filter-pills-scroll siguen mandando
+   donde ya se usan. */
+html {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(46, 63, 132, 0.28) transparent;
+}
+
+html.dark {
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* El borde transparente + background-clip deja aire a los lados: el pulgar se ve
+   fino y redondeado sin que la zona de arrastre se quede en 4px, que es incómoda. */
+*::-webkit-scrollbar-thumb {
+    background-color: rgba(46, 63, 132, 0.28);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(46, 63, 132, 0.45);
+}
+
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* html no tiene ancestro, así que necesita su propio selector además de `.dark *`. */
+html.dark::-webkit-scrollbar-thumb,
+.dark *::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+html.dark::-webkit-scrollbar-thumb:hover,
+.dark *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.35);
 }
 
 /* Custom Scrollbar Styles */
@@ -438,6 +546,16 @@
     background: rgba(180, 175, 170, 0.3);
 }
 
+/* A .custom-scrollbar-light le faltaban el hover y el color de Firefox en oscuro:
+   heredaba los claros (#2e3f84 sobre fondo oscuro) y el pulgar apenas se distinguía. */
+.dark .custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
+    background: rgba(180, 175, 170, 0.45);
+}
+
+.dark .custom-scrollbar-light {
+    scrollbar-color: rgba(180, 175, 170, 0.3) rgba(35, 33, 31, 0.5);
+}
+
 .dark .custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
     background: rgba(180, 175, 170, 0.45);
 }
@@ -453,12 +571,10 @@
 
 /* Card con gradiente - soporta dark mode */
 .card-gradient {
-    background: linear-gradient(to bottom, #ffffff, #fafbfc);
-    box-shadow: 
+    background: linear-gradient(to bottom, #ffffff, #fcfcfd);
+    box-shadow:
         0 1px 2px rgba(46, 63, 132, 0.04),
-        0 2px 6px rgba(46, 63, 132, 0.06),
-        0 6px 16px rgba(46, 63, 132, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        0 3px 8px rgba(46, 63, 132, 0.05);
 }
 
 .dark .card-gradient {
@@ -739,6 +855,17 @@
     color: hsl(30, 5%, 95%);
 }
 
+
+/* Padding horizontal por defecto para inputs nativos de settings.
+   En @layer components para que utilidades de Tailwind (px-3, pl-10, etc.)
+   lo sobreescriban cuando el input las declara (ej. inputs con ícono). */
+@layer components {
+    input.settings-input,
+    textarea.settings-input,
+    select.settings-input {
+        padding-inline: 0.75rem;
+    }
+}
 
 /* Input con estilo de settings - soporta dark mode */
 .settings-input {
@@ -1330,14 +1457,43 @@ tr.table-row-hover:hover {
 /* ============================================
    CHAT BACKGROUND PATTERN - Subtle institutional
    ============================================ */
+/* Fondo del chat estilo WhatsApp: doodle sutil con motivos de salud
+   (corazón, cruz médica, burbuja de chat, cápsula, destellos) en navy institucional. */
 .chat-bg-pattern {
     background-color: #eef0f6;
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232e3f84' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg width='140' height='140' viewBox='0 0 140 140' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%232e3f84' fill-opacity='0.04'%3E%3Cpath d='M26 22c-1.8-3.4-7-2.6-7 .9 0 2.6 3.4 4.3 7 7.1 3.6-2.8 7-4.5 7-7.1 0-3.5-5.2-4.3-7-.9z'/%3E%3Cpath d='M92 12h8v6h6v8h-6v6h-8v-6h-6v-8h6z'/%3E%3Cpath d='M62 40l1.8 4.6 4.2 1.8-4.2 1.8L62 52.8l-1.8-4.6-4.2-1.8 4.2-1.8z'/%3E%3Cpath d='M17 84h20a5 5 0 0 1 5 5v12a5 5 0 0 1-5 5H27l-7 6v-6h-3a5 5 0 0 1-5-5V89a5 5 0 0 1 5-5z'/%3E%3Crect x='86' y='92' width='26' height='11' rx='5.5' transform='rotate(-25 99 97.5)'/%3E%3Cpath d='M54 108h4v4h4v4h-4v4h-4v-4h-4v-4h4z'/%3E%3Ccircle cx='120' cy='52' r='2.5'/%3E%3Ccircle cx='40' cy='56' r='2'/%3E%3Ccircle cx='72' cy='16' r='2'/%3E%3Ccircle cx='124' cy='124' r='2'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 .dark .chat-bg-pattern {
     background-color: hsl(30, 4%, 8%);
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg width='140' height='140' viewBox='0 0 140 140' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.035'%3E%3Cpath d='M26 22c-1.8-3.4-7-2.6-7 .9 0 2.6 3.4 4.3 7 7.1 3.6-2.8 7-4.5 7-7.1 0-3.5-5.2-4.3-7-.9z'/%3E%3Cpath d='M92 12h8v6h6v8h-6v6h-8v-6h-6v-8h6z'/%3E%3Cpath d='M62 40l1.8 4.6 4.2 1.8-4.2 1.8L62 52.8l-1.8-4.6-4.2-1.8 4.2-1.8z'/%3E%3Cpath d='M17 84h20a5 5 0 0 1 5 5v12a5 5 0 0 1-5 5H27l-7 6v-6h-3a5 5 0 0 1-5-5V89a5 5 0 0 1 5-5z'/%3E%3Crect x='86' y='92' width='26' height='11' rx='5.5' transform='rotate(-25 99 97.5)'/%3E%3Cpath d='M54 108h4v4h4v4h-4v4h-4v-4h-4v-4h4z'/%3E%3Ccircle cx='120' cy='52' r='2.5'/%3E%3Ccircle cx='40' cy='56' r='2'/%3E%3Ccircle cx='72' cy='16' r='2'/%3E%3Ccircle cx='124' cy='124' r='2'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Colitas de burbuja estilo WhatsApp — solo en el primer mensaje de cada grupo.
+   El color replica el fondo de la burbuja correspondiente (claro/oscuro). */
+.bubble-tail-in::before,
+.bubble-tail-out::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 13px;
+}
+.bubble-tail-in::before {
+    left: -8px;
+    background-color: #ffffff;
+    clip-path: polygon(100% 0, 100% 100%, 0 0);
+}
+.dark .bubble-tail-in::before {
+    background-color: #262626; /* = dark:bg-neutral-800 de la burbuja entrante */
+}
+.bubble-tail-out::before {
+    right: -8px;
+    background-color: #d9fdd3;
+    clip-path: polygon(0 0, 0 100%, 100% 0);
+}
+.dark .bubble-tail-out::before {
+    background-color: #005c4b; /* = dark de la burbuja saliente */
 }
 
 /* ============================================
@@ -1346,31 +1502,81 @@ tr.table-row-hover:hover {
 @keyframes message-slide-in-left {
     from {
         opacity: 0;
-        transform: translateX(-12px) translateY(4px);
+        transform: translateX(-10px) translateY(10px) scale(0.94);
     }
     to {
         opacity: 1;
-        transform: translateX(0) translateY(0);
+        transform: translateX(0) translateY(0) scale(1);
     }
 }
 
 @keyframes message-slide-in-right {
     from {
         opacity: 0;
-        transform: translateX(12px) translateY(4px);
+        transform: translateX(10px) translateY(10px) scale(0.94);
     }
     to {
         opacity: 1;
-        transform: translateX(0) translateY(0);
+        transform: translateX(0) translateY(0) scale(1);
     }
 }
 
+/* ============================================
+   SKELETON LOADING (shimmer) + PULSE DE ESTADO
+   Shimmer adaptado a la marca (grises fríos con tinte navy), no morados.
+   ============================================ */
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+.skeleton-shimmer {
+    background: linear-gradient(90deg, #e6e9f1 25%, #f3f5fa 37%, #e6e9f1 63%);
+    background-size: 400% 100%;
+    animation: shimmer 2.4s linear infinite;
+}
+.dark .skeleton-shimmer {
+    background: linear-gradient(90deg, #24262b 25%, #2f323a 37%, #24262b 63%);
+    background-size: 400% 100%;
+}
+
+@keyframes status-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+    70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+.status-pulse {
+    animation: status-pulse 2.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer,
+    .status-pulse {
+        animation: none;
+    }
+}
+
+/* Curva con overshoot suave (efecto resorte tipo Apple) */
 .msg-animate-left {
-    animation: message-slide-in-left 0.25s ease-out;
+    animation: message-slide-in-left 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: bottom left;
 }
 
 .msg-animate-right {
-    animation: message-slide-in-right 0.25s ease-out;
+    animation: message-slide-in-right 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-origin: bottom right;
+}
+
+/* Accesibilidad: respetar "reducir movimiento" del sistema operativo
+   (evita mareo a usuarios sensibles; desactiva animaciones/transiciones CSS) */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
 
 /* Date separator pill */
@@ -1394,8 +1600,8 @@ tr.table-row-hover:hover {
 }
 
 .dark .chat-date-separator span {
-    background-color: hsl(30, 4%, 20%);
-    color: hsl(30, 5%, 65%);
+    background-color: rgba(83, 189, 235, 0.14);
+    color: #9ed3ec;
 }
 
 /* ============================================
@@ -1411,4 +1617,224 @@ tr.table-row-hover:hover {
 /* Layout containment for conversation list items */
 .conv-list-item {
     contain: layout style;
+    /* OJO: NO reintroducir `content-visibility: auto` aquí.
+       Los ítems fuera de pantalla dejaban de renderizarse y su alto se ESTIMABA
+       (contain-intrinsic-size). Con cientos de conversaciones de alto variable, al
+       re-renderizar la lista (marcar resuelto, abrir una conversación) el scrollHeight
+       cambiaba de golpe y el navegador recortaba el scroll: la lista "se iba arriba".
+       Es un bug diario para el asesor a cambio de una micro-optimización de pintado;
+       el poll ya evita trabajo con el guard de scroll y la comparación hasChanges. */
+}
+
+/* ============================================
+   Cambio de tema · View Transitions API
+   Un círculo revela el tema NUEVO expandiéndose desde el punto
+   de clic (--theme-x / --theme-y / --theme-r los fija
+   use-appearance.tsx). El tema anterior queda quieto debajo.
+   El mismo efecto sirve en ambos sentidos (claro→oscuro y viceversa),
+   por eso las reglas no llevan prefijo .dark.
+   ============================================ */
+:root {
+    /* Easing "expo out": arranca rápido y desacelera suave al final. */
+    --expo-out: linear(
+        0 0%, 0.1684 2.66%, 0.3165 5.49%, 0.446 8.52%, 0.5581 11.78%,
+        0.6535 15.29%, 0.7341 19.11%, 0.8011 23.3%, 0.8557 27.93%,
+        0.8962 32.68%, 0.9283 38.01%, 0.9529 44.08%, 0.9711 51.14%,
+        0.9833 59.06%, 0.9915 68.74%, 1 100%
+    );
+}
+
+::view-transition-group(root) {
+    animation-duration: 0.7s;
+    animation-timing-function: var(--expo-out);
+}
+
+/* El tema nuevo entra recortado por un círculo que crece desde el clic. */
+::view-transition-new(root) {
+    animation: theme-reveal 0.7s var(--expo-out) both;
+}
+
+/* El tema anterior no se anima (se anula el cross-fade por defecto) y queda debajo. */
+::view-transition-old(root) {
+    animation: none;
+    z-index: -1;
+}
+
+@keyframes theme-reveal {
+    from {
+        clip-path: circle(0px at var(--theme-x, 50%) var(--theme-y, 50%));
+    }
+    to {
+        clip-path: circle(var(--theme-r, 150%) at var(--theme-x, 50%) var(--theme-y, 50%));
+    }
+}
+
+/* Respeta "reducir movimiento": sin animación (el cambio de tema es instantáneo). */
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(root),
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none !important;
+    }
+}
+
+/* ============================================
+   Login / pantallas de autenticación · modo oscuro
+   La pantalla de login usa estilos inline (no admiten `dark:`), así que
+   sus colores viven aquí como variables y se adaptan solos al togglear .dark.
+   ============================================ */
+:root {
+    --auth-bg: linear-gradient(160deg, #e9eaf7 0%, #e0e1f3 55%, #dadcf2 100%);
+    --auth-glow-1: rgba(255, 255, 255, 0.55);
+    --auth-glow-2: rgba(46, 63, 132, 0.06);
+    --auth-title: #262a4d;
+    --auth-subtle: #565b82;
+    --auth-badge-bg: rgba(46, 63, 132, 0.07);
+    --auth-badge-text: #4a4f8c;
+    --auth-label: #3a3f63;
+    --auth-input-bg: rgba(255, 255, 255, 0.55);
+    --auth-input-bg-focus: rgba(255, 255, 255, 0.92);
+    --auth-input-text: #2b2f55;
+    --auth-input-border: rgba(46, 63, 132, 0.12);
+    --auth-input-border-focus: #2e3f84;
+    --auth-input-glow: rgba(46, 63, 132, 0.10);
+    --auth-icon: #9aa0c4;
+    --auth-check-border: #c3c6e0;
+    --auth-check-bg: #ffffff;
+    --auth-remember-text: #5a5f80;
+    --auth-remember-text-on: #2e3f84;
+    --auth-accent: #2e3f84;
+    --auth-accent-hover: #26356f;
+    --auth-status-text: #2e3f84;
+    --auth-status-bg: rgba(46, 63, 132, 0.07);
+}
+
+/* Mapeado a los MISMOS tokens del modo oscuro de la app (ver .dark de arriba):
+   superficies negro cálido hsl(30,4%,…) + acento azul institucional hsl(231,55%,58%)
+   (= --primary/--ring en oscuro). Así el login es consistente con el resto. */
+.dark {
+    --auth-bg: linear-gradient(160deg, hsl(30, 4%, 12%) 0%, hsl(30, 4%, 10%) 55%, hsl(30, 4%, 9%) 100%);
+    --auth-glow-1: rgba(255, 255, 255, 0.03);
+    --auth-glow-2: hsla(231, 55%, 58%, 0.06);
+    --auth-title: hsl(30, 5%, 92%);              /* = --foreground */
+    --auth-subtle: hsl(30, 5%, 60%);             /* ≈ --muted-foreground */
+    --auth-badge-bg: hsl(30, 4%, 18%);           /* = --muted */
+    --auth-badge-text: hsl(30, 5%, 72%);
+    --auth-label: hsl(30, 5%, 85%);
+    --auth-input-bg: hsl(30, 4%, 15%);
+    --auth-input-bg-focus: hsl(30, 4%, 19%);
+    --auth-input-text: hsl(30, 5%, 92%);         /* = --foreground */
+    --auth-input-border: hsl(30, 4%, 22%);       /* = --border */
+    --auth-input-border-focus: hsl(231, 55%, 58%); /* = --primary/--ring */
+    --auth-input-glow: hsla(231, 55%, 58%, 0.15);
+    --auth-icon: hsl(30, 5%, 55%);               /* = --muted-foreground */
+    --auth-check-border: hsl(30, 4%, 30%);
+    --auth-check-bg: hsl(30, 4%, 15%);
+    --auth-remember-text: hsl(30, 5%, 60%);
+    --auth-remember-text-on: hsl(231, 60%, 72%);
+    --auth-accent: hsl(231, 55%, 58%);           /* = --primary (botón, check) */
+    --auth-accent-hover: hsl(231, 55%, 64%);
+    --auth-status-text: hsl(231, 60%, 74%);
+    --auth-status-bg: hsla(231, 55%, 58%, 0.12);
+}
+
+/* El logo es line-art azul sobre transparente: en oscuro se aclara para que contraste. */
+.dark .auth-logo {
+    filter: brightness(1.7) saturate(1.05);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EL PUESTO — el riel de navegación.
+   El riel no es un menú: es el puesto de turno. En reposo NO lleva una sola
+   letra (así muere el truncamiento de las etiquetas), y su trabajo permanente
+   es responder sin que leas nada: ¿estoy de turno? ¿cuánta presión tengo?
+   Reserva de color (regla, no sugerencia): navy = marca · blanco = dónde estás
+   rojo = un paciente espera · slate = un colega espera · teal = de turno.
+   ══════════════════════════════════════════════════════════════════════════ */
+.puesto-rail {
+    background: linear-gradient(180deg, #3e4f94 0%, #2e3f84 55%, #26356f 100%);
+    box-shadow: 0 24px 60px -20px rgba(46, 63, 132, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    /* OJO: NO usar `contain: paint` aquí. La contención de paint recorta lo que desborda la
+       caja, y la píldora de no-leídos cuelga a propósito del borde derecho (así los dígitos
+       nunca tapan el icono en el riel de 64px). Con paint, un contador de 3 cifras salía
+       cortado. El coste de repintado real ya lo resuelve el coalescing con rAF de onRailMove. */
+    contain: layout style;
+}
+/* En oscuro el navy crudo pelea con el fondo cálido: se hunde y se entibia. */
+.dark .puesto-rail {
+    background: linear-gradient(180deg, #232c5e 0%, #1b2246 55%, #161c3a 100%);
+    box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 180, 120, 0.08);
+}
+/* Grano + luz especular: el monolito lee como metal pulido, no como un div. */
+.puesto-rail::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+}
+.puesto-rail::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(160px circle at var(--mx, -999px) var(--my, -999px), rgba(255, 255, 255, 0.07), transparent 70%);
+}
+
+/* El logo del HUV es line-art AZUL sobre transparente: contra el navy del riel se
+   desvanece. Se aplana a blanco puro (mismo problema que ya resolvía .auth-logo). */
+.puesto-logo {
+    filter: brightness(0) invert(1);
+    opacity: 0.95;
+}
+
+/* El hilo: 2px teal en el borde interno. Sólo existe si estás de turno. */
+.puesto-hilo {
+    background: linear-gradient(to top, rgba(45, 212, 191, 0.6), rgba(45, 212, 191, 0));
+    animation: puesto-breathe 3.2s ease-in-out infinite;
+}
+@keyframes puesto-breathe {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.9; }
+}
+
+/* El momento: al entrar de turno, el edificio se enciende — un barrido sube
+   por el riel, pasa cada icono y se disuelve en el logo. */
+.puesto-sweep {
+    background: linear-gradient(to top, rgba(45, 212, 191, 0), #5eead4, rgba(45, 212, 191, 0));
+    filter: blur(1px);
+    animation: puesto-sweep 900ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes puesto-sweep {
+    0% { opacity: 0; bottom: 0; }
+    10% { opacity: 1; }
+    85% { opacity: 0.9; }
+    100% { opacity: 0; bottom: calc(100% - 40px); }
+}
+
+/* Traza ECG viva mientras estás de turno (un solo elemento, barato). */
+.puesto-ecg path {
+    stroke-dasharray: 18 130;
+    animation: puesto-ecg 3s linear infinite;
+}
+@keyframes puesto-ecg {
+    to { stroke-dashoffset: -148; }
+}
+
+/* La píldora late una sola vez cuando ENTRA un mensaje (delta positivo). */
+.puesto-ping {
+    animation: puesto-ping 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes puesto-ping {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .puesto-hilo, .puesto-sweep, .puesto-ecg path, .puesto-ping {
+        animation: none !important;
+    }
 }

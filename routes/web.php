@@ -138,6 +138,9 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/create', 'create')->name('create');
         Route::get('/{chat}/messages', 'messages')->name('messages');
         Route::post('/{chat}/send', 'send')->name('send');
+        Route::post('/{chat}/ai-reply', 'aiReply')->name('ai-reply');
+        Route::post('/{chat}/react', 'react')->name('react');
+        Route::post('/{chat}/edit', 'editMessage')->name('edit');
         Route::post('/{chat}/read', 'markRead')->name('read');
         Route::get('/{chat}/poll', 'poll')->name('poll');
         Route::put('/{chat}/rename', 'rename')->name('rename');          Route::get('/{chat}/read-receipts', 'readReceipts')->name('read-receipts');        Route::delete('/{chat}', 'destroy')->name('destroy');
@@ -154,10 +157,12 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         // Operaciones masivas
         Route::post('/bulk-assign', 'bulkAssign')->name('chat.bulk-assign');
         Route::post('/bulk-status', 'bulkUpdateStatus')->name('chat.bulk-status');
+        Route::post('/clear-advisor/{user}', 'clearAdvisor')->name('chat.clear-advisor'); // Quitar asesor de todas sus conversaciones (solo admin)
         
         Route::get('/{conversation}', 'show')->name('chat.show');
         Route::get('/{conversation}/poll-messages', 'pollMessages')->name('chat.poll-messages');
         Route::post('/{conversation}/send', 'sendMessage')->name('chat.send');
+        Route::post('/{conversation}/react', 'react')->name('chat.react');
         Route::post('/{conversation}/send-template', 'sendWhatsappTemplate')->name('chat.send-template');
         Route::post('/{conversation}/assign', 'assign')->name('chat.assign');
         Route::post('/{conversation}/status', 'updateStatus')->name('chat.status');
@@ -185,6 +190,19 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     
     // Plantillas - Solo lectura para asesores
     Route::get('templates', [\App\Http\Controllers\Admin\TemplateController::class, 'index'])->name('templates.index');
+
+    // Plantillas personales: cada asesor crea las suyas y sólo él las ve.
+    //
+    // Van en ESTE grupo (auth + verified) y no en el de role:admin de arriba, porque el
+    // destinatario es el asesor. Devuelven JSON y se llaman con axios desde el chat, para
+    // no re-renderizar una página que lleva mucho estado en memoria.
+    Route::controller(\App\Http\Controllers\PersonalTemplateController::class)
+        ->prefix('my-templates')->name('my-templates.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::put('/{template}', 'update')->name('update');
+            Route::delete('/{template}', 'destroy')->name('destroy');
+        });
 });
 
 // Webhook de WhatsApp (sin autenticación)

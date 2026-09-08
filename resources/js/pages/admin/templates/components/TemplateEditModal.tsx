@@ -97,9 +97,9 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
 
     const getFileTypeLabel = (type: 'image' | 'video' | 'document') => {
         switch (type) {
-            case 'image': return 'Imagen';
-            case 'video': return 'Video';
-            default: return 'Documento';
+            case 'image': return t('templates.types.image');
+            case 'video': return t('templates.fileTypeVideo');
+            default: return t('templates.types.document');
         }
     };
 
@@ -177,9 +177,9 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
             forceFormData: true,
             onSuccess: () => {
                 handleClose();
-                toast.success('Plantilla actualizada');
+                toast.success(t('templates.templateUpdated'));
             },
-            onError: () => toast.error('Error al actualizar la plantilla'),
+            onError: () => toast.error(t('templates.templateUpdateError')),
         });
     };
 
@@ -196,14 +196,14 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto card-gradient border border-border dark:border-[hsl(231,20%,22%)] p-0 gap-0">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto card-gradient rounded-2xl p-0 gap-0">
                 <DialogHeader className="px-6 py-4 border-b border-border dark:border-[hsl(231,20%,22%)]">
                     <DialogTitle className="settings-title flex items-center gap-2 text-xl">
                         <Edit className="w-5 h-5 text-primary" />
-                        Editar Plantilla
+                        {t('templates.editTemplateTitle')}
                     </DialogTitle>
                     <DialogDescription className="settings-subtitle text-xs">
-                        Modifica los datos de {template.name}
+                        {t('templates.editTemplateDescription', { name: template.name })}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -211,14 +211,14 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                     {/* Nombre */}
                     <div className="space-y-1.5">
                         <Label htmlFor="edit-name" className="text-sm font-semibold settings-label">
-                            Nombre de la Plantilla
+                            {t('templates.templateNameLabel')}
                         </Label>
                         <Input
                             id="edit-name"
                             type="text"
                             value={form.data.name}
                             onChange={(e) => form.setData('name', e.target.value)}
-                            placeholder="Ej: Bienvenida Nuevos Clientes"
+                            placeholder={t('templates.templateNamePlaceholder')}
                             className="settings-input rounded-xl border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-[#2e3f84]/30"
                             required
                         />
@@ -228,14 +228,14 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                     {/* Asunto */}
                     <div className="space-y-1.5">
                         <Label htmlFor="edit-subject" className="text-sm font-semibold settings-label">
-                            Asunto (Opcional)
+                            {t('templates.subjectOptional')}
                         </Label>
                         <Input
                             id="edit-subject"
                             type="text"
                             value={form.data.subject}
                             onChange={(e) => form.setData('subject', e.target.value)}
-                            placeholder="Breve descripción"
+                            placeholder={t('templates.subjectPlaceholder')}
                             className="settings-input rounded-xl border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-[#2e3f84]/30"
                         />
                         <InputError message={form.errors.subject} />
@@ -244,19 +244,19 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                     {/* Mensaje */}
                     <div className="space-y-1.5">
                         <Label htmlFor="edit-content" className="text-sm font-semibold settings-label">
-                            Contenido del Mensaje
+                            {t('templates.content')}
                         </Label>
                         <Textarea
                             id="edit-content"
                             value={form.data.content}
                             onChange={(e) => form.setData('content', e.target.value)}
-                            placeholder="Escribe el mensaje aquí..."
+                            placeholder={t('templates.contentPlaceholder')}
                             rows={4}
                             className="settings-input rounded-xl border-gray-200 dark:border-gray-800 focus:ring-2 focus:ring-[#2e3f84]/30"
                             required
                         />
                         <p className="text-xs settings-subtitle">
-                            Caracteres: {form.data.content.length} / 4096
+                            {t('templates.characterCount', { count: form.data.content.length })}
                         </p>
                         <InputError message={form.errors.content} />
                     </div>
@@ -264,13 +264,13 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                     {/* Archivos Adjuntos */}
                     <div className="space-y-2">
                         <Label className="text-sm font-semibold settings-label flex items-center justify-between">
-                            Archivos adjuntos
+                            {t('templates.attachments')}
                             <span className="text-[10px] font-normal tracking-wide opacity-70">
-                                {totalFiles} archivo(s) seleccionado(s)
+                                {t('templates.filesSelected', { count: totalFiles })}
                             </span>
                         </Label>
                         <p className="text-[10px] settings-subtitle leading-tight mb-2">
-                            (JPG, PNG, GIF, MP4, PDF, DOC). Max 20MB p/u.
+                            {t('templates.attachmentsHint')}
                         </p>
 
                         <input
@@ -284,20 +284,20 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
 
                         {existingFiles.length > 0 && (
                             <div className="space-y-1 mb-2">
-                                <p className="text-[10px] font-medium settings-subtitle uppercase tracking-wider">Archivos actuales</p>
+                                <p className="text-[10px] font-medium settings-subtitle uppercase tracking-wider">{t('templates.currentFiles')}</p>
                                 {existingFiles.map((mediaFile, index) => (
                                     <div key={`existing-${index}`} className="p-1.5 rounded-xl bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800 flex items-center gap-3">
                                         {mediaFile.type === 'image' ? (
-                                            <img src={mediaFile.url} alt="Preview" className="w-8 h-8 object-cover rounded-lg" />
+                                            <img src={mediaFile.url} alt={t('templates.previewAlt')} className="w-8 h-8 object-cover rounded-xl" />
                                         ) : (
-                                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg flex items-center justify-center">
+                                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center">
                                                 {getFileIcon(mediaFile.type)}
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-semibold settings-title truncate">{mediaFile.filename}</p>
                                         </div>
-                                        <button type="button" onClick={() => handleRemoveExistingFile(index)} className="p-1 rounded-lg text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                        <button type="button" onClick={() => handleRemoveExistingFile(index)} className="p-1 rounded-xl text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
                                             <X className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
@@ -307,20 +307,20 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
 
                         {newFiles.length > 0 && (
                             <div className="space-y-1 mb-2">
-                                <p className="text-[10px] font-medium text-green-600 dark:text-green-400 uppercase tracking-wider">Nuevos (sin subir)</p>
+                                <p className="text-[10px] font-medium text-green-600 dark:text-green-400 uppercase tracking-wider">{t('templates.newFilesNotUploaded')}</p>
                                 {newFiles.map((mediaFile, index) => (
                                     <div key={`new-${index}`} className="p-1.5 rounded-xl border border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-900/10 flex items-center gap-3">
                                         {mediaFile.preview ? (
-                                            <img src={mediaFile.preview} alt="Preview" className="w-8 h-8 object-cover rounded-lg" />
+                                            <img src={mediaFile.preview} alt={t('templates.previewAlt')} className="w-8 h-8 object-cover rounded-xl" />
                                         ) : (
-                                            <div className="w-8 h-8 bg-green-200 dark:bg-green-800/40 text-green-700 dark:text-green-300 flex items-center justify-center rounded-lg">
+                                            <div className="w-8 h-8 bg-green-200 dark:bg-green-800/40 text-green-700 dark:text-green-300 flex items-center justify-center rounded-xl">
                                                 {getFileIcon(mediaFile.type)}
                                             </div>
                                         )}
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-semibold settings-title truncate">{mediaFile.file.name}</p>
                                         </div>
-                                        <button type="button" onClick={() => handleRemoveNewFile(index)} className="p-1 rounded-lg text-red-500 hover:bg-red-500/10">
+                                        <button type="button" onClick={() => handleRemoveNewFile(index)} className="p-1 rounded-xl text-red-500 hover:bg-red-500/10">
                                             <X className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
@@ -334,14 +334,14 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                             className="w-full py-2.5 border border-dashed border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50/50 dark:hover:bg-white/5 transition-colors flex items-center justify-center gap-2 text-xs settings-subtitle"
                         >
                             <Paperclip className="w-4 h-4" />
-                            Agregar archivos...
+                            {t('templates.addFiles')}
                         </button>
                     </div>
 
                     {/* Tipo de Plantilla */}
                     <div className="space-y-2">
                         <Label className="text-sm font-semibold settings-label mb-1 block">
-                            Tipo de Plantilla
+                            {t('templates.templateType')}
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <label className="flex items-center space-x-3 p-2.5 border border-border dark:border-[hsl(231,20%,22%)] rounded-xl cursor-pointer bg-white/50 dark:bg-black/20">
@@ -357,8 +357,8 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                                 />
                                 <Globe className="w-4 h-4 settings-title flex-shrink-0" />
                                 <div>
-                                    <p className="text-xs font-bold settings-title">Global</p>
-                                    <p className="text-[10px] settings-subtitle leading-tight">Para todos</p>
+                                    <p className="text-xs font-bold settings-title">{t('templates.global')}</p>
+                                    <p className="text-[10px] settings-subtitle leading-tight">{t('templates.forEveryone')}</p>
                                 </div>
                             </label>
                             <label className="flex items-center space-x-3 p-2.5 border border-border dark:border-[hsl(231,20%,22%)] rounded-xl cursor-pointer bg-white/50 dark:bg-black/20">
@@ -371,8 +371,8 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                                 />
                                 <Users className="w-4 h-4 settings-title flex-shrink-0" />
                                 <div>
-                                    <p className="text-xs font-bold settings-title">Asignada</p>
-                                    <p className="text-[10px] settings-subtitle leading-tight">Usuarios elegidos</p>
+                                    <p className="text-xs font-bold settings-title">{t('templates.assigned')}</p>
+                                    <p className="text-[10px] settings-subtitle leading-tight">{t('templates.chosenUsers')}</p>
                                 </div>
                             </label>
                         </div>
@@ -383,7 +383,7 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                         <div className="space-y-1.5">
                             <Label className="text-sm font-semibold settings-label">
                                 <UserCheck className="inline w-3.5 h-3.5 mr-1" />
-                                Asignar a Usuarios
+                                {t('templates.assignToUsers')}
                             </Label>
                             <div className="max-h-28 overflow-y-auto border border-border dark:border-[hsl(231,20%,22%)] rounded-xl p-1.5 space-y-0.5">
                                 {users?.map((user) => (
@@ -417,17 +417,17 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                             className="w-4 h-4 rounded text-primary"
                         />
                         <Label htmlFor="edit_is_active" className="text-sm font-semibold settings-label cursor-pointer">
-                            Plantilla activa
+                            {t('templates.activeTemplate')}
                         </Label>
                     </div>
 
                     {/* Actions */}
                     <div className="flex justify-end gap-2 pt-3 border-t border-border dark:border-[hsl(231,20%,22%)] mt-4">
                         <Button type="button" variant="outline" onClick={handleClose} className="settings-btn-secondary rounded-xl text-sm h-9">
-                            Cancelar
+                            {t('common.cancel')}
                         </Button>
                         <Button type="submit" disabled={form.processing} className="settings-btn-primary rounded-xl text-sm h-9 chat-message-sent text-white shadow-md">
-                            {form.processing ? 'Guardando...' : 'Guardar Cambios'}
+                            {form.processing ? t('common.saving') : t('common.saveChanges')}
                         </Button>
                     </div>
                 </form>

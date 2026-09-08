@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Send, Users, Search, Check } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface Template {
     id: number;
@@ -27,6 +28,7 @@ interface SendTemplateProps {
 }
 
 export default function SendTemplate({ template, recipients }: SendTemplateProps) {
+    const { t } = useTranslation();
     const [search, setSearch] = useState('');
     const [sendToAll, setSendToAll] = useState(false);
     const [selectedRecipients, setSelectedRecipients] = useState<number[]>([]);
@@ -78,7 +80,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
 
     return (
         <AdminLayout>
-            <Head title={`Enviar: ${template.name}`} />
+            <Head title={t('templates.sendPageTitle', { name: template.name })} />
 
             <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
                 <div className="max-w-6xl mx-auto">
@@ -96,15 +98,15 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                     }}
                                 >
                                     <ArrowLeft className="w-4 h-4 mr-2" />
-                                    Volver
+                                    {t('common.back')}
                                 </Button>
                             </Link>
                             <div>
                                 <h1 className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
-                                    Envío Masivo
+                                    {t('templates.bulkSendTitle')}
                                 </h1>
                                 <p className="text-muted-foreground" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                    Selecciona los destinatarios para: <span className="font-semibold">{template.name}</span>
+                                    {t('templates.selectRecipientsFor')} <span className="font-semibold">{template.name}</span>
                                 </p>
                             </div>
                         </div>
@@ -122,10 +124,10 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                         >
                             <div>
                                 <h2 className="font-bold mb-2" style={{ fontSize: 'var(--text-xl)', color: 'var(--primary-base)' }}>
-                                    Destinatarios Disponibles
+                                    {t('templates.availableRecipients')}
                                 </h2>
                                 <p className="text-muted-foreground" style={{ fontSize: 'var(--text-sm)' }}>
-                                    {recipients.length} contactos disponibles
+                                    {t('templates.contactsAvailableCount', { count: recipients.length })}
                                 </p>
                             </div>
 
@@ -156,10 +158,10 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                 <div style={{ flex: 1 }}>
                                     <p className="font-bold" style={{ fontSize: 'var(--text-base)' }}>
                                         <Users className="inline w-5 h-5 mr-2" />
-                                        Enviar a TODOS los contactos
+                                        {t('templates.sendToAllContacts')}
                                     </p>
                                     <p style={{ fontSize: 'var(--text-xs)', opacity: 0.8 }}>
-                                        Se enviará a {recipients.length} destinatarios
+                                        {t('templates.willBeSentToRecipients', { count: recipients.length })}
                                     </p>
                                 </div>
                             </div>
@@ -171,7 +173,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                     type="text"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    placeholder="Buscar por nombre o teléfono..."
+                                    placeholder={t('templates.searchByNameOrPhone')}
                                     disabled={sendToAll}
                                     className="pl-10 border-0 rounded-none transition-all duration-200"
                                     style={{
@@ -238,7 +240,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                 {filteredRecipients.length === 0 && (
                                     <div className="text-center py-8">
                                         <p className="text-muted-foreground" style={{ fontSize: 'var(--text-sm)' }}>
-                                            No se encontraron contactos
+                                            {t('templates.noContactsFound')}
                                         </p>
                                     </div>
                                 )}
@@ -257,7 +259,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                         >
                             <div>
                                 <h2 className="font-bold mb-2" style={{ fontSize: 'var(--text-xl)', color: 'var(--primary-base)' }}>
-                                    Resumen
+                                    {t('templates.summary')}
                                 </h2>
                             </div>
 
@@ -272,17 +274,17 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                 }}
                             >
                                 <div>
-                                    <p className="text-muted-foreground" style={{ fontSize: 'var(--text-xs)' }}>Plantilla</p>
+                                    <p className="text-muted-foreground" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.template')}</p>
                                     <p className="font-bold" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
                                         {template.name}
                                     </p>
                                 </div>
                                 <div>
-                                    <p className="text-muted-foreground" style={{ fontSize: 'var(--text-xs)' }}>Tipo</p>
+                                    <p className="text-muted-foreground" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.type')}</p>
                                     <p className="font-semibold" style={{ fontSize: 'var(--text-sm)', color: 'var(--primary-base)' }}>
-                                        {template.message_type === 'text' && 'Texto'}
-                                        {template.message_type === 'image' && 'Imagen'}
-                                        {template.message_type === 'document' && 'Documento'}
+                                        {template.message_type === 'text' && t('templates.types.text')}
+                                        {template.message_type === 'image' && t('templates.types.image')}
+                                        {template.message_type === 'document' && t('templates.types.document')}
                                     </p>
                                 </div>
                             </div>
@@ -294,7 +296,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                     backgroundColor: 'var(--layer-base)',
                                 }}
                             >
-                                <p className="text-muted-foreground mb-2" style={{ fontSize: 'var(--text-xs)' }}>Total de Destinatarios</p>
+                                <p className="text-muted-foreground mb-2" style={{ fontSize: 'var(--text-xs)' }}>{t('templates.totalRecipients')}</p>
                                 <p className="font-bold" style={{ fontSize: 'var(--text-3xl)', color: 'var(--primary-base)' }}>
                                     {totalSelected}
                                 </p>
@@ -310,7 +312,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                     }}
                                 >
                                     <p className="text-yellow-700" style={{ fontSize: 'var(--text-xs)' }}>
-                                        ⚠️ El envío se procesará en segundo plano. Recibirás una notificación cuando se complete.
+                                        {t('templates.backgroundProcessingWarning')}
                                     </p>
                                 </div>
                             )}
@@ -332,7 +334,7 @@ export default function SendTemplate({ template, recipients }: SendTemplateProps
                                     }}
                                 >
                                     <Send className="w-4 h-4 mr-2" />
-                                    {form.processing ? 'Enviando...' : `Enviar a ${totalSelected} contactos`}
+                                    {form.processing ? t('common.sending') : t('templates.sendToContactsCount', { count: totalSelected })}
                                 </Button>
                             </form>
                         </div>

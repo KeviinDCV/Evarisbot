@@ -92,76 +92,85 @@ class AppointmentController extends Controller
             }
         }
         
-        // Cargar las últimas 50 citas (más recientes primero) - todos los admins ven todas
-        $appointments = $this->serviceQuery()->orderBy('id', 'desc')
-            ->limit(50)
-            ->get()
-            ->map(fn($apt) => [
-                'id' => $apt->id,
-                'citead' => $apt->citead,
-                'nom_paciente' => $apt->nom_paciente,
-                'pactel' => $apt->pactel,
-                'citdoc' => $apt->citdoc,
-                'citfc' => $apt->citfc?->format('Y-m-d'),
-                'cithor' => $apt->cithor?->format('H:i'),
-                'mednom' => $apt->mednom,
-                'espnom' => $apt->espnom,
-                'citcon' => $apt->citcon,
-                'citobsobs' => $apt->citobsobs,
-                'reminder_sent' => $apt->reminder_sent,
-                'reminder_sent_at' => $apt->reminder_sent_at?->format('Y-m-d H:i'),
-                'reminder_status' => $apt->reminder_status,
-            ]);
-        
-        $totalAppointments = $this->serviceQuery()->count();
-        
-        // Obtener solo las citas pendientes de pasado mañana (2 días desde hoy)
-        $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
-        $targetDate = now()->addDays($daysInAdvance)->startOfDay();
-        $targetDateString = $targetDate->format('Y-m-d');
-        
-        $pendingCount = $this->serviceQuery()
-            ->whereDate('citfc', '=', $targetDateString)
-            ->where('reminder_sent', false)
-            ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
-            ->whereNotNull('citfc')
-            ->whereNotNull('pactel')
-            ->where('pactel', '!=', '') // Excluir teléfonos vacíos
-            ->count();
-        
-        // Obtener citas pendientes para MAÑANA (1 día desde hoy) - para el botón "Enviar Día Antes"
-        $tomorrowDate = now()->addDays(1)->startOfDay();
-        $tomorrowDateString = $tomorrowDate->format('Y-m-d');
-        
-        $pendingTomorrowCount = $this->serviceQuery()
-            ->whereDate('citfc', '=', $tomorrowDateString)
-            ->where('reminder_sent', false)
-            ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
-            ->whereNotNull('citfc')
-            ->whereNotNull('pactel')
-            ->where('pactel', '!=', '') // Excluir teléfonos vacíos
-            ->count();
-        
-        $remindersStats = [
-            'sent' => $this->serviceQuery()->where('reminder_sent', true)->count(),
-            'pending' => $pendingCount,
-            'pending_tomorrow' => $pendingTomorrowCount,
-            'failed' => $this->serviceQuery()->where('reminder_status', 'failed')->count(),
-        ];
-        
-        // Estado de recordatorios
+        // Estado de recordatorios (ligero — se entrega de inmediato)
         $reminderPaused = Setting::get($this->settingKey('reminder_paused'), 'false') === 'true';
-        
+
+        // El layout + cascarón (carga de Excel, controles y barra de progreso) se entregan al
+        // instante. Las consultas pesadas (~370 ms: tabla de citas + conteos sobre 60k+ filas)
+        // se DIFIEREN (Inertia v2 deferred props): viajan en una segunda petición automática
+        // mientras el frontend muestra un skeleton. Beneficia también a Citas Oncología (subclase).
         return Inertia::render($this->inertiaPage, [
-            'appointments' => $appointments,
-            'totalAppointments' => $totalAppointments,
-            'remindersStats' => $remindersStats,
             'uploadedFile' => session('uploaded_file'),
             'reminderPaused' => $reminderPaused,
             'reminderProcessing' => $reminderProcessing,
             'reminderProgress' => $reminderProgress,
             'routePrefix' => $this->urlPrefix,
             'pageTitle' => $this->pageTitle,
+
+            // Últimas 50 citas (más recientes primero) - todos los admins ven todas
+            'appointments' => Inertia::defer(fn () => $this->serviceQuery()->orderBy('id', 'desc')
+                ->limit(50)
+                ->get()
+                ->map(fn ($apt) => [
+                    'id' => $apt->id,
+                    'citead' => $apt->citead,
+                    'nom_paciente' => $apt->nom_paciente,
+                    'pactel' => $apt->pactel,
+                    'citdoc' => $apt->citdoc,
+                    'citfc' => $apt->citfc?->format('Y-m-d'),
+                    'cithor' => $apt->cithor?->format('H:i'),
+                    'mednom' => $apt->mednom,
+                    'espnom' => $apt->espnom,
+                    'citcon' => $apt->citcon,
+                    'citobsobs' => $apt->citobsobs,
+                    'reminder_sent' => $apt->reminder_sent,
+                    'reminder_sent_at' => $apt->reminder_sent_at?->format('Y-m-d H:i'),
+                    'reminder_status' => $apt->reminder_status,
+                ])),
+
+            'totalAppointments' => Inertia::defer(fn () => $this->serviceQuery()->count()),
+
+            'remindersStats' => Inertia::defer(function () {
+                // Citas pendientes de pasado mañana (configurable, por defecto 2 días)
+                $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
+                $targetDateString = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay()->format('Y-m-d');
+
+                // where (no whereDate): citfc ya es de tipo DATE, así que DATE(citfc) era
+                // redundante Y anulaba el índice — MySQL escaneaba las ~100k citas calculando
+                // la función fila a fila (medido: 1.941 ms sólo esta consulta).
+                $pendingCount = $this->serviceQuery()
+                    ->where('citfc', '=', $targetDateString)
+                    ->where('reminder_sent', false)
+                    ->whereNull('reminder_error') // Excluir las que ya fallaron permanentemente
+                    ->whereNotNull('citfc')
+                    ->whereNotNull('pactel')
+                    ->where('pactel', '!=', '') // Excluir teléfonos vacíos
+                    ->count();
+
+                // Citas pendientes para MAÑANA (1 día) - botón "Enviar Día Antes"
+                $tomorrowDateString = now()->setTimezone('America/Bogota')->addDays(1)->startOfDay()->format('Y-m-d');
+
+                $pendingTomorrowCount = $this->serviceQuery()
+                    ->where('citfc', '=', $tomorrowDateString)
+                    ->where('reminder_sent', false)
+                    ->whereNull('reminder_error')
+                    ->whereNotNull('citfc')
+                    ->whereNotNull('pactel')
+                    ->where('pactel', '!=', '')
+                    ->count();
+
+                // OJO: NO combinar estos dos COUNT en un SUM(condición) "de una sola pasada".
+                // Se probó y fue 2,5x MÁS LENTO (3.418 ms vs 1.351 ms): COUNT(*) con un índice
+                // que cubre las columnas del WHERE se resuelve leyendo sólo el índice, mientras
+                // que SUM(expresión) obliga a MySQL a leer las filas completas.
+                // Los índices (service, reminder_sent) y (service, reminder_status) los cubren.
+                return [
+                    'sent' => $this->serviceQuery()->where('reminder_sent', true)->count(),
+                    'pending' => $pendingCount,
+                    'pending_tomorrow' => $pendingTomorrowCount,
+                    'failed' => $this->serviceQuery()->where('reminder_status', 'failed')->count(),
+                ];
+            }),
         ]);
     }
 
@@ -189,11 +198,11 @@ class AppointmentController extends Controller
         $dateTo = $request->get('date_to');
         
         if ($dateFrom) {
-            $query->whereDate('citfc', '>=', $dateFrom);
+            $query->where('citfc', '>=', $dateFrom);
         }
         
         if ($dateTo) {
-            $query->whereDate('citfc', '<=', $dateTo);
+            $query->where('citfc', '<=', $dateTo);
         }
         
         // Búsqueda
@@ -319,10 +328,10 @@ class AppointmentController extends Controller
         $dateTo   = $request->get('date_to');
 
         if ($dateFrom) {
-            $query->whereDate('citfc', '>=', $dateFrom);
+            $query->where('citfc', '>=', $dateFrom);
         }
         if ($dateTo) {
-            $query->whereDate('citfc', '<=', $dateTo);
+            $query->where('citfc', '<=', $dateTo);
         }
 
         // Búsqueda
@@ -380,7 +389,7 @@ class AppointmentController extends Controller
             $sheet->getColumnDimension($col)->setWidth($w);
         }
 
-        // Mapa de estados
+        // Mapa de estados (texto)
         $statusLabels = [
             'pending'   => 'Pendiente',
             'sent'      => 'Enviado',
@@ -391,10 +400,23 @@ class AppointmentController extends Controller
             'failed'    => 'Fallido',
         ];
 
+        // Mapa de colores por estado para la columna "Estado Recordatorio": [fondo, texto]
+        $statusColors = [
+            'confirmed' => ['C6EFCE', '006100'], // verde
+            'cancelled' => ['FFC7CE', '9C0006'], // rojo
+            'failed'    => ['FFC7CE', '9C0006'], // rojo
+            'sent'      => ['FFEB9C', '9C6500'], // amarillo
+            'delivered' => ['BDD7EE', '1F4E78'], // azul (recibido)
+            'read'      => ['BDD7EE', '1F4E78'], // azul (leído)
+            'pending'   => ['F2F2F2', '7F7F7F'], // gris (aún no enviado)
+        ];
+
         // Escribir datos en chunks
         $row = 2;
-        $query->chunk(1000, function ($appointments) use ($sheet, &$row, $statusLabels) {
+        $query->chunk(1000, function ($appointments) use ($sheet, &$row, $statusLabels, $statusColors) {
             $batchData = [];
+            $rowColors = []; // [numeroDeFila => [fondo, texto]]
+            $r = $row;
             foreach ($appointments as $appt) {
                 $batchData[] = [
                     $appt->citead ?? '',
@@ -412,9 +434,28 @@ class AppointmentController extends Controller
                     $appt->reminder_sent_at ? $appt->reminder_sent_at->format('Y-m-d H:i') : '',
                     $statusLabels[$appt->reminder_status] ?? '-',
                 ];
+                if (isset($statusColors[$appt->reminder_status])) {
+                    $rowColors[$r] = $statusColors[$appt->reminder_status];
+                }
+                $r++;
             }
             // fromArray escribe todo el bloque de golpe (mucho más rápido que celda a celda)
             $sheet->fromArray($batchData, null, "A{$row}");
+
+            // Colorear la celda "Estado Recordatorio" (columna N) según el estado
+            foreach ($rowColors as $rn => $colors) {
+                $sheet->getStyle("N{$rn}")->applyFromArray([
+                    'fill' => [
+                        'fillType'   => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => $colors[0]],
+                    ],
+                    'font' => [
+                        'bold'  => true,
+                        'color' => ['rgb' => $colors[1]],
+                    ],
+                ]);
+            }
+
             $row += count($batchData);
         });
 
@@ -821,8 +862,13 @@ class AppointmentController extends Controller
             'citcon', 'connom', 'citurg', 'citobsobs', 'duracion', 'ageperdes_g', 'dia'
         ];
         
+        // Las citas sin autor (subidas por un usuario que luego se eliminó) siguen
+        // siendo citas reales. Si quedaran fuera de la comparación, volver a cargar
+        // el mismo Excel las reinsertaría y el paciente recibiría dos recordatorios.
         $query = DB::table('appointments')
-            ->where('uploaded_by', $uploadedBy)
+            ->where(function ($q) use ($uploadedBy) {
+                $q->where('uploaded_by', $uploadedBy)->orWhereNull('uploaded_by');
+            })
             ->where('service', $this->service);
         
         // Comparar todos los campos
@@ -902,14 +948,14 @@ class AppointmentController extends Controller
             $maxPerDay = (int) Setting::get($this->settingKey('reminder_max_per_day'), '1000'); // Límite diario de Meta
             
             // Calcular fecha objetivo: pasado mañana (2 días desde hoy)
-            $targetDate = now()->addDays($daysInAdvance)->startOfDay();
+            $targetDate = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay();
             $targetDateString = $targetDate->format('Y-m-d');
             
             // PASO 1: Limpiar errores temporales ANTES de consultar
             // Esto permite reintentar citas con errores transitorios (rate limit, timeout, etc.)
             // pero NO limpia errores permanentes (teléfono inválido, formato incorrecto)
             $this->serviceQuery()
-                ->whereDate('citfc', '=', $targetDateString)
+                ->where('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('reminder_error')
                 ->where(function ($q) {
@@ -926,7 +972,7 @@ class AppointmentController extends Controller
             // PASO 2: Obtener citas pendientes EXCLUYENDO las que tienen errores permanentes
             // Esto coincide con el conteo del index page (que también usa whereNull('reminder_error'))
             $appointments = $this->serviceQuery()
-                ->whereDate('citfc', '=', $targetDateString)
+                ->where('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNull('reminder_error') // Excluir errores permanentes (teléfono inválido, etc.)
                 ->whereNotNull('citfc')
@@ -1128,21 +1174,30 @@ class AppointmentController extends Controller
                 }
             }
             
-            // Marcar como detenido
-            Setting::set($this->settingKey('reminder_paused'), 'true');
+            // Eliminar de la cola los jobs de recordatorio pendientes → el envío se detiene
+            // AL INSTANTE. Sin esto, los jobs quedan y el worker los "vacía" uno cada 3s
+            // (lento) y no se puede volver a enviar de inmediato. Es una acción de
+            // "detener todo", así que limpia cualquier recordatorio pendiente en la cola.
+            $deleted = DB::table('jobs')
+                ->where('payload', 'like', '%SendAppointmentReminderJob%')
+                ->delete();
+
+            // Estado LIMPIO (NO pausado): listo para volver a enviar de inmediato.
+            Setting::set($this->settingKey('reminder_paused'), 'false');
             Setting::set($this->settingKey('reminder_processing'), 'false');
             Setting::remove($this->settingKey('reminder_batch_id'));
             Setting::remove($this->settingKey('reminder_progress_sent'));
             Setting::remove($this->settingKey('reminder_progress_failed'));
             Setting::remove($this->settingKey('reminder_progress_total'));
-            
+
             Log::info('Recordatorios detenidos completamente', [
-                'user_id' => auth()->id()
+                'user_id' => auth()->id(),
+                'jobs_eliminados' => $deleted,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'El envío de recordatorios ha sido detenido completamente'
+                'message' => "Envío detenido. La cola quedó limpia ({$deleted} pendientes eliminados); ya puedes volver a enviar.",
             ]);
         } catch (\Exception $e) {
             Log::error('Error al detener recordatorios', [
@@ -1170,12 +1225,12 @@ class AppointmentController extends Controller
             
             // Obtener configuración
             $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
-            $targetDate = now()->addDays($daysInAdvance)->startOfDay();
+            $targetDate = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay();
             $targetDateString = $targetDate->format('Y-m-d');
             
             // Actualizar solo las citas pendientes para la fecha objetivo
             $updated = $this->serviceQuery()
-                ->whereDate('citfc', '=', $targetDateString)
+                ->where('citfc', '=', $targetDateString)
                 ->where('reminder_sent', false)
                 ->whereNotNull('citfc')
                 ->update(['pactel' => $phoneNumber]);
@@ -1239,7 +1294,19 @@ class AppointmentController extends Controller
                             $progressSent = $batch->processedJobs() - $batch->failedJobs;
                             $progressFailed = $batch->failedJobs;
                         } else {
-                            // Batch activo: obtener progreso directamente del batch de Laravel
+                            // El batch dice que sigue activo, pero por drift del contador
+                            // (WithoutOverlapping + batch) pendingJobs puede quedar >0 aunque ya
+                            // no queden jobs en la cola → el envío se "atasca" en 99%. Si no hay
+                            // jobs de ESTE batch pendientes, ya terminó de verdad: limpiar estado.
+                            $jobsLeft = DB::table('jobs')->where('payload', 'like', '%' . $batchId . '%')->count();
+                            if ($jobsLeft === 0) {
+                                DB::table('settings')->where('key', $this->settingKey('reminder_processing'))->update(['value' => 'false']);
+                                DB::table('settings')->where('key', $this->settingKey('reminder_batch_id'))->delete();
+                                Cache::forget('setting.' . $this->settingKey('reminder_processing'));
+                                Cache::forget('setting.' . $this->settingKey('reminder_batch_id'));
+                                $processing = false;
+                            }
+                            // Progreso (real si sigue activo, o final si acaba de terminar).
                             $progressTotal = $batch->totalJobs;
                             $progressSent = $batch->processedJobs() - $batch->failedJobs;
                             $progressFailed = $batch->failedJobs;
@@ -1280,11 +1347,11 @@ class AppointmentController extends Controller
         
         // Obtener citas pendientes de pasado mañana (2 días desde hoy)
         $daysInAdvance = (int) Setting::get($this->settingKey('reminder_days_in_advance'), '2');
-        $targetDate = now()->addDays($daysInAdvance)->startOfDay();
+        $targetDate = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay();
         $targetDateString = $targetDate->format('Y-m-d');
         
         $pendingCount = $this->serviceQuery()
-            ->whereDate('citfc', '=', $targetDateString)
+            ->where('citfc', '=', $targetDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error')
             ->whereNotNull('citfc')
@@ -1292,9 +1359,9 @@ class AppointmentController extends Controller
             ->count();
         
         // Obtener citas pendientes para MAÑANA (1 día desde hoy)
-        $tomorrowDateString = now()->addDays(1)->format('Y-m-d');
+        $tomorrowDateString = now()->setTimezone('America/Bogota')->addDays(1)->format('Y-m-d');
         $pendingTomorrowCount = $this->serviceQuery()
-            ->whereDate('citfc', '=', $tomorrowDateString)
+            ->where('citfc', '=', $tomorrowDateString)
             ->where('reminder_sent', false)
             ->whereNull('reminder_error')
             ->whereNotNull('citfc')

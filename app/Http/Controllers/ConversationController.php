@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\MessageReactionUpdated;
 use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\ConversationActivity;
 use App\Models\Message;
+use App\Models\MessageReaction;
 use App\Models\Tag;
 use App\Models\Template;
 use App\Models\User;
@@ -18,6 +20,134 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ConversationController extends Controller
 {
+    private const CHAT_FILTERS = [
+        'unanswered',
+        'pending_response',
+    ];
+
+    private function getFilterCounts(Request $request): array
+    {
+        $counts = [];
+
+        foreach (self::CHAT_FILTERS as $filter) {
+            $counts[$filter] = $this->buildFilterCountQuery($request, $filter)->count();
+        }
+
+        return $counts;
+    }
+
+    private function buildFilterCountQuery(Request $request, string $filter)
+    {
+        $query = Conversation::query();
+        $user = auth()->user();
+        $hasSearchTerm = $request->filled('search');
+        $filteringByTag = $request->has('tag') && is_numeric($request->tag);
+        $skipAdvisorScope = $user->isAdvisor() && in_array($filter, ['resolved', 'scheduled', 'oncology'], true);
+
+        if ($user->isAdvisor() && !$skipAdvisorScope) {
+            if ($user->isOnDuty()) {
+                $query->where(function ($q) {
+                    $q->whereNull('assigned_to')
+                      ->orWhere('assigned_to', auth()->id());
+                });
+            } else {
+                $query->where('assigned_to', auth()->id());
+            }
+        }
+
+        if ($filter === 'all') {
+            if (!$filteringByTag && !$hasSearchTerm) {
+                $query->whereIn('status', ['active', 'pending']);
+            }
+        } elseif ($filter === 'unanswered') {
+            $query->where('unread_count', '>', 0)
+                  ->whereNull('assigned_to');
+        } elseif ($filter === 'pending_response') {
+            $query->where('assigned_to', auth()->id())
+                  ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
+                  ->whereIn('status', ['active', 'pending']);
+        } elseif ($filter === 'resolved') {
+            $query->where('status', 'resolved');
+        } elseif ($filter === 'scheduled') {
+            $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
+        } elseif ($filter === 'oncology') {
+            $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
+        } elseif ($filter === 'blocked') {
+            $query->where('is_blocked', true);
+        }
+
+        if ($filter !== 'blocked' && !$hasSearchTerm) {
+            $query->where('is_blocked', false);
+        }
+
+        if ($filter !== 'oncology' && !$hasSearchTerm) {
+            $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
+        }
+
+        if ($user->isAdmin() && $request->has('assigned')) {
+            if ($request->assigned === 'me') {
+                $query->where('assigned_to', auth()->id());
+            } elseif ($request->assigned === 'unassigned') {
+                $query->whereNull('assigned_to');
+            } elseif (is_numeric($request->assigned)) {
+                $query->where('assigned_to', (int) $request->assigned);
+            }
+        }
+
+        if ($request->has('tag') && is_numeric($request->tag)) {
+            $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
+        if ($request->filled('specialty')) {
+            $query->where('specialty', $request->input('specialty'));
+        }
+
+        if ($request->has('search') && !empty($request->search)) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('contact_name', 'like', "%{$search}%")
+                  ->orWhere('phone_number', 'like', "%{$search}%")
+                  ->orWhereHas('messages', function ($messageQuery) use ($search) {
+                      $messageQuery->where('content', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        return $query;
+    }
+
+    /**
+     * Conteo de conversaciones ACTIVAS/pendientes (no bloqueadas) asignadas a cada usuario.
+     * Devuelve un mapa { user_id => total } para mostrar en el filtro "Asesor".
+     */
+    private function getAdvisorCounts(): array
+    {
+        return Conversation::query()
+            ->whereNotNull('assigned_to')
+            ->whereIn('status', ['active', 'pending'])
+            ->where('is_blocked', false)
+            ->groupBy('assigned_to')
+            ->selectRaw('assigned_to, COUNT(*) as total')
+            ->pluck('total', 'assigned_to')
+            ->toArray();
+    }
+
+    /**
+     * Lista única de especialidades existentes con conteo de conversaciones por cada una.
+     */
+    private function getAllSpecialties(): array
+    {
+        return Conversation::query()
+            ->whereNotNull('specialty')
+            ->where('specialty', '!=', '')
+            ->selectRaw('specialty as name, COUNT(*) as count')
+            ->groupBy('specialty')
+            ->orderBy('specialty')
+            ->get()
+            ->map(fn ($row) => ['name' => $row->name, 'count' => (int) $row->count])
+            ->toArray();
+    }
+
     /**
      * Obtener el contador de conversaciones con mensajes no leídos
      */
@@ -58,7 +188,7 @@ class ConversationController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+        $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         $user = auth()->user();
@@ -83,6 +213,9 @@ class ConversationController extends Controller
         // Si el usuario está buscando (search no vacío) NO aplicamos los filtros de exclusión
         // por defecto (resueltas, bloqueadas, oncología) — debe poder encontrar cualquier conversación.
         $hasSearchTerm = $request->filled('search');
+        // Al filtrar por especialidad queremos ver TODAS las que la tengan (incluidas resueltas,
+        // bloqueadas u oncología) para que el listado coincida con el conteo mostrado en el filtro.
+        $filteringBySpecialty = $request->filled('specialty');
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
@@ -98,15 +231,44 @@ class ConversationController extends Controller
                 // Resueltos: mostrar TODAS las conversaciones resueltas para todos los usuarios
                 $query->where('status', 'resolved');
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'confirmed') {
+                // Confirmados: confirmaciones/cancelaciones de cita que el SISTEMA auto-resolvió
+                // (resolved_by NULL) y que por eso no aparecen en "Todos". Las que resolvió un
+                // asesor sí llevan su id, así que quedan fuera de este filtro.
+                $query->where('status', 'resolved')->whereNull('resolved_by');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->whereNull('resolved_by')
+                        ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'cancelled') {
+                // Cancelados: el paciente canceló su cita respondiendo al recordatorio.
+                //
+                // Se identifica por la CITA enlazada (appointments.reminder_status), no por el
+                // estado de la conversación: cancelar sólo auto-resuelve si no quedaban mensajes
+                // sin leer, así que algunas siguen activas y deben salir igual.
+                //
+                // whereExists y no whereIn con subconsulta: medido, 8 ms frente a 257 ms.
+                $cancelada = fn ($q) => $q->selectRaw('1')->from('appointments')
+                    ->whereColumn('appointments.conversation_id', 'conversations.id')
+                    ->where('appointments.reminder_status', 'cancelled');
+
+                $query->whereExists($cancelada);
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereExists($cancelada)
+                        ->orderBy('updated_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
@@ -114,25 +276,36 @@ class ConversationController extends Controller
                 // Oncología: conversaciones con etiqueta "Oncología"
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
+            } elseif ($request->status === 'blocked') {
+                // Bloqueados: conversaciones bloqueadas
+                $query->where('is_blocked', true)
+                      ->orderBy('blocked_at', 'desc');
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif (!$filteringByTag && !$hasSearchTerm) {
+        } elseif (!$filteringByTag && !$filteringBySpecialty && !$hasSearchTerm) {
             // Sin filtro de estado explícito, sin etiqueta y sin búsqueda: excluir resueltas para todos
             $query->whereIn('status', ['active', 'pending']);
+            // Excluir "solo-salientes" sin asignar (recordatorios/masivos donde el paciente
+            // nunca ha escrito): no deben competir en la vista de trabajo. Siguen accesibles
+            // por búsqueda o filtros explícitos, y aparecen apenas el paciente responda.
+            $query->where(function ($q) {
+                $q->whereNotNull('assigned_to')
+                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
+            });
         }
 
         // Excluir conversaciones bloqueadas del listado general (solo se ven con filtro "blocked" o al buscar)
-        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm) {
+        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm && !$filteringBySpecialty) {
             $query->where('is_blocked', false);
         }
 
         // Excluir conversaciones de oncología del listado general (solo se ven con filtro "oncology" o al buscar)
-        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm) {
+        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm && !$filteringBySpecialty) {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
@@ -153,6 +326,11 @@ class ConversationController extends Controller
         // Filtrar por etiqueta
         if ($request->has('tag') && is_numeric($request->tag)) {
             $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
+        // Filtrar por especialidad (texto exacto de la columna `specialty`)
+        if ($request->filled('specialty')) {
+            $query->where('specialty', $request->input('specialty'));
         }
 
         // Buscar por nombre, teléfono o contenido de mensajes
@@ -219,9 +397,6 @@ class ConversationController extends Controller
         // Obtener todos los usuarios (asesores) disponibles para asignación
         $users = User::select('id', 'name', 'role')->get();
 
-        // Obtener todas las etiquetas disponibles
-        $allTags = \App\Models\Tag::withCount('conversations')->orderBy('name')->get();
-
         // Si es una petición de paginación (AJAX), devolver solo las conversaciones
         if ($request->wantsJson() || $request->has('page') || $request->has('cursor')) {
             return response()->json([
@@ -236,8 +411,15 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'hasMore' => $hasMore,
             'users' => $users,
-            'allTags' => $allTags,
-            'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
+            // Metadata secundaria DIFERIDA (Inertia v2): no bloquea el render de la lista de chats.
+            // El frontend ya las maneja async (estado local + sincronización), así que llegan en
+            // una 2da petición sin romper nada. allSpecialties queda instantánea porque su estado
+            // en el frontend no tiene sincronización. Ahorra ~45 ms en la carga inicial.
+            'allTags' => Inertia::defer(fn () => \App\Models\Tag::withCount('conversations')->orderBy('name')->get()),
+            'allSpecialties' => $this->getAllSpecialties(),
+            'advisorCounts' => Inertia::defer(fn () => $this->getAdvisorCounts()),
+            'filterCounts' => Inertia::defer(fn () => $this->getFilterCounts($request)),
+            'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])
                 ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'category', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
@@ -269,7 +451,7 @@ class ConversationController extends Controller
             }
         }
 
-        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+        $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         // Si es asesor, verificar si está de turno
@@ -289,6 +471,9 @@ class ConversationController extends Controller
         // Filtrar por estado (disponible para todos los usuarios)
         $filteringByTag = $request->has('tag') && is_numeric($request->tag);
         $hasSearchTerm = $request->filled('search');
+        // Al filtrar por especialidad mostramos TODAS las que la tengan (incluidas resueltas,
+        // bloqueadas u oncología) para que el listado coincida con el conteo del filtro.
+        $filteringBySpecialty = $request->filled('specialty');
 
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
@@ -304,15 +489,44 @@ class ConversationController extends Controller
                 // Resueltos: mostrar TODAS las conversaciones resueltas para todos los usuarios
                 $query->where('status', 'resolved');
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'confirmed') {
+                // Confirmados: confirmaciones/cancelaciones de cita que el SISTEMA auto-resolvió
+                // (resolved_by NULL) y que por eso no aparecen en "Todos". Las que resolvió un
+                // asesor sí llevan su id, así que quedan fuera de este filtro.
+                $query->where('status', 'resolved')->whereNull('resolved_by');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->whereNull('resolved_by')
+                        ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'cancelled') {
+                // Cancelados: el paciente canceló su cita respondiendo al recordatorio.
+                //
+                // Se identifica por la CITA enlazada (appointments.reminder_status), no por el
+                // estado de la conversación: cancelar sólo auto-resuelve si no quedaban mensajes
+                // sin leer, así que algunas siguen activas y deben salir igual.
+                //
+                // whereExists y no whereIn con subconsulta: medido, 8 ms frente a 257 ms.
+                $cancelada = fn ($q) => $q->selectRaw('1')->from('appointments')
+                    ->whereColumn('appointments.conversation_id', 'conversations.id')
+                    ->where('appointments.reminder_status', 'cancelled');
+
+                $query->whereExists($cancelada);
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereExists($cancelada)
+                        ->orderBy('updated_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
@@ -320,7 +534,7 @@ class ConversationController extends Controller
                 // Oncología: conversaciones con etiqueta "Oncología"
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
@@ -331,18 +545,25 @@ class ConversationController extends Controller
             } else {
                 $query->where('status', $request->status);
             }
-        } elseif (!$filteringByTag && !$hasSearchTerm) {
+        } elseif (!$filteringByTag && !$filteringBySpecialty && !$hasSearchTerm) {
             // Sin filtro de estado explícito, sin etiqueta y sin búsqueda: excluir resueltas
             $query->whereIn('status', ['active', 'pending']);
+            // Mismo criterio que index(): excluir conversaciones sin asignar cuyo único
+            // tráfico del paciente son respuestas automáticas de cita ocultas
+            // (confirmar/cancelar). Reaparecen apenas el paciente escriba algo distinto.
+            $query->where(function ($q) {
+                $q->whereNotNull('assigned_to')
+                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
+            });
         }
 
         // Excluir conversaciones bloqueadas del listado general (a menos que se busque)
-        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm) {
+        if ((!$request->has('status') || $request->status !== 'blocked') && !$hasSearchTerm && !$filteringBySpecialty) {
             $query->where('is_blocked', false);
         }
 
         // Excluir conversaciones de oncología del listado general (a menos que se busque)
-        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm) {
+        if ((!$request->has('status') || $request->status !== 'oncology') && !$hasSearchTerm && !$filteringBySpecialty) {
             $query->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
         }
 
@@ -363,6 +584,11 @@ class ConversationController extends Controller
         // Filtrar por etiqueta
         if ($request->has('tag') && is_numeric($request->tag)) {
             $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
+        // Filtrar por especialidad
+        if ($request->filled('specialty')) {
+            $query->where('specialty', $request->input('specialty'));
         }
 
         // Buscar por nombre, teléfono o contenido de mensajes
@@ -401,9 +627,24 @@ class ConversationController extends Controller
             return [$conv->is_pinned ? 1 : 0, $conv->last_message_at?->timestamp ?? 0];
         })->values();
         
-        // Cargar la conversación seleccionada con todos sus mensajes
-        $conversation->load(['messages.sender', 'messages.replyTo', 'assignedUser', 'resolvedByUser', 'tags']);
+        // Cargar la conversación seleccionada con TODOS sus mensajes, incluidas las
+        // respuestas automáticas de cita marcadas como ocultas: en el HILO abierto SÍ
+        // deben verse (p.ej. el "confirmar" del paciente). Siguen ocultas de la LISTA
+        // (no cuentan como no-leídos, ni de vista previa, ni reactivan la vista de trabajo).
+        $conversation->load([
+            'messages',
+            'messages.sender',
+            'messages.replyTo',
+            'messages.reactions',
+            'assignedUser',
+            'resolvedByUser',
+            'tags',
+        ]);
         
+        // Conteo de mensajes sin leer ANTES de marcarlos como leídos, para el divisor
+        // "Mensajes nuevos" (tipo WhatsApp) en el frontend.
+        $unreadOnOpen = (int) $conversation->unread_count;
+
         // Marcar mensajes como leídos
         $conversation->markAsRead();
 
@@ -416,7 +657,7 @@ class ConversationController extends Controller
         // Obtener plantillas activas (globales o asignadas al usuario actual)
         $templates = Template::active()
             ->availableForUser(auth()->id())
-            ->select(['id', 'name', 'content', 'message_type', 'media_url', 'media_filename', 'media_files'])
+            ->select(['id', 'name', 'content', 'message_type', 'media_url', 'media_filename', 'media_files', 'is_global'])
             ->get()
             ->map(function ($template) {
                 return [
@@ -427,6 +668,9 @@ class ConversationController extends Controller
                     'media_url' => $template->media_url,
                     'media_filename' => $template->media_filename,
                     'media_files' => $template->getMediaFilesArray(),
+                    // Marca para el desplegable del "/": distingue las plantillas propias
+                    // del catálogo institucional que comparten los 30 asesores.
+                    'is_personal' => ! $template->is_global,
                 ];
             });
 
@@ -434,9 +678,13 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'hasMore' => $hasMore,
             'selectedConversation' => $conversation,
+            'unreadOnOpen' => $unreadOnOpen,
             'users' => $users,
             'allTags' => $allTags,
-            'filters' => $request->only(['status', 'assigned', 'search', 'tag']),
+            'allSpecialties' => $this->getAllSpecialties(),
+            'advisorCounts' => $this->getAdvisorCounts(),
+            'filterCounts' => $this->getFilterCounts($request),
+            'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
             'templates' => $templates,
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])
@@ -713,6 +961,73 @@ class ConversationController extends Controller
         }
 
         return back();
+    }
+
+    /**
+     * Reaccionar a un mensaje (emoji) desde el panel. Un emoji vacío quita la reacción.
+     * Envía la reacción por la API de WhatsApp y la persiste/difunde en tiempo real.
+     */
+    public function react(Request $request, Conversation $conversation, WhatsAppService $whatsappService)
+    {
+        $validated = $request->validate([
+            'message_id' => 'required|integer|exists:messages,id',
+            'emoji' => 'nullable|string|max:16',
+        ]);
+
+        $message = Message::find($validated['message_id']);
+        if (!$message || $message->conversation_id !== $conversation->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El mensaje no pertenece a esta conversación.',
+            ], 422);
+        }
+
+        if (!$message->whatsapp_message_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede reaccionar a este mensaje (aún no tiene ID de WhatsApp).',
+            ], 422);
+        }
+
+        $emoji = trim($validated['emoji'] ?? '');
+
+        // Enviar la reacción por la API de WhatsApp (emoji '' = quitar)
+        $result = $whatsappService->sendReaction(
+            $conversation->phone_number,
+            $message->whatsapp_message_id,
+            $emoji
+        );
+
+        if (!($result['success'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'] ?? 'No se pudo enviar la reacción.',
+            ], 422);
+        }
+
+        if ($emoji === '') {
+            // Quitar la reacción del negocio/asesor
+            $message->reactions()->where('from_user', false)->delete();
+            broadcast(new MessageReactionUpdated($conversation->id, $message->id, null, false, true))->toOthers();
+        } else {
+            // Crear o reemplazar la reacción del negocio/asesor (máximo una por lado)
+            MessageReaction::updateOrCreate(
+                ['message_id' => $message->id, 'from_user' => false],
+                [
+                    'emoji' => $emoji,
+                    'reacted_by' => auth()->id(),
+                    'whatsapp_message_id' => $result['message_id'] ?? null,
+                ]
+            );
+            broadcast(new MessageReactionUpdated($conversation->id, $message->id, $emoji, false, false))->toOthers();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message_id' => $message->id,
+            'emoji' => $emoji !== '' ? $emoji : null,
+            'removed' => $emoji === '',
+        ]);
     }
 
     /**
@@ -995,6 +1310,60 @@ class ConversationController extends Controller
     }
 
     /**
+     * Quitar a un asesor/admin de TODAS sus conversaciones activas/pendientes:
+     * quedan SIN asignar (vuelven al pool compartido). Solo admin.
+     *
+     * Deja un registro de auditoría por conversación (con released_from_id) para
+     * poder revertir la operación si se ejecuta por error — mismo criterio que
+     * usamos para restaurar tras el incidente de liberación automática.
+     */
+    public function clearAdvisor(Request $request, User $user)
+    {
+        if (!auth()->user()?->isAdmin()) {
+            abort(403);
+        }
+
+        $ids = Conversation::where('assigned_to', $user->id)
+            ->whereIn('status', ['active', 'pending'])
+            ->pluck('id');
+
+        $count = $ids->count();
+
+        if ($count === 0) {
+            return response()->json([
+                'success' => true,
+                'cleared' => 0,
+                'message' => "{$user->name} no tiene conversaciones activas asignadas.",
+            ]);
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($ids, $user) {
+            foreach ($ids as $id) {
+                ConversationActivity::log($id, 'unassigned', auth()->id(), [
+                    'previous_assigned_to' => $user->id,
+                    'released_from_id' => $user->id,
+                    'released_from_name' => $user->name,
+                    'reason' => 'Limpieza manual desde el filtro de asesores',
+                ]);
+            }
+            Conversation::whereIn('id', $ids)->update(['assigned_to' => null]);
+        });
+
+        \Illuminate\Support\Facades\Log::info('Limpieza manual de asesor (filtro)', [
+            'cleared_advisor_id' => $user->id,
+            'cleared_advisor_name' => $user->name,
+            'count' => $count,
+            'by_admin' => auth()->id(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'cleared' => $count,
+            'message' => "Se quitó la asignación de {$count} conversación(es) de {$user->name}. Quedaron sin asignar.",
+        ]);
+    }
+
+    /**
      * Cambiar estado de la conversación
      */
     public function updateStatus(Request $request, Conversation $conversation)
@@ -1109,23 +1478,47 @@ class ConversationController extends Controller
     }
 
     /**
-     * Bloquear o desbloquear una conversación
+     * Bloquear o desbloquear una conversación.
+     *
+     * Además del bloqueo local (no procesar sus mensajes), aplica el bloqueo REAL
+     * en WhatsApp vía el Block Users API de Meta. Si Meta lo rechaza (p. ej. el
+     * usuario no escribió en las últimas 24h o la API no está configurada), el
+     * bloqueo local igual queda guardado y se devuelve la advertencia para la UI.
      */
-    public function toggleBlock(Conversation $conversation)
+    public function toggleBlock(Conversation $conversation, WhatsAppService $whatsappService)
     {
         $wasBlocked = $conversation->is_blocked;
+        $willBlock = !$wasBlocked;
 
+        // 1) Bloqueo real en Meta (no aborta el flujo si falla).
+        $metaResult = $willBlock
+            ? $whatsappService->blockUser($conversation->phone_number)
+            : $whatsappService->unblockUser($conversation->phone_number);
+
+        // 2) Estado local (fuente de verdad para la UI y el filtrado del webhook).
         $conversation->update([
-            'is_blocked' => !$wasBlocked,
-            'blocked_at' => !$wasBlocked ? now() : null,
-            'blocked_by' => !$wasBlocked ? auth()->id() : null,
+            'is_blocked' => $willBlock,
+            'blocked_at' => $willBlock ? now() : null,
+            'blocked_by' => $willBlock ? auth()->id() : null,
         ]);
 
         ConversationActivity::log($conversation->id, $wasBlocked ? 'unblocked' : 'blocked', auth()->id());
 
+        $metaOk = (bool) ($metaResult['success'] ?? false);
+        if (!$metaOk) {
+            \Log::warning('Bloqueo local aplicado pero Meta no confirmó', [
+                'conversation_id' => $conversation->id,
+                'phone' => $conversation->phone_number,
+                'block' => $willBlock,
+                'meta_error' => $metaResult['error'] ?? null,
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'is_blocked' => $conversation->is_blocked,
+            'meta_synced' => $metaOk,
+            'meta_error' => $metaOk ? null : ($metaResult['error'] ?? null),
         ]);
     }
 
@@ -1261,12 +1654,22 @@ class ConversationController extends Controller
         }
         $conversation->update($updateData);
 
-        // Enviar usando la plantilla de WhatsApp
+        // Enviar por WhatsApp: dentro de la ventana de 24h se manda como mensaje de
+        // sesión libre (no está sujeto al tope de plantillas de marketing de Meta, evita
+        // el error 131049); fuera de la ventana se usa la plantilla de saludo para
+        // re-enganchar. Ambos métodos devuelven el mismo formato de resultado.
         if ($whatsappService->isConfigured()) {
-            $result = $whatsappService->sendGreetingTemplate(
-                $conversation->phone_number,
-                $advisorName
-            );
+            if ($conversation->isWithinServiceWindow()) {
+                $result = $whatsappService->sendTextMessage(
+                    $conversation->phone_number,
+                    $greetingText
+                );
+            } else {
+                $result = $whatsappService->sendGreetingTemplate(
+                    $conversation->phone_number,
+                    $advisorName
+                );
+            }
 
             if ($result && $result['success']) {
                 $message->update([
@@ -1381,6 +1784,16 @@ class ConversationController extends Controller
 
                 // Actualizar timestamp
                 $conversation->update(['last_message_at' => now()]);
+
+                // Si era una cancelación, dejar la cita en 'cancelled'. Sin esto el asesor
+                // avisaba al paciente pero la cita seguía "confirmada", y el bot le respondía
+                // lo contrario si volvía a escribir.
+                \App\Services\AppointmentCancellationSync::fromTemplate(
+                    $conversation->phone_number,
+                    $whatsappTemplate->meta_template_name,
+                    $templateParams,
+                    'chat (asesor ' . (auth()->user()?->name ?? '?') . ')'
+                );
             } else {
                 $message->update([
                     'status' => 'failed',
@@ -1534,15 +1947,24 @@ class ConversationController extends Controller
                     'status' => 'sent',
                     'whatsapp_message_id' => $result['message_id'] ?? null,
                 ]);
+
+                // Conversación nueva abierta con una plantilla de cancelación: misma regla.
+                \App\Services\AppointmentCancellationSync::fromTemplate(
+                    $phoneNumber,
+                    $whatsappTemplate->meta_template_name,
+                    $templateParams,
+                    'nueva conversación (asesor ' . (auth()->user()?->name ?? '?') . ')'
+                );
             } else {
                 $message->update([
                     'status' => 'failed',
                     'error_message' => $result['error'] ?? 'Error desconocido al enviar mensaje',
                 ]);
-                
-                return back()->withErrors([
-                    'message' => 'No se pudo enviar el mensaje: ' . ($result['error'] ?? 'Error desconocido')
-                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No se pudo enviar el mensaje: ' . ($result['error'] ?? 'Error desconocido'),
+                ], 422);
             }
         } else {
             $message->update([
@@ -1550,14 +1972,19 @@ class ConversationController extends Controller
                 'error_message' => 'WhatsApp API no está configurada',
             ]);
             
-            return back()->withErrors([
-                'message' => 'WhatsApp API no está configurada. Por favor, configúrala en Ajustes.'
-            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'WhatsApp API no está configurada. Por favor, configúrala en Ajustes.',
+            ], 422);
         }
 
-        // Redirigir a la conversación creada
-        return redirect()->route('admin.chat.show', $conversation->id)
-            ->with('success', 'Conversación iniciada exitosamente.');
+        // Devolver JSON (NO redirect) para que el frontend no navegue ni recargue la lista
+        // (el redirect reseteaba el scroll/posición del asesor). La conversación nueva aparece
+        // sola por el polling, sin mover la lista.
+        return response()->json([
+            'success' => true,
+            'conversation_id' => $conversation->id,
+        ]);
     }
 
     /**
@@ -1627,7 +2054,7 @@ class ConversationController extends Controller
      */
     public function pollList(Request $request)
     {
-        $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+        $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
         $user = auth()->user();
@@ -1657,15 +2084,44 @@ class ConversationController extends Controller
                 // Resueltos: mostrar TODAS las conversaciones resueltas (todos los asesores/admin)
                 $query->where('status', 'resolved');
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->where('status', 'resolved')
                         ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'confirmed') {
+                // Confirmados: confirmaciones/cancelaciones de cita que el SISTEMA auto-resolvió
+                // (resolved_by NULL) y que por eso no aparecen en "Todos". Las que resolvió un
+                // asesor sí llevan su id, así que quedan fuera de este filtro.
+                $query->where('status', 'resolved')->whereNull('resolved_by');
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->where('status', 'resolved')
+                        ->whereNull('resolved_by')
+                        ->orderBy('resolved_at', 'desc');
+                }
+            } elseif ($request->status === 'cancelled') {
+                // Cancelados: el paciente canceló su cita respondiendo al recordatorio.
+                //
+                // Se identifica por la CITA enlazada (appointments.reminder_status), no por el
+                // estado de la conversación: cancelar sólo auto-resuelve si no quedaban mensajes
+                // sin leer, así que algunas siguen activas y deben salir igual.
+                //
+                // whereExists y no whereIn con subconsulta: medido, 8 ms frente a 257 ms.
+                $cancelada = fn ($q) => $q->selectRaw('1')->from('appointments')
+                    ->whereColumn('appointments.conversation_id', 'conversations.id')
+                    ->where('appointments.reminder_status', 'cancelled');
+
+                $query->whereExists($cancelada);
+                if ($user->isAdvisor()) {
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                        ->whereExists($cancelada)
+                        ->orderBy('updated_at', 'desc');
                 }
             } elseif ($request->status === 'scheduled') {
                 // Agendados: mostrar TODAS las conversaciones con etiqueta "Agendado" (persiste aunque cambien de estado)
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Agendado'))
                         ->orderBy('updated_at', 'desc');
                 }
@@ -1673,15 +2129,26 @@ class ConversationController extends Controller
                 // Oncología: conversaciones con etiqueta "Oncología"
                 $query->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'));
                 if ($user->isAdvisor()) {
-                    $query = Conversation::with(['lastMessage', 'assignedUser', 'resolvedByUser', 'tags'])
+                    $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
                         ->whereHas('tags', fn ($q) => $q->where('name', 'Oncología'))
                         ->orderBy('last_message_at', 'desc');
                 }
+            } elseif ($request->status === 'blocked') {
+                // Bloqueados: conversaciones bloqueadas
+                $query->where('is_blocked', true)
+                      ->orderBy('blocked_at', 'desc');
             } else {
                 $query->where('status', $request->status);
             }
         } elseif (!$filteringByTag && !$hasSearchTerm) {
             $query->whereIn('status', ['active', 'pending']);
+            // Excluir "solo-salientes" sin asignar (mismo criterio que index): los
+            // mensajes ocultos (respuestas automáticas de cita) no cuentan como
+            // tráfico real del paciente.
+            $query->where(function ($q) {
+                $q->whereNotNull('assigned_to')
+                  ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
+            });
         }
 
         // Excluir conversaciones bloqueadas del poll general (a menos que se busque)
@@ -1706,6 +2173,10 @@ class ConversationController extends Controller
 
         if ($request->has('tag') && is_numeric($request->tag)) {
             $query->whereHas('tags', fn ($q) => $q->where('tags.id', (int) $request->tag));
+        }
+
+        if ($request->filled('specialty')) {
+            $query->where('specialty', $request->input('specialty'));
         }
 
         if ($request->has('search') && !empty($request->search)) {
@@ -1738,6 +2209,7 @@ class ConversationController extends Controller
 
         return response()->json([
             'conversations' => $conversations,
+            'filterCounts' => $this->getFilterCounts($request),
         ]);
     }
 
@@ -1763,8 +2235,10 @@ class ConversationController extends Controller
 
         $afterId = (int) $request->query('after', 0);
 
+        // Se entregan TODOS los mensajes nuevos al hilo abierto (incluidas las respuestas
+        // automáticas de cita); solo se ocultan de la LISTA, no del hilo cuando se abre.
         $newMessages = $conversation->messages()
-            ->with(['sender', 'replyTo'])
+            ->with(['sender', 'replyTo', 'reactions'])
             ->where('id', '>', $afterId)
             ->orderBy('id', 'asc')
             ->get();
@@ -1779,6 +2253,26 @@ class ConversationController extends Controller
                 ->select(['id', 'status', 'error_message'])
                 ->get()
                 ->toArray();
+        }
+
+        // Reconciliación de reacciones (fallback al broadcast en tiempo real): se devuelve
+        // el estado completo de reacciones de la ventana reciente para que el frontend
+        // refleje altas, cambios y bajas aunque se haya perdido un evento de Reverb.
+        $reactionUpdates = [];
+        if ($afterId > 0) {
+            $reactionUpdates = $conversation->messages()
+                ->where('id', '>', max(0, $afterId - 50))
+                ->with('reactions')
+                ->get(['id'])
+                ->map(fn ($m) => [
+                    'message_id' => $m->id,
+                    'reactions' => $m->reactions->map(fn ($r) => [
+                        'id' => $r->id,
+                        'emoji' => $r->emoji,
+                        'from_user' => $r->from_user,
+                    ])->values(),
+                ])
+                ->values();
         }
 
         // Mark as read if there are new incoming messages
@@ -1805,6 +2299,7 @@ class ConversationController extends Controller
         return response()->json([
             'messages' => $newMessages,
             'updatedStatuses' => $updatedStatuses,
+            'reactionUpdates' => $reactionUpdates,
             'unread_count' => $conversation->fresh()->unread_count,
             'typing' => $typingUsers,
             'viewing' => $viewingUsers,
@@ -1816,11 +2311,38 @@ class ConversationController extends Controller
      */
     public function typing(Conversation $conversation)
     {
+        // Aviso entre asesores (para ver que un compañero ya está respondiendo).
         cache()->put(
             'typing_' . $conversation->id . '_' . auth()->id(),
             now(),
             10 // expires in 10 seconds
         );
+
+        // Y el "escribiendo…" que ve el PACIENTE en WhatsApp.
+        //
+        // El frontend llama a esto cada 4 s mientras se teclea, pero el indicador de Meta
+        // dura unos 25 s: refrescarlo cada 4 s serían 15 peticiones por minuto y asesor.
+        // Con este candado de 20 s se envía como mucho una vez por conversación en ese
+        // lapso, sin que el indicador llegue a apagarse.
+        $candado = 'wa_typing_' . $conversation->id;
+        if (!cache()->has($candado)) {
+            cache()->put($candado, true, 20);
+
+            // Necesita el id de un mensaje ENTRANTE; el más reciente es el que vale.
+            $ultimoEntrante = $conversation->messages()
+                ->where('is_from_user', true)
+                ->whereNotNull('whatsapp_message_id')
+                ->reorder('created_at', 'desc')
+                ->value('whatsapp_message_id');
+
+            if ($ultimoEntrante) {
+                try {
+                    app(\App\Services\WhatsAppService::class)->sendTypingIndicator($ultimoEntrante);
+                } catch (\Throwable $e) {
+                    // Es cosmético: nunca debe entorpecer al asesor que está escribiendo.
+                }
+            }
+        }
 
         return response()->json(['ok' => true]);
     }

@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Log;
 
 class CleanupOldData extends Command
 {
-    protected $signature = 'cleanup:old-data 
-                            {--days=30 : Días de antigüedad para limpiar mensajes}
+    protected $signature = 'cleanup:old-data
+                            {--days=30 : Días de antigüedad para limpiar jobs, caché y lotes}
                             {--dry-run : Ver qué se eliminaría sin hacerlo}';
 
     protected $description = 'Limpia datos antiguos de la base de datos para liberar memoria';
@@ -32,19 +32,26 @@ class CleanupOldData extends Command
         try {
             $cutoffDate = now()->subDays($days);
             
-            // 1. Limpiar mensajes antiguos de conversaciones cerradas
-            $messagesQuery = Message::whereHas('conversation', function($query) {
-                $query->whereIn('status', ['resolved', 'closed']);
-            })->where('created_at', '<', $cutoffDate);
-            
-            $messagesCount = $messagesQuery->count();
-            
-            if (!$dryRun && $messagesCount > 0) {
-                $messagesQuery->delete();
-                $this->info("✅ Eliminados {$messagesCount} mensajes antiguos");
-            } else {
-                $this->line("📊 Se eliminarían {$messagesCount} mensajes antiguos");
-            }
+            // 1. Mensajes y conversaciones: ESTE COMANDO YA NO LOS TOCA. NUNCA.
+            //
+            // El historial clínico de una conversación no caduca: un paciente puede
+            // escribir meses después y el asesor necesita ver todo lo anterior.
+            //
+            // Aquí había un borrado de mensajes de conversaciones resueltas con más de
+            // {--days} días. Una sola ejecución (hacia el 24-jun-2026) se llevó 135.206
+            // mensajes: todo lo anterior al 25-may. Las conversaciones seguían en la
+            // lista pero vacías, y los asesores abrían chats sin saber de qué les
+            // hablaba el paciente. Se recuperaron el 30-jul desde una copia del 18-jun,
+            // pero solo porque esa copia existía de casualidad.
+            //
+            // Después se dejó tras un flag --incluir-mensajes. No basta: un flag es una
+            // invitación. Se elimina la capacidad entera. Si algún día hiciera falta
+            // purgar mensajes, que sea un comando nuevo, escrito a conciencia, con copia
+            // de seguridad verificada ANTES de borrar nada.
+            //
+            // El resto de la limpieza (jobs, caché, sesiones, lotes) no destruye datos
+            // de negocio y sigue igual.
+            $this->line('⏭️  Mensajes y conversaciones: NO se tocan nunca (por diseño)');
 
             // 2. Limpiar jobs completados
             $completedJobsCount = DB::table('jobs')
@@ -136,7 +143,6 @@ class CleanupOldData extends Command
             Log::info('Cleanup ejecutado', [
                 'days' => $days,
                 'dry_run' => $dryRun,
-                'messages' => $messagesCount,
                 'jobs' => $completedJobsCount,
                 'failed_jobs' => $failedJobsCount,
                 'batches' => $batchesCount,

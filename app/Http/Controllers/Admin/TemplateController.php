@@ -97,7 +97,23 @@ class TemplateController extends Controller
      */
     public function index(Request $request)
     {
+        // Catálogo institucional, más lo que haya creado uno mismo.
+        //
+        // Sin este filtro el listado devolvía TODAS las plantillas del sistema. Y como
+        // GET /admin/templates queda fuera de role:admin —la declaración suelta de
+        // routes/web.php gana a la del Route::resource por orden de registro—, cualquier
+        // asesor autenticado podía leer el contenido íntegro de las plantillas privadas
+        // de los demás. Hoy no se nota, porque las 27 existentes son globales; en cuanto
+        // haya personales sería una fuga directa.
+        //
+        // Se deja pasar 'created_by' además de 'is_global' para no romper la asignación a
+        // usuarios que ya existe en el panel de admin: si sólo se filtrara por globales,
+        // el admin crearía una plantilla asignada y desaparecería del listado.
         $query = Template::with(['creator', 'updater', 'assignedUsers'])
+            ->where(function ($q) {
+                $q->where('is_global', true)
+                    ->orWhere('created_by', auth()->id());
+            })
             ->orderBy('created_at', 'desc');
 
         // Filtrar por estado activo/inactivo
@@ -255,14 +271,14 @@ class TemplateController extends Controller
                 'message_type' => $template->message_type,
                 'media_url' => $template->media_url,
                 'media_filename' => $template->media_filename,
-                'created_by' => $template->creator->name,
+                'created_by' => $template->creator->name ?? 'Usuario eliminado',
                 'updated_by' => $template->updater->name ?? null,
                 'created_at' => $template->created_at->format('Y-m-d H:i'),
                 'updated_at' => $template->updated_at->format('Y-m-d H:i'),
                 'usage_stats' => $template->getUsageStats(),
                 'sends' => $template->sends->map(fn($send) => [
                     'id' => $send->id,
-                    'sent_by' => $send->sender->name,
+                    'sent_by' => $send->sender->name ?? 'Usuario eliminado',
                     'total_recipients' => $send->total_recipients,
                     'successful_sends' => $send->successful_sends,
                     'failed_sends' => $send->failed_sends,

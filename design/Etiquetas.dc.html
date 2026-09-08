@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Instrument Sans', system-ui, -apple-system, sans-serif; background: #f0f2f8; }
+    a { color: #2e3f84; } a:hover { color: #24316a; }
+    .fila { display: flex; align-items: stretch; gap: 12px; padding-left: 12px; cursor: pointer; transition: background-color .12s; }
+    .fila:hover { background: #f5f6fa; }
+    .av { width: 48px; height: 48px; border-radius: 9999px; background: linear-gradient(to bottom right, #4e5fa4, #3e4f94);
+          color: #fff; font-weight: 700; font-size: 17px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 10px; }
+    .cuerpo { flex: 1; min-width: 0; padding: 10px 12px 10px 0; border-bottom: 1px solid #ececf3; }
+    .lin1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 2px; }
+    .nom { font-weight: 700; font-size: 15px; color: #1a1c1c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hora { font-size: 11px; color: #767681; flex-shrink: 0; }
+    .prev { font-size: 13px; color: #5f5e5e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .badge { min-width: 20px; height: 20px; border-radius: 9999px; background: #2e3f84; color: #fff; font-size: 11px;
+             font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 6px; flex-shrink: 0; }
+    .tags { display: flex; gap: 5px; margin-top: 5px; flex-wrap: nowrap; overflow: hidden }
+    .tag { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; letter-spacing: .01em;
+           border-radius: 6px; padding: 2px 7px; white-space: nowrap; flex-shrink: 0 }
+    .pt { width: 5px; height: 5px; border-radius: 9999px; flex-shrink: 0 }
+  </style>
+</helmet>
+
+<div style="width: 380px; background: #ffffff; height: 620px; display: flex; flex-direction: column; overflow: hidden">
+
+  <div style="padding: 16px 16px 10px; display: flex; flex-direction: column; gap: 12px">
+    <div style="font-size: 20px; font-weight: 700; color: #1c1f2e">Conversaciones</div>
+    <div style="display: flex; align-items: center; gap: 8px; background: #eef0f6; border-radius: 12px; padding: 9px 12px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5c6485" stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path>
+      </svg>
+      <span style="font-size: 13px; color: #5c6485">Buscar conversación...</span>
+    </div>
+    <div style="display: flex; gap: 6px">
+      <span style="font-size: 12px; font-weight: 600; color: #ffffff; background: #2e3f84; border-radius: 9999px; padding: 5px 12px">Todos</span>
+      <span style="font-size: 12px; font-weight: 600; color: #5c6485; background: #eef0f6; border-radius: 9999px; padding: 5px 12px">No leídos 735</span>
+      <span style="font-size: 12px; font-weight: 600; color: #5c6485; background: #eef0f6; border-radius: 9999px; padding: 5px 12px">En espera 20</span>
+    </div>
+  </div>
+
+  <div style="flex: 1; overflow: hidden">
+    <sc-for list="{{filas}}" as="f" hint-placeholder-count="6">
+      <div class="fila">
+        <div class="av">{{f.inicial}}</div>
+        <div class="cuerpo">
+          <div class="lin1">
+            <span class="nom">{{f.nombre}}</span>
+            <span class="hora">{{f.hora}}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="prev">{{f.mensaje}}</span>
+            <sc-if value="{{f.sinLeer}}" hint-placeholder-val="{{ true }}">
+              <span class="badge">{{f.sinLeer}}</span>
+            </sc-if>
+          </div>
+          <sc-if value="{{f.tieneTags}}" hint-placeholder-val="{{ true }}">
+            <div class="tags">
+              <sc-for list="{{f.tags}}" as="t" hint-placeholder-count="2">
+                <span class="tag" style="{{t.estilo}}">
+                  <span class="pt" style="{{t.punto}}"></span>{{t.texto}}
+                </span>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{f.muestraEstado}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 5px; margin-top: 5px">
+              <span style="width: 7px; height: 7px; border-radius: 9999px; flex-shrink: 0; {{f.puntoEstado}}"></span>
+              <span style="font-size: 11px; color: #5f5e5e">{{f.textoEstado}}</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":380,"height":620}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Paleta de etiquetas derivada de los tokens: fondo muy claro del mismo tono
+    // que el punto, para que no compitan con el nombre ni con el contador.
+    const T = {
+      agendado:  { texto: 'Agendado',     bg: '#fef3c7', fg: '#92400e', pt: '#f59e0b' },
+      aic:       { texto: 'AIC',          bg: '#fef3c7', fg: '#92400e', pt: '#f59e0b' },
+      arl:       { texto: 'ARL',          bg: '#fee2e2', fg: '#991b1b', pt: '#e5484d' },
+      asmet:     { texto: 'ASMET SALUD',  bg: '#d1fae5', fg: '#065f46', pt: '#10b981' },
+      oncologia: { texto: 'Oncología',    bg: '#e8ebf5', fg: '#2e3f84', pt: '#2e3f84' },
+      nuevaeps:  { texto: 'Nueva EPS',    bg: '#e0e7ff', fg: '#3730a3', pt: '#6366f1' },
+    };
+    const vestir = (k) => ({
+      texto: T[k].texto,
+      estilo: 'background:' + T[k].bg + ';color:' + T[k].fg,
+      punto: 'background:' + T[k].pt,
+    });
+    // 'active' es el estado por defecto de casi toda la lista: anunciarlo en cada
+    // fila no informa de nada. Solo se muestra el estado cuando SE SALE de lo normal.
+    const E = {
+      pending:   { texto: 'Pendiente', pt: '#eab308' },
+      scheduled: { texto: 'Agendada',  pt: '#6366f1' },
+      resolved:  { texto: 'Resuelta',  pt: '#9ca3af' },
+      blocked:   { texto: 'Bloqueada', pt: '#dc2626' },
+    };
+    const filas = [
+      { inicial: 'M', nombre: 'María Fernanda Ocampo', hora: '14:32', mensaje: 'Buenos días, quisiera saber si mi cita sigue en pie', sinLeer: 2, estado: 'active', tags: ['agendado', 'asmet'] },
+      { inicial: 'J', nombre: 'Jorge Humberto Pejendino', hora: '14:18', mensaje: 'Confirmar', sinLeer: 1, estado: 'active', tags: ['oncologia'] },
+      { inicial: 'L', nombre: 'Luz Marina Caicedo', hora: '13:47', mensaje: 'Muchas gracias por la información', sinLeer: 0, estado: 'active', tags: [] },
+      { inicial: 'C', nombre: 'Carlos Armando Mira', hora: '12:05', mensaje: 'Tú: Le confirmamos su cita para el 26 de agosto', sinLeer: 0, estado: 'scheduled', tags: ['agendado', 'nuevaeps'] },
+      { inicial: 'A', nombre: 'Ana Milena Truyo', hora: '11:22', mensaje: 'Necesito reprogramar, no puedo asistir', sinLeer: 3, estado: 'active', tags: ['arl'] },
+      { inicial: 'E', nombre: 'Elizabeth Castillo', hora: '10:58', mensaje: 'Cancelar', sinLeer: 0, estado: 'pending', tags: ['aic'] },
+      { inicial: 'V', nombre: 'Víctor Manuel Ortiz', hora: '09:41', mensaje: 'Tú: ¡Muchas gracias!', sinLeer: 0, estado: 'resolved', tags: [] },
+    ];
+    return {
+      filas: filas.map((f) => {
+        const e = E[f.estado];
+        return {
+          ...f,
+          tieneTags: f.tags.length > 0,
+          tags: f.tags.map(vestir),
+          muestraEstado: !!e,
+          textoEstado: e ? e.texto : '',
+          puntoEstado: e ? 'background:' + e.pt : '',
+        };
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

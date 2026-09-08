@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Events\MessageReactionUpdated;
 use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageReaction;
 use App\Models\Setting;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -35,6 +38,62 @@ class WhatsAppService
                 // NO reintentar errores de Meta (400/403/rate limit) — esos requieren intervención.
                 return $exception instanceof \Illuminate\Http\Client\ConnectionException;
             }, throw: false);
+    }
+
+    /**
+     * Sube un archivo multimedia LOCAL directamente a Meta y devuelve su media_id.
+     *
+     * Esto reemplaza el envío por "link": antes le pasábamos a Meta la URL pública
+     * (túnel de Tailscale) y Meta venía a descargar el archivo, lo que fallaba de forma
+     * intermitente con el error 131053 "Media upload error / Downloading media from
+     * weblink failed (DNS resolution timed out / DNS query shed)". Subiendo los bytes
+     * nosotros, Meta ya no depende de poder resolver/alcanzar nuestro túnel.
+     *
+     * Devuelve null si no puede subir (archivo externo o fallo) → el método que llama
+     * hace fallback a enviar por 'link', así nunca se rompe el envío.
+     */
+    public function uploadMedia(string $mediaUrl): ?string
+    {
+        try {
+            // Resolver la ruta local desde la URL pública (.../storage/whatsapp_media/xxx.png)
+            $pos = strpos($mediaUrl, '/storage/');
+            if ($pos === false) {
+                return null; // No es un archivo servido por nosotros
+            }
+            $relative = explode('?', substr($mediaUrl, $pos + strlen('/storage/')))[0];
+
+            $disk = \Illuminate\Support\Facades\Storage::disk('public');
+            if (!$disk->exists($relative)) {
+                return null;
+            }
+
+            $mime = $disk->mimeType($relative) ?: 'application/octet-stream';
+
+            $response = Http::withToken($this->token)
+                ->timeout(60)
+                ->connectTimeout(10)
+                ->attach('file', $disk->get($relative), basename($relative), ['Content-Type' => $mime])
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/media", [
+                    'messaging_product' => 'whatsapp',
+                    'type' => $mime,
+                ]);
+
+            $mediaId = $response->json()['id'] ?? null;
+            if ($response->successful() && $mediaId) {
+                Log::info('Media subida directamente a Meta', ['media_id' => $mediaId, 'file' => basename($relative)]);
+                return $mediaId;
+            }
+
+            Log::warning('No se pudo subir media a Meta; se usará enlace como respaldo', [
+                'status' => $response->status(),
+                'body' => $response->json(),
+                'file' => basename($relative),
+            ]);
+            return null;
+        } catch (\Throwable $e) {
+            Log::warning('Excepción subiendo media a Meta; se usará enlace', ['error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     /**
@@ -118,9 +177,10 @@ class WhatsAppService
     }
 
     /**
-     * Enviar mensaje con imagen
+     * Enviar una reacción (emoji) a un mensaje existente.
+     * Un emoji vacío ('') elimina la reacción previa, igual que en WhatsApp.
      */
-    public function sendImageMessage(string $to, string $imageUrl, ?string $caption = null, ?string $replyToWamid = null): array
+    public function sendReaction(string $to, string $targetWamid, string $emoji): array
     {
         if (!$this->isConfigured()) {
             return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
@@ -130,15 +190,153 @@ class WhatsAppService
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
-                'type' => 'image',
-                'image' => [
-                    'link' => $imageUrl,
+                'type' => 'reaction',
+                'reaction' => [
+                    'message_id' => $targetWamid,
+                    'emoji' => $emoji, // '' = quitar reacción
                 ],
             ];
 
-            if ($caption) {
-                $payload['image']['caption'] = $caption;
+            $response = $this->httpClient()
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return [
+                    'success' => true,
+                    'message_id' => $data['messages'][0]['id'] ?? null,
+                    'data' => $data,
+                ];
             }
+
+            $errorJson = $response->json();
+            $errorMsg = $errorJson['error']['message'] ?? 'Error desconocido';
+            Log::error('WhatsApp reaction error', [
+                'to' => $to,
+                'target' => $targetWamid,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return ['success' => false, 'error' => $errorMsg];
+        } catch (\Exception $e) {
+            Log::error('WhatsApp send reaction exception', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Bloquea un número en WhatsApp vía el Block Users API de Meta.
+     * El bloqueo es REAL: Meta deja de entregarnos los mensajes de ese usuario
+     * y cuenta del lado de Meta. Requisito de Meta: el usuario debe haber escrito
+     * en las últimas 24h; si no, Meta lo rechaza (lo reportamos en 'error').
+     */
+    public function blockUser(string $phone): array
+    {
+        return $this->toggleBlockUser($phone, true);
+    }
+
+    /**
+     * Desbloquea un número previamente bloqueado en WhatsApp (DELETE block_users).
+     */
+    public function unblockUser(string $phone): array
+    {
+        return $this->toggleBlockUser($phone, false);
+    }
+
+    /**
+     * Lógica compartida block/unblock contra POST|DELETE /{phone-number-id}/block_users.
+     * Meta responde 200 aunque algún número falle: hay que revisar 'failed_users'.
+     */
+    private function toggleBlockUser(string $phone, bool $block): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        $user = $this->formatPhoneNumber($phone);
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'block_users' => [['user' => $user]],
+        ];
+        $url = "{$this->apiUrl}/{$this->phoneNumberId}/block_users";
+
+        try {
+            $response = $block
+                ? $this->httpClient()->post($url, $payload)
+                : $this->httpClient()->delete($url, $payload);
+
+            $data = $response->json();
+
+            if ($response->successful()) {
+                // Meta puede devolver 200 con números que fallaron individualmente.
+                $failed = $data['block_users']['failed_users'] ?? [];
+                if (!empty($failed)) {
+                    $errObj = $failed[0]['errors'][0] ?? [];
+                    $err = $errObj['error_data']['details']
+                        ?? $errObj['message']
+                        ?? 'Meta rechazó la operación (posible causa: el usuario no ha escrito en las últimas 24h).';
+                    Log::warning('WhatsApp block_users falló para el número', [
+                        'phone' => $user,
+                        'block' => $block,
+                        'failed' => $failed,
+                    ]);
+                    return ['success' => false, 'error' => $err, 'data' => $data];
+                }
+
+                Log::info('WhatsApp block_users OK', ['phone' => $user, 'block' => $block]);
+                return ['success' => true, 'data' => $data];
+            }
+
+            $errorMsg = $data['error']['message'] ?? 'Error desconocido';
+            $errorCode = $data['error']['code'] ?? null;
+            if ($errorCode) {
+                $errorMsg .= " (code: {$errorCode})";
+            }
+            Log::error('WhatsApp block_users error', [
+                'phone' => $user,
+                'block' => $block,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return ['success' => false, 'error' => $errorMsg, 'data' => $data];
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp block_users exception', [
+                'error' => $e->getMessage(),
+                'phone' => $user,
+                'block' => $block,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Enviar mensaje con imagen
+     */
+    public function sendImageMessage(string $to, string $imageUrl, ?string $caption = null, ?string $replyToWamid = null): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            // Subir el archivo a Meta y enviar por media_id (más confiable que el enlace).
+            $mediaId = $this->uploadMedia($imageUrl);
+            $image = $mediaId ? ['id' => $mediaId] : ['link' => $imageUrl];
+            if ($caption) {
+                $image['caption'] = $caption;
+            }
+
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'image',
+                'image' => $image,
+            ];
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -198,20 +396,19 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($documentUrl);
+            $document = $mediaId ? ['id' => $mediaId, 'filename' => $filename] : ['link' => $documentUrl, 'filename' => $filename];
+            // Agregar caption si existe
+            if ($caption) {
+                $document['caption'] = $caption;
+            }
+
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'document',
-                'document' => [
-                    'link' => $documentUrl,
-                    'filename' => $filename,
-                ],
+                'document' => $document,
             ];
-
-            // Agregar caption si existe
-            if ($caption) {
-                $payload['document']['caption'] = $caption;
-            }
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -261,18 +458,18 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($videoUrl);
+            $video = $mediaId ? ['id' => $mediaId] : ['link' => $videoUrl];
+            if ($caption) {
+                $video['caption'] = $caption;
+            }
+
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'video',
-                'video' => [
-                    'link' => $videoUrl,
-                ],
+                'video' => $video,
             ];
-
-            if ($caption) {
-                $payload['video']['caption'] = $caption;
-            }
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -320,13 +517,12 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($audioUrl);
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'audio',
-                'audio' => [
-                    'link' => $audioUrl,
-                ],
+                'audio' => $mediaId ? ['id' => $mediaId] : ['link' => $audioUrl],
             ];
 
             if ($replyToWamid) {
@@ -366,7 +562,55 @@ class WhatsAppService
     }
 
     /**
-     * Marcar mensaje como leído
+     * Mostrarle al paciente el "escribiendo…" de WhatsApp.
+     *
+     * En la Cloud API el indicador NO es una llamada aparte: viaja junto al acuse de
+     * lectura, en la misma petición. Se muestra unos 25 segundos, o hasta que se envía
+     * el mensaje (lo que ocurra antes), y necesita el id de un mensaje ENTRANTE.
+     *
+     * Es cosmético: si Meta lo rechaza (por ejemplo, con la ventana de 24 h cerrada),
+     * no se registra como error ni se reintenta.
+     */
+    public function sendTypingIndicator(string $messageId): bool
+    {
+        if (!$this->isConfigured()) {
+            return false;
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken($this->token)
+                ->timeout(4)
+                ->connectTimeout(2)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
+                    'messaging_product' => 'whatsapp',
+                    'status' => 'read',
+                    'message_id' => $messageId,
+                    'typing_indicator' => ['type' => 'text'],
+                ]);
+
+            if (!$response->successful()) {
+                Log::info('Indicador de escritura no aceptado por Meta', [
+                    'status' => $response->status(),
+                    'body' => mb_substr($response->body(), 0, 200),
+                ]);
+            }
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::info('Indicador de escritura: excepción', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
+     * Marcar un mensaje como leído en WhatsApp (el doble check azul del paciente).
+     *
+     * Marcar uno marca también todos los anteriores de esa conversación, así que basta
+     * con enviar el ÚLTIMO entrante sin leer.
+     *
+     * Va con su propio cliente HTTP, más impaciente que el general: esto se ejecuta al
+     * abrir un chat, y el cliente normal (timeout 10 s con 2 reintentos) podría dejar la
+     * pantalla colgada hasta 30 s. Es un acuse de recibo: si no llega, no pasa nada.
      */
     public function markAsRead(string $messageId): bool
     {
@@ -375,7 +619,9 @@ class WhatsAppService
         }
 
         try {
-            $response = $this->httpClient()
+            $response = \Illuminate\Support\Facades\Http::withToken($this->token)
+                ->timeout(4)
+                ->connectTimeout(2)
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
                     'messaging_product' => 'whatsapp',
                     'status' => 'read',
@@ -618,6 +864,30 @@ class WhatsAppService
     }
 
     /**
+     * Nombre de la plantilla de saludo que hay que usar ahora mismo.
+     *
+     * Está en la BD y no fija en el código para poder conmutar a saludo_asesor_v2
+     * en cuanto Meta la apruebe, sin desplegar nada. Si la consulta falla o no hay
+     * ninguna activa y aprobada, cae a la de siempre: antes dejar al asesor con el
+     * saludo antiguo que dejarlo sin saludo.
+     */
+    private function activeGreetingTemplateName(): string
+    {
+        try {
+            return DB::table('whatsapp_templates')
+                ->where('meta_template_name', 'like', 'saludo_asesor%')
+                ->where('is_active', 1)
+                ->where('status', 'APPROVED')
+                ->orderByDesc('id')
+                ->value('meta_template_name') ?: 'saludo_asesor';
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo resolver la plantilla de saludo, se usa saludo_asesor', ['error' => $e->getMessage()]);
+
+            return 'saludo_asesor';
+        }
+    }
+
+    /**
      * Enviar plantilla de saludo de asesor
      * Esta plantilla debe estar aprobada en Meta con el nombre 'saludo_asesor'
      */
@@ -634,7 +904,7 @@ class WhatsAppService
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'template',
                 'template' => [
-                    'name' => 'saludo_asesor',
+                    'name' => $this->activeGreetingTemplateName(),
                     'language' => ['code' => 'es_CO'],
                     'components' => [
                         [
@@ -1076,6 +1346,7 @@ class WhatsAppService
                     'timestamp' => now()->toISOString(),
                 ];
                 $conversation->update(['welcome_flow_data' => $flowData]);
+                \App\Services\FlowClassificationService::sync($conversation);
 
                 Log::info('Welcome flow button pressed', [
                     'conversation_id' => $conversation->id,
@@ -1094,6 +1365,7 @@ class WhatsAppService
                     'timestamp' => now()->toISOString(),
                 ];
                 $conversation->update(['welcome_flow_data' => $flowData]);
+                \App\Services\FlowClassificationService::sync($conversation);
 
                 Log::info('Welcome flow text response', [
                     'conversation_id' => $conversation->id,
@@ -1240,9 +1512,14 @@ class WhatsAppService
                             'status' => 'pending',
                         ]);
 
-                        // Enviar plantilla de saludo por WhatsApp
+                        // Enviar saludo por WhatsApp: como el paciente acaba de completar
+                        // el flujo, la ventana de 24h está abierta y se envía como mensaje
+                        // de sesión libre (evita el tope de marketing / error 131049). Se
+                        // deja la plantilla como respaldo por si la ventana estuviera cerrada.
                         if ($this->isConfigured()) {
-                            $result = $this->sendGreetingTemplate($phoneNumber, $advisorName);
+                            $result = $conversation->isWithinServiceWindow()
+                                ? $this->sendTextMessage($phoneNumber, $greetingText)
+                                : $this->sendGreetingTemplate($phoneNumber, $advisorName);
                             $greetingMessage->update([
                                 'status' => ($result && $result['success']) ? 'sent' : 'failed',
                                 'whatsapp_message_id' => $result['message_id'] ?? null,
@@ -1561,6 +1838,8 @@ class WhatsAppService
                 $conversation->update([
                     'status' => 'active',
                     'assigned_to' => null,
+                    'resolved_by' => null, // Limpiar la resolución previa: ya no está resuelta (evita arrastrar el nombre viejo)
+                    'resolved_at' => null,
                     'last_message_at' => now(),
                     'welcome_flow_completed' => false,
                     'welcome_flow_step' => null,
@@ -1666,17 +1945,27 @@ class WhatsAppService
                 $content = 'Contacto: ' . implode(', ', $contactNames);
                 $messageType = 'contact';
             } elseif (isset($messageData['reaction'])) {
-                // Reacción a un mensaje (emoji). Si emoji está vacío significa que la reacción se removió.
-                $emoji = $messageData['reaction']['emoji'] ?? '';
-                $content = $emoji !== ''
-                    ? '↩️ Reaccionó con ' . $emoji
-                    : '↩️ Quitó su reacción';
-                $messageType = 'text';
+                // Reacción entrante (emoji): se adjunta al mensaje original y se difunde en
+                // tiempo real, en vez de crearse como un mensaje de texto suelto. Retornamos
+                // null porque no se persiste ningún mensaje nuevo.
+                $this->handleIncomingReaction($conversation, $messageData);
+                return null;
             } elseif (($messageData['type'] ?? null) === 'unsupported' || isset($messageData['errors'])) {
-                // WhatsApp marca como "unsupported" mensajes que su API no puede entregar
-                // (ej. encuestas, mensajes editados, ciertos formatos). Lo registramos descriptivo.
-                $errMsg = $messageData['errors'][0]['title'] ?? 'Tipo de mensaje no compatible';
-                $content = '⚠️ Mensaje no compatible con WhatsApp Business: ' . $errMsg;
+                $errorCode = $messageData['errors'][0]['code'] ?? null;
+                $errorTitle = $messageData['errors'][0]['title'] ?? null;
+                $errorDetails = $messageData['errors'][0]['error_data']['details'] ?? null;
+
+                Log::warning('WhatsApp envió mensaje unsupported', [
+                    'conversation_id' => $conversation->id,
+                    'whatsapp_message_id' => $messageId,
+                    'error_code' => $errorCode,
+                    'error_title' => $errorTitle,
+                    'error_details' => $errorDetails,
+                    'errors_payload' => $messageData['errors'] ?? null,
+                    'unsupported_payload' => $messageData['unsupported'] ?? null,
+                ]);
+
+                $content = "⚠️ El paciente envió un mensaje que WhatsApp Business no entrega (probablemente \"Ver una vez\", mensaje editado, o sticker no soportado). Pídale que lo reenvíe como imagen/PDF normal.";
                 $messageType = 'text';
             }
 
@@ -1696,13 +1985,26 @@ class WhatsAppService
                 return null;
             }
 
+            // ¿Es una respuesta automática de cita (confirmar/cancelar)? En ese caso
+            // el sistema la atiende solo y debe ocultarse de los asesores: no inunda
+            // la lista de "Conversaciones" ni el hilo. Cualquier otro mensaje del
+            // paciente (incluidos los datos para cancelar) sí queda visible.
+            $isAppointmentResponse = $appointments->isNotEmpty();
+
             // Crear mensaje
             $message = $conversation->messages()->create([
                 'content' => $content,
                 'message_type' => $messageType,
                 'media_url' => $mediaUrl,
                 'is_from_user' => true,
+                'is_hidden' => $isAppointmentResponse,
                 'whatsapp_message_id' => $messageId,
+                // Hora REAL de envío según WhatsApp (epoch en el webhook). created_at es
+                // cuando NOSOTROS lo procesamos; para la ventana de 24 h manda ésta, que es
+                // contra la que cuenta Meta. Antes se extraía y se descartaba.
+                'wa_sent_at' => is_numeric($timestamp)
+                    ? \Carbon\Carbon::createFromTimestamp((int) $timestamp)
+                    : null,
                 'status' => 'delivered',
                 'reply_to_id' => isset($messageData['context']['id'])
                     ? Message::where('whatsapp_message_id', $messageData['context']['id'])->value('id')
@@ -1719,13 +2021,19 @@ class WhatsAppService
                 'last_message_at' => now(),
             ]);
 
-            $conversation->incrementUnread();
+            // Los mensajes ocultos no suman no-leídos ni reactivan la vista de trabajo.
+            if (!$isAppointmentResponse) {
+                $conversation->incrementUnread();
+            }
 
             // Marcar como leído en WhatsApp
             $this->markAsRead($messageId);
 
-            // Emitir evento de broadcasting para actualización en tiempo real
-            broadcast(new MessageSent($message, $conversation->fresh(['lastMessage', 'assignedUser'])));
+            // Emitir evento de broadcasting solo para mensajes visibles, para que las
+            // confirmaciones/cancelaciones no "salten" en tiempo real a la lista.
+            if (!$isAppointmentResponse) {
+                broadcast(new MessageSent($message, $conversation->fresh(['lastMessage', 'assignedUser'])));
+            }
 
             Log::info('Incoming message processed', [
                 'conversation_id' => $conversation->id,
@@ -1937,6 +2245,54 @@ class WhatsAppService
      * Envía y guarda la respuesta automática del appointment
      * Soporta múltiples citas del mismo paciente en el mismo día
      */
+    /**
+     * Procesa una reacción entrante: la adjunta al mensaje original (o la elimina si el
+     * emoji viene vacío) y la difunde en tiempo real. No crea un mensaje de texto.
+     */
+    private function handleIncomingReaction(Conversation $conversation, array $messageData): void
+    {
+        $reaction = $messageData['reaction'] ?? [];
+        $targetWamid = $reaction['message_id'] ?? null;
+        $emoji = $reaction['emoji'] ?? '';
+        $reactionWamid = $messageData['id'] ?? null;
+
+        // Marcar el evento como leído para evitar reintentos del webhook
+        if ($reactionWamid) {
+            $this->markAsRead($reactionWamid);
+        }
+
+        if (!$targetWamid) {
+            return;
+        }
+
+        $target = Message::where('whatsapp_message_id', $targetWamid)
+            ->where('conversation_id', $conversation->id)
+            ->first();
+
+        if (!$target) {
+            Log::info('Reacción entrante sin mensaje destino en BD', [
+                'conversation_id' => $conversation->id,
+                'target_wamid' => $targetWamid,
+            ]);
+            return;
+        }
+
+        if ($emoji === '') {
+            // El paciente quitó su reacción
+            $target->reactions()->where('from_user', true)->delete();
+            broadcast(new MessageReactionUpdated($conversation->id, $target->id, null, true, true));
+            return;
+        }
+
+        // Crear o actualizar la reacción del paciente (máximo una por lado)
+        MessageReaction::updateOrCreate(
+            ['message_id' => $target->id, 'from_user' => true],
+            ['emoji' => $emoji, 'whatsapp_message_id' => $reactionWamid]
+        );
+
+        broadcast(new MessageReactionUpdated($conversation->id, $target->id, $emoji, true, false));
+    }
+
     private function sendAppointmentAutoResponse(string $from, array $messageData, \Illuminate\Database\Eloquent\Collection $appointments, \App\Models\Conversation $conversation): void
     {
         try {
@@ -1975,6 +2331,7 @@ class WhatsAppService
                 $pendingAppointments = $lockedAppointments->filter(fn ($a) => !in_array($a->reminder_status, ['confirmed', 'cancelled']));
 
                 $responseMessage = null;
+                $autoResolveConversation = false;
 
                 // Si TODAS las citas ya fueron procesadas, enviar advertencia (solo una vez)
                 if ($pendingAppointments->isEmpty() && $alreadyProcessed->isNotEmpty()) {
@@ -1995,6 +2352,8 @@ class WhatsAppService
                     })->join("\n\n");
 
                     $responseMessage = "⚠️ *Citas ya procesadas*\n\nSus citas ya se encuentran registradas:\n\n{$citasInfo}\n\nSi necesita realizar cambios adicionales, por favor contacte con un asesor.\n\n_HUV - Evaristo García_";
+                    // Todas las citas ya estaban procesadas: no hay más que hacer en el flujo → sacar de "Todos".
+                    $autoResolveConversation = true;
 
                     foreach ($alreadyProcessed as $a) {
                         $a->update([
@@ -2024,6 +2383,8 @@ class WhatsAppService
 
                     if ($remaining->isEmpty()) {
                         $responseMessage = "✅ *Confirmación recibida*\n\nSe ha confirmado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
+                        // Flujo completo: no quedan citas por confirmar, el sistema ya atendió todo
+                        $autoResolveConversation = true;
                     } else {
                         $nextInfo = $remaining->map(function ($r) {
                             $h = $this->formatHoraForResponse($r->cithor);
@@ -2055,7 +2416,10 @@ class WhatsAppService
                     $remaining = $pendingAppointments->slice(1);
 
                     if ($remaining->isEmpty()) {
-                        $responseMessage = "❌ *Cancelación registrada*\n\nSe ha cancelado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
+                        $responseMessage = "❌ *Cancelación*\n\nEstimado usuario/a, para hacer efectiva tu cancelación, por favor envíanos la siguiente información:\n\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\nHasta no enviar la información no se cancelará la consulta.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n🌐 *Página web de citas:* https://citas.huv.gov.co/login\n📞 *Teléfono:* 6206275\n\n_HUV - Evaristo García_";
+                        // Cancelación completa: el flujo automático terminó → sacar de "Todos"
+                        // (si el paciente luego envía la info/documentos, la reactivación la reabre).
+                        $autoResolveConversation = true;
                     } else {
                         $nextInfo = $remaining->map(function ($r) {
                             $h = $this->formatHoraForResponse($r->cithor);
@@ -2098,6 +2462,7 @@ class WhatsAppService
                             'content' => $responseMessage,
                             'message_type' => 'text',
                             'is_from_user' => false,
+                            'is_hidden' => true, // Respuesta automática de cita: oculta para los asesores
                             'whatsapp_message_id' => $messageId,
                             'status' => 'sent',
                             'sent_by' => null // Sistema automático
@@ -2108,6 +2473,31 @@ class WhatsAppService
                             'message_id' => $messageId,
                             'appointment_ids' => $lockedAppointments->pluck('id')->toArray()
                         ]);
+
+                        // Confirmación/cancelación gestionada 100% por el sistema: sacar la conversación
+                        // de "Todos" (pasa a "Resueltos") para que no entierre la vista de los asesores.
+                        // SOLO si: nadie la tiene asignada Y no hay NINGÚN mensaje real sin leer
+                        // (unread_count = 0). Así se protege a quien envió una duda/documento real
+                        // (esas se quedan en "Todos"). Si el paciente vuelve a escribir, la reactivación
+                        // automática la reabre en "Todos".
+                        if ($autoResolveConversation) {
+                            $closed = \App\Models\Conversation::where('id', $conversation->id)
+                                ->whereNull('assigned_to')
+                                ->where('unread_count', 0)
+                                ->whereIn('status', ['active', 'pending'])
+                                ->update([
+                                    'status' => 'resolved',
+                                    'resolved_at' => now(),
+                                    'resolved_by' => null, // Auto-resuelto por el SISTEMA: no atribuir a un asesor (evita "resuelta por X" falso e infla stats)
+                                    'unread_count' => 0,
+                                ]);
+
+                            if ($closed) {
+                                Log::info('Conversación auto-resuelta tras confirmación de cita', [
+                                    'conversation_id' => $conversation->id,
+                                ]);
+                            }
+                        }
                     } else {
                         Log::error('Failed to save automatic response', [
                             'result' => $result,

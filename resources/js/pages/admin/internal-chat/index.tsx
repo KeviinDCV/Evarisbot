@@ -1,6 +1,6 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Head } from '@inertiajs/react';
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, type MouseEvent } from 'react';
 import {
     Send,
     Paperclip,
@@ -27,8 +27,10 @@ import {
     UserPlus,
     UserMinus,
     Reply,
+    SmilePlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,6 +38,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 // --- Interfaces matching backend API ---
 
@@ -84,6 +87,8 @@ interface MessageItem {
     is_mine: boolean;
     created_at: string;
     created_at_full: string;
+    edited?: boolean;
+    reactions?: { emoji: string; count: number; users: string[]; mine: boolean }[];
     reply_to?: ReplyTo | null;
 }
 
@@ -99,21 +104,39 @@ interface Props {
     users: UserInfo[];
 }
 
+type ChatFilter = 'all' | 'unread' | 'groups' | 'directs';
+
 export default function InternalChat({ auth, chats: serverChats, users: serverUsers }: Props) {
+    const { t } = useTranslation();
     const [chats, setChats] = useState<ChatItem[]>(serverChats || []);
     const [availableUsers] = useState<UserInfo[]>(serverUsers || []);
     const [activeChat, setActiveChat] = useState<ChatItem | null>(null);
+    const [chatContextMenu, setChatContextMenu] = useState<{ chatId: number; x: number; y: number } | null>(null);
     const [activeChatInfo, setActiveChatInfo] = useState<{ name: string; type: string; participants: UserInfo[] } | null>(null);
     const [messages, setMessages] = useState<MessageItem[]>([]);
     const [inputText, setInputText] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [chatFilter, setChatFilter] = useState<ChatFilter>('all');
     const [isUploading, setIsUploading] = useState(false);
     const [isSidebarVisible, setIsSidebarVisible] = useState(true);
     const [replyingTo, setReplyingTo] = useState<MessageItem | null>(null);
 
+    // IA local (LM Studio): indicador "escribiendo…" mientras el chatbot genera su respuesta
+    const [aiTyping, setAiTyping] = useState(false);
+
+    // Reacciones (emoji) a mensajes
+    const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+    const REACTION_LABELS: Record<string, string> = {
+        '👍': t('internalChat.reactionLike'), '❤️': t('internalChat.reactionLove'), '😂': t('internalChat.reactionHaha'),
+        '😮': t('internalChat.reactionWow'), '😢': t('internalChat.reactionSad'), '🙏': t('internalChat.reactionThanks'),
+    };
+    const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
+
+    // Edición de mensajes
+    const [editingMessage, setEditingMessage] = useState<MessageItem | null>(null);
+
     // Read receipts: who has read the chat
     const [readReceipts, setReadReceipts] = useState<ReadReceipt[]>([]);
-    const readReceiptsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Group creation modal
     const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -159,16 +182,40 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     // --- Derived State ---
 
     const filteredChats = useMemo(() => {
-        return chats.filter(chat =>
-            chat.name?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [chats, searchQuery]);
+        const searchTerm = searchQuery.trim().toLowerCase();
+
+        return chats.filter(chat => {
+            const matchesSearch = !searchTerm || chat.name?.toLowerCase().includes(searchTerm);
+            const matchesFilter = chatFilter === 'all'
+                || (chatFilter === 'unread' && chat.unread > 0)
+                || (chatFilter === 'groups' && chat.type === 'group')
+                || (chatFilter === 'directs' && chat.type === 'direct');
+
+            return matchesSearch && matchesFilter;
+        });
+    }, [chatFilter, chats, searchQuery]);
 
     const filteredUsers = useMemo(() => {
         return availableUsers.filter(u =>
             u.name.toLowerCase().includes(userSearchQuery.toLowerCase())
         );
     }, [availableUsers, userSearchQuery]);
+
+    const chatSummary = useMemo(() => {
+        const unreadChats = chats.filter(chat => chat.unread > 0).length;
+        const groupChats = chats.filter(chat => chat.type === 'group').length;
+        const directChats = chats.filter(chat => chat.type === 'direct').length;
+        const onlineUsers = availableUsers.filter(user => user.is_online && user.id !== auth.user.id).length;
+
+        return { unreadChats, groupChats, directChats, onlineUsers };
+    }, [availableUsers, auth.user.id, chats]);
+
+    const quickChatFilters = useMemo<{ value: ChatFilter; label: string; count: number }[]>(() => [
+        { value: 'all', label: t('internalChat.filterAll'), count: chats.length },
+        { value: 'unread', label: t('internalChat.filterUnread'), count: chatSummary.unreadChats },
+        { value: 'groups', label: t('internalChat.filterGroups'), count: chatSummary.groupChats },
+        { value: 'directs', label: t('internalChat.filterDirects'), count: chatSummary.directChats },
+    ], [t, chatSummary.directChats, chatSummary.groupChats, chatSummary.unreadChats, chats.length]);
 
     // Users available for @mention in the active chat
     const mentionUsers = useMemo(() => {
@@ -218,13 +265,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     }
 
     function getLastMessagePreview(chat: ChatItem) {
-        if (!chat.latest_message) return 'Nuevo chat';
+        if (!chat.latest_message) return t('internalChat.newChat');
         const prefix = chat.latest_message.user_name ? `${chat.latest_message.user_name}: ` : '';
         const { type, body } = chat.latest_message;
-        if (type === 'image') return `${prefix}📷 Foto`;
-        if (type === 'video') return `${prefix}🎥 Video`;
-        if (type === 'audio') return `${prefix}🎵 Audio`;
-        if (type === 'document' || type === 'file') return `${prefix}📎 Archivo`;
+        if (type === 'image') return `${prefix}${t('internalChat.previewPhoto')}`;
+        if (type === 'video') return `${prefix}${t('internalChat.previewVideo')}`;
+        if (type === 'audio') return `${prefix}${t('internalChat.previewAudio')}`;
+        if (type === 'document' || type === 'file') return `${prefix}${t('internalChat.previewFile')}`;
         return `${prefix}${body || ''}`;
     }
 
@@ -268,8 +315,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
         // Immediate first poll
         pollChats();
-        const interval = setInterval(pollChats, 5000);
-        return () => clearInterval(interval);
+        // Gating por visibilidad: no pollear con la pestaña oculta; refrescar al volver.
+        const interval = setInterval(() => { if (!document.hidden) pollChats(); }, 5000);
+        const onVisible = () => { if (!document.hidden) pollChats(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [activeChat?.id]);
 
     // Polling for messages in active chat - using last message ID for reliability
@@ -279,6 +332,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         const pollMessages = async () => {
             try {
                 const res = await axios.get(`/admin/internal-chat/${activeChat.id}/poll?since=${lastMessageIdRef.current > 0 ? encodeURIComponent(new Date(Date.now() - 10000).toISOString()) : ''}`);
+                // La IA reinició la conversación por inactividad: limpiar la vista
+                if (res.data?.reset) {
+                    setMessages([]);
+                    lastMessageIdRef.current = 0;
+                    setReadReceipts([]);
+                    return;
+                }
                 if (res.data?.messages && Array.isArray(res.data.messages)) {
                     const newMessages: MessageItem[] = res.data.messages;
 
@@ -298,6 +358,27 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         }
                     }
                 }
+
+                // Aplicar cambios en mensajes existentes (reacciones / ediciones)
+                if (Array.isArray(res.data?.updates) && res.data.updates.length > 0) {
+                    const upd = new Map(res.data.updates.map((u: { id: number; body: string; edited: boolean; reactions: MessageItem['reactions'] }) => [u.id, u]));
+                    setMessages(prev => {
+                        let changed = false;
+                        const next = prev.map(m => {
+                            const u = upd.get(m.id);
+                            if (!u) return m;
+                            if (m.body === u.body && !!m.edited === !!u.edited && JSON.stringify(m.reactions || []) === JSON.stringify(u.reactions || [])) return m;
+                            changed = true;
+                            return { ...m, body: u.body, edited: u.edited, reactions: u.reactions };
+                        });
+                        return changed ? next : prev;
+                    });
+                }
+
+                // Vistos: llegan con este mismo sondeo, así no hace falta un intervalo aparte.
+                if (Array.isArray(res.data?.receipts)) {
+                    setReadReceipts(res.data.receipts);
+                }
             } catch (e: any) {
                 // If chat was deleted (404), stop polling and clear
                 if (e?.response?.status === 404) {
@@ -309,8 +390,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             }
         };
 
-        const interval = setInterval(pollMessages, 3000);
-        return () => clearInterval(interval);
+        const interval = setInterval(() => { if (!document.hidden) pollMessages(); }, 3000);
+        const onVisible = () => { if (!document.hidden) pollMessages(); };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [activeChat?.id]);
 
     // Fetch messages when active chat changes
@@ -319,6 +405,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             // Reset tracking for new chat
             lastMessageIdRef.current = 0;
             isAtBottomRef.current = true; // Reset scroll tracking
+            setEditingMessage(null);
+            setReactionPickerFor(null);
 
             axios.get(`/admin/internal-chat/${activeChat.id}/messages`)
                 .then(res => {
@@ -328,6 +416,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         lastMessageIdRef.current = msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
                         setActiveChatInfo(res.data.chat || null);
                     }
+                    // Vistos ya vienen en la carga inicial.
+                    setReadReceipts(Array.isArray(res.data?.receipts) ? res.data.receipts : []);
                 })
                 .catch(console.error);
 
@@ -348,35 +438,58 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         }
     }, [activeChat?.id, messages.length]);
 
-    // Poll read receipts every 4 seconds while a chat is active
+    // Los vistos ya no tienen sondeo propio: llegan con la carga inicial y con el sondeo de
+    // mensajes (cada 3 s). Eran una tercera petición por usuario cada 4 s sólo para esto.
+    // Aquí sólo queda limpiarlos al salir del chat.
     useEffect(() => {
-        if (!activeChat) {
-            setReadReceipts([]);
-            return;
+        if (!activeChat) setReadReceipts([]);
+    }, [activeChat?.id]);
+
+    /**
+     * A qué mensaje le corresponde el visto de cada persona.
+     *
+     * El backend guarda un puntero por participante (hasta cuándo leyó), no una marca por
+     * mensaje. Antes el visto sólo se pintaba en el ÚLTIMO mensaje del chat: si alguien
+     * había leído hasta el mensaje 5 de 7, su visto no aparecía en ninguna parte (medido:
+     * le pasaba al 37,9% de los participantes con lectura registrada).
+     *
+     * Ahora cada persona se ancla al último mensaje MÍO que alcanzó a leer, como en WhatsApp:
+     * el visto es sobre lo que tú escribiste, no bajo mensajes ajenos.
+     */
+    const receiptsByMessageId = useMemo(() => {
+        const mapa = new Map<number, ReadReceipt[]>();
+        if (readReceipts.length === 0) return mapa;
+
+        // messages viene en orden cronológico ascendente.
+        const mios = messages.filter(m => m.is_mine);
+        if (mios.length === 0) return mapa;
+
+        for (const r of readReceipts) {
+            const leidoHasta = new Date(r.last_read_at).getTime();
+
+            let destino: MessageItem | null = null;
+            for (const m of mios) {
+                if (new Date(m.created_at_full).getTime() <= leidoHasta) destino = m;
+                else break; // ordenados: a partir de aquí ya son posteriores a su lectura
+            }
+
+            if (destino) {
+                const lista = mapa.get(destino.id);
+                if (lista) lista.push(r);
+                else mapa.set(destino.id, [r]);
+            }
         }
 
-        const fetchReceipts = async () => {
-            try {
-                const res = await axios.get(`/admin/internal-chat/${activeChat.id}/read-receipts`);
-                if (res.data?.receipts) {
-                    setReadReceipts(res.data.receipts);
-                }
-            } catch {
-                // silently ignore
-            }
-        };
-
-        fetchReceipts();
-        const id = setInterval(fetchReceipts, 4000);
-        readReceiptsIntervalRef.current = id;
-        return () => clearInterval(id);
-    }, [activeChat?.id]);
+        return mapa;
+    }, [messages, readReceipts]);
 
     // Close media viewer or active chat with Escape key
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                if (mediaViewer) {
+                if (chatContextMenu) {
+                    setChatContextMenu(null);
+                } else if (mediaViewer) {
                     setMediaViewer(null);
                     setZoomLevel(1);
                     setImagePosition({ x: 0, y: 0 });
@@ -399,7 +512,22 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         };
         window.addEventListener('keydown', handleEsc);
         return () => window.removeEventListener('keydown', handleEsc);
-    }, [mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, replyingTo, activeChat]);
+    }, [chatContextMenu, mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, replyingTo, activeChat]);
+
+    useEffect(() => {
+        if (!chatContextMenu) return;
+
+        const closeContextMenu = () => setChatContextMenu(null);
+        window.addEventListener('click', closeContextMenu);
+        window.addEventListener('resize', closeContextMenu);
+        window.addEventListener('scroll', closeContextMenu, true);
+
+        return () => {
+            window.removeEventListener('click', closeContextMenu);
+            window.removeEventListener('resize', closeContextMenu);
+            window.removeEventListener('scroll', closeContextMenu, true);
+        };
+    }, [chatContextMenu]);
 
     // Handle scroll wheel zoom in media viewer
     useEffect(() => {
@@ -418,12 +546,157 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     // --- Handlers ---
 
     const handleChatSelect = (chat: ChatItem) => {
+        setChatContextMenu(null);
         setActiveChat(chat);
         setReplyingTo(null);
     };
 
+    const handleChatContextMenu = (e: MouseEvent<HTMLButtonElement>, chatId: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setChatContextMenu({ chatId, x: e.clientX, y: e.clientY });
+    };
+
+    const handleRenameChat = (chat: ChatItem) => {
+        setChatContextMenu(null);
+        setActiveChat(chat);
+        setReplyingTo(null);
+        setRenameValue(chat.name);
+        setShowRenameModal(true);
+    };
+
+    const handleShowParticipants = (chat: ChatItem) => {
+        setChatContextMenu(null);
+        setActiveChat(chat);
+        setReplyingTo(null);
+        setShowParticipantsModal(true);
+    };
+
+    const getDeleteChatLabel = (chat: ChatItem) => chat.type === 'group'
+        ? (chat.participants.some(p => p.id === auth.user.id) ? t('internalChat.deleteGroup') : t('internalChat.leaveGroup'))
+        : t('internalChat.deleteChat');
+
+    const handleDeleteChat = async (chat: ChatItem) => {
+        setChatContextMenu(null);
+        const label = getDeleteChatLabel(chat);
+        if (!confirm(t('internalChat.deleteConfirm', { label }))) return;
+
+        try {
+            const deletedId = chat.id;
+            await axios.delete(`/admin/internal-chat/${deletedId}`);
+
+            lastChatPollRef.current = '';
+            if (activeChat?.id === deletedId) {
+                lastMessageIdRef.current = 0;
+                setMessages([]);
+                setActiveChat(null);
+            }
+            setChats(prev => prev.filter(c => c.id !== deletedId));
+            toast.success(t('internalChat.chatDeleted'));
+        } catch (err) {
+            console.error('Error eliminando chat:', err);
+            toast.error(t('internalChat.chatDeleteError'));
+        }
+    };
+
+    // ¿Es un chat directo con el usuario de IA local ("IA - Prueba", role='ai')?
+    const isAiChat = (chat: ChatItem | null | undefined): boolean =>
+        !!chat && chat.type === 'direct' && chat.participants.some(p => p.role === 'ai');
+
+    // Pedir al backend la respuesta del chatbot de IA local y agregarla al chat
+    const triggerAiReply = async (chat: ChatItem) => {
+        setAiTyping(true);
+        try {
+            const res = await axios.post(`/admin/internal-chat/${chat.id}/ai-reply`);
+            const aiMsg: MessageItem | undefined = res.data?.message;
+            if (aiMsg) {
+                lastMessageIdRef.current = Math.max(lastMessageIdRef.current, aiMsg.id);
+                setMessages(prev => (prev.some(m => m.id === aiMsg.id) ? prev : [...prev, aiMsg]));
+                setChats(prev => prev.map(c => c.id === chat.id ? {
+                    ...c,
+                    latest_message: {
+                        body: aiMsg.body || t('internalChat.messageFallback'),
+                        type: aiMsg.type,
+                        user_name: aiMsg.user.name,
+                        created_at: t('internalChat.now'),
+                    },
+                } : c));
+                setTimeout(() => scrollToBottom(true), 50);
+            }
+        } catch (e) {
+            console.error('AI reply error', e);
+            toast.error(t('internalChat.aiNoResponse'));
+        } finally {
+            setAiTyping(false);
+        }
+    };
+
+    // Reaccionar a un mensaje (alterna mi emoji). El servidor devuelve el estado real.
+    const handleReact = async (msg: MessageItem, emoji: string) => {
+        if (!activeChat) return;
+        setReactionPickerFor(null);
+        setMessages(prev => prev.map(m => {
+            if (m.id !== msg.id) return m;
+            let reactions = (m.reactions || []).map(r => ({ ...r }));
+            const myCurrent = reactions.find(r => r.mine);
+            const removingSame = !!myCurrent && myCurrent.emoji === emoji;
+            if (myCurrent) {
+                myCurrent.count -= 1;
+                myCurrent.mine = false;
+                reactions = reactions.filter(r => r.count > 0);
+            }
+            if (!removingSame) {
+                const target = reactions.find(r => r.emoji === emoji);
+                if (target) { target.count += 1; target.mine = true; }
+                else reactions.push({ emoji, count: 1, users: [t('common.you')], mine: true });
+            }
+            return { ...m, reactions };
+        }));
+        try {
+            const res = await axios.post(`/admin/internal-chat/${activeChat.id}/react`, { message_id: msg.id, emoji });
+            if (res.data?.reactions) {
+                setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, reactions: res.data.reactions } : m));
+            }
+        } catch { /* el polling reconciliará el estado real */ }
+    };
+
+    // Iniciar la edición de un mensaje propio de texto (se carga en el input)
+    const startEdit = (msg: MessageItem) => {
+        if (!msg.is_mine || msg.type !== 'text') return;
+        setReplyingTo(null);
+        setEditingMessage(msg);
+        setInputText(msg.body);
+        setTimeout(() => textareaRef.current?.focus(), 0);
+    };
+    const cancelEdit = () => {
+        setEditingMessage(null);
+        setInputText('');
+    };
+
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
+
+        // Modo edición: guardar cambios en el mensaje en vez de enviar uno nuevo
+        if (editingMessage) {
+            const newBody = inputText.trim();
+            const target = editingMessage;
+            if (!newBody || !activeChat) { cancelEdit(); return; }
+            if (newBody === target.body) { cancelEdit(); return; }
+            setMessages(prev => prev.map(m => m.id === target.id ? { ...m, body: newBody, edited: true } : m));
+            setEditingMessage(null);
+            setInputText('');
+            try {
+                const res = await axios.post(`/admin/internal-chat/${activeChat.id}/edit`, { message_id: target.id, body: newBody });
+                if (res.data?.message) {
+                    setMessages(prev => prev.map(m => m.id === target.id ? res.data.message : m));
+                }
+            } catch (err) {
+                console.error('Edit error', err);
+                toast.error(t('internalChat.editMessageError'));
+            }
+            return;
+        }
+
         if ((!inputText.trim() && !isUploading) || !activeChat) return;
 
         const originalText = inputText;
@@ -443,7 +716,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             file_size_human: null,
             user: { id: auth.user.id, name: auth.user.name },
             is_mine: true,
-            created_at: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            created_at: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
             created_at_full: new Date().toISOString().slice(0, 16).replace('T', ' '),
             reply_to: replyMsg ? {
                 id: replyMsg.id,
@@ -476,10 +749,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         return {
                             ...c,
                             latest_message: {
-                                body: realMsg.body || (realMsg.type === 'image' ? 'Foto' : realMsg.type === 'video' ? 'Video' : realMsg.type === 'audio' ? 'Audio' : 'Archivo'),
+                                body: realMsg.body || (realMsg.type === 'image' ? t('internalChat.photo') : realMsg.type === 'video' ? t('internalChat.video') : realMsg.type === 'audio' ? t('internalChat.audio') : t('internalChat.file')),
                                 type: realMsg.type,
                                 user_name: auth.user.name,
-                                created_at: 'ahora',
+                                created_at: t('internalChat.now'),
                             },
                             unread: 0,
                         };
@@ -489,6 +762,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     const rest = updated.filter(c => c.id !== activeChat.id);
                     return active ? [active, ...rest] : updated;
                 });
+            }
+
+            // Si este chat es con la IA local, pedir su respuesta automática
+            if (isAiChat(activeChat)) {
+                void triggerAiReply(activeChat);
             }
         } catch (error) {
             console.error(error);
@@ -601,7 +879,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         const tempId = Date.now();
         const optimisticMsg: MessageItem = {
             id: tempId,
-            body: `📎 Enviando ${file.name}...`,
+            body: t('internalChat.sendingFile', { fileName: file.name }),
             type: type as MessageItem['type'],
             file_url: null,
             file_name: file.name,
@@ -609,7 +887,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             file_size_human: `${(file.size / 1024).toFixed(0)} KB`,
             user: { id: auth.user.id, name: auth.user.name },
             is_mine: true,
-            created_at: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false }),
+            created_at: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
             created_at_full: new Date().toISOString().slice(0, 16).replace('T', ' '),
             reply_to: replyMsg ? {
                 id: replyMsg.id,
@@ -633,16 +911,21 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 lastMessageIdRef.current = realMsg.id;
                 setMessages(prev => prev.map(m => m.id === tempId ? realMsg : m));
 
-                const typeLabel = realMsg.type === 'image' ? '📷 Foto' : realMsg.type === 'video' ? '🎥 Video' : realMsg.type === 'audio' ? '🎵 Audio' : '📎 Archivo';
+                const typeLabel = realMsg.type === 'image' ? t('internalChat.previewPhoto') : realMsg.type === 'video' ? t('internalChat.previewVideo') : realMsg.type === 'audio' ? t('internalChat.previewAudio') : t('internalChat.previewFile');
                 setChats(prev => {
                     const updated = prev.map(c => {
                         if (c.id !== activeChat.id) return c;
-                        return { ...c, latest_message: { body: realMsg.body || typeLabel, type: realMsg.type, user_name: auth.user.name, created_at: 'ahora' }, unread: 0 };
+                        return { ...c, latest_message: { body: realMsg.body || typeLabel, type: realMsg.type, user_name: auth.user.name, created_at: t('internalChat.now') }, unread: 0 };
                     });
                     const active = updated.find(c => c.id === activeChat.id);
                     const rest = updated.filter(c => c.id !== activeChat.id);
                     return active ? [active, ...rest] : updated;
                 });
+            }
+
+            // Si este chat es con la IA local, pedir su respuesta automática
+            if (isAiChat(activeChat)) {
+                void triggerAiReply(activeChat);
             }
         } catch (error) {
             console.error('Upload error', error);
@@ -678,7 +961,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             const isGroup = selectedUserIds.length > 1;
             const res = await axios.post('/admin/internal-chat/create', {
                 type: isGroup ? 'group' : 'direct',
-                name: isGroup ? (groupName || 'Nuevo grupo') : null,
+                name: isGroup ? (groupName || t('internalChat.newGroupDefault')) : null,
                 user_ids: selectedUserIds,
             });
 
@@ -695,11 +978,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 setGroupName('');
                 setSelectedUserIds([]);
                 setUserSearchQuery('');
-                toast.success(res.data?.chat_id ? 'Chat creado' : 'Chat listo');
+                toast.success(res.data?.chat_id ? t('internalChat.chatCreated') : t('internalChat.chatReady'));
             }
         } catch (error) {
             console.error('Error creating chat:', error);
-            toast.error('Error al crear el chat');
+            toast.error(t('internalChat.chatCreateError'));
         } finally {
             setIsCreatingGroup(false);
         }
@@ -715,27 +998,32 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
     return (
         <AdminLayout>
-            <Head title="Chat Interno" />
+            <Head title={t('internalChat.pageTitle')} />
 
             <div className="h-[calc(100vh-0px)] flex bg-background overflow-hidden">
                 {/* Lista de Chats - Izquierda */}
                 <div className={cn(
                     "bg-background dark:bg-neutral-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-border dark:border-neutral-700/50",
                     activeChat ? 'hidden md:flex' : 'flex',
-                    isSidebarVisible ? 'w-full md:w-80 lg:w-96' : 'hidden md:w-0 md:overflow-hidden'
+                    isSidebarVisible ? 'w-full md:w-80 lg:w-[340px] xl:w-[360px]' : 'hidden md:w-0 md:overflow-hidden'
                 )}>
                     {/* Header */}
-                    <div className="p-6">
-                        <div className="flex items-center justify-between mb-6">
-                            <h1 className="text-2xl font-extrabold text-[#16235e] dark:text-blue-200 tracking-tight">Mensajes</h1>
+                    <div className="px-4 pt-4 pb-3">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="min-w-0">
+                                <h1 className="text-2xl font-extrabold text-[#2e3f84] dark:text-blue-200 tracking-tight">{t('internalChat.title')}</h1>
+                                <p className="mt-0.5 text-xs text-[#5f5e5e] dark:text-neutral-400">
+                                    {t('internalChat.conversationsOnlineSummary', { conversations: chats.length, online: chatSummary.onlineUsers })}
+                                </p>
+                            </div>
 
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <button
                                     onClick={() => setShowCreateGroup(true)}
-                                    className="w-10 h-10 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
-                                    title="Nuevo chat o grupo"
+                                    className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
+                                    title={t('internalChat.newChatOrGroup')}
                                 >
-                                    <Plus className="w-5 h-5" />
+                                    <Plus className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>
@@ -747,20 +1035,38 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 type="text"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-11 pr-4 py-3 bg-muted dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#16235e]/10 transition-all placeholder:text-[#767681]"
-                                placeholder="Buscar conversaciones"
+                                className="w-full pl-11 pr-4 py-2.5 bg-muted dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#2e3f84]/10 transition-all placeholder:text-[#767681]"
+                                placeholder={t('internalChat.searchPlaceholder')}
                             />
+                        </div>
+
+                        <div className="filter-pills-scroll flex items-center gap-1.5 px-1 pt-2 pb-2 overflow-x-auto">
+                            {quickChatFilters.map(filter => (
+                                <button
+                                    key={filter.value}
+                                    type="button"
+                                    onClick={() => setChatFilter(filter.value)}
+                                    className={cn(
+                                        'flex-shrink-0 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-all duration-200',
+                                        chatFilter === filter.value
+                                            ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#2e3f84] dark:text-blue-300 font-semibold'
+                                            : 'bg-muted dark:bg-neutral-800 text-[#5f5e5e] dark:text-neutral-400 hover:bg-muted/80 dark:hover:bg-neutral-700 font-medium'
+                                    )}
+                                >
+                                    {filter.label} {filter.count}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
                     {/* Lista de Chats */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-6 custom-scrollbar-light">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light">
                         {filteredChats.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full text-[#767681] p-8">
                                 <MessageSquare className="w-16 h-16 mb-4 text-[#767681]/50" />
-                                <p className="text-center text-sm">No hay conversaciones</p>
+                                <p className="text-center text-sm">{t('internalChat.noConversations')}</p>
                                 <p className="text-center text-xs text-[#767681] mt-2">
-                                    Crea una nueva conversación o grupo
+                                    {searchQuery || chatFilter !== 'all' ? t('internalChat.noConversationsFiltered') : t('internalChat.noConversationsHint')}
                                 </p>
                             </div>
                         ) : (
@@ -771,9 +1077,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <button
                                         key={chat.id}
                                         onClick={() => handleChatSelect(chat)}
-                                        className={`w-full flex items-center gap-4 p-4 mb-1 rounded-xl transition-all text-left select-none ${isActive
-                                                ? 'bg-[#dee1ff] dark:bg-blue-900/30 border-l-4 border-[#16235e] dark:border-blue-400'
-                                                : 'hover:bg-muted/60 dark:hover:bg-neutral-800/50 border-l-4 border-transparent'
+                                        onContextMenu={(e) => handleChatContextMenu(e, chat.id)}
+                                        className={`w-full flex items-center gap-3 pl-3 transition-colors text-left select-none ${isActive
+                                            ? 'bg-[#e9ebf5] dark:bg-neutral-800'
+                                            : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
                                             }`}
                                     >
                                         {/* Avatar */}
@@ -786,27 +1093,43 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     <span>{getInitials(chat.name)}</span>
                                                 )}
                                             </div>
-                                            {chat.unread > 0 && (
-                                                <div className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold shadow-sm border-2 border-[#f3f3f3] dark:border-neutral-900">
-                                                    {chat.unread}
-                                                </div>
-                                            )}
                                         </div>
 
-                                        {/* Info */}
-                                        <div className="flex-grow min-w-0">
+                                        {/* Info (divisor inset estilo WhatsApp: empieza después del avatar) */}
+                                        <div className="flex-grow min-w-0 py-3 pr-3 border-b border-[#ececf3] dark:border-white/[0.06]">
                                             <div className="flex justify-between items-baseline mb-0.5">
                                                 <h3 className="font-bold text-[#1a1c1c] dark:text-neutral-200 truncate text-[15px]">
                                                     {chat.name}
                                                 </h3>
-                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${chat.unread > 0 ? 'text-[#16235e] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
+                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${chat.unread > 0 ? 'text-[#2e3f84] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
                                                     }`}>
                                                     {chat.latest_message?.created_at || ''}
                                                 </span>
                                             </div>
-                                            <p className={`text-sm truncate ${chat.unread > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
-                                                {getLastMessagePreview(chat)}
-                                            </p>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className={`text-sm truncate flex-1 min-w-0 ${chat.unread > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
+                                                    {getLastMessagePreview(chat)}
+                                                </p>
+                                                {/* Badge de no-leídos a la derecha (estilo WhatsApp) */}
+                                                {chat.unread > 0 && (
+                                                    <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold">
+                                                        {chat.unread}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center justify-between mt-1.5">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className={cn('w-2 h-2 rounded-full', chat.type === 'group' ? 'bg-[#2e3f84] dark:bg-blue-400' : 'bg-emerald-500')}></span>
+                                                    <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-neutral-400">
+                                                        {chat.type === 'group' ? t('internalChat.participantsCount', { count: chat.participants.length }) : t('internalChat.direct')}
+                                                    </span>
+                                                </div>
+                                                {chat.type === 'direct' && chat.participants.some(p => p.id !== auth.user.id && p.is_online) && (
+                                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                                        {t('internalChat.online')}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </button>
                                 );
@@ -815,24 +1138,78 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     </div>
                 </div>
 
+                {chatContextMenu && (() => {
+                    const chat = chats.find(c => c.id === chatContextMenu.chatId);
+                    if (!chat) return null;
+
+                    const windowHeight = window.innerHeight;
+                    const windowWidth = window.innerWidth;
+                    const menuWidth = 224;
+                    const menuHeight = chat.type === 'group' ? 156 : 56;
+                    const adjustedX = windowWidth - chatContextMenu.x < menuWidth
+                        ? Math.max(12, windowWidth - menuWidth - 12)
+                        : chatContextMenu.x;
+                    const adjustedY = windowHeight - chatContextMenu.y < menuHeight
+                        ? Math.max(12, chatContextMenu.y - menuHeight)
+                        : chatContextMenu.y;
+
+                    return (
+                        <div
+                            className="fixed z-50 min-w-[224px] overflow-hidden rounded-xl card-gradient py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
+                            style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {chat.type === 'group' && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRenameChat(chat)}
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-neutral-800"
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                        {t('internalChat.renameGroup')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleShowParticipants(chat)}
+                                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-neutral-800"
+                                    >
+                                        <Users className="h-4 w-4" />
+                                        {t('internalChat.viewParticipants', { count: chat.participants.length })}
+                                    </button>
+                                    <div className="my-1 h-px bg-border" />
+                                </>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteChat(chat)}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                {getDeleteChatLabel(chat)}
+                            </button>
+                        </div>
+                    );
+                })()}
+
                 {/* Área de Chat - Derecha */}
                 {!activeChat ? (
                     <div className="hidden md:flex flex-1 items-center justify-center bg-background dark:bg-neutral-950">
                         <div className="text-center p-8 md:p-12">
                             <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#c6c5d1]" />
                             <h3 className="text-xl font-bold text-[#1a1c1c]/60 dark:text-neutral-400 mb-2">
-                                Bienvenido al Chat Interno
+                                {t('internalChat.welcomeTitle')}
                             </h3>
                             <p className="text-sm text-[#5f5e5e]">
-                                Selecciona una conversación o crea un nuevo grupo para comenzar.
+                                {t('internalChat.welcomeSubtitle')}
                             </p>
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 min-w-0 flex flex-col bg-background dark:bg-neutral-950 w-full md:w-auto relative">
+                    <div className="flex-1 min-w-0 flex flex-col bg-background dark:bg-neutral-900 w-full md:w-auto relative">
                         {/* Header del Chat */}
-                        <header className="flex items-center justify-between w-full px-6 py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm z-10">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <header className="flex items-center justify-between w-full px-4 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm z-10">
+                            <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
                                 {/* Botón volver (mobile) / toggle sidebar (desktop) */}
                                 <button
                                     onClick={() => {
@@ -842,8 +1219,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             setIsSidebarVisible(!isSidebarVisible);
                                         }
                                     }}
-                                    className="p-2 rounded-full hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-blue-300 flex-shrink-0"
-                                    title={isSidebarVisible ? 'Ocultar lista' : 'Mostrar lista'}
+                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300 flex-shrink-0"
+                                    title={isSidebarVisible ? t('internalChat.hideList') : t('internalChat.showList')}
                                 >
                                     {isSidebarVisible ? (
                                         <PanelLeftClose className="w-5 h-5" />
@@ -854,7 +1231,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                 {/* Avatar e Info */}
                                 <div className="relative flex-shrink-0">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-[14px] font-bold ${activeChat.type === 'group' ? 'bg-[#2e3a75]' : 'bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94]'}`}>
+                                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white text-sm md:text-base font-bold ${activeChat.type === 'group' ? 'bg-[#2e3a75]' : 'bg-gradient-to-br from-[#2e3f84] to-[#2e3a75]'}`}>
                                         {activeChat.type === 'group' ? (
                                             <Users className="w-5 h-5" />
                                         ) : (
@@ -866,15 +1243,15 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     )}
                                 </div>
                                 <div className="min-w-0 flex-1 overflow-hidden">
-                                    <h2 className="font-semibold text-md text-[#16235e] dark:text-blue-200 leading-tight truncate">
+                                    <h2 className="font-bold text-[#2e3f84] dark:text-neutral-200 text-sm md:text-base leading-tight truncate">
                                         {activeChat.name}
                                     </h2>
-                                    <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">
+                                    <p className="text-xs md:text-sm text-[#5f5e5e] dark:text-neutral-400 truncate">
                                         {activeChat.type === 'group'
-                                            ? `${activeChat.participants.length} participantes`
+                                            ? t('internalChat.participantsCount', { count: activeChat.participants.length })
                                             : (activeChatInfo?.participants?.find(p => p.id !== auth.user.id)?.is_online
-                                                ? <span className="text-green-600 font-medium">En línea</span>
-                                                : 'Sin conexión')
+                                                ? <span className="text-green-600 font-medium">{t('internalChat.online')}</span>
+                                                : t('internalChat.offline'))
                                         }
                                     </p>
                                 </div>
@@ -882,65 +1259,44 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                             {/* Acciones del header */}
                             <div className="flex items-center gap-1">
-                                <div className="w-px h-6 bg-border/30 mx-1"></div>
+                                <div className="hidden sm:flex items-center gap-2 mr-1 px-3 py-1 rounded-full bg-[#dee1ff]/60 dark:bg-neutral-800">
+                                    <span className={cn('w-2 h-2 rounded-full', activeChat.type === 'group' ? 'bg-[#2e3f84] dark:bg-blue-400' : 'bg-emerald-500')}></span>
+                                    <span className="text-xs font-medium text-[#2e3f84] dark:text-neutral-300">
+                                        {activeChat.type === 'group' ? t('internalChat.group') : t('internalChat.direct')}
+                                    </span>
+                                </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button className="p-2.5 rounded-full hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#16235e] dark:text-blue-300 opacity-80 hover:opacity-100">
+                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300 opacity-80 hover:opacity-100">
                                             <MoreVertical className="w-5 h-5" />
                                         </button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-48">
                                         {activeChat.type === 'group' && (
                                             <DropdownMenuItem
-                                                onClick={() => {
-                                                    setRenameValue(activeChat.name);
-                                                    setShowRenameModal(true);
-                                                }}
+                                                onClick={() => handleRenameChat(activeChat)}
                                                 className="cursor-pointer"
                                             >
                                                 <Pencil className="w-4 h-4 mr-2" />
-                                                Renombrar grupo
+                                                {t('internalChat.renameGroup')}
                                             </DropdownMenuItem>
                                         )}
                                         {activeChat.type === 'group' && (
                                             <DropdownMenuItem
                                                 className="cursor-pointer"
-                                                onClick={() => setShowParticipantsModal(true)}
+                                                onClick={() => handleShowParticipants(activeChat)}
                                             >
                                                 <Users className="w-4 h-4 mr-2" />
-                                                Ver participantes ({activeChat.participants.length})
+                                                {t('internalChat.viewParticipants', { count: activeChat.participants.length })}
                                             </DropdownMenuItem>
                                         )}
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
                                             className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30"
-                                            onClick={async () => {
-                                                const label = activeChat.type === 'group'
-                                                    ? (activeChat.participants.some(p => p.id === auth.user.id) ? 'Eliminar grupo' : 'Salir del grupo')
-                                                    : 'Eliminar chat';
-                                                if (!confirm(`¿${label}? Esta acción no se puede deshacer.`)) return;
-                                                try {
-                                                    const deletedId = activeChat.id;
-                                                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-                                                    await axios.delete(`/admin/internal-chat/${deletedId}`, {
-                                                        headers: { 'X-CSRF-TOKEN': csrfToken }
-                                                    });
-                                                    // Immediately clean up local state to stop polling
-                                                    lastMessageIdRef.current = 0;
-                                                    lastChatPollRef.current = '';
-                                                    setMessages([]);
-                                                    setActiveChat(null);
-                                                    // Remove from local list immediately (optimistic)
-                                                    setChats(prev => prev.filter(c => c.id !== deletedId));
-                                                    toast.success('Chat eliminado');
-                                                } catch (err) {
-                                                    console.error('Error eliminando chat:', err);
-                                                    toast.error('Error al eliminar el chat');
-                                                }
-                                            }}
+                                            onClick={() => handleDeleteChat(activeChat)}
                                         >
                                             <Trash2 className="w-4 h-4 mr-2" />
-                                            {activeChat.type === 'group' ? 'Eliminar grupo' : 'Eliminar chat'}
+                                            {getDeleteChatLabel(activeChat)}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
@@ -951,79 +1307,136 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         <div
                             ref={messagesContainerRef}
                             onScroll={handleMessagesScroll}
-                            className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-8 flex flex-col gap-6 custom-scrollbar-light"
+                            className="flex-1 min-w-0 overflow-y-auto px-3 md:px-5 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
 
                         >
                             {messages.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-full text-[#5f5e5e]">
-                                    <MessageSquare className="w-16 h-16 mb-4 text-[#c6c5d1]" />
-                                    <p className="text-sm">No hay mensajes aún. ¡Envía el primero!</p>
+                                <div className="flex items-center justify-center h-full text-[#767681]">
+                                    <div className="text-center">
+                                        <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-white/60 dark:bg-neutral-800/60 flex items-center justify-center">
+                                            <MessageSquare className="w-8 h-8 text-[#767681]/50" />
+                                        </div>
+                                        <p className="font-medium">{t('internalChat.noMessages')}</p>
+                                        <p className="text-xs mt-1 text-[#767681]/70">{t('internalChat.noMessagesHint')}</p>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-6">
+                                <div className="flex flex-col gap-2">
                                     {messages.map((msg, idx) => {
-                                        // Show "Visto por" only on the last message
-                                        const isLastMessage = idx === messages.length - 1;
-                                        const readersHere: ReadReceipt[] = [];
-                                        if (isLastMessage) {
-                                            const msgAt = new Date(msg.created_at_full).getTime();
-                                            for (const r of readReceipts) {
-                                                const readAt = new Date(r.last_read_at).getTime();
-                                                if (readAt >= msgAt) {
-                                                    readersHere.push(r);
-                                                }
-                                            }
-                                        }
+                                        // Primer mensaje de un grupo (cambia el remitente) → lleva la
+                                        // "colita" de burbuja estilo WhatsApp.
+                                        const isFirstOfGroup = idx === 0 || messages[idx - 1].user?.id !== msg.user?.id;
+                                        // Quién llegó a leer hasta aquí (ver receiptsByMessageId).
+                                        const readersHere = receiptsByMessageId.get(msg.id) ?? [];
 
                                         return (
                                             <div
                                                 key={msg.id}
                                                 id={`msg-${msg.id}`}
-                                                className={`group/msg flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[75%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
+                                                className={`group/msg relative flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[85%] md:max-w-[56%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
                                             >
-                                                {/* Reply action button - appears on hover */}
-                                                <button
-                                                    onClick={() => {
-                                                        setReplyingTo(msg);
-                                                        textareaRef.current?.focus();
-                                                    }}
-                                                    className={`opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#16235e] dark:hover:text-blue-300 self-center flex-shrink-0`}
-                                                    title="Responder"
-                                                >
-                                                    <Reply className="w-4 h-4" />
-                                                </button>
+                                                {/* Hover actions: reaccionar, responder, editar */}
+                                                <div className={cn(
+                                                    'absolute top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 px-1 transition-opacity duration-150',
+                                                    msg.is_mine ? 'right-full' : 'left-full',
+                                                    reactionPickerFor === msg.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto group-focus-within/msg:opacity-100 group-focus-within/msg:pointer-events-auto'
+                                                )}>
+                                                    <div className="relative">
+                                                        <button
+                                                            onClick={() => setReactionPickerFor(reactionPickerFor === msg.id ? null : msg.id)}
+                                                            className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
+                                                            title={t('internalChat.react')}
+                                                        >
+                                                            <SmilePlus className="w-4 h-4" />
+                                                        </button>
+                                                        {reactionPickerFor === msg.id && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-20" onClick={() => setReactionPickerFor(null)} />
+                                                                <motion.div
+                                                                    initial={{ opacity: 0, scale: 0.6, y: 12 }}
+                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                    transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                                                                    style={{ transformOrigin: 'bottom center' }}
+                                                                    className={cn(
+                                                                        'absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-white dark:bg-neutral-800 shadow-xl px-2 py-1.5',
+                                                                        msg.is_mine ? 'right-0' : 'left-0'
+                                                                    )}
+                                                                >
+                                                                    {QUICK_REACTIONS.map((emoji, i) => (
+                                                                        <motion.button
+                                                                            key={emoji}
+                                                                            initial={{ opacity: 0, scale: 0, y: 10 }}
+                                                                            animate={{ opacity: 1, scale: 1, y: 0, transition: { delay: 0.04 + i * 0.035, type: 'spring', stiffness: 600, damping: 18 } }}
+                                                                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                                                                            whileHover={{ scale: 1.35, y: -14, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
+                                                                            whileTap={{ scale: 0.9, transition: { duration: 0.12, ease: [0.22, 1, 0.36, 1] } }}
+                                                                            // Reaccionar al PRESIONAR (pointerdown), no al click: whileHover/whileTap
+                                                                            // desplazan y encogen el emoji, así que al soltar el puntero ya no está
+                                                                            // encima y el navegador nunca dispara "click" → la reacción se perdía.
+                                                                            onPointerDown={(e) => { if (e.button === 0) handleReact(msg, emoji); }}
+                                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleReact(msg, emoji); } }}
+                                                                            aria-label={REACTION_LABELS[emoji]}
+                                                                            className="group relative flex items-center justify-center cursor-pointer rounded-full px-1 py-1 text-[26px] leading-none"
+                                                                        >
+                                                                            <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:bg-white dark:text-black">
+                                                                                {REACTION_LABELS[emoji]}
+                                                                            </span>
+                                                                            {emoji}
+                                                                        </motion.button>
+                                                                    ))}
+                                                                </motion.div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => { setReplyingTo(msg); textareaRef.current?.focus(); }}
+                                                        className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
+                                                        title={t('internalChat.reply')}
+                                                    >
+                                                        <Reply className="w-4 h-4" />
+                                                    </button>
+                                                    {msg.is_mine && msg.type === 'text' && (
+                                                        <button
+                                                            onClick={() => startEdit(msg)}
+                                                            className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
+                                                            title={t('common.edit')}
+                                                        >
+                                                            <Pencil className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </div>
 
-                                                <div className="flex flex-col min-w-0">
+                                                <div className={`flex flex-col min-w-0 ${msg.is_mine ? 'items-end' : 'items-start'}`}>
                                                 <div
-                                                    className={`min-w-0 ${msg.is_mine
-                                                        ? 'bg-[#2e3a75] text-white px-5 py-3.5 rounded-xl rounded-br-sm shadow-md'
-                                                        : 'bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 px-5 py-3.5 rounded-xl rounded-bl-sm shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                                                    className={`min-w-0 px-3 pt-2 pb-1 flex flex-col relative ${msg.is_mine
+                                                        ? `bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] rounded-xl rounded-br-sm shadow-sm ${isFirstOfGroup ? 'bubble-tail-out rounded-tr-none' : ''}`
+                                                        : `bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 rounded-xl rounded-bl-sm shadow-sm ${isFirstOfGroup ? 'bubble-tail-in rounded-tl-none' : ''}`
                                                         }`}
                                                 >
                                                         {/* Reply quote bubble */}
                                                         {msg.reply_to && (
                                                             <div
                                                                 className={`mb-2 px-3 py-2 rounded-lg border-l-3 cursor-pointer transition-colors ${msg.is_mine
-                                                                    ? 'bg-white/10 border-blue-300 hover:bg-white/15'
-                                                                    : 'bg-[#16235e]/5 dark:bg-blue-500/10 border-[#16235e] dark:border-blue-400 hover:bg-[#16235e]/10 dark:hover:bg-blue-500/15'
+                                                                    ? 'bg-black/5 border-[#2e3f84] hover:bg-black/10 dark:bg-white/10 dark:border-blue-300 dark:hover:bg-white/15'
+                                                                    : 'bg-[#2e3f84]/5 dark:bg-blue-500/10 border-[#2e3f84] dark:border-blue-400 hover:bg-[#2e3f84]/10 dark:hover:bg-blue-500/15'
                                                                 }`}
                                                                 onClick={() => {
                                                                     const el = document.getElementById(`msg-${msg.reply_to!.id}`);
                                                                     if (el) {
                                                                         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                        el.classList.add('ring-2', 'ring-[#16235e]/40', 'dark:ring-blue-400/40', 'rounded-xl');
-                                                                        setTimeout(() => el.classList.remove('ring-2', 'ring-[#16235e]/40', 'dark:ring-blue-400/40', 'rounded-xl'), 2000);
+                                                                        el.classList.add('ring-2', 'ring-[#2e3f84]/40', 'dark:ring-blue-400/40', 'rounded-xl');
+                                                                        setTimeout(() => el.classList.remove('ring-2', 'ring-[#2e3f84]/40', 'dark:ring-blue-400/40', 'rounded-xl'), 2000);
                                                                     }
                                                                 }}
                                                             >
-                                                                <p className={`text-[11px] font-bold mb-0.5 ${msg.is_mine ? 'text-blue-200' : 'text-[#16235e] dark:text-blue-400'}`}>
+                                                                <p className={`text-[11px] font-bold mb-0.5 ${msg.is_mine ? 'text-[#2e3f84] dark:text-blue-200' : 'text-[#2e3f84] dark:text-blue-400'}`}>
                                                                     {msg.reply_to.user_name}
                                                                 </p>
-                                                                <p className={`text-xs truncate max-w-[250px] ${msg.is_mine ? 'text-white/70' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
-                                                                    {msg.reply_to.type === 'image' ? '📷 Foto'
-                                                                        : msg.reply_to.type === 'video' ? '🎥 Video'
-                                                                        : msg.reply_to.type === 'audio' ? '🎵 Audio'
-                                                                        : msg.reply_to.type === 'document' ? `📎 ${msg.reply_to.file_name || 'Archivo'}`
+                                                                <p className={`text-xs truncate max-w-[250px] ${msg.is_mine ? 'text-[#3b4a54] dark:text-white/70' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
+                                                                    {msg.reply_to.type === 'image' ? t('internalChat.previewPhoto')
+                                                                        : msg.reply_to.type === 'video' ? t('internalChat.previewVideo')
+                                                                        : msg.reply_to.type === 'audio' ? t('internalChat.previewAudio')
+                                                                        : msg.reply_to.type === 'document' ? `📎 ${msg.reply_to.file_name || t('internalChat.file')}`
                                                                         : msg.reply_to.body || ''}
                                                                 </p>
                                                             </div>
@@ -1031,8 +1444,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* Sender name (in groups show for all; in direct only for others) */}
                                                         {msg.user && (activeChat?.type === 'group' || !msg.is_mine) && (
-                                                            <p className={`text-[11px] mb-1 font-bold ${msg.is_mine ? 'text-blue-200' : 'text-[#16235e] dark:text-blue-400'}`}>
-                                                                {msg.is_mine ? 'Tú' : msg.user.name}
+                                                            <p className={`text-[11px] mb-1 font-bold ${msg.is_mine ? 'text-[#1f7aad] dark:text-[#53bdeb]' : 'text-[#2e3f84] dark:text-blue-400'}`}>
+                                                                {msg.is_mine ? t('common.you') : msg.user.name}
                                                             </p>
                                                         )}
 
@@ -1047,7 +1460,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                         setMediaViewer({
                                                                             url: msg.file_url!,
                                                                             type: 'image',
-                                                                            caption: msg.body && msg.body !== 'Imagen' ? msg.body : undefined
+                                                                            caption: msg.body && msg.body !== t('internalChat.image') ? msg.body : undefined
                                                                         });
                                                                         setZoomLevel(1);
                                                                         setImagePosition({ x: 0, y: 0 });
@@ -1055,14 +1468,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                 >
                                                                     <img
                                                                         src={msg.file_url}
-                                                                        alt="Imagen"
+                                                                        alt={t('internalChat.image')}
                                                                         className="max-w-full max-h-96 rounded-xl object-cover"
                                                                         loading="lazy"
                                                                         onError={(e) => {
                                                                             const img = e.currentTarget;
                                                                             img.onerror = null;
                                                                             // Placeholder SVG: imagen no disponible
-                                                                            img.src = "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 220' width='320' height='220'%3E%3Crect width='320' height='220' fill='%23e5e7eb'/%3E%3Cg fill='%239ca3af'%3E%3Cpath d='M120 80h80v60h-80z' fill='none' stroke='%239ca3af' stroke-width='3'/%3E%3Ccircle cx='140' cy='100' r='6'/%3E%3Cpath d='M125 135l20-20 20 15 15-25 25 30v5h-80z'/%3E%3C/g%3E%3Ctext x='160' y='175' text-anchor='middle' font-family='Arial, sans-serif' font-size='14' fill='%236b7280'%3EImagen no disponible%3C/text%3E%3Ctext x='160' y='195' text-anchor='middle' font-family='Arial, sans-serif' font-size='11' fill='%239ca3af'%3E(archivo previo a migraci%C3%B3n)%3C/text%3E%3C/svg%3E";
+                                                                            img.src = `data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 220' width='320' height='220'%3E%3Crect width='320' height='220' fill='%23e5e7eb'/%3E%3Cg fill='%239ca3af'%3E%3Cpath d='M120 80h80v60h-80z' fill='none' stroke='%239ca3af' stroke-width='3'/%3E%3Ccircle cx='140' cy='100' r='6'/%3E%3Cpath d='M125 135l20-20 20 15 15-25 25 30v5h-80z'/%3E%3C/g%3E%3Ctext x='160' y='175' text-anchor='middle' font-family='Arial, sans-serif' font-size='14' fill='%236b7280'%3E${encodeURIComponent(t('internalChat.imageUnavailable'))}%3C/text%3E%3Ctext x='160' y='195' text-anchor='middle' font-family='Arial, sans-serif' font-size='11' fill='%239ca3af'%3E${encodeURIComponent(t('internalChat.filePreMigration'))}%3C/text%3E%3C/svg%3E`;
                                                                             img.classList.add('opacity-80');
                                                                             const wrapper = img.closest('.group') as HTMLElement | null;
                                                                             if (wrapper) {
@@ -1088,7 +1501,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                         setMediaViewer({
                                                                             url: msg.file_url!,
                                                                             type: 'video',
-                                                                            caption: msg.body && msg.body !== 'Video' ? msg.body : undefined
+                                                                            caption: msg.body && msg.body !== t('internalChat.video') ? msg.body : undefined
                                                                         });
                                                                     }}
                                                                 >
@@ -1106,12 +1519,12 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                                         {/* File / Document */}
                                                         {(msg.type === 'document') && msg.file_url && (
-                                                            <div className="flex items-center gap-4 bg-background dark:bg-neutral-700/50 p-4 rounded-lg border border-border/20 dark:border-neutral-600/30 mb-2">
-                                                                <div className="w-12 h-12 bg-[#16235e]/10 dark:bg-blue-500/20 rounded flex items-center justify-center text-[#16235e] dark:text-blue-300">
+                                                            <div className="flex items-center gap-4 bg-background dark:bg-neutral-700/50 p-4 rounded-lg mb-2">
+                                                                <div className="w-12 h-12 bg-[#2e3f84]/10 dark:bg-blue-500/20 rounded flex items-center justify-center text-[#2e3f84] dark:text-blue-300">
                                                                     <FileText className="w-6 h-6" />
                                                                 </div>
                                                                 <div className="flex flex-col overflow-hidden flex-1">
-                                                                    <span className="text-sm font-bold truncate">{msg.file_name || 'Archivo'}</span>
+                                                                    <span className="text-sm font-bold truncate">{msg.file_name || t('internalChat.file')}</span>
                                                                     {msg.file_size_human && (
                                                                         <span className="text-xs text-[#5f5e5e] dark:text-neutral-400 font-normal">{msg.file_size_human}</span>
                                                                     )}
@@ -1139,15 +1552,15 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                             <div className="mb-2 flex items-center gap-3 bg-neutral-100 dark:bg-neutral-800/60 border border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg px-4 py-3 text-neutral-500 dark:text-neutral-400">
                                                                 <FileText className="w-5 h-5 flex-shrink-0 opacity-60" />
                                                                 <div className="flex flex-col">
-                                                                    <span className="text-sm font-medium">Archivo no disponible</span>
-                                                                    <span className="text-xs opacity-75">{msg.file_name || 'Archivo previo a la migración'}</span>
+                                                                    <span className="text-sm font-medium">{t('internalChat.fileUnavailable')}</span>
+                                                                    <span className="text-xs opacity-75">{msg.file_name || t('internalChat.filePreMigrationName')}</span>
                                                                 </div>
                                                             </div>
                                                         )}
 
                                                         {/* Text Content (with @mention highlighting) */}
                                                         {msg.body && (
-                                                            <p className="text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                                            <p className="text-[15px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                                                                 {(() => {
                                                                     const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
                                                                     const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);
@@ -1185,19 +1598,43 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                             </p>
                                                         )}
                                                     </div>
+                                                {/* Reaction badges (estilo del chat principal) */}
+                                                {msg.reactions && msg.reactions.length > 0 && (
+                                                    <div className={`flex flex-wrap gap-1 -mt-1.5 relative z-10 ${msg.is_mine ? 'justify-end mr-2' : 'ml-2'}`}>
+                                                        {msg.reactions.map(r => (
+                                                            <button
+                                                                key={r.emoji}
+                                                                onClick={() => handleReact(msg, r.emoji)}
+                                                                title={r.users.join(', ')}
+                                                                className={cn(
+                                                                    'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[13px] leading-none shadow-md ring-1 transition-transform hover:scale-105 active:scale-95',
+                                                                    r.mine
+                                                                        ? 'bg-white dark:bg-neutral-800 ring-[#2e3f84]/40 dark:ring-blue-400/40'
+                                                                        : 'bg-white dark:bg-neutral-800 ring-black/5 dark:ring-white/10'
+                                                                )}
+                                                            >
+                                                                <span>{r.emoji}</span>
+                                                                {r.count > 1 && <span className="text-[10px] font-semibold opacity-80">{r.count}</span>}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                                 {/* Timestamp - outside bubble */}
-                                                <div className={`flex items-center gap-1 mt-1.5 ${msg.is_mine ? 'mr-1 justify-end' : 'ml-1'}`}>
+                                                <div className={`flex items-center gap-1 mt-1 ${msg.is_mine ? 'mr-1 justify-end' : 'ml-1'}`}>
                                                     <span className="text-[10px] text-[#5f5e5e] dark:text-neutral-500">{msg.created_at}</span>
+                                                    {msg.edited && (
+                                                        <span className="text-[10px] italic text-[#5f5e5e]/80 dark:text-neutral-500">{t('internalChat.edited')}</span>
+                                                    )}
                                                     {msg.is_mine && (
-                                                        <Check className="w-3 h-3 text-[#16235e] dark:text-blue-400" style={{ fontSize: '14px' }} />
+                                                        <Check className="w-3 h-3 text-[#2e3f84] dark:text-blue-400" style={{ fontSize: '14px' }} />
                                                     )}
                                                 </div>
                                                 {/* Read receipts */}
                                                 {readersHere.length > 0 && (
                                                     <div className={`flex items-center gap-1 mt-1.5 px-1 ${msg.is_mine ? 'justify-end mr-1' : 'justify-start ml-1'}`}>
-                                                        <Check className="w-3.5 h-3.5 text-[#16235e] dark:text-blue-400 opacity-80 flex-shrink-0" />
+                                                        <Check className="w-3.5 h-3.5 text-[#2e3f84] dark:text-blue-400 opacity-80 flex-shrink-0" />
                                                         <span className="text-[10px] font-medium text-[#5f5e5e] dark:text-neutral-400 leading-none">
-                                                            Visto por {readersHere.map(r => r.user_name).join(', ')}
+                                                            {t('internalChat.seenBy', { names: readersHere.map(r => r.user_name).join(', ') })}
                                                         </span>
                                                     </div>
                                                 )}
@@ -1205,26 +1642,39 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             </div>
                                         );
                                     })}
+                                    {aiTyping && (
+                                        <div className="flex justify-start px-1">
+                                            <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-card dark:bg-neutral-800 px-3 py-2 shadow-sm">
+                                                <span className="text-base">🤖</span>
+                                                <span className="text-xs text-[#5f5e5e] dark:text-neutral-400">{t('internalChat.aiTyping')}</span>
+                                                <span className="flex gap-1">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div ref={messagesEndRef} />
                                 </div>
                             )}
                         </div>
 
                         {/* Input Area */}
-                        <form onSubmit={handleSendMessage} className="p-6 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md">
+                        <form onSubmit={handleSendMessage} className="px-3 md:px-6 py-3 md:py-4 bg-[#f0f2f5] dark:bg-[hsl(30,4%,10%)]">
                             {/* Reply preview bar */}
                             {replyingTo && (
-                                <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-muted dark:bg-neutral-800 rounded-xl border-l-3 border-[#16235e] dark:border-blue-400 animate-in slide-in-from-bottom-2 duration-200">
-                                    <Reply className="w-4 h-4 text-[#16235e] dark:text-blue-400 flex-shrink-0" />
+                                <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-muted dark:bg-neutral-800 rounded-xl border-l-3 border-[#2e3f84] dark:border-blue-400 animate-in slide-in-from-bottom-2 duration-200">
+                                    <Reply className="w-4 h-4 text-[#2e3f84] dark:text-blue-400 flex-shrink-0" />
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold text-[#16235e] dark:text-blue-400">
-                                            {replyingTo.is_mine ? 'Tú' : replyingTo.user.name}
+                                        <p className="text-xs font-bold text-[#2e3f84] dark:text-blue-400">
+                                            {replyingTo.is_mine ? t('common.you') : replyingTo.user.name}
                                         </p>
                                         <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">
-                                            {replyingTo.type === 'image' ? '📷 Foto'
-                                                : replyingTo.type === 'video' ? '🎥 Video'
-                                                : replyingTo.type === 'audio' ? '🎵 Audio'
-                                                : replyingTo.type === 'document' ? `📎 ${replyingTo.file_name || 'Archivo'}`
+                                            {replyingTo.type === 'image' ? t('internalChat.previewPhoto')
+                                                : replyingTo.type === 'video' ? t('internalChat.previewVideo')
+                                                : replyingTo.type === 'audio' ? t('internalChat.previewAudio')
+                                                : replyingTo.type === 'document' ? `📎 ${replyingTo.file_name || t('internalChat.file')}`
                                                 : replyingTo.body || ''}
                                         </p>
                                     </div>
@@ -1237,7 +1687,25 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     </button>
                                 </div>
                             )}
-                            <div className="flex items-center gap-3 bg-muted dark:bg-neutral-800 px-4 py-2 rounded-full ring-1 ring-black/5 dark:ring-white/10 focus-within:ring-[#16235e]/20 transition-all relative">
+                            {/* Edit banner */}
+                            {editingMessage && (
+                                <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border-l-3 border-amber-500 animate-in slide-in-from-bottom-2 duration-200">
+                                    <Pencil className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-amber-600 dark:text-amber-400">{t('internalChat.editingMessage')}</p>
+                                        <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">{editingMessage.body}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={cancelEdit}
+                                        className="p-1 rounded-full hover:bg-background dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 transition-colors flex-shrink-0"
+                                        title={t('internalChat.cancelEdit')}
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
+                            <div className="flex items-end gap-2 md:gap-3 bg-white dark:bg-[hsl(30,4%,18%)] px-3 md:px-4 py-2 rounded-full ring-1 ring-black/5 dark:ring-white/[0.04] focus-within:ring-2 focus-within:ring-[#2e3f84]/30 transition-all relative">
                                 {/* Hidden file input */}
                                 <input
                                     type="file"
@@ -1248,9 +1716,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                 <button
                                     type="button"
-                                    className="p-2 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#16235e] dark:hover:text-blue-300 transition-colors flex-shrink-0"
+                                    className="p-2 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 transition-colors flex-shrink-0"
                                     onClick={() => fileInputRef.current?.click()}
-                                    title="Adjuntar archivo"
+                                    title={t('internalChat.attachFile')}
                                     disabled={isUploading}
                                 >
                                     <Paperclip className="w-5 h-5" />
@@ -1260,14 +1728,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 <div className="relative flex-1">
                                     {/* @Mentions dropdown */}
                                     {showMentions && mentionUsers.length > 0 && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-3 bg-card dark:bg-neutral-800 border border-border dark:border-neutral-700 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
+                                        <div className="absolute bottom-full left-0 right-0 mb-3 bg-card dark:bg-neutral-800 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
                                             {mentionUsers.map((user, i) => (
                                                 <button
                                                     key={user.id}
                                                     type="button"
                                                     className={cn(
                                                         'w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors',
-                                                        i === mentionIndex ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#16235e] dark:text-blue-300' : 'hover:bg-muted/60 dark:hover:bg-neutral-700'
+                                                        i === mentionIndex ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#2e3f84] dark:text-blue-300' : 'hover:bg-muted/60 dark:hover:bg-neutral-700'
                                                     )}
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
@@ -1275,7 +1743,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     }}
                                                     onMouseEnter={() => setMentionIndex(i)}
                                                 >
-                                                    <div className="w-7 h-7 rounded-full bg-[#16235e]/10 dark:bg-blue-500/20 text-[#16235e] dark:text-blue-300 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                                                    <div className="w-7 h-7 rounded-full bg-[#2e3f84]/10 dark:bg-blue-500/20 text-[#2e3f84] dark:text-blue-300 flex items-center justify-center text-xs font-semibold flex-shrink-0">
                                                         {getInitials(user.name)}
                                                     </div>
                                                     <span className="font-medium truncate">{user.name}</span>
@@ -1288,7 +1756,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         ref={textareaRef}
                                         value={inputText}
                                         onChange={handleInputChange}
-                                        placeholder="Escribe un mensaje... (@para mencionar)"
+                                        placeholder={t('internalChat.messagePlaceholder')}
                                         className="flex-1 min-h-[40px] max-h-[120px] py-2 pr-4 pl-0 text-sm resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-[#767681]"
                                         onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}
@@ -1299,7 +1767,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 <button
                                     type="submit"
                                     disabled={(!inputText.trim() && !isUploading) || isUploading}
-                                    className="w-10 h-10 rounded-full bg-gradient-to-br from-[#16235e] to-[#2e3a75] flex items-center justify-center text-white shadow-lg hover:shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                                    className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] flex items-center justify-center text-white shadow-lg hover:shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                                 >
                                     {isUploading ? (
                                         <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
@@ -1315,14 +1783,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
             {/* Modal: Crear nuevo chat o grupo */}
             <Dialog open={showCreateGroup} onOpenChange={setShowCreateGroup}>
-                <DialogContent className="sm:max-w-md card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)] max-h-[95vh] overflow-y-auto custom-scrollbar-light">
+                <DialogContent className="sm:max-w-md card-gradient max-h-[90vh] overflow-y-auto overflow-x-hidden custom-scrollbar-light">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Users className="w-6 h-6" />
-                            Nuevo Chat
+                            {t('internalChat.newChatModalTitle')}
                         </DialogTitle>
                         <DialogDescription className="sr-only">
-                            Selecciona usuarios para crear un chat directo o un grupo
+                            {t('internalChat.newChatModalDescription')}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -1331,11 +1799,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         {selectedUserIds.length > 1 && (
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
-                                    Nombre del grupo
+                                    {t('internalChat.groupNameLabel')}
                                 </label>
                                 <Input
                                     type="text"
-                                    placeholder="Ej: Equipo de ventas"
+                                    placeholder={t('internalChat.groupNamePlaceholder')}
                                     value={groupName}
                                     onChange={(e) => setGroupName(e.target.value)}
                                     className="settings-input rounded-xl"
@@ -1346,13 +1814,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         {/* User search */}
                         <div className="space-y-2">
                             <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
-                                {selectedUserIds.length > 1 ? 'Participantes' : 'Seleccionar usuario'}
+                                {selectedUserIds.length > 1 ? t('internalChat.participants') : t('internalChat.selectUser')}
                             </label>
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                                 <Input
                                     type="text"
-                                    placeholder="Buscar usuarios..."
+                                    placeholder={t('internalChat.searchUsersPlaceholder')}
                                     value={userSearchQuery}
                                     onChange={(e) => setUserSearchQuery(e.target.value)}
                                     className="pl-10 settings-input rounded-xl"
@@ -1384,11 +1852,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             </div>
                         )}
 
-                        {/* User list */}
-                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar-light border border-border rounded-xl">
+                        {/* User list (filas planas con divisores, estilo WhatsApp) */}
+                        <div className="max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar-light rounded-xl divide-y divide-[#ececf3] dark:divide-white/[0.06]">
                             {filteredUsers.length === 0 ? (
                                 <div className="p-4 text-center text-sm text-muted-foreground">
-                                    No se encontraron usuarios
+                                    {t('internalChat.noUsersFound')}
                                 </div>
                             ) : (
                                 filteredUsers.map(user => {
@@ -1397,9 +1865,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         <button
                                             key={user.id}
                                             onClick={() => toggleUserSelection(user.id)}
-                                            className={`w-full flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${isSelected
-                                                ? 'bg-gradient-to-b from-[#d8dcef] to-[#d2d7ec] dark:from-[hsl(231,30%,22%)] dark:to-[hsl(231,30%,18%)]'
-                                                : 'hover:bg-accent'
+                                            className={`w-full flex items-center gap-3 p-3 transition-colors ${isSelected
+                                                ? 'bg-[#e9ebf5] dark:bg-neutral-800'
+                                                : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
                                                 }`}
                                         >
                                             <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
@@ -1408,8 +1876,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             <div className="flex-1 min-w-0 text-left">
                                                 <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    {user.role === 'admin' ? 'Administrador' : user.role === 'advisor' ? 'Asesor' : user.role}
-                                                    {user.is_online && <span className="ml-1.5 text-green-500">● En línea</span>}
+                                                    {user.role === 'admin' ? t('internalChat.roleAdmin') : user.role === 'advisor' ? t('internalChat.roleAdvisor') : user.role}
+                                                    {user.is_online && <span className="ml-1.5 text-green-500">{t('internalChat.onlineDot')}</span>}
                                                 </p>
                                             </div>
                                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected
@@ -1427,10 +1895,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         {/* Hint text */}
                         <p className="text-xs text-muted-foreground">
                             {selectedUserIds.length === 0
-                                ? 'Selecciona uno o más usuarios. Si seleccionas varios, se creará un grupo.'
+                                ? t('internalChat.hintNoSelection')
                                 : selectedUserIds.length === 1
-                                    ? 'Chat directo. Selecciona más usuarios para crear un grupo.'
-                                    : `Grupo con ${selectedUserIds.length} participantes.`
+                                    ? t('internalChat.hintOneSelected')
+                                    : t('internalChat.hintGroupCount', { count: selectedUserIds.length })
                             }
                         </p>
 
@@ -1446,7 +1914,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 }}
                                 className="rounded-lg"
                             >
-                                Cancelar
+                                {t('common.cancel')}
                             </Button>
                             <Button
                                 onClick={handleCreateGroup}
@@ -1456,7 +1924,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 {isCreatingGroup ? (
                                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
                                 ) : null}
-                                {selectedUserIds.length > 1 ? 'Crear grupo' : 'Iniciar chat'}
+                                {selectedUserIds.length > 1 ? t('internalChat.createGroup') : t('internalChat.startChat')}
                             </Button>
                         </div>
                     </div>
@@ -1472,13 +1940,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     setAddParticipantIds([]);
                 }
             }}>
-                <DialogContent className="sm:max-w-md card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
+                <DialogContent className="sm:max-w-md card-gradient">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Users className="w-5 h-5" />
-                            Participantes ({activeChat?.participants.length ?? 0})
+                            {t('internalChat.participantsModalTitle', { count: activeChat?.participants.length ?? 0 })}
                         </DialogTitle>
-                        <DialogDescription className="sr-only">Gestionar participantes del grupo</DialogDescription>
+                        <DialogDescription className="sr-only">{t('internalChat.participantsModalDescription')}</DialogDescription>
                     </DialogHeader>
 
                     {/* Lista de participantes actuales */}
@@ -1496,22 +1964,19 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-semibold text-foreground truncate">
                                                     {p.name}
-                                                    {p.id === auth.user.id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">(tú)</span>}
+                                                    {p.id === auth.user.id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t('internalChat.youParenthesis')}</span>}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    {p.role === 'admin' ? 'Administrador' : p.role === 'advisor' ? 'Asesor' : p.role}
-                                                    {p.is_online && <span className="ml-1.5 text-green-500">● En línea</span>}
+                                                    {p.role === 'admin' ? t('internalChat.roleAdmin') : p.role === 'advisor' ? t('internalChat.roleAdvisor') : p.role}
+                                                    {p.is_online && <span className="ml-1.5 text-green-500">{t('internalChat.onlineDot')}</span>}
                                                 </p>
                                             </div>
                                             {canRemove && (
                                                 <button
                                                     onClick={async () => {
-                                                        if (!confirm(`¿Eliminar a ${p.name} del grupo?`)) return;
+                                                        if (!confirm(t('internalChat.removeParticipantConfirm', { name: p.name }))) return;
                                                         try {
-                                                            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-                                                            const res = await axios.delete(`/admin/internal-chat/${activeChat!.id}/participants/${p.id}`, {
-                                                                headers: { 'X-CSRF-TOKEN': csrfToken }
-                                                            });
+                                                            const res = await axios.delete(`/admin/internal-chat/${activeChat!.id}/participants/${p.id}`);
                                                             if (res.data.success) {
                                                                 // Actualizar participantes localmente
                                                                 setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
@@ -1519,11 +1984,11 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                 toast.success(res.data.message);
                                                             }
                                                         } catch (err: any) {
-                                                            toast.error(err.response?.data?.error || 'Error al eliminar participante');
+                                                            toast.error(err.response?.data?.error || t('internalChat.removeParticipantError'));
                                                         }
                                                     }}
                                                     className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-all"
-                                                    title="Eliminar del grupo"
+                                                    title={t('internalChat.removeFromGroup')}
                                                 >
                                                     <UserMinus className="w-4 h-4" />
                                                 </button>
@@ -1540,10 +2005,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         className="rounded-lg gap-2"
                                     >
                                         <UserPlus className="w-4 h-4" />
-                                        Agregar
+                                        {t('internalChat.add')}
                                     </Button>
                                 )}
-                                <Button variant="outline" onClick={() => setShowParticipantsModal(false)} className="rounded-lg ml-auto">Cerrar</Button>
+                                <Button variant="outline" onClick={() => setShowParticipantsModal(false)} className="rounded-lg ml-auto">{t('common.close')}</Button>
                             </div>
                         </>
                     )}
@@ -1553,7 +2018,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                         <>
                             <div className="mt-2">
                                 <Input
-                                    placeholder="Buscar usuario..."
+                                    placeholder={t('internalChat.searchUserPlaceholder')}
                                     value={addParticipantSearch}
                                     onChange={(e) => setAddParticipantSearch(e.target.value)}
                                     className="rounded-lg"
@@ -1584,8 +2049,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
                                                     <p className="text-xs text-muted-foreground">
-                                                        {u.role === 'admin' ? 'Administrador' : u.role === 'advisor' ? 'Asesor' : u.role}
-                                                        {u.is_online && <span className="ml-1.5 text-green-500">● En línea</span>}
+                                                        {u.role === 'admin' ? t('internalChat.roleAdmin') : u.role === 'advisor' ? t('internalChat.roleAdvisor') : u.role}
+                                                        {u.is_online && <span className="ml-1.5 text-green-500">{t('internalChat.onlineDot')}</span>}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1594,7 +2059,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             </div>
                             <div className="flex justify-between pt-2 gap-2">
                                 <Button variant="outline" onClick={() => { setShowAddParticipants(false); setAddParticipantSearch(''); setAddParticipantIds([]); }} className="rounded-lg">
-                                    Volver
+                                    {t('common.back')}
                                 </Button>
                                 <Button
                                     disabled={addParticipantIds.length === 0 || isAddingParticipants}
@@ -1602,11 +2067,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         if (!activeChat || addParticipantIds.length === 0) return;
                                         setIsAddingParticipants(true);
                                         try {
-                                            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
                                             const res = await axios.post(`/admin/internal-chat/${activeChat.id}/participants`, {
                                                 user_ids: addParticipantIds,
-                                            }, {
-                                                headers: { 'X-CSRF-TOKEN': csrfToken }
                                             });
                                             if (res.data.success) {
                                                 setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
@@ -1617,7 +2079,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                 setAddParticipantIds([]);
                                             }
                                         } catch (err: any) {
-                                            toast.error(err.response?.data?.error || 'Error al agregar participantes');
+                                            toast.error(err.response?.data?.error || t('internalChat.addParticipantsError'));
                                         } finally {
                                             setIsAddingParticipants(false);
                                         }
@@ -1626,7 +2088,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     style={{ backgroundColor: 'var(--primary-base)' }}
                                 >
                                     <UserPlus className="w-4 h-4" />
-                                    Agregar ({addParticipantIds.length})
+                                    {t('internalChat.addWithCount', { count: addParticipantIds.length })}
                                 </Button>
                             </div>
                         </>
@@ -1636,21 +2098,21 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
             {/* Modal: Renombrar grupo */}
             <Dialog open={showRenameModal} onOpenChange={setShowRenameModal}>
-                <DialogContent className="sm:max-w-sm card-gradient border-2 border-border dark:border-[hsl(231,20%,22%)]">
+                <DialogContent className="sm:max-w-sm card-gradient">
                     <DialogHeader>
                         <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
                             <Pencil className="w-5 h-5" />
-                            Renombrar grupo
+                            {t('internalChat.renameGroup')}
                         </DialogTitle>
                         <DialogDescription className="sr-only">
-                            Cambia el nombre del grupo
+                            {t('internalChat.renameModalDescription')}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 pt-2">
                         <Input
                             type="text"
-                            placeholder="Nombre del grupo"
+                            placeholder={t('internalChat.groupNameLabel')}
                             value={renameValue}
                             onChange={(e) => setRenameValue(e.target.value)}
                             className="settings-input rounded-xl"
@@ -1677,7 +2139,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                         <div className="flex justify-end gap-2">
                             <Button variant="outline" onClick={() => setShowRenameModal(false)} className="rounded-lg">
-                                Cancelar
+                                {t('common.cancel')}
                             </Button>
                             <Button
                                 onClick={async () => {
@@ -1694,7 +2156,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 disabled={!renameValue.trim()}
                                 className="chat-message-sent text-white rounded-lg shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] disabled:opacity-50"
                             >
-                                Guardar
+                                {t('common.save')}
                             </Button>
                         </div>
                     </div>
@@ -1731,14 +2193,14 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <button
                                         onClick={() => setImageRotation(prev => prev - 90)}
                                         className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                                        title="Rotar"
+                                        title={t('internalChat.rotate')}
                                     >
                                         <RotateCcw className="w-5 h-5" />
                                     </button>
                                     <button
                                         onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))}
                                         className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                                        title="Alejar"
+                                        title={t('internalChat.zoomOut')}
                                     >
                                         <ZoomOut className="w-5 h-5" />
                                     </button>
@@ -1748,7 +2210,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     <button
                                         onClick={() => setZoomLevel(Math.min(4, zoomLevel + 0.25))}
                                         className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                                        title="Acercar"
+                                        title={t('internalChat.zoomIn')}
                                     >
                                         <ZoomIn className="w-5 h-5" />
                                     </button>
@@ -1763,7 +2225,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
                                 className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                                title="Descargar"
+                                title={t('common.download')}
                             >
                                 <Download className="w-5 h-5" />
                             </a>
@@ -1777,7 +2239,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     setImageRotation(0);
                                 }}
                                 className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors ml-2"
-                                title="Cerrar (Esc)"
+                                title={t('internalChat.closeEsc')}
                             >
                                 <X className="w-6 h-6" />
                             </button>
@@ -1814,7 +2276,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             <img
                                 ref={imageRef}
                                 src={mediaViewer.url}
-                                alt={mediaViewer.caption || 'Imagen'}
+                                alt={mediaViewer.caption || t('internalChat.image')}
                                 className={`max-w-full max-h-full object-contain select-none ${zoomLevel > 1 ? 'cursor-grab' : 'cursor-zoom-in'
                                     } ${isDraggingImage ? 'cursor-grabbing' : ''}`}
                                 style={{
@@ -1844,7 +2306,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 className="max-w-full max-h-full"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                Tu navegador no soporta la reproducción de video.
+                                {t('internalChat.videoNotSupported')}
                             </video>
                         )}
                     </div>
