@@ -3653,7 +3653,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         className={`conv-list-item w-full flex items-center gap-3 pl-3 transition-colors text-left select-none group ${selectedConversations.includes(conversation.id)
                                                 ? 'bg-green-50/80 dark:bg-green-900/20'
                                                 : selectedConversation?.id === conversation.id
-                                                    ? 'bg-[#e9ebf5] dark:bg-neutral-800'
+                                                    // Fila abierta: fondo blanco y barra de 3 px con el color de marca.
+                                                    // El lavanda anterior (#e9ebf5) casi no se distinguía del fondo de
+                                                    // la lista (#f0f2f8, contraste 1,06:1). La barra usa var(--primary),
+                                                    // que en oscuro ya pasa a un azul visible, en vez de otro #2e3f84.
+                                                    ? 'bg-white dark:bg-neutral-800 shadow-[inset_3px_0_0_var(--primary)]'
                                                     : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
                                             }`}
                                     >
@@ -3681,7 +3685,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         <div className="flex-grow min-w-0 py-2.5 pr-3 border-b border-[#ececf3] dark:border-white/[0.06]">
                                             <div className="flex justify-between items-center mb-0.5">
                                                 <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                                                    <h3 className="font-bold text-[#1a1c1c] dark:text-neutral-200 truncate text-[15px]">
+                                                    {/* La negrita marca lo NO leído, como en el correo. Antes el nombre iba
+                                                        siempre en negrita, así que no informaba de nada y había que buscar
+                                                        el circulito verde. 600 y 400 son pesos reales de Instrument Sans;
+                                                        el font-bold anterior (700) no existe y lo sintetizaba el navegador. */}
+                                                    <h3 className={`truncate text-[15px] ${conversation.unread_count > 0
+                                                        ? 'font-semibold text-[#1a1c1c] dark:text-neutral-100'
+                                                        : 'font-normal text-[#3b3d4a] dark:text-neutral-300'}`}>
                                                         {conversation.contact_name || t('conversations.noName')}
                                                     </h3>
                                                     {conversation.is_pinned && (
@@ -3761,8 +3771,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             {conversation.tags.slice(0, 2).map((tag) => (
                                                                 <span
                                                                     key={tag.id}
-                                                                    className="inline-flex flex-shrink-0 items-center gap-1 rounded-md px-1.5 py-[1px] text-[10px] font-semibold"
-                                                                    style={{ backgroundColor: `${tag.color}1f`, color: tag.color }}
+                                                                    className="tag-chip inline-flex flex-shrink-0 items-center gap-1 rounded-md px-1.5 py-[1px] text-[10px] font-semibold"
+                                                                    style={{ backgroundColor: `${tag.color}1f`, ['--tag-color' as string]: tag.color }}
                                                                     title={tag.name}
                                                                 >
                                                                     <span className="h-[5px] w-[5px] flex-shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
@@ -3770,7 +3780,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                 </span>
                                                             ))}
                                                             {conversation.tags.length > 2 && (
-                                                                <span className="flex-shrink-0 text-[10px] font-semibold text-[#767681] dark:text-neutral-500">
+                                                                <span className="flex-shrink-0 text-[10px] font-semibold text-muted-foreground">
                                                                     +{conversation.tags.length - 2}
                                                                 </span>
                                                             )}

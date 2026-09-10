@@ -1615,6 +1615,20 @@ tr.table-row-hover:hover {
 }
 
 /* Layout containment for conversation list items */
+/* Etiquetas de la lista de conversaciones.
+   El texto era el color de la etiqueta sobre ese mismo color al 12 %: con ámbar
+   (la etiqueta "Agendado", la más usada) quedaba en 1,77:1, ilegible a 10 px.
+   Se oscurece mezclándolo con tinta: 45 % de color da 5,24:1 en el peor caso
+   (ámbar sobre la lista); en oscuro, 70 % con blanco da 4,95:1 (índigo sobre la
+   fila abierta). Ambos superan AA (4,5:1). El punto y el fondo conservan el color
+   original, así que la etiqueta se sigue reconociendo por su tono. */
+.tag-chip {
+    color: color-mix(in srgb, var(--tag-color) 45%, #1c1f2e);
+}
+.dark .tag-chip {
+    color: color-mix(in srgb, var(--tag-color) 70%, #ffffff);
+}
+
 .conv-list-item {
     contain: layout style;
     /* OJO: NO reintroducir `content-visibility: auto` aquí.
