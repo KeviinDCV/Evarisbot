@@ -1079,7 +1079,10 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         onClick={() => handleChatSelect(chat)}
                                         onContextMenu={(e) => handleChatContextMenu(e, chat.id)}
                                         className={`w-full flex items-center gap-3 pl-3 transition-colors text-left select-none ${isActive
-                                            ? 'bg-[#e9ebf5] dark:bg-neutral-800'
+                                            // Chat abierto: fondo blanco y barra de 3 px con el color de marca, igual que en la
+                                            // lista de conversaciones. El lavanda anterior casi no se distinguía del fondo
+                                            // (1,06:1). var(--primary) pasa sola a un azul visible en modo oscuro.
+                                            ? 'bg-white dark:bg-neutral-800 shadow-[inset_3px_0_0_var(--primary)]'
                                             : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
                                             }`}
                                     >
@@ -1098,7 +1101,12 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                         {/* Info (divisor inset estilo WhatsApp: empieza después del avatar) */}
                                         <div className="flex-grow min-w-0 py-3 pr-3 border-b border-[#ececf3] dark:border-white/[0.06]">
                                             <div className="flex justify-between items-baseline mb-0.5">
-                                                <h3 className="font-bold text-[#1a1c1c] dark:text-neutral-200 truncate text-[15px]">
+                                                {/* La negrita marca lo NO leído, con el mismo criterio que la lista de
+                                                    conversaciones. 600 y 400 son pesos reales de Instrument Sans; el
+                                                    font-bold anterior (700) no existe en la fuente y lo sintetizaba el navegador. */}
+                                                <h3 className={`truncate text-[15px] ${chat.unread > 0
+                                                    ? 'font-semibold text-[#1a1c1c] dark:text-neutral-100'
+                                                    : 'font-normal text-[#3b3d4a] dark:text-neutral-300'}`}>
                                                     {chat.name}
                                                 </h3>
                                                 <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${chat.unread > 0 ? 'text-[#2e3f84] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
@@ -1125,7 +1133,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                     </span>
                                                 </div>
                                                 {chat.type === 'direct' && chat.participants.some(p => p.id !== auth.user.id && p.is_online) && (
-                                                    <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 rounded-full">
                                                         {t('internalChat.online')}
                                                     </span>
                                                 )}
