@@ -1852,3 +1852,184 @@ tr.table-row-hover:hover {
         animation: none !important;
     }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EL MARCO — el menú "Marco navy" (layouts/marco-layout.tsx), detrás del
+   interruptor de lib/shell-preference. El navy deja de ser una pieza: es el
+   MARCO de toda la app. El menú vive directamente sobre él y el contenido va
+   en una ISLA clara con esquinas redondeadas. Medidas, tintas y contrastes:
+   design/usuarios/_marco.mjs. Sólo desde lg; en móvil no hay marco (página a
+   pantalla completa y cajón navy, como hoy).
+   Nada de este bloque toca .puesto-*: los dos menús conviven.
+   ══════════════════════════════════════════════════════════════════════════ */
+.marco-raiz {
+    /* La familia del marco. Luz tenue navySoft arriba a la izquierda sobre
+       navy → navyDeep (60%) → navyDark, como en el diseño aprobado. */
+    --marco-luz: rgba(78, 95, 164, 0.35);
+    --marco-a: #2e3f84;
+    --marco-b: #2e3a75;
+    --marco-c: #26356f;
+    /* Anillo de las insignias plegadas: el color del marco a la altura de los
+       contadores (así la insignia se lee montada en el borde, no pegada). */
+    --marco-anillo: #2f3f80;
+    /* Píldora del chat interno plegada: el blanco .14 del diseño ya compuesto
+       sobre el marco, opaco para que no se aclare al pisar la cápsula blanca.
+       slate-100 encima: 5,6:1. */
+    --marco-pildora: #4a5890;
+}
+/* En oscuro el navy crudo pelea con el fondo cálido: se hunde (la misma familia
+   que .dark .puesto-rail) y la luz de arriba se apaga casi del todo. */
+.dark .marco-raiz {
+    --marco-luz: rgba(78, 95, 164, 0.14);
+    --marco-a: #232c5e;
+    --marco-b: #1b2246;
+    --marco-c: #161c3a;
+    --marco-anillo: #20295a;
+    --marco-pildora: #3b4471;
+}
+
+/* El panel del menú: el MISMO fondo que el marco. En escritorio va anclado a la
+   ventana (background-attachment: fixed), así que plegado o fijado es invisible
+   —casa sin costura— y al expandirse sin fijar tapa la isla como un panel navy.
+   El grano es el de .puesto-rail::before. */
+.marco-panel {
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E"),
+        radial-gradient(560px 420px at 0px 0px, var(--marco-luz), transparent 72%),
+        linear-gradient(180deg, var(--marco-a) 0%, var(--marco-b) 60%, var(--marco-c) 100%);
+    background-repeat: repeat, no-repeat, no-repeat;
+    transition: box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Cajón móvil: sombra hacia la derecha sobre la capa oscura. */
+.marco-panel--cajon {
+    box-shadow: 16px 0 40px -16px rgba(0, 0, 0, 0.55);
+}
+/* Sin fijar y expandido: flota sobre la isla. Sombra hacia la derecha y un
+   filo de luz en el borde para separarlo del contenido que tapa. */
+.marco-panel--flota {
+    box-shadow: 14px 0 34px -14px rgba(15, 23, 60, 0.55), inset -1px 0 0 rgba(255, 255, 255, 0.07);
+}
+.dark .marco-panel--flota {
+    box-shadow: 14px 0 34px -14px rgba(0, 0, 0, 0.75), inset -1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* El logo del HUV a su color real sobre la baldosa blanca. El drop-shadow sin
+   desplazamiento ni desenfoque sólo engruesa el line-art fino (como en el diseño). */
+.marco-logo {
+    filter: drop-shadow(0 0 0 #2e3f84);
+}
+
+.marco-pildora-interna {
+    background-color: var(--marco-pildora);
+}
+
+@media (min-width: 64rem) {
+    /* El marco: toda la ventana. `position: fixed` (clase lg:fixed del layout) y no
+       el scroll del documento: el scroll vive dentro de la isla. */
+    .marco-raiz {
+        background-image:
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E"),
+            radial-gradient(560px 420px at 0px 0px, var(--marco-luz), transparent 72%),
+            linear-gradient(180deg, var(--marco-a) 0%, var(--marco-b) 60%, var(--marco-c) 100%);
+        background-repeat: repeat, no-repeat, no-repeat;
+        background-attachment: fixed;
+    }
+    .marco-panel {
+        background-attachment: fixed;
+    }
+
+    /* LA ISLA. Absoluta dentro del marco y NO fixed: un fixed abriría su propio
+       contexto de apilamiento y los modales no portaleados de las páginas (z-50,
+       z-[100]) quedarían por debajo del menú. Tampoco transform/filter/contain:
+       romperían los position: fixed de las páginas. overflow: hidden sólo recorta
+       lo que cuelga de la isla; los fixed de las páginas se refieren a la ventana
+       y no se recortan. */
+    .marco-isla {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        bottom: 10px;
+        left: var(--marco-izq, 72px);
+        border-radius: 22px;
+        overflow: hidden;
+        background-color: var(--background);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.14), 0 20px 44px -22px rgba(0, 0, 0, 0.6);
+        transition: left 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    /* El filo de luz de arriba va en una capa propia: las páginas pintan su propio
+       bg-background y taparían una sombra inset puesta en la isla. */
+    .marco-isla::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        border-radius: inherit;
+        pointer-events: none;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+    .dark .marco-isla {
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 20px 44px -22px rgba(0, 0, 0, 0.75);
+    }
+    .dark .marco-isla::after {
+        content: none;
+    }
+    /* La barra de scroll no entra en las esquinas redondeadas. */
+    .marco-isla > main::-webkit-scrollbar-track {
+        margin-block: 14px;
+    }
+
+    /* ENCAJE DE LAS PÁGINAS, sin tocarlas. Están escritas para la ventana
+       ("min-h-screen", y Conversaciones / Chat interno / su vista suelta con
+       "h-[calc(100vh-0px)]"). Dentro de la isla (20px más baja que la ventana)
+       eso desbordaría 20px y en Conversaciones escondería el compositor bajo el
+       borde. Aquí la referencia pasa a ser la isla. Acotado a .marco-isla: con el
+       menú de hoy estas reglas no existen. Sin capa, gana a las utilidades. */
+    .marco-isla .min-h-screen {
+        min-height: 100%;
+    }
+    .marco-isla .h-\[calc\(100vh-0px\)\] {
+        height: 100%;
+    }
+}
+
+/* Al entrar de turno, el edificio se enciende: un barrido teal sube por el
+   borde del menú, pegado a la isla. */
+.marco-barrido {
+    background: linear-gradient(to top, rgba(45, 212, 191, 0), #5eead4, rgba(45, 212, 191, 0));
+    filter: blur(1px);
+    animation: marco-barrido 900ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+@keyframes marco-barrido {
+    0% { opacity: 0; bottom: 0; }
+    10% { opacity: 1; }
+    85% { opacity: 0.9; }
+    100% { opacity: 0; bottom: calc(100% - 40px); }
+}
+
+/* Traza ECG viva alrededor del avatar mientras estás de turno. */
+.marco-ecg path {
+    stroke-dasharray: 18 130;
+    animation: marco-ecg 3s linear infinite;
+}
+@keyframes marco-ecg {
+    to { stroke-dashoffset: -148; }
+}
+
+/* El contador del chat late una sola vez cuando ENTRA un mensaje. */
+.marco-ping {
+    animation: marco-ping 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes marco-ping {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .marco-barrido, .marco-ecg path, .marco-ping {
+        animation: none !important;
+    }
+    .marco-isla, .marco-panel {
+        transition: none !important;
+    }
+}

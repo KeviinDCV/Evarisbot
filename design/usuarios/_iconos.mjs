@@ -3,7 +3,8 @@ import path from 'path';
 const D = 'node_modules/lucide-react/dist/esm/icons';
 const nombres = ['users','activity','shield-check','headphones','search','x','send','calendar','edit-3','trash-2','plus',
   'user-circle','message-square','messages-square','file-text','bar-chart-3','settings','panel-left-open','ellipsis',
-  'check','chevron-right','mail','user-plus','sliders-horizontal','filter','key-round','log-out','circle-dot','clock','panel-left-close','chevron-down','list','layout-grid','user-round','info','lock','circle-alert','user-cog','calendar-days','shield','eye'];
+  'check','chevron-right','mail','user-plus','sliders-horizontal','filter','key-round','log-out','circle-dot','clock','panel-left-close','chevron-down','list','layout-grid','user-round','info','lock','circle-alert','user-cog','calendar-days','shield','eye',
+  'message-circle','phone','building-2','plug-zap','circle-check','webhook','audio-lines','spell-check','badge-check','loader-circle','hash','user-check','triangle-alert'];
 const leer = (n, vistos = new Set()) => {
   if (vistos.has(n)) return null; vistos.add(n);
   const f = path.join(D, n + '.js');

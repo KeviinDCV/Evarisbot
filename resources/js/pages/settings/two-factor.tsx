@@ -4,10 +4,9 @@ import TwoFactorSetupModal from '@/components/two-factor-setup-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTwoFactorAuth } from '@/hooks/use-two-factor-auth';
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { disable, enable, show } from '@/routes/two-factor';
-import { type BreadcrumbItem } from '@/types';
+import { disable, enable } from '@/routes/two-factor';
 import { Form, Head } from '@inertiajs/react';
 import { ShieldBan, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
@@ -23,12 +22,6 @@ export default function TwoFactor({
     twoFactorEnabled = false,
 }: TwoFactorProps) {
     const { t } = useTranslation();
-    const breadcrumbs: BreadcrumbItem[] = [
-        {
-            title: t('twoFactor.title'),
-            href: show.url(),
-        },
-    ];
     const {
         qrCodeSvg,
         hasSetupData,
@@ -42,7 +35,7 @@ export default function TwoFactor({
     const [showSetupModal, setShowSetupModal] = useState<boolean>(false);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout>
             <Head title={t('twoFactor.title')} />
             <SettingsLayout>
                 <div className="space-y-6">
@@ -127,6 +120,6 @@ export default function TwoFactor({
                     />
                 </div>
             </SettingsLayout>
-        </AppLayout>
+        </AdminLayout>
     );
 }

@@ -3,24 +3,15 @@ import { useTranslation } from 'react-i18next';
 
 import AppearanceToggleTab from '@/components/appearance-tabs';
 import HeadingSmall from '@/components/heading-small';
-import { type BreadcrumbItem } from '@/types';
 
-import AppLayout from '@/layouts/app-layout';
+import AdminLayout from '@/layouts/admin-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { edit as editAppearance } from '@/routes/appearance';
 
 export default function Appearance() {
     const { t } = useTranslation();
 
-    const breadcrumbs: BreadcrumbItem[] = [
-        {
-            title: t('appearance.breadcrumbTitle'),
-            href: editAppearance().url,
-        },
-    ];
-
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AdminLayout>
             <Head title={t('appearance.pageTitle')} />
 
             <SettingsLayout>
@@ -42,6 +33,6 @@ export default function Appearance() {
                     </div>
                 </div>
             </SettingsLayout>
-        </AppLayout>
+        </AdminLayout>
     );
 }

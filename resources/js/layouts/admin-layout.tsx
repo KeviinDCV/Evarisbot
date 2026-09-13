@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { type PropsWithChildren, type ReactNode, type PointerEvent as ReactPointerEvent, type FocusEvent as ReactFocusEvent, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
-import { Users, MessageSquare, Settings, LogOut, Menu, X, FileText, Calendar, BarChart3, Send, MessagesSquare, UserCircle, Lock, PanelLeftClose, PanelLeftOpen, type LucideIcon } from 'lucide-react';
+import { LogOut, Menu, X, UserCircle, Lock, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { logout } from '@/routes';
@@ -11,6 +11,9 @@ import AppearanceToggleDropdown from '@/components/appearance-dropdown';
 import { MessageNotifications } from '@/components/message-notifications';
 import { subscribeUnread, getUnread, seedUnreadChat, type UnreadState } from '@/lib/unread-store';
 import { Toaster } from 'sonner';
+import { GROUPS, readPinned, type NavEntry } from '@/layouts/admin-nav';
+import MarcoLayout from '@/layouts/marco-layout';
+import { setMarcoShell, useMarcoShell } from '@/lib/shell-preference';
 
 interface AdminLayoutProps {
     children: ReactNode;
@@ -19,63 +22,6 @@ interface AdminLayoutProps {
 /** Mide antes del paint en el cliente (evita parpadeo de la cápsula al re-montar por
  *  navegación); cae a useEffect en SSR para no avisar en consola. */
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-
-/** Lee el estado fijado guardado, con guarda de SSR. */
-function readPinned(): boolean {
-    if (typeof window === 'undefined') return false;
-    try {
-        return localStorage.getItem('evaris.rail.pinned') === '1';
-    } catch {
-        return false;
-    }
-}
-
-type NavEntry = {
-    href: string;
-    title: string;
-    icon: LucideIcon;
-    /** Cuenta viva que alimenta la barra de señal y la píldora. */
-    badge?: 'chat' | 'internal';
-    /** El asesor sólo lo ve si tiene el permiso. */
-    needsBulk?: boolean;
-    /** Rutas extra que también marcan este ítem como activo. */
-    alsoMatches?: string[];
-};
-
-/**
- * EL RIEL NAVEGA ENTRE SECCIONES; LA SECCIÓN NAVEGA DENTRO DE SÍ MISMA.
- *
- * Por eso Citas es UN icono sin chevron: el submenú General/Oncología (que antes
- * vivía como texto de 9px dentro de un riel de 80px) ahora es un segmentado en la
- * cabecera de la propia página de Citas.
- *
- * La agrupación coincide exactamente con el filtro de rol: TRABAJO es lo que hace
- * un asesor; GESTIÓN es lo admin-only. El rol no esconde cosas — hace el objeto
- * físicamente más pequeño.
- */
-const GROUPS: { key: string; label: string; adminOnly?: boolean; items: NavEntry[] }[] = [
-    {
-        key: 'trabajo',
-        label: 'navigation.groupWork',
-        items: [
-            { href: '/admin/chat', title: 'navigation.conversations', icon: MessageSquare, badge: 'chat' },
-            { href: '/admin/internal-chat', title: 'navigation.internalChat', icon: MessagesSquare, badge: 'internal' },
-            { href: '/admin/templates', title: 'navigation.templates', icon: FileText },
-            { href: '/admin/bulk-sends', title: 'navigation.bulkSends', icon: Send, needsBulk: true },
-        ],
-    },
-    {
-        key: 'gestion',
-        label: 'navigation.groupManagement',
-        adminOnly: true,
-        items: [
-            { href: '/admin/appointments', title: 'navigation.appointments', icon: Calendar, alsoMatches: ['/admin/oncology-appointments'] },
-            { href: '/admin/statistics', title: 'navigation.statistics', icon: BarChart3 },
-            { href: '/admin/users', title: 'navigation.users', icon: Users },
-            { href: '/admin/settings', title: 'navigation.settings', icon: Settings },
-        ],
-    },
-];
 
 /** Rojo = un paciente espera. Slate = un colega espera. Nada más en el riel puede ir saturado.
  *  La barra de señal (decorativa, aria-hidden) puede ir clara; la PÍLDORA lleva dígitos blancos
@@ -93,7 +39,7 @@ function barHeight(n: number): string {
     return '100%';
 }
 
-export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutProps>) {
+function LegacyAdminLayout({ children }: PropsWithChildren<AdminLayoutProps>) {
     const { t } = useTranslation();
     const { auth, unreadConversationsCount: initialUnreadCount = 0 } = usePage().props as any;
     const currentUrl = usePage().url;
@@ -643,6 +589,21 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
 
                             <div className="my-2 h-px bg-border" />
 
+                            {/* Este riel sólo lo ve un administrador que eligió volver a él (salida de
+                                emergencia): desde aquí regresa al Marco navy, el menú de todos. */}
+                            {!isAdvisor && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCarnetOpen(false);
+                                        setMarcoShell(true);
+                                    }}
+                                    className="flex w-full items-center gap-2 rounded-lg p-2 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+                                >
+                                    <Sparkles className="h-4 w-4" />
+                                    {t('navigation.tryNewMenu', 'Volver al menú nuevo')}
+                                </button>
+                            )}
                             <Link
                                 href="/settings/profile"
                                 onClick={() => setCarnetOpen(false)}
@@ -679,4 +640,29 @@ export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutP
             <Toaster position="bottom-right" richColors closeButton duration={4000} />
         </div>
     );
+}
+
+/**
+ * EL INTERRUPTOR. Todas las páginas importan este default, así que aquí se decide qué menú
+ * se pinta: el "Marco navy" (por defecto, para todo el mundo) o el riel anterior si un
+ * administrador lo eligió en este navegador (lib/shell-preference). Son dos componentes
+ * distintos, no un `if` dentro de uno: al cambiar de menú React desmonta uno y monta el
+ * otro, sin mezclar el orden de sus hooks.
+ */
+export default function AdminLayout({ children }: PropsWithChildren<AdminLayoutProps>) {
+    const { auth } = usePage().props as { auth?: { user?: { role?: string } } };
+    // Un asesor trabaja siempre con el Marco navy, aunque en su navegador haya quedado
+    // guardada la elección de un administrador (PC compartido): la salida es sólo de admins.
+    const marco = useMarcoShell() || auth?.user?.role === 'advisor';
+
+    // Al cambiar de menú el botón pulsado desaparece con el layout: se lleva el foco al
+    // contenido para que el teclado y el lector de pantalla no queden en el <body>.
+    const prevMarcoRef = useRef(marco);
+    useEffect(() => {
+        if (prevMarcoRef.current === marco) return;
+        prevMarcoRef.current = marco;
+        document.getElementById('main-content')?.focus({ preventScroll: true });
+    }, [marco]);
+
+    return marco ? <MarcoLayout>{children}</MarcoLayout> : <LegacyAdminLayout>{children}</LegacyAdminLayout>;
 }

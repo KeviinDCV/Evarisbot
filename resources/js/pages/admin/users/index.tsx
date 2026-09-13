@@ -13,6 +13,13 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -22,23 +29,22 @@ import {
 import InputError from '@/components/input-error';
 import { cn } from '@/lib/utils';
 import {
-    Activity,
-    Calendar,
+    Check,
     Edit3,
+    Ellipsis,
     Headphones,
     KeyRound,
     Mail,
-    Plus,
     Search,
     Send,
     ShieldCheck,
     Trash2,
     UserCircle,
+    UserPlus,
     Users,
     X,
-    type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
@@ -66,14 +72,6 @@ interface UserFormData {
     role: User['role'];
 }
 
-interface MetricCardProps {
-    icon: LucideIcon;
-    label: string;
-    value: string | number;
-    detail: string;
-    active?: boolean;
-}
-
 type RoleFilter = 'all' | User['role'];
 
 function getInitials(name: string) {
@@ -85,62 +83,247 @@ function getInitials(name: string) {
         .join('');
 }
 
-function MetricCard({ icon: Icon, label, value, detail, active = false }: MetricCardProps) {
+/**
+ * Nombre propio SOLO para pintar (el dato guardado no cambia): conviven "ANDREA CAROLINA MUÑOZ PAZ"
+ * y "Sofía Quintero Ramos", y la lista en mayúsculas sostenidas se lee gritada. Las partículas
+ * (de, del, la…) van en minúscula salvo al principio; los compuestos con guion se respetan.
+ */
+const PARTICULAS = new Set(['de', 'del', 'la', 'las', 'los', 'y']);
+
+function nombrePropio(nombre: string) {
+    const mayuscula = (parte: string) => parte.charAt(0).toLocaleUpperCase('es') + parte.slice(1);
+
+    return nombre
+        .toLocaleLowerCase('es')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((palabra, i) => (i > 0 && PARTICULAS.has(palabra) ? palabra : palabra.split('-').map(mayuscula).join('-')))
+        .join(' ');
+}
+
+/* ── Tintas de la vista (design/vista-usuarios/gen_vista.mjs) ──────────────────────────────────────
+   Todo es navy #2e3f84 con alfa sobre la hoja blanca; en oscuro, blanco con alfa sobre bg-card. */
+const FILETE = 'border-[#2e3f84]/8 dark:border-white/8';
+const TEXTO_NAVY = 'text-[#2e3f84] dark:text-neutral-100';
+// Nombres de columna y opciones inactivas: en oscuro el muted-foreground no llega a 4,5:1 sobre la
+// banda tintada (4,45:1), así que ahí suben a neutral-400 (5,85:1).
+const TEXTO_SUAVE = 'text-muted-foreground dark:text-neutral-400';
+const FOCO = 'outline-none focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 dark:focus-visible:ring-[#8b9ae0]/60';
+
+// Columnas de la lista. Medio (hoja ≥ 768 px): compactas. Ancho (hoja ≥ 1024 px): las del diseño.
+// Por debajo de 768 px de hoja, cada persona es una tarjeta apilada (otra plantilla).
+// Solo la plantilla: quien la usa decide cuándo es grid (desde @3xl/hoja).
+const COLUMNAS =
+    'grid-cols-[minmax(0,1fr)_120px_136px_96px_88px_64px] items-center gap-x-4 @3xl/hoja:px-5 @5xl/hoja:grid-cols-[minmax(0,1fr)_160px_180px_124px_116px_68px] @5xl/hoja:gap-x-6';
+
+// Fondo de fila en una variable: el aro del punto de presencia lleva el MISMO color que su fila
+// (en reposo, al pasar el ratón o con el menú "…" abierto), así nunca asoma un anillo blanco.
+const FONDO_FILA =
+    'bg-[color:var(--fila)] [--fila:var(--color-card)] hover:[--fila:color-mix(in_srgb,var(--color-card),#2e3f84_3.5%)] has-[[aria-expanded=true]]:[--fila:color-mix(in_srgb,var(--color-card),#2e3f84_3.5%)] dark:hover:[--fila:color-mix(in_srgb,var(--color-card),white_3%)] dark:has-[[aria-expanded=true]]:[--fila:color-mix(in_srgb,var(--color-card),white_3%)]';
+
+/* ── Piezas ─────────────────────────────────────────────────────────────────────────────────────── */
+
+/** Avatar de iniciales: navy sólido para administradores, tinta navy para asesores. */
+function Avatar({ user, size = 32, className }: { user: User; size?: 28 | 32; className?: string }) {
+    const admin = user.role === 'admin';
+
     return (
-        <div className="card-gradient rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5">
-            <div className="flex items-center gap-3">
-                <div
-                    className={cn(
-                        'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border',
-                        active
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
-                            : 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100'
-                    )}
+        <span
+            className={cn(
+                'flex shrink-0 items-center justify-center rounded-full font-semibold leading-none tracking-[0.02em]',
+                size === 32 ? 'size-8 text-[12px]' : 'size-7 text-[11px]',
+                admin
+                    ? 'bg-[#2e3f84] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:bg-[#4e5fa4]'
+                    : 'bg-[#2e3f84]/10 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.06)] dark:bg-white/8 dark:text-neutral-200 dark:shadow-none',
+                className
+            )}
+            aria-hidden="true"
+        >
+            {getInitials(user.name)}
+        </span>
+    );
+}
+
+/** Avatar con el punto de presencia (esmeralda 600: 3,67:1 contra la hoja). */
+function AvatarPresencia({ user }: { user: User }) {
+    return (
+        <span className="relative shrink-0">
+            <Avatar user={user} />
+            {user.is_online && (
+                <span className="absolute -right-[3px] -bottom-[3px] size-[11px] rounded-full bg-emerald-600 ring-2 ring-[color:var(--fila)] dark:bg-emerald-500" />
+            )}
+        </span>
+    );
+}
+
+function PuntoEstado({ online }: { online: boolean }) {
+    return (
+        <span
+            className={cn('size-2 shrink-0 rounded-full', online ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-slate-500 dark:bg-neutral-500')}
+            aria-hidden="true"
+        />
+    );
+}
+
+/** Rol: etiqueta tintada, sin borde duro. */
+function RolePill({ role, label }: { role: User['role']; label: string }) {
+    const admin = role === 'admin';
+    const Icono = admin ? ShieldCheck : Headphones;
+
+    return (
+        <span
+            className={cn(
+                'inline-flex h-6 items-center gap-1.5 rounded-[7px] pr-[9px] pl-[7px] text-[12px] leading-4 font-semibold whitespace-nowrap',
+                admin
+                    ? 'bg-[#2e3f84]/7 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.14)] dark:bg-white/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]'
+                    : 'bg-sky-50 text-sky-700 shadow-[inset_0_0_0_1px_var(--color-sky-200)] dark:bg-sky-500/10 dark:text-sky-300 dark:shadow-[inset_0_0_0_1px_rgba(14,165,233,0.25)]'
+            )}
+        >
+            <Icono className="size-3.5" strokeWidth={2} aria-hidden="true" />
+            {label}
+        </span>
+    );
+}
+
+/**
+ * Interruptor de envío masivo (solo en esta vista). Encendido: pista navy y bolita blanca con la
+ * marca. Apagado: pista con contorno pizarra 500 y bolita pizarra 500 (4,76:1): se distingue sin color.
+ */
+function InterruptorEnvio({ activo, etiqueta, onToggle }: { activo: boolean; etiqueta: string; onToggle: () => void }) {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={activo}
+            aria-label={etiqueta}
+            title={etiqueta}
+            onClick={onToggle}
+            className={cn(
+                'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                FOCO,
+                activo
+                    ? 'bg-[#2e3f84] shadow-[inset_0_1px_1px_rgba(0,0,0,0.2)] dark:bg-[#596bcf]'
+                    : 'bg-card shadow-[inset_0_0_0_1.5px_var(--color-slate-500)] dark:shadow-[inset_0_0_0_1.5px_var(--color-neutral-400)]'
+            )}
+        >
+            <span
+                className={cn(
+                    'absolute flex items-center justify-center rounded-full transition-all duration-200',
+                    activo
+                        ? 'top-0.5 left-[18px] size-4 bg-white text-[#2e3f84] shadow-[0_1px_2px_rgba(0,0,0,0.28)]'
+                        : 'top-[5px] left-[5px] size-2.5 bg-slate-500 dark:bg-neutral-400'
+                )}
+                aria-hidden="true"
+            >
+                {activo && <Check className="size-2.5" strokeWidth={3.5} />}
+            </span>
+        </button>
+    );
+}
+
+const BOTON_FANTASMA = cn(
+    'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+    'aria-expanded:bg-[#2e3f84]/8 aria-expanded:text-[#2e3f84] aria-expanded:shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:aria-expanded:bg-white/8 dark:aria-expanded:text-neutral-100 dark:aria-expanded:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]',
+    FOCO
+);
+
+/** Lápiz (Editar) + menú "…" con Editar y Eliminar. */
+function Acciones({
+    etiquetas,
+    onEdit,
+    onDelete,
+}: {
+    etiquetas: { edit: string; delete: string; more: string };
+    onEdit: () => void;
+    onDelete: () => void;
+}) {
+    return (
+        <div className="flex items-center justify-end gap-1">
+            <button type="button" onClick={onEdit} className={BOTON_FANTASMA} title={etiquetas.edit} aria-label={etiquetas.edit}>
+                <Edit3 className="size-4" strokeWidth={1.75} aria-hidden="true" />
+            </button>
+            {/* modal={false}: el menú abre un Dialog de Radix; en modo modal los dos se pisan el
+                bloqueo del body y la página se quedaba sin clics al cerrar el diálogo. */}
+            <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                    <button type="button" className={BOTON_FANTASMA} title={etiquetas.more} aria-label={etiquetas.more}>
+                        <Ellipsis className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                    align="end"
+                    sideOffset={4}
+                    className="flex w-[216px] flex-col gap-0.5 rounded-xl border-0 bg-white p-1 shadow-[0_0_0_1px_rgba(46,63,132,0.1),0_2px_4px_rgba(46,63,132,0.06),0_12px_28px_-12px_rgba(46,63,132,0.3)] dark:bg-popover dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_12px_28px_-12px_rgba(0,0,0,0.7)]"
                 >
-                    <Icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
-                    <p className="mt-1 text-lg font-bold leading-tight settings-title">{value}</p>
-                    <p className="mt-0.5 truncate text-xs settings-subtitle">{detail}</p>
-                </div>
+                    <DropdownMenuItem
+                        onSelect={onEdit}
+                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100"
+                    >
+                        <Edit3 className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+                        {etiquetas.edit}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="mx-1.5 my-0 bg-[#2e3f84]/8 dark:bg-white/8" />
+                    <DropdownMenuItem
+                        onSelect={onDelete}
+                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-red-600 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:focus:bg-red-500/10 dark:focus:text-red-300"
+                    >
+                        <Trash2 className="size-4 text-red-600 dark:text-red-400" strokeWidth={1.75} aria-hidden="true" />
+                        {etiquetas.delete}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
+    );
+}
+
+/** Una cifra de la franja: marca + etiqueta arriba, número grande debajo (con su añadido). */
+function Cifra({
+    marca,
+    etiqueta,
+    valor,
+    extra,
+    base = false,
+    className,
+}: {
+    marca: ReactNode;
+    etiqueta: string;
+    valor: number;
+    extra?: ReactNode;
+    base?: boolean;
+    className?: string;
+}) {
+    return (
+        <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
+            <div className="flex h-4 items-center gap-2">
+                {marca}
+                <span className="truncate text-[12px] leading-4 font-medium text-muted-foreground">{etiqueta}</span>
+            </div>
+            <div className={cn('flex h-[34px] min-w-0', base ? 'items-baseline gap-2' : 'items-center gap-3.5')}>
+                <span className={cn('text-[30px] leading-[34px] font-medium tracking-[-0.03em] tabular-nums', TEXTO_NAVY)}>{valor}</span>
+                {extra}
             </div>
         </div>
     );
 }
 
-function RolePill({ role, label }: { role: User['role']; label: string }) {
-    const admin = role === 'admin';
+// Filete vertical neutro entre cifras (no un borde de tarjeta). Solo cuando la franja va en una fila.
+const Divisor = () => <div className="hidden w-px self-stretch bg-[#2e3f84]/12 @5xl/pagina:block dark:bg-white/10" aria-hidden="true" />;
 
-    return (
-        <span
-            className={cn(
-                'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold',
-                admin
-                    ? 'border-[#2e3f84]/20 bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/15 dark:bg-white/[0.06] dark:text-neutral-100'
-                    : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300'
-            )}
-        >
-            {admin ? <ShieldCheck className="h-3.5 w-3.5" /> : <Headphones className="h-3.5 w-3.5" />}
-            {label}
-        </span>
-    );
-}
+// Nombres de columna de las bandas.
+const Th = ({ children, className }: { children: ReactNode; className?: string }) => (
+    <span className={cn('truncate text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE, className)}>{children}</span>
+);
 
-function OnlinePill({ online, label }: { online: boolean; label: string }) {
-    return (
-        <span
-            className={cn(
-                'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold',
-                online
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
-                    : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-300'
-            )}
-        >
-            <span className={cn('h-2 w-2 rounded-full', online ? 'bg-emerald-500' : 'bg-slate-400')} />
-            {label}
-        </span>
-    );
+// Avatares de "En línea ahora", tocándose (sin solaparse: no se muerden iniciales). Caben 7 huecos
+// con ≥ 1120 px de contenido y 6 por debajo (1366 con el menú fijado); si hay más gente, el último
+// hueco es "+N". Se pintan las dos variantes y cada una se ve en su ancho.
+const HUECOS_ANCHO = 7;
+const HUECOS_ESTRECHO = 6;
+const SOLO_ANCHO = 'hidden @min-[1120px]/pagina:flex';
+const SOLO_ESTRECHO = 'flex @min-[1120px]/pagina:hidden';
+
+function avataresVisibles(total: number, huecos: number) {
+    return total > huecos ? huecos - 1 : total;
 }
 
 export default function UsersIndex({ users }: UsersIndexProps) {
@@ -224,6 +407,9 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         return { admins, advisors, online, bulkEnabled };
     }, [users]);
 
+    // Quién está en línea ahora (todos, sin filtros), en el orden del servidor.
+    const onlineUsers = useMemo(() => users.filter((user) => user.is_online), [users]);
+
     const filteredUsers = useMemo(() => {
         const searchTerm = search.trim().toLowerCase();
 
@@ -240,6 +426,16 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         // cada vez que alguien hace algo.
         return visibles.sort((a, b) => Number(b.is_online) - Number(a.is_online));
     }, [roleFilter, search, users]);
+
+    // Las dos bandas de la lista: primero los que están, luego el resto (mismo orden de arriba).
+    const groups = useMemo(
+        () =>
+            [
+                { online: true, users: filteredUsers.filter((user) => user.is_online) },
+                { online: false, users: filteredUsers.filter((user) => !user.is_online) },
+            ].filter((group) => group.users.length > 0),
+        [filteredUsers]
+    );
 
     const roleOptions: { value: RoleFilter; label: string }[] = [
         { value: 'all', label: t('common.all') },
@@ -350,209 +546,348 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         });
     };
 
+    const actionLabels = { edit: t('common.edit'), delete: t('common.delete'), more: t('users.moreActions') };
+
+    /* ── Piezas que dependen de t() ───────────────────────────────────────────────────────────── */
+
+    const bulkCell = (user: User) =>
+        user.role === 'advisor' ? (
+            <InterruptorEnvio
+                activo={user.can_bulk_send}
+                etiqueta={user.can_bulk_send ? t('users.disableBulkSend') : t('users.enableBulkSend')}
+                onToggle={() => toggleBulkSend(user)}
+            />
+        ) : (
+            <span title={t('users.onlyAdvisors')} className="text-[13px] leading-[18px] text-muted-foreground">
+                —
+            </span>
+        );
+
+    const statusWord = (user: User) => (
+        <span
+            className={cn(
+                'text-[13px] leading-[18px] font-medium whitespace-nowrap',
+                user.is_online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-neutral-300'
+            )}
+        >
+            {user.is_online ? t('users.online') : t('users.offline')}
+        </span>
+    );
+
+    const lastActivityText = (user: User) => (user.is_online ? t('users.justNow') : formatLastActivity(user.last_activity_at));
+
+    const nameBlock = (user: User) => (
+        <div className="flex min-w-0 flex-col gap-0.5">
+            <span className={cn('truncate text-[13.5px] leading-[18px] font-semibold tracking-[-0.003em]', TEXTO_NAVY)}>{nombrePropio(user.name)}</span>
+            <span className="truncate text-[12px] leading-4 text-muted-foreground">{user.email}</span>
+        </div>
+    );
+
+    const enPilaAncho = avataresVisibles(onlineUsers.length, HUECOS_ANCHO);
+    const enPilaEstrecho = avataresVisibles(onlineUsers.length, HUECOS_ESTRECHO);
+    const pila = onlineUsers.slice(0, enPilaAncho);
+
+    const chipResto = (resto: number, visibilidad: string) =>
+        resto > 0 && (
+            <li
+                title={t('users.moreOnline', { count: resto })}
+                className={cn(
+                    'size-7 shrink-0 items-center justify-center rounded-full bg-card text-[11px] leading-none font-semibold text-[#2e3f84] tabular-nums shadow-[inset_0_0_0_1px_rgba(46,63,132,0.14)] ring-2 ring-background dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]',
+                    visibilidad
+                )}
+            >
+                <span aria-hidden="true">+{resto}</span>
+                <span className="sr-only">{t('users.moreOnline', { count: resto })}</span>
+            </li>
+        );
+
     return (
         <AdminLayout>
             <Head title={t('users.title')} />
 
-            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-                <div className="mx-auto flex max-w-7xl flex-col gap-5">
-                    <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
-                                <Users className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                                    {t('users.title')}
-                                </h1>
-                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                                    {t('users.subtitle')}
-                                </p>
-                            </div>
+            <div className="min-h-screen bg-background px-4 pt-5 pb-8 md:px-7 md:pt-7">
+                <div className="@container/pagina mx-auto flex max-w-7xl flex-col gap-6">
+                    {/* ── Cabecera ── */}
+                    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                        <div className="flex flex-col gap-1">
+                            <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('users.title')}</h1>
+                            <p className="text-[14px] leading-5 text-muted-foreground">{t('users.subtitle')}</p>
                         </div>
 
-                        <Button onClick={openCreateModal} className="h-10 rounded-xl px-5 text-xs font-semibold settings-btn-primary">
-                            <Plus className="mr-2 h-3.5 w-3.5" />
+                        <Button
+                            onClick={openCreateModal}
+                            className="h-[38px] gap-2 self-start rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary has-[>svg]:pr-4 has-[>svg]:pl-3.5"
+                        >
+                            <UserPlus className="size-4" strokeWidth={2} aria-hidden="true" />
                             {t('users.newUser')}
                         </Button>
                     </header>
 
-                    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricCard icon={Users} label={t('users.metricUsers')} value={users.length} detail={t('users.metricVisible', { count: filteredUsers.length })} />
-                        <MetricCard icon={Activity} label={t('users.metricOnline')} value={stats.online} detail={t('users.metricOnlineDetail')} active={stats.online > 0} />
-                        <MetricCard icon={ShieldCheck} label={t('users.metricAdmins')} value={stats.admins} detail={t('users.metricAdminsDetail')} />
-                        <MetricCard icon={Headphones} label={t('users.metricAdvisors')} value={stats.advisors} detail={t('users.metricAdvisorsDetail', { count: stats.bulkEnabled })} />
+                    {/* ── Franja de cifras (sin cajas: filetes entre cifras) ── */}
+                    <section
+                        aria-label={t('users.summaryLabel')}
+                        className="grid grid-flow-dense grid-cols-2 gap-x-6 gap-y-5 @xl/pagina:grid-cols-3 @5xl/pagina:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.55fr)_1px_minmax(0,1fr)_1px_minmax(0,1fr)_1px_minmax(0,1.3fr)] @5xl/pagina:gap-y-0"
+                    >
+                        <Cifra
+                            marca={<Users className={cn('size-3.5', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />}
+                            etiqueta={t('users.metricUsers')}
+                            valor={users.length}
+                        />
+                        <Divisor />
+                        <Cifra
+                            className="col-span-2 @5xl/pagina:col-span-1"
+                            marca={
+                                <span className="flex w-3.5 justify-center">
+                                    <PuntoEstado online />
+                                </span>
+                            }
+                            etiqueta={t('users.metricOnlineNow')}
+                            valor={stats.online}
+                            extra={
+                                pila.length > 0 && (
+                                    <ul aria-label={t('users.whoIsOnline')} className="flex min-w-0 items-center">
+                                        {pila.map((user, i) => (
+                                            <li
+                                                key={user.id}
+                                                title={nombrePropio(user.name)}
+                                                className={cn('shrink-0 rounded-full', i < enPilaEstrecho ? 'flex' : SOLO_ANCHO)}
+                                            >
+                                                <Avatar user={user} size={28} className="ring-2 ring-background" />
+                                                <span className="sr-only">{nombrePropio(user.name)}</span>
+                                            </li>
+                                        ))}
+                                        {chipResto(onlineUsers.length - enPilaEstrecho, SOLO_ESTRECHO)}
+                                        {chipResto(onlineUsers.length - enPilaAncho, SOLO_ANCHO)}
+                                    </ul>
+                                )
+                            }
+                        />
+                        <Divisor />
+                        <Cifra
+                            marca={<ShieldCheck className={cn('size-3.5', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />}
+                            etiqueta={t('users.metricAdmins')}
+                            valor={stats.admins}
+                        />
+                        <Divisor />
+                        <Cifra
+                            marca={<Headphones className="size-3.5 text-sky-700 dark:text-sky-300" strokeWidth={2} aria-hidden="true" />}
+                            etiqueta={t('users.metricAdvisors')}
+                            valor={stats.advisors}
+                        />
+                        <Divisor />
+                        <Cifra
+                            marca={<Send className={cn('size-3.5', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />}
+                            etiqueta={t('users.metricBulk')}
+                            valor={stats.bulkEnabled}
+                            base
+                            extra={
+                                <span className="truncate text-[13px] leading-4 text-muted-foreground">
+                                    {t('users.metricBulkOf', { count: stats.advisors })}
+                                </span>
+                            }
+                        />
                     </section>
 
-                    <section className="card-gradient rounded-2xl p-4 shadow-lg shadow-[#2e3f84]/5">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                            <div className="min-w-0 flex-1">
-                                <Label htmlFor="user-search" className="mb-2 block text-xs font-semibold settings-label">
+                    {/* ── La hoja: barra (buscar, rol, recuento) + lista agrupada ── */}
+                    <section className="@container/hoja rounded-2xl bg-card shadow-[0_0_0_1px_rgba(46,63,132,0.07),0_1px_2px_rgba(46,63,132,0.05),0_14px_32px_-18px_rgba(46,63,132,0.22)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.07),0_14px_32px_-18px_rgba(0,0,0,0.6)]">
+                        <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-2.5 border-b px-4 py-3 @3xl/hoja:h-[60px] @3xl/hoja:flex-nowrap @3xl/hoja:px-5 @3xl/hoja:py-0', FILETE)}>
+                            <div className="relative w-full @3xl/hoja:w-[300px] @3xl/hoja:shrink-0">
+                                <Label htmlFor="user-search" className="sr-only">
                                     {t('common.search')}
                                 </Label>
-                                <div className="relative">
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 settings-subtitle" />
-                                    <Input
-                                        id="user-search"
-                                        name="user-search"
-                                        type="text"
-                                        value={search}
-                                        onChange={(event) => setSearch(event.target.value)}
-                                        placeholder={t('users.searchPlaceholder')}
-                                        className="h-10 rounded-xl pl-9 pr-9 text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                    />
-                                    {search && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setSearch('')}
-                                            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[#6b7494] transition-colors hover:bg-black/5 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100"
-                                            aria-label={t('users.clearSearch')}
-                                        >
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
+                                <Search
+                                    className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground dark:text-neutral-400"
+                                    strokeWidth={1.75}
+                                    aria-hidden="true"
+                                />
+                                <input
+                                    id="user-search"
+                                    name="user-search"
+                                    type="text"
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
+                                    placeholder={t('users.searchPlaceholder')}
+                                    className={cn(
+                                        'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                                        FOCO
                                     )}
-                                </div>
+                                />
+                                {search && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearch('')}
+                                        className={cn(
+                                            'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100',
+                                            FOCO
+                                        )}
+                                        aria-label={t('users.clearSearch')}
+                                        title={t('users.clearSearch')}
+                                    >
+                                        <X className="size-3.5" aria-hidden="true" />
+                                    </button>
+                                )}
                             </div>
 
-                            <div className="min-w-0">
-                                <p className="mb-2 text-xs font-semibold settings-label">{t('users.role')}</p>
-                                <div className="inline-flex w-full rounded-xl bg-white/70 p-1 dark:bg-white/[0.04] sm:w-auto">
-                                    {roleOptions.map((option) => (
+                            {/* Segmentado: la opción elegida en blanco. Las cifras de cada rol ya están arriba. */}
+                            <div
+                                role="group"
+                                aria-label={t('users.roleFilterLabel')}
+                                className="flex items-center gap-0.5 rounded-[11px] bg-[#2e3f84]/[0.055] p-[3px] dark:bg-white/5"
+                            >
+                                {roleOptions.map((option) => {
+                                    const activa = roleFilter === option.value;
+
+                                    return (
                                         <button
                                             key={option.value}
                                             type="button"
+                                            aria-pressed={activa}
                                             onClick={() => setRoleFilter(option.value)}
                                             className={cn(
-                                                'flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none',
-                                                roleFilter === option.value
-                                                    ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/20'
-                                                    : 'settings-subtitle hover:bg-[#eef1f8] hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100'
+                                                'h-[30px] cursor-pointer rounded-lg px-3 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors @md/hoja:px-3.5',
+                                                FOCO,
+                                                activa
+                                                    ? 'bg-white text-[#2e3f84] shadow-[0_0_0_1px_rgba(46,63,132,0.08),0_1px_2px_rgba(46,63,132,0.12),0_2px_6px_-2px_rgba(46,63,132,0.12)] dark:bg-white/12 dark:text-neutral-100 dark:shadow-none'
+                                                    : cn(TEXTO_SUAVE, 'hover:text-[#2e3f84] dark:hover:text-neutral-100')
                                             )}
                                         >
                                             {option.label}
                                         </button>
-                                    ))}
-                                </div>
+                                    );
+                                })}
                             </div>
-                        </div>
-                    </section>
 
-                    <section className="card-gradient overflow-hidden rounded-2xl shadow-lg shadow-[#2e3f84]/5">
-                        <div className="flex flex-col gap-2 border-b border-[#d4d8e8]/80 px-4 py-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h2 className="text-base font-bold settings-title">{t('users.directoryTitle')}</h2>
-                                <p className="mt-1 text-xs settings-subtitle">
-                                    {t('users.directoryCount', { filtered: filteredUsers.length, total: users.length })}
-                                </p>
-                            </div>
+                            <span className="ml-auto text-[12.5px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums" aria-live="polite">
+                                <Trans
+                                    i18nKey="users.directoryCountRich"
+                                    values={{ filtered: filteredUsers.length, total: users.length }}
+                                    components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                />
+                            </span>
                         </div>
 
-                        {filteredUsers.length > 0 ? (
-                            <div className="overflow-x-auto">
-                                <table className="w-full min-w-[900px] text-left">
-                                    <thead>
-                                        <tr className="border-b border-[#d4d8e8]/80 bg-[#f4f5f9]/70 dark:border-white/10 dark:bg-white/[0.04]">
-                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.tableUser')}</th>
-                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.role')}</th>
-                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.tableStatus')}</th>
-                                            <th className="px-4 py-3.5 text-center text-xs font-semibold settings-title">
-                                                <span className="inline-flex items-center justify-center gap-1.5">
-                                                    <Send className="h-3.5 w-3.5" />
-                                                    {t('users.tableBulkSend')}
-                                                </span>
-                                            </th>
-                                            <th className="px-4 py-3.5 text-xs font-semibold settings-title">{t('users.tableRegistered')}</th>
-                                            <th className="px-4 py-3.5 text-right text-xs font-semibold settings-title">{t('users.tableActions')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredUsers.map((user) => (
-                                            <tr key={user.id} className="border-b border-[#d4d8e8]/60 transition-colors last:border-0 hover:bg-white/55 dark:border-white/10 dark:hover:bg-white/[0.04]">
-                                                <td className="px-4 py-3.5">
-                                                    <div className="flex min-w-0 items-center gap-3">
-                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2e3f84] text-xs font-bold text-white shadow-sm shadow-[#2e3f84]/20">
-                                                            {getInitials(user.name)}
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <p className="truncate text-sm font-bold settings-title">{user.name}</p>
-                                                            <p className="truncate text-xs settings-subtitle">{user.email}</p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3.5">
-                                                    <RolePill role={user.role} label={getRoleLabel(user.role)} />
-                                                </td>
-                                                <td className="px-4 py-3.5">
-                                                    <div className="flex flex-col gap-1.5">
-                                                        <OnlinePill online={user.is_online} label={user.is_online ? t('users.online') : t('users.offline')} />
-                                                        <span className="text-[11px] settings-subtitle">
-                                                            {user.is_online ? t('users.justNow') : formatLastActivity(user.last_activity_at)}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3.5 text-center">
-                                                    {user.role === 'advisor' ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => toggleBulkSend(user)}
+                        {groups.length > 0 ? (
+                            groups.map((group, groupIndex) => {
+                                const lastGroup = groupIndex === groups.length - 1;
+                                const groupId = group.online ? 'users-group-online' : 'users-group-offline';
+
+                                return (
+                                    // Cada grupo envuelve su banda: al desplazarse (desde lg, el scroll es el de
+                                    // la isla) la banda se queda pegada arriba mientras dure su grupo.
+                                    <section key={groupId} aria-labelledby={groupId}>
+                                        <div
+                                            className={cn(
+                                                'flex h-9 items-center border-b bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] px-4 lg:sticky lg:top-0 lg:z-[2] @3xl/hoja:grid dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]',
+                                                COLUMNAS,
+                                                FILETE
+                                            )}
+                                        >
+                                                <div className="flex min-w-0 items-center gap-3">
+                                                    <span className="flex w-8 shrink-0 justify-center">
+                                                        <PuntoEstado online={group.online} />
+                                                    </span>
+                                                    <h2 id={groupId} className="flex items-baseline gap-2">
+                                                        <span
                                                             className={cn(
-                                                                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#2e3f84]/30 focus:ring-offset-2',
-                                                                user.can_bulk_send ? 'bg-[#2e3f84]' : 'bg-slate-300 dark:bg-neutral-700'
+                                                                'text-[13px] leading-4 font-semibold',
+                                                                group.online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-neutral-300'
                                                             )}
-                                                            aria-label={user.can_bulk_send ? t('users.disableBulkSend') : t('users.enableBulkSend')}
-                                                            title={user.can_bulk_send ? t('users.disableBulkSend') : t('users.enableBulkSend')}
                                                         >
-                                                            <span
-                                                                className={cn(
-                                                                    'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
-                                                                    user.can_bulk_send ? 'translate-x-6' : 'translate-x-1'
-                                                                )}
-                                                            />
-                                                        </button>
-                                                    ) : (
-                                                        <span className="text-xs settings-subtitle">-</span>
+                                                            {group.online ? t('users.groupOnline') : t('users.groupOffline')}
+                                                        </span>
+                                                        <span className="text-[12.5px] leading-4 font-medium text-muted-foreground tabular-nums dark:text-neutral-400">
+                                                            {group.users.length}
+                                                        </span>
+                                                    </h2>
+                                                </div>
+                                                <Th className="hidden @3xl/hoja:block">{t('users.role')}</Th>
+                                                <Th className="hidden @3xl/hoja:block">{t('users.tableStatus')}</Th>
+                                                <Th className="hidden @3xl/hoja:block">{t('users.tableBulkSend')}</Th>
+                                                <Th className="hidden @3xl/hoja:block">{t('users.tableRegistered')}</Th>
+                                                <Th className="hidden text-right @3xl/hoja:block">{t('users.tableActions')}</Th>
+                                        </div>
+
+                                        <ul>
+                                            {group.users.map((user) => (
+                                                <li
+                                                    key={user.id}
+                                                    className={cn(
+                                                        'border-b transition-colors',
+                                                        // La última fila de la hoja cierra sus esquinas (sin overflow-hidden, que
+                                                        // anularía las bandas pegadas).
+                                                        lastGroup && 'last:rounded-b-2xl last:border-b-0',
+                                                        FILETE,
+                                                        FONDO_FILA
                                                     )}
-                                                </td>
-                                                <td className="px-4 py-3.5">
-                                                    <div className="flex items-center gap-2 text-xs settings-subtitle">
-                                                        <Calendar className="h-4 w-4 shrink-0" />
-                                                        <span>{formatCreatedAt(user.created_at)}</span>
+                                                >
+                                                    {/* Fila de escritorio (hoja ≥ 768 px) */}
+                                                    <div className={cn('hidden min-h-[53px] py-2 @3xl/hoja:grid', COLUMNAS)}>
+                                                        <div className="flex min-w-0 items-center gap-3">
+                                                            <AvatarPresencia user={user} />
+                                                            {nameBlock(user)}
+                                                        </div>
+                                                        <div className="flex min-w-0">
+                                                            <RolePill role={user.role} label={getRoleLabel(user.role)} />
+                                                        </div>
+                                                        <div className="flex min-w-0 flex-col gap-0.5">
+                                                            {statusWord(user)}
+                                                            <span title={t('users.lastActivity')} className="truncate text-[12px] leading-4 text-muted-foreground">
+                                                                {lastActivityText(user)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center">{bulkCell(user)}</div>
+                                                        <span className="truncate text-[12.5px] leading-[18px] whitespace-nowrap text-muted-foreground tabular-nums">
+                                                            {formatCreatedAt(user.created_at)}
+                                                        </span>
+                                                        <Acciones etiquetas={actionLabels} onEdit={() => openEditModal(user)} onDelete={() => setUserToDelete(user)} />
                                                     </div>
-                                                </td>
-                                                <td className="px-4 py-3.5">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => openEditModal(user)}
-                                                            className="h-8 w-8 rounded-xl p-0 settings-btn-secondary"
-                                                            title={t('common.edit')}
-                                                        >
-                                                            <Edit3 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => setUserToDelete(user)}
-                                                            className="h-8 w-8 rounded-xl border-0 p-0 text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-red-300 dark:hover:bg-red-500/10"
-                                                            title={t('common.delete')}
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
+
+                                                    {/* Tarjeta apilada (hoja < 768 px): las mismas piezas y acciones */}
+                                                    <div className="flex items-start gap-3 px-4 py-3.5 @3xl/hoja:hidden">
+                                                        <div className="pt-0.5">
+                                                            <AvatarPresencia user={user} />
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-start gap-2">
+                                                                <div className="min-w-0 flex-1 pt-0.5">{nameBlock(user)}</div>
+                                                                <div className="-mt-0.5 -mr-1.5">
+                                                                    <Acciones etiquetas={actionLabels} onEdit={() => openEditModal(user)} onDelete={() => setUserToDelete(user)} />
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                                                                <RolePill role={user.role} label={getRoleLabel(user.role)} />
+                                                                <span className="flex min-w-0 items-baseline gap-1.5">
+                                                                    {statusWord(user)}
+                                                                    <span className="text-[12px] leading-4 text-muted-foreground" aria-hidden="true">
+                                                                        ·
+                                                                    </span>
+                                                                    <span title={t('users.lastActivity')} className="truncate text-[12px] leading-4 text-muted-foreground">
+                                                                        {lastActivityText(user)}
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-2.5 flex items-center justify-between gap-3">
+                                                                <div className="flex items-center gap-2.5">
+                                                                    <span className="text-[12px] leading-4 font-medium text-muted-foreground">{t('users.tableBulkSend')}</span>
+                                                                    {bulkCell(user)}
+                                                                </div>
+                                                                <span className="text-[12px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums">
+                                                                    {t('users.registeredOn')} {formatCreatedAt(user.created_at)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </section>
+                                );
+                            })
                         ) : (
-                            <div className="px-4 py-12 text-center">
-                                <UserCircle className="mx-auto mb-4 h-14 w-14 settings-subtitle" />
-                                <h3 className="text-lg font-bold settings-title">{t('users.noUsers')}</h3>
-                                <p className="mx-auto mt-2 max-w-md text-sm settings-subtitle">{t('users.noUsersFiltered')}</p>
+                            <div className="px-4 py-14 text-center">
+                                <UserCircle className="mx-auto mb-3 size-12 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
+                                <h2 className={cn('text-[15px] leading-5 font-semibold', TEXTO_NAVY)}>{t('users.noUsers')}</h2>
+                                <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-[18px] text-muted-foreground">{t('users.noUsersFiltered')}</p>
                             </div>
                         )}
                     </section>

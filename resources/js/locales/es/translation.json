@@ -663,7 +663,19 @@
         "toastCreated": "Usuario creado",
         "toastUpdated": "Usuario actualizado",
         "toastBulkSendRemoved": "Se retiró el acceso a envío masivo a {{name}}",
-        "toastBulkSendGranted": "Se otorgó acceso a envío masivo a {{name}}"
+        "toastBulkSendGranted": "Se otorgó acceso a envío masivo a {{name}}",
+        "metricOnlineNow": "En línea ahora",
+        "metricBulk": "Con envío masivo",
+        "metricBulkOf": "de {{count}} asesores",
+        "summaryLabel": "Resumen del equipo",
+        "whoIsOnline": "Quién está en línea",
+        "moreOnline": "y {{count}} más en línea",
+        "groupOnline": "En línea",
+        "groupOffline": "Desconectados",
+        "roleFilterLabel": "Filtrar por rol",
+        "directoryCountRich": "<strong>{{filtered}}</strong> de {{total}} usuarios",
+        "moreActions": "Más acciones",
+        "onlyAdvisors": "Solo asesores"
     },
     "settings": {
         "title": "Configuración",
@@ -691,14 +703,14 @@
         "whatsapp": {
             "title": "Configuración del sistema",
             "subtitle": "Gestiona las configuraciones globales de Evarisbot",
-            "apiTitle": "WhatsApp business api",
+            "apiTitle": "WhatsApp Business API",
             "configureConnection": "Configura la conexión con WhatsApp",
             "accessToken": "Token de acceso",
             "updateToken": "Actualizar token",
             "accessTokenPlaceholder": "Token de WhatsApp",
-            "phoneId": "Phone id",
+            "phoneId": "Phone ID",
             "phoneIdPlaceholder": "123456789012345",
-            "businessAccountId": "Business account id",
+            "businessAccountId": "Business account ID",
             "businessAccountIdPlaceholder": "987654321098765",
             "verifyToken": "Verify token",
             "update": "Actualizar",
@@ -717,12 +729,27 @@
             "identifiersSubtitle": "IDs operativos de WhatsApp Business.",
             "verified": "Verificado",
             "notVerified": "No verificado",
-            "profileName": "Nombre",
+            "profileName": "Nombre verificado",
             "profilePhone": "Teléfono",
             "profileQuality": "Calidad",
-            "profileMessagingLimit": "Límite mensajes",
+            "profileMessagingLimit": "Límite de mensajes",
             "profileFetchFailed": "No se pudo consultar el perfil de negocio.",
-            "profileFetchError": "Error al consultar el perfil de negocio."
+            "profileFetchError": "Error al consultar el perfil de negocio.",
+            "bandText": "La conexión con Meta por la que se envían y reciben los mensajes de los pacientes.",
+            "businessProfile": "Perfil del negocio",
+            "testRowLabel": "Respuesta de Meta",
+            "testRowHelp": "Al probar la conexión o consultar el perfil del negocio.",
+            "profileRowHelp": "Lo que Meta tiene registrado de este número.",
+            "profileVerification": "Verificación",
+            "accessTokenHelp": "Mínimo 20 caracteres.\nMeta lo comprueba al guardar.",
+            "verifyTokenHelp": "Meta lo usa para verificar el webhook.\nMínimo 8 caracteres.",
+            "idHelp": "Solo números, de 10 a 20 dígitos.",
+            "webhookUrl": "Webhook URL",
+            "webhookHelp": "Donde Meta entrega los mensajes. Solo lectura.",
+            "replaceTokenPlaceholder": "Pega un token nuevo para reemplazarlo",
+            "replaceVerifyTokenPlaceholder": "Pega un verify token nuevo para reemplazarlo",
+            "savedLabel": "Guardado",
+            "saveNote": "Un campo que dejes vacío conserva lo guardado."
         },
         "auth": {
             "forgotPassword": "¿Olvidaste tu contraseña?",
@@ -764,6 +791,17 @@
         "configured": "Configurado",
         "saveError": "Error al guardar la configuración",
         "saveConfiguration": "Guardar configuración",
+        "keepWhenEmpty": "vacío, se conserva",
+        "readOnly": "Solo lectura",
+        "strip": {
+            "label": "Estado de la configuración",
+            "whatsapp": "WhatsApp Business",
+            "speech": "Transcripción y corrector",
+            "phoneId": "Phone ID {{id}}",
+            "ofTotal": "de {{total}}",
+            "whoIsOnDuty": "Quién está de turno",
+            "moreOnDuty": "y {{count}} más de turno"
+        },
         "audioTile": {
             "title": "Audios",
             "detail": "Transcripción automática"
@@ -776,8 +814,14 @@
             "savedSuccess": "Configuración de Groq guardada",
             "title": "Transcripción de audio",
             "subtitle": "Groq para audios recibidos en WhatsApp.",
-            "apiKeyLabel": "API Key de Groq",
-            "updateApiKeyPlaceholder": "Actualizar API Key..."
+            "apiKeyLabel": "API key de Groq",
+            "updateApiKeyPlaceholder": "Actualizar API Key...",
+            "sectionTitle": "Transcripción y corrector",
+            "sectionText": "Groq pasa a texto los audios que llegan por WhatsApp y corrige la ortografía, con una sola API key.",
+            "apiKeyHelp": "Mínimo 20 caracteres.\nGroq la comprueba al guardar.",
+            "replaceApiKeyPlaceholder": "Pega una API key nueva para reemplazarla",
+            "savedLabel": "Guardada",
+            "enableNote": "Se activa cuando escribes una API key nueva."
         },
         "onDutyAdvisors": {
             "savedSuccess": "Asesores de turno actualizados",
@@ -790,7 +834,12 @@
             "emptyDescription": "Crea asesores en la sección de usuarios.",
             "noResults": "No hay coincidencias para la búsqueda.",
             "selectedCount_one": "{{count}} seleccionado",
-            "selectedCount_other": "{{count}} seleccionados"
+            "selectedCount_other": "{{count}} seleccionados",
+            "bandText": "Las conversaciones que entran por WhatsApp se asignan a uno de los asesores de turno.",
+            "onDutyCount": "{{count}} de turno",
+            "searchLabel": "Buscar asesor",
+            "selectedOfTotal": "<strong>{{selected}}</strong> de {{total}} seleccionados",
+            "saveNote": "Al guardar, quedan de turno solo los marcados y los demás salen del turno."
         },
         "twoFactorAuth": "Autenticación de dos factores",
         "description": "Gestiona tu perfil y la configuración de tu cuenta"
@@ -852,7 +901,10 @@
         "unreadCount": "{{count}} mensajes sin leer",
         "appointmentsScope": "Ámbito de citas",
         "groupWork": "Trabajo",
-        "groupManagement": "Gestión"
+        "groupManagement": "Gestión",
+        "institution": "Hospital Universitario del Valle",
+        "tryNewMenu": "Volver al menú nuevo",
+        "backToOldMenu": "Volver al menú anterior"
     },
     "statistics": {
         "title": "Estadísticas",

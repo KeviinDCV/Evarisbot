@@ -663,7 +663,19 @@
         "toastCreated": "User created",
         "toastUpdated": "User updated",
         "toastBulkSendRemoved": "Bulk send access removed for {{name}}",
-        "toastBulkSendGranted": "Bulk send access granted to {{name}}"
+        "toastBulkSendGranted": "Bulk send access granted to {{name}}",
+        "metricOnlineNow": "Online now",
+        "metricBulk": "With bulk send",
+        "metricBulkOf": "of {{count}} advisors",
+        "summaryLabel": "Team summary",
+        "whoIsOnline": "Who is online",
+        "moreOnline": "and {{count}} more online",
+        "groupOnline": "Online",
+        "groupOffline": "Offline",
+        "roleFilterLabel": "Filter by role",
+        "directoryCountRich": "<strong>{{filtered}}</strong> of {{total}} users",
+        "moreActions": "More actions",
+        "onlyAdvisors": "Advisors only"
     },
     "settings": {
         "title": "Settings",
@@ -693,14 +705,14 @@
             "subtitle": "Manage Evarisbot global settings",
             "apiTitle": "WhatsApp Business API",
             "configureConnection": "Configure WhatsApp connection",
-            "accessToken": "Access Token",
+            "accessToken": "Access token",
             "updateToken": "Update token",
             "accessTokenPlaceholder": "WhatsApp Token",
             "phoneId": "Phone ID",
             "phoneIdPlaceholder": "123456789012345",
-            "businessAccountId": "Business Account ID",
+            "businessAccountId": "Business account ID",
             "businessAccountIdPlaceholder": "987654321098765",
-            "verifyToken": "Verify Token",
+            "verifyToken": "Verify token",
             "update": "Update",
             "verifyTokenPlaceholder": "Webhook token",
             "testConnection": "Test Connection",
@@ -717,12 +729,27 @@
             "identifiersSubtitle": "Operational WhatsApp Business IDs.",
             "verified": "Verified",
             "notVerified": "Not verified",
-            "profileName": "Name",
+            "profileName": "Verified name",
             "profilePhone": "Phone",
             "profileQuality": "Quality",
             "profileMessagingLimit": "Messaging limit",
             "profileFetchFailed": "Could not retrieve the business profile.",
-            "profileFetchError": "Error retrieving the business profile."
+            "profileFetchError": "Error retrieving the business profile.",
+            "bandText": "The connection with Meta through which patient messages are sent and received.",
+            "businessProfile": "Business profile",
+            "testRowLabel": "Meta response",
+            "testRowHelp": "When you test the connection or load the business profile.",
+            "profileRowHelp": "What Meta has on record for this number.",
+            "profileVerification": "Verification",
+            "accessTokenHelp": "At least 20 characters.\nMeta checks it when you save.",
+            "verifyTokenHelp": "Meta uses it to verify the webhook.\nAt least 8 characters.",
+            "idHelp": "Numbers only, 10 to 20 digits.",
+            "webhookUrl": "Webhook URL",
+            "webhookHelp": "Where Meta delivers the messages. Read only.",
+            "replaceTokenPlaceholder": "Paste a new token to replace it",
+            "replaceVerifyTokenPlaceholder": "Paste a new verify token to replace it",
+            "savedLabel": "Saved",
+            "saveNote": "Any field you leave empty keeps its saved value."
         },
         "auth": {
             "forgotPassword": "Forgot your password?",
@@ -764,6 +791,17 @@
         "configured": "Configured",
         "saveError": "Failed to save settings",
         "saveConfiguration": "Save settings",
+        "keepWhenEmpty": "leave empty to keep it",
+        "readOnly": "Read only",
+        "strip": {
+            "label": "Configuration status",
+            "whatsapp": "WhatsApp Business",
+            "speech": "Transcription and proofreading",
+            "phoneId": "Phone ID {{id}}",
+            "ofTotal": "of {{total}}",
+            "whoIsOnDuty": "Who is on duty",
+            "moreOnDuty": "and {{count}} more on duty"
+        },
         "audioTile": {
             "title": "Audio",
             "detail": "Automatic transcription"
@@ -776,8 +814,14 @@
             "savedSuccess": "Groq settings saved",
             "title": "Audio transcription",
             "subtitle": "Groq for audio received on WhatsApp.",
-            "apiKeyLabel": "Groq API Key",
-            "updateApiKeyPlaceholder": "Update API Key..."
+            "apiKeyLabel": "Groq API key",
+            "updateApiKeyPlaceholder": "Update API Key...",
+            "sectionTitle": "Transcription and proofreading",
+            "sectionText": "Groq turns WhatsApp voice notes into text and fixes spelling, with a single API key.",
+            "apiKeyHelp": "At least 20 characters.\nGroq checks it when you save.",
+            "replaceApiKeyPlaceholder": "Paste a new API key to replace it",
+            "savedLabel": "Saved",
+            "enableNote": "Enabled once you type a new API key."
         },
         "onDutyAdvisors": {
             "savedSuccess": "On-duty advisors updated",
@@ -790,7 +834,12 @@
             "emptyDescription": "Create advisors in the users section.",
             "noResults": "No matches for your search.",
             "selectedCount_one": "{{count}} selected",
-            "selectedCount_other": "{{count}} selected"
+            "selectedCount_other": "{{count}} selected",
+            "bandText": "Conversations coming in through WhatsApp are assigned to one of the on-duty advisors.",
+            "onDutyCount": "{{count}} on duty",
+            "searchLabel": "Search advisor",
+            "selectedOfTotal": "<strong>{{selected}}</strong> of {{total}} selected",
+            "saveNote": "When you save, only the checked advisors stay on duty and everyone else goes off duty."
         },
         "twoFactorAuth": "Two-Factor Auth",
         "description": "Manage your profile and account settings"
@@ -852,7 +901,10 @@
         "unreadCount": "{{count}} unread messages",
         "appointmentsScope": "Appointments scope",
         "groupWork": "Work",
-        "groupManagement": "Management"
+        "groupManagement": "Management",
+        "institution": "Hospital Universitario del Valle",
+        "tryNewMenu": "Back to the new menu",
+        "backToOldMenu": "Back to the previous menu"
     },
     "statistics": {
         "title": "Statistics",
