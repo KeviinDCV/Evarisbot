@@ -169,6 +169,13 @@ class AppointmentController extends Controller
                     'pending' => $pendingCount,
                     'pending_tomorrow' => $pendingTomorrowCount,
                     'failed' => $this->serviceQuery()->where('reminder_status', 'failed')->count(),
+                    // Los mismos valores que usa startReminders(), para que la pantalla no los adivine:
+                    // la fecha de cada botón sale de reminder_days_in_advance (no de "hoy + 2" en el
+                    // navegador) y cada envío sale como máximo con reminder_max_per_day citas.
+                    'target_date' => $targetDateString,
+                    'tomorrow_date' => $tomorrowDateString,
+                    'days_in_advance' => $daysInAdvance,
+                    'max_per_day' => (int) Setting::get($this->settingKey('reminder_max_per_day'), '1000'),
                 ];
             }),
         ]);

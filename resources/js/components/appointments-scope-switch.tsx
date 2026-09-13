@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import { Link, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 
@@ -7,6 +8,9 @@ import { useTranslation } from 'react-i18next';
  * General/Oncología vivían como texto de 9px apretado dentro de un riel de 80px.
  * Ahora viven aquí, en la cabecera de su propia sección: al estar en Citas ves
  * los dos ámbitos y saltas entre ellos sin volver al chrome.
+ *
+ * Segmentado del lenguaje "Marco navy" (el de rol en Usuarios y el de periodo en Estadísticas):
+ * pista navy tenue y la opción activa en blanco.
  */
 export function AppointmentsScopeSwitch() {
     const { t } = useTranslation();
@@ -22,18 +26,20 @@ export function AppointmentsScopeSwitch() {
         <div
             role="group"
             aria-label={t('navigation.appointmentsScope')}
-            className="inline-flex rounded-xl border border-[#d4d8e8] bg-white/60 p-1 dark:border-white/10 dark:bg-white/[0.04]"
+            className="flex shrink-0 items-center gap-0.5 rounded-[11px] bg-[#2e3f84]/[0.055] p-[3px] dark:bg-white/5"
         >
             {scopes.map((scope) => (
                 <Link
                     key={scope.href}
                     href={scope.href}
                     aria-current={scope.active ? 'page' : undefined}
-                    className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all duration-200 ${
+                    className={cn(
+                        'flex h-[30px] items-center rounded-lg px-3.5 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors',
+                        'outline-none focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 dark:focus-visible:ring-[#8b9ae0]/60',
                         scope.active
-                            ? 'bg-[#2e3f84] text-white shadow-sm shadow-[#2e3f84]/25'
-                            : 'text-muted-foreground hover:text-foreground'
-                    }`}
+                            ? 'bg-white text-[#2e3f84] shadow-[0_0_0_1px_rgba(46,63,132,0.08),0_1px_2px_rgba(46,63,132,0.12),0_2px_6px_-2px_rgba(46,63,132,0.12)] dark:bg-white/12 dark:text-neutral-100 dark:shadow-none'
+                            : 'text-muted-foreground hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:text-neutral-100'
+                    )}
                 >
                     {scope.label}
                 </Link>
