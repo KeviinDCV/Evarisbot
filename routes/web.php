@@ -54,11 +54,11 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::resource('users', UserController::class);
     Route::post('users/{user}/toggle-bulk-send', [UserController::class, 'toggleBulkSend'])->name('users.toggle-bulk-send');
     
-    // Plantillas para envíos masivos
-    Route::resource('templates', TemplateController::class);
+    // Plantillas: respuestas rápidas del chat («/»). Sin show (renderizaba una página que no existe) y sin
+    // "enviar a contactos" (retirado: nunca llegó a enviar y WhatsApp solo entrega texto libre en la ventana
+    // de 24 h; para enviar a muchos está Envío masivo, con plantillas de Meta).
+    Route::resource('templates', TemplateController::class)->except(['show']);
     Route::post('templates/{template}/toggle', [TemplateController::class, 'toggleStatus'])->name('templates.toggle');
-    Route::get('templates/{template}/send-form', [TemplateController::class, 'sendForm'])->name('templates.send-form');
-    Route::post('templates/{template}/send', [TemplateController::class, 'sendMassive'])->name('templates.send');
     
     // Flujos de bienvenida (menú automático)
     Route::post('welcome-flows', [WelcomeFlowController::class, 'store'])->name('welcome-flows.store');

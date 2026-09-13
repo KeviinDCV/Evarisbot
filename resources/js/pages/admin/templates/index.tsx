@@ -1,37 +1,79 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { AnimatePresence, motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    BOTON_PELIGRO,
+    BOTON_PELIGRO_LLENO,
+    BOTON_PRIMARIO,
+    BOTON_SECUNDARIO,
+    FILETE,
+    FOCO,
+    HOJA,
+    MONO,
+    TEXTO_NAVY,
+    TEXTO_SUAVE,
+    nombrePropio,
+} from '@/components/appointments/piezas-citas';
+import { Banda, Cifra, H1, Nota, Rotulo, Segmentado, miles } from '@/components/bulk-sends/piezas-envio';
+import {
+    AREA,
+    AYUDA,
+    BOTON_TEXTO_NAVY,
+    BOTON_TEXTO_ROJO,
+    BurbujaSale,
+    CAMPO,
+    DISPARADOR,
+    Dato,
+    DialogoPlantilla,
+    ERROR_CAMPO,
+    ETIQUETA,
+    EstadoPunto,
+    FranjaCifras,
+    MENU,
+    OPCION,
+    QueSeBorra,
+    fechaDia,
+    type AdjuntoVista,
+} from '@/components/templates/piezas-plantillas';
 import { cn } from '@/lib/utils';
+import axios from 'axios';
 import {
     Bot,
+    Building2,
     Edit3,
     FileText,
-    Globe2,
     Image,
+    LayoutGrid,
+    Lock,
     MessageSquare,
+    MessageSquareText,
     Paperclip,
     Plus,
     Power,
     PowerOff,
+    Save,
     Search,
-    Send,
     Trash2,
-    UserCheck,
+    UserRound,
     Users,
     Video,
     X,
     type LucideIcon,
 } from 'lucide-react';
-import { useMemo, useState, type ComponentProps, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ComponentProps, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import TemplateCreateModal from './components/TemplateCreateModal';
 import TemplateEditModal from './components/TemplateEditModal';
 import WelcomeFlowSection from './components/WelcomeFlowSection';
+
+/* ── Plantillas (/admin/templates) ────────────────────────────────────────────────────────────────
+   Diseño aprobado: design/vista-plantillas/gen_plantillas.mjs. Son las respuestas rápidas del chat
+   (el equipo las inserta escribiendo «/»), no las de Meta de Envío masivo. A la izquierda la lista por
+   grupos; a la derecha, fija, la plantilla elegida tal como queda en el chat, quién la ve, cuánto se usa
+   y lo que se puede hacer con ella. Debajo (administrador) el menú de bienvenida del bot.
+   Las llamadas son las de siempre; lo nuevo es que el asesor edita y elimina aquí sus plantillas
+   personales con /admin/my-templates (las mismas rutas JSON que usa el chat). */
 
 interface MediaFile {
     url: string;
@@ -58,6 +100,8 @@ interface Template {
     media_filename: string | null;
     media_files?: MediaFile[];
     created_by: string;
+    // Nuevo (lo añade el servidor): id de quien la creó. Si no llega, se deduce (ver esMia).
+    created_by_id?: number | null;
     updated_by: string | null;
     created_at: string;
     updated_at: string;
@@ -81,157 +125,33 @@ interface TemplatesIndexProps {
     welcomeFlows?: WelcomeFlow[];
 }
 
-interface MetricCardProps {
-    icon: LucideIcon;
-    label: string;
-    value: string | number;
-    detail: string;
-    tone?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
+type Grupo = { clave: string; icono: LucideIcon; titulo: string; nota: string; lista: Template[] };
+
+// Mutaciones de las plantillas personales: axios lleva el token CSRF vivo de la cookie (tras un login
+// SPA el del <meta> caduca y daría 419). validateStatus deja pasar 422/403/500 para leer su JSON.
+const conEstado = { validateStatus: (s: number) => s !== 419 };
+
+const TIPOS: Record<Template['message_type'], LucideIcon> = { text: MessageSquare, image: Image, video: Video, document: FileText };
+
+/** Adjuntos de la plantilla en la forma de la burbuja (media_files o, en las antiguas, media_url). */
+function adjuntosDe(tpl: Template, fallback: string): AdjuntoVista[] {
+    if (tpl.media_files?.length) return tpl.media_files;
+    if (tpl.media_url) {
+        const type: AdjuntoVista['type'] = tpl.message_type === 'image' ? 'image' : tpl.message_type === 'video' ? 'video' : 'document';
+        return [{ url: tpl.media_url, filename: tpl.media_filename || fallback, type }];
+    }
+    return [];
 }
 
-interface SectionCardProps {
-    icon: LucideIcon;
-    title: string;
-    subtitle?: string;
-    action?: ReactNode;
-    children: ReactNode;
-    className?: string;
-}
-
-function formatNumber(value: number | null | undefined) {
-    return Number(value ?? 0).toLocaleString('es-CO');
-}
-
-function formatDate(value: string) {
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) return value;
-
-    return date.toLocaleDateString('es-ES', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-    });
-}
-
-function toneClasses(tone: MetricCardProps['tone'] = 'primary') {
-    const classes = {
-        primary: 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100',
-        success: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300',
-        warning: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
-        danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300',
-        info: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300',
-    };
-
-    return classes[tone];
-}
-
-function MetricCard({ icon: Icon, label, value, detail, tone = 'primary' }: MetricCardProps) {
-    return (
-        <div className="card-gradient rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5">
-            <div className="flex items-center gap-3">
-                <div className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border', toneClasses(tone))}>
-                    <Icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold settings-subtitle">{label}</p>
-                    <p className="mt-1 truncate text-lg font-bold leading-tight settings-title">{value}</p>
-                    <p className="mt-0.5 truncate text-xs settings-subtitle">{detail}</p>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function SectionCard({ icon: Icon, title, subtitle, action, children, className }: SectionCardProps) {
-    return (
-        <section className={cn('card-gradient rounded-2xl p-5 shadow-lg shadow-[#2e3f84]/5', className)}>
-            <div className="mb-4 flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 pb-4 dark:border-white/10">
-                <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/[0.05] dark:text-neutral-100">
-                        <Icon className="h-4.5 w-4.5" />
-                    </div>
-                    <div className="min-w-0">
-                        <h2 className="text-base font-bold leading-tight settings-title">{title}</h2>
-                        {subtitle && <p className="mt-1 text-xs settings-subtitle">{subtitle}</p>}
-                    </div>
-                </div>
-                {action}
-            </div>
-            {children}
-        </section>
-    );
-}
-
-function StatusPill({ active }: { active: boolean }) {
-    const { t } = useTranslation();
-
-    return (
-        <span
-            className={cn(
-                'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold',
-                active
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
-                    : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-300'
-            )}
-        >
-            <span className={cn('h-2 w-2 rounded-full', active ? 'bg-emerald-500' : 'bg-slate-400')} />
-            {active ? t('templates.statusLabels.active') : t('templates.statusLabels.inactive')}
-        </span>
-    );
-}
-
-function ScopePill({ global, assignedCount }: { global: boolean; assignedCount: number }) {
-    const { t } = useTranslation();
-
-    return (
-        <span className="inline-flex items-center gap-1.5 rounded-md bg-white/50 px-2.5 py-1 text-[11px] font-semibold text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.04] dark:text-neutral-200">
-            {global ? <Globe2 className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
-            {global ? t('templates.global') : t('templates.assignedCount', { count: assignedCount })}
-        </span>
-    );
-}
-
-function TemplateTypePill({ type, label, icon }: { type: Template['message_type']; label: string; icon: ReactNode }) {
-    const className = {
-        text: 'border-[#d4d8e8] bg-[#2e3f84]/10 text-[#2e3f84] dark:border-white/10 dark:bg-white/[0.05] dark:text-neutral-100',
-        image: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300',
-        video: 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-300',
-        document: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
-    }[type];
-
-    return (
-        <span className={cn('inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold', className)}>
-            {icon}
-            {label}
-        </span>
-    );
-}
-
-function EmptyState({ isAdmin, onCreate }: { isAdmin: boolean; onCreate: () => void }) {
-    const { t } = useTranslation();
-
-    return (
-        <div className="flex min-h-[280px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#d4d8e8] p-8 text-center dark:border-white/10">
-            <MessageSquare className="mb-4 h-12 w-12 settings-subtitle" />
-            <h3 className="text-lg font-bold settings-title">{t('templates.noTemplates')}</h3>
-            <p className="mt-2 max-w-md text-sm settings-subtitle">
-                {isAdmin ? t('templates.noTemplatesSubtitle') : t('templates.noTemplatesViewer')}
-            </p>
-            {isAdmin && (
-                <Button onClick={onCreate} className="mt-5 rounded-xl settings-btn-primary text-white">
-                    <Plus className="h-4 w-4" />
-                    {t('templates.newTemplate')}
-                </Button>
-            )}
-        </div>
-    );
-}
+/** "/ubicación": lo que se escribe en el chat (la primera palabra del nombre, en minúsculas). */
+const atajo = (nombre: string) => `/${(nombre.trim().split(/\s+/)[0] ?? '').toLocaleLowerCase('es')}`;
 
 export default function TemplatesIndex({ templates, filters, users, welcomeFlows = [] }: TemplatesIndexProps) {
-    const { t } = useTranslation();
-    const { auth } = usePage().props as { auth?: { user?: { role?: string } } };
+    const { t, i18n } = useTranslation();
+    const lng = i18n.language;
+    const { auth } = usePage().props as { auth?: { user?: { id?: number; name?: string; role?: string } } };
     const isAdmin = auth?.user?.role === 'admin';
+    const miId = auth?.user?.id;
 
     const [search, setSearch] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
@@ -241,47 +161,40 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
     const [templateToDelete, setTemplateToDelete] = useState<Template | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [templateToEdit, setTemplateToEdit] = useState<Template | null>(null);
-    const [openTemplate, setOpenTemplate] = useState<Template | null>(null);
+    const [selectedId, setSelectedId] = useState<number | null>(null);
+    const panelRef = useRef<HTMLElement>(null);
+    const seguroBorrar = useRef<HTMLButtonElement>(null);
+
+    // Plantillas personales del asesor (editar y eliminar con /admin/my-templates).
+    const [personalEdit, setPersonalEdit] = useState<Template | null>(null);
+    const [personalName, setPersonalName] = useState('');
+    const [personalContent, setPersonalContent] = useState('');
+    const [personalErrors, setPersonalErrors] = useState<{ name?: string; content?: string; general?: string }>({});
+    const [personalSaving, setPersonalSaving] = useState(false);
+    const [personalDelete, setPersonalDelete] = useState<Template | null>(null);
+    const [personalDeleteError, setPersonalDeleteError] = useState('');
+    const [personalDeleting, setPersonalDeleting] = useState(false);
+    const seguroBorrarPersonal = useRef<HTMLButtonElement>(null);
+
+    /** ¿La creé yo? Con created_by_id es exacto; sin él (respuesta antigua), se deduce. */
+    const esMia = (tpl: Template) => {
+        if (tpl.created_by_id != null) return tpl.created_by_id === miId;
+        if (isAdmin) return !!auth?.user?.name && tpl.created_by === auth.user.name;
+        return !tpl.is_global && !(tpl.assigned_users ?? []).includes(miId ?? -1);
+    };
+    const esPersonalMia = (tpl: Template) => !tpl.is_global && esMia(tpl);
 
     const stats = useMemo(() => {
         const active = templates.filter((template) => template.is_active).length;
         const withMedia = templates.filter((template) => (template.media_files?.length ?? 0) > 0 || template.media_url).length;
-        const totalSends = templates.reduce((total, template) => total + Number(template.usage_stats?.total_sends ?? 0), 0);
         const assigned = templates.filter((template) => !template.is_global).length;
-        const activeWelcomeFlows = welcomeFlows.filter((flow) => flow.is_active).length;
-
-        return {
-            active,
-            inactive: templates.length - active,
-            withMedia,
-            totalSends,
-            assigned,
-            activeWelcomeFlows,
-        };
-    }, [templates, welcomeFlows]);
-
-    const typeOptions = [
-        { value: 'all', label: t('common.all') },
-        { value: 'text', label: t('templates.types.text') },
-        { value: 'image', label: t('templates.types.image') },
-        { value: 'video', label: t('templates.types.video') },
-        { value: 'document', label: t('templates.types.document') },
-    ];
-
-    const statusOptions = [
-        { value: 'all', label: t('common.all') },
-        { value: 'active', label: t('common.active') },
-        { value: 'inactive', label: t('common.inactive') },
-    ];
+        return { active, inactive: templates.length - active, withMedia, assigned };
+    }, [templates]);
 
     /**
-     * Filtrado INSTANTÁNEO en el cliente.
-     *
-     * Antes cada filtro hacía router.get() al servidor: había que escribir y además pulsar
-     * "Filtrar" (los desplegables no hacían nada solos) y esperar una recarga. Con el
-     * catálogo completo ya en memoria (~30 plantillas) no hay motivo para ir al servidor:
-     * la lista se reduce mientras escribes. El backend sigue aceptando los filtros por
-     * querystring, así que los enlaces directos con ?search=... siguen funcionando.
+     * Filtrado INSTANTÁNEO en el cliente (la misma lógica de antes): estado, tipo y texto en nombre,
+     * asunto y contenido. El backend sigue aceptando los filtros por querystring, así que los enlaces
+     * directos con ?search=... siguen funcionando (llegan en `filters`).
      */
     const filteredTemplates = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -292,8 +205,6 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
             if (typeFilter !== 'all' && template.message_type !== typeFilter) return false;
 
             if (!term) return true;
-            // Busca en nombre, asunto y contenido: el asesor suele recordar una frase,
-            // no el nombre exacto de la plantilla.
             return (
                 template.name.toLowerCase().includes(term) ||
                 (template.subject ?? '').toLowerCase().includes(term) ||
@@ -301,6 +212,27 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
             );
         });
     }, [templates, search, statusFilter, typeFilter]);
+
+    // Grupos de la lista (las más usadas primero dentro de cada uno).
+    const grupos: Grupo[] = useMemo(() => {
+        const porUso = (a: Template, b: Template) => Number(b.usage_stats?.total_sends ?? 0) - Number(a.usage_stats?.total_sends ?? 0) || a.name.localeCompare(b.name, 'es');
+        const de = (f: (tpl: Template) => boolean) => filteredTemplates.filter(f).sort(porUso);
+        if (isAdmin) {
+            return [
+                { clave: 'global', icono: Building2, titulo: t('templates.vista.groupEveryone'), nota: t('templates.vista.groupEveryoneNote'), lista: de((x) => x.is_global) },
+                { clave: 'some', icono: Users, titulo: t('templates.vista.groupSome'), nota: t('templates.vista.groupSomeNote'), lista: de((x) => !x.is_global) },
+            ];
+        }
+        return [
+            { clave: 'mine', icono: UserRound, titulo: t('templates.vista.groupMine'), nota: t('templates.vista.groupMineNote'), lista: de((x) => esPersonalMia(x)) },
+            { clave: 'assigned', icono: Users, titulo: t('templates.vista.groupAssigned'), nota: t('templates.vista.groupAssignedNote'), lista: de((x) => !x.is_global && !esPersonalMia(x)) },
+            { clave: 'hospital', icono: Building2, titulo: t('templates.vista.groupHospital'), nota: t('templates.vista.groupHospitalNote'), lista: de((x) => x.is_global) },
+        ];
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filteredTemplates, isAdmin, miId, t]);
+
+    const visibles = grupos.flatMap((g) => g.lista);
+    const selected = visibles.find((tpl) => tpl.id === selectedId) ?? visibles[0] ?? null;
 
     const clearFilters = () => {
         setSearch('');
@@ -321,9 +253,8 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
     };
 
     /**
-     * Borrado con diálogo propio en vez de confirm() del navegador.
-     * El confirm() nativo no decía QUÉ plantilla se borraba ni cuántas veces se había
-     * usado: se podía eliminar "AGENDAR CITA" (2.590 usos) con un clic distraído.
+     * Borrado con diálogo propio en vez de confirm() del navegador: dice QUÉ plantilla se borra y
+     * cuántas veces se ha usado (se podía eliminar "AGENDAR CITA", con miles de usos, de un clic).
      */
     const deleteTemplate = (templateId: number) => {
         const target = templates.find((tpl) => tpl.id === templateId) ?? null;
@@ -341,379 +272,737 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
         });
     };
 
-    const getTypeIcon = (type: Template['message_type']) => {
-        switch (type) {
-            case 'image':
-                return <Image className="h-3.5 w-3.5" />;
-            case 'video':
-                return <Video className="h-3.5 w-3.5" />;
-            case 'document':
-                return <FileText className="h-3.5 w-3.5" />;
-            default:
-                return <MessageSquare className="h-3.5 w-3.5" />;
+    /* ── Plantillas personales (asesor) ── */
+    const abrirEditarPersonal = (tpl: Template) => {
+        setPersonalEdit(tpl);
+        setPersonalName(tpl.name);
+        setPersonalContent(tpl.content);
+        setPersonalErrors({});
+        setPersonalSaving(false);
+    };
+    const cerrarEditarPersonal = () => {
+        if (personalSaving) return;
+        setPersonalEdit(null);
+        setPersonalErrors({});
+    };
+    const guardarPersonal = async (event: FormEvent) => {
+        event.preventDefault();
+        if (!personalEdit || personalSaving) return;
+        setPersonalSaving(true);
+        setPersonalErrors({});
+        try {
+            const r = await axios.put(`/admin/my-templates/${personalEdit.id}`, { name: personalName, content: personalContent }, conEstado);
+            if (r.status >= 200 && r.status < 300) {
+                setPersonalEdit(null);
+                toast.success(t('templates.templateUpdated'));
+                router.reload({ only: ['templates'] });
+                return;
+            }
+            const errs = (r.data?.errors ?? {}) as Record<string, string[] | string>;
+            const primero = (v?: string[] | string) => (Array.isArray(v) ? v[0] : v);
+            if (r.status === 422 && (errs.name || errs.content)) {
+                setPersonalErrors({ name: primero(errs.name), content: primero(errs.content) });
+            } else {
+                setPersonalErrors({ general: (typeof r.data?.message === 'string' && r.data.message) || t('templates.vista.personalSaveError') });
+            }
+        } catch {
+            setPersonalErrors({ general: t('templates.vista.requestFailed') });
+        } finally {
+            setPersonalSaving(false);
+        }
+    };
+    const abrirBorrarPersonal = (tpl: Template) => {
+        setPersonalDelete(tpl);
+        setPersonalDeleteError('');
+        setPersonalDeleting(false);
+    };
+    const confirmarBorrarPersonal = async () => {
+        if (!personalDelete || personalDeleting) return;
+        setPersonalDeleting(true);
+        setPersonalDeleteError('');
+        try {
+            const r = await axios.delete(`/admin/my-templates/${personalDelete.id}`, conEstado);
+            if (r.status >= 200 && r.status < 300) {
+                setPersonalDelete(null);
+                toast.success(t('templates.deleted'));
+                router.reload({ only: ['templates'] });
+                return;
+            }
+            setPersonalDeleteError((typeof r.data?.message === 'string' && r.data.message) || t('templates.vista.personalDeleteError'));
+        } catch {
+            setPersonalDeleteError(t('templates.vista.requestFailed'));
+        } finally {
+            setPersonalDeleting(false);
         }
     };
 
-    const getTypeLabel = (type: Template['message_type']) => {
-        switch (type) {
-            case 'image':
-                return t('templates.types.image');
-            case 'video':
-                return t('templates.types.video');
-            case 'document':
-                return t('templates.types.document');
-            default:
-                return t('templates.types.text');
-        }
+    /** Elegir una fila. Si el panel está debajo de la lista (pantalla estrecha), se lleva la vista a él. */
+    const elegir = (id: number) => {
+        setSelectedId(id);
+        requestAnimationFrame(() => {
+            const panel = panelRef.current;
+            if (!panel) return;
+            const top = panel.getBoundingClientRect().top;
+            if (top > window.innerHeight * 0.75) {
+                const suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                panel.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'start' });
+            }
+        });
+    };
+
+    const irAlMenu = () => {
+        const destino = document.getElementById('menu-bienvenida');
+        if (!destino) return;
+        const suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        destino.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'start' });
+        document.getElementById('menu-bienvenida-titulo')?.focus({ preventScroll: true });
     };
 
     const hasFilters = Boolean(search.trim()) || statusFilter !== 'all' || typeFilter !== 'all';
+    const typeLabel = (type: Template['message_type']) => t(`templates.types.${type}`);
+    const usos = (tpl: Template) => Number(tpl.usage_stats?.total_sends ?? 0);
+    const nombresDe = (ids: number[]) => ids.map((id) => users.find((u) => u.id === id)?.name).filter((n): n is string => !!n);
+
+    /** Icono y texto corto de "quién la ve" (columna de la lista y cabecera del panel). */
+    const alcance = (tpl: Template): [LucideIcon, string] => {
+        if (tpl.is_global) return [Building2, isAdmin ? t('templates.vista.scopeEveryone') : t('templates.vista.scopeHospital')];
+        const asignados = tpl.assigned_users?.length ?? 0;
+        if (!isAdmin && !esMia(tpl)) return [Users, t('templates.vista.scopeAssignedYou')];
+        if (asignados > 0) return [Users, t('templates.vista.scopePeople', { count: asignados, value: miles(asignados, lng) })];
+        return [UserRound, esMia(tpl) ? t('templates.vista.scopeOnlyYou') : t('templates.vista.scopeOnlyCreator')];
+    };
+
+    /** Texto largo de "quién la ve" (panel de detalle). */
+    const quienLaVe = (tpl: Template) => {
+        if (tpl.is_global) return isAdmin ? t('templates.vista.whoEveryoneAdmin') : t('templates.vista.whoEveryoneAdvisor');
+        const ids = tpl.assigned_users ?? [];
+        if (!isAdmin && !esMia(tpl)) {
+            const otros = ids.filter((id) => id !== miId).length;
+            return otros > 0 ? t('templates.vista.whoAssignedYouMore', { count: otros, value: miles(otros, lng) }) : t('templates.vista.whoAssignedYouOnly');
+        }
+        if (ids.length > 0) {
+            const nombres = nombresDe(ids);
+            return nombres.length ? nombres.map(nombrePropio).join(', ') : t('templates.vista.scopePeople', { count: ids.length, value: miles(ids.length, lng) });
+        }
+        return esMia(tpl) ? t('templates.vista.whoOnlyYou') : t('templates.vista.whoOnlyCreator', { name: tpl.created_by });
+    };
+
+    const activeFlow = welcomeFlows.find((flow) => flow.is_active) ?? null;
+    const misPersonales = templates.filter((x) => esPersonalMia(x)).length;
+    const asignadasAMi = isAdmin ? 0 : templates.filter((x) => !x.is_global && !esPersonalMia(x)).length;
+
+    const marca = (Icono: LucideIcon, color: string) => <Icono className={cn('size-3.5 shrink-0', color)} strokeWidth={2} aria-hidden="true" />;
+    const detalleActivas = t('templates.vista.metricActiveInactive', { active: miles(stats.active, lng), inactive: miles(stats.inactive, lng) });
+
+    const cifras = isAdmin
+        ? [
+              <Cifra key="total" marca={marca(MessageSquareText, TEXTO_NAVY)} etiqueta={t('templates.vista.metricTemplates')} valor={miles(templates.length, lng)} detalle={<span className="truncate">{detalleActivas}</span>} />,
+              <Cifra key="media" marca={marca(Paperclip, 'text-sky-600 dark:text-sky-400')} etiqueta={t('templates.metricWithMedia')} valor={miles(stats.withMedia, lng)} detalle={<span className="truncate">{t('templates.metricWithMediaDetail')}</span>} />,
+              <Cifra
+                  key="some"
+                  marca={marca(Users, TEXTO_NAVY)}
+                  etiqueta={t('templates.vista.metricSomePeople')}
+                  valor={miles(stats.assigned, lng)}
+                  detalle={<span className="truncate">{t('templates.vista.metricSomePeopleDetail', { value: miles(templates.length - stats.assigned, lng) })}</span>}
+              />,
+              <Cifra
+                  key="welcome"
+                  marca={marca(Bot, 'text-emerald-600 dark:text-emerald-400')}
+                  etiqueta={t('templates.vista.metricWelcome')}
+                  valor={t('templates.vista.metricWelcomeValue', { count: welcomeFlows.length, value: miles(welcomeFlows.length, lng) })}
+                  detalle={
+                      activeFlow ? (
+                          <EstadoPunto on className="min-w-0 font-medium [&>span:last-child]:truncate">
+                              <span className="truncate">{t('templates.vista.metricWelcomeActive', { name: activeFlow.name })}</span>
+                          </EstadoPunto>
+                      ) : (
+                          <EstadoPunto on={false} className="font-medium">
+                              {t('templates.vista.metricWelcomeNone')}
+                          </EstadoPunto>
+                      )
+                  }
+              />,
+          ]
+        : [
+              <Cifra key="avail" marca={marca(MessageSquareText, TEXTO_NAVY)} etiqueta={t('templates.vista.metricAvailable')} valor={miles(templates.length, lng)} detalle={<span className="truncate">{detalleActivas}</span>} />,
+              <Cifra key="mine" marca={marca(UserRound, 'text-sky-600 dark:text-sky-400')} etiqueta={t('templates.vista.metricMine')} valor={miles(misPersonales, lng)} detalle={<span className="truncate">{t('templates.vista.metricMineDetail')}</span>} />,
+              ...(asignadasAMi > 0
+                  ? [<Cifra key="asig" marca={marca(Users, TEXTO_NAVY)} etiqueta={t('templates.vista.metricAssigned')} valor={miles(asignadasAMi, lng)} detalle={<span className="truncate">{t('templates.vista.metricAssignedDetail')}</span>} />]
+                  : []),
+              <Cifra key="media" marca={marca(Paperclip, TEXTO_NAVY)} etiqueta={t('templates.metricWithMedia')} valor={miles(stats.withMedia, lng)} detalle={<span className="truncate">{t('templates.metricWithMediaDetail')}</span>} />,
+          ];
+
+    const statusOptions = [
+        { value: 'all', label: t('common.allFeminine') },
+        { value: 'active', label: t('common.active') },
+        { value: 'inactive', label: t('common.inactive') },
+    ];
+    const typeOptions = [
+        { value: 'all', label: t('templates.vista.allTypes') },
+        { value: 'text', label: t('templates.types.text') },
+        { value: 'image', label: t('templates.types.image') },
+        { value: 'video', label: t('templates.types.video') },
+        { value: 'document', label: t('templates.types.document') },
+    ];
+
+    // Columnas de la lista (lista de al menos 32rem): icono · plantilla · quién la ve · usos · estado.
+    const COLUMNAS = 'grid-cols-[32px_minmax(0,1fr)_118px_52px_74px] gap-x-3';
+
+    /* ── Panel de la derecha: la plantilla elegida ── */
+    const panel = selected ? (
+        (() => {
+            const tpl = selected;
+            const IconoTipo = TIPOS[tpl.message_type] ?? MessageSquare;
+            const [IconoAlcance, textoAlcance] = alcance(tpl);
+            const adjuntos = adjuntosDe(tpl, t('templates.fileFallback'));
+            const personal = !isAdmin && esPersonalMia(tpl);
+            return (
+                <>
+                    <div className={cn('flex flex-col gap-1.5 border-b px-5 pt-[18px] pb-4 @3xl/hoja:px-6', FILETE)}>
+                        <div className="flex items-start justify-between gap-3">
+                            <h3 id="detalle-plantilla" className={cn('min-w-0 text-[17px] leading-[22px] font-semibold tracking-[-0.01em] [overflow-wrap:anywhere]', tpl.is_active ? TEXTO_NAVY : TEXTO_SUAVE)}>
+                                {tpl.name}
+                            </h3>
+                            <EstadoPunto on={tpl.is_active} className="mt-[3px] text-[13px]" title={tpl.is_active ? undefined : t('templates.vista.inactiveHint')}>
+                                {tpl.is_active ? t('templates.statusLabels.active') : t('templates.statusLabels.inactive')}
+                            </EstadoPunto>
+                        </div>
+                        <div className={cn('flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12.5px] leading-4 font-medium', TEXTO_SUAVE)}>
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                <IconoTipo className="size-3.5" strokeWidth={1.9} aria-hidden="true" />
+                                {typeLabel(tpl.message_type)}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                                <IconoAlcance className="size-3.5" strokeWidth={1.9} aria-hidden="true" />
+                                {textoAlcance}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums">
+                                <MessageSquare className="size-3.5" strokeWidth={1.9} aria-hidden="true" />
+                                {t('templates.vista.usesInChat', { count: usos(tpl), value: miles(usos(tpl), lng) })}
+                            </span>
+                        </div>
+
+                        <div className="mt-2">
+                            {isAdmin ? (
+                                <div className="flex flex-col gap-2.5">
+                                    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setTemplateToEdit(tpl);
+                                                setIsEditModalOpen(true);
+                                            }}
+                                            title={t('templates.vista.editHintAdmin')}
+                                            className={BOTON_PRIMARIO}
+                                        >
+                                            <Edit3 strokeWidth={2} aria-hidden="true" />
+                                            {t('common.edit')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleStatus(tpl.id)}
+                                            title={tpl.is_active ? t('templates.vista.deactivateHint') : t('templates.vista.activateHint')}
+                                            className={BOTON_SECUNDARIO}
+                                        >
+                                            {tpl.is_active ? <PowerOff strokeWidth={1.9} aria-hidden="true" /> : <Power strokeWidth={1.9} aria-hidden="true" />}
+                                            {tpl.is_active ? t('common.deactivate') : t('common.activate')}
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className={cn('min-w-0 text-[12px] leading-4', TEXTO_SUAVE)}>{tpl.is_active ? t('templates.vista.deactivateNote') : t('templates.vista.inactiveNote')}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => deleteTemplate(tpl.id)}
+                                            aria-haspopup="dialog"
+                                            title={t('templates.vista.asksConfirmation')}
+                                            className={cn(BOTON_TEXTO_ROJO, '-mr-2')}
+                                        >
+                                            <Trash2 strokeWidth={2} aria-hidden="true" />
+                                            {t('templates.vista.deleteEllipsis')}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : personal ? (
+                                <div className="flex items-center gap-2.5">
+                                    <button type="button" onClick={() => abrirEditarPersonal(tpl)} title={t('templates.vista.editHintPersonal')} className={cn(BOTON_PRIMARIO, 'flex-1')}>
+                                        <Edit3 strokeWidth={2} aria-hidden="true" />
+                                        {t('common.edit')}
+                                    </button>
+                                    <button type="button" onClick={() => abrirBorrarPersonal(tpl)} aria-haspopup="dialog" title={t('templates.vista.asksConfirmation')} className={BOTON_PELIGRO}>
+                                        <Trash2 strokeWidth={2} aria-hidden="true" />
+                                        {t('templates.vista.deleteEllipsis')}
+                                    </button>
+                                </div>
+                            ) : (
+                                <p className={cn('flex items-start gap-[9px] text-[12.5px] leading-[18px]', TEXTO_SUAVE)}>
+                                    <Lock className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                    {t('templates.vista.lockedNote')}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3.5 px-5 pt-4 pb-6 @3xl/hoja:px-6">
+                        <div className="flex flex-col gap-2">
+                            <Rotulo as="h4" titulo={t('templates.vista.previewInChat')} />
+                            <BurbujaSale texto={tpl.content} adjuntos={adjuntos} vacio={t('templates.vista.emptyContent')} />
+                        </div>
+                        <dl className={cn('flex flex-col border-t', FILETE)}>
+                            <Dato etiqueta={t('templates.vista.toUse')}>
+                                <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span
+                                        className={cn(
+                                            'inline-flex h-[22px] items-center rounded-md bg-white px-[7px] text-[12px] leading-4 font-semibold whitespace-nowrap shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)]',
+                                            MONO,
+                                            TEXTO_NAVY
+                                        )}
+                                    >
+                                        {atajo(tpl.name)}
+                                    </span>
+                                    <span className={cn('font-normal', TEXTO_SUAVE)}>{t('templates.vista.toUseHint')}</span>
+                                </span>
+                            </Dato>
+                            <Dato etiqueta={t('templates.vista.whoSees')}>{quienLaVe(tpl)}</Dato>
+                            {adjuntos.length > 0 && (
+                                <Dato etiqueta={adjuntos.length === 1 ? t('templates.vista.attachmentOne') : t('templates.vista.attachmentMany')}>
+                                    <span className="flex flex-col">
+                                        {adjuntos.map((a, i) => (
+                                            <a
+                                                key={`${a.filename}-${i}`}
+                                                href={a.url ?? undefined}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className={cn('w-fit max-w-full truncate text-[12px] underline decoration-[#2e3f84]/30 underline-offset-2 hover:decoration-current dark:decoration-white/30', MONO, FOCO)}
+                                            >
+                                                {a.filename}
+                                            </a>
+                                        ))}
+                                    </span>
+                                </Dato>
+                            )}
+                            <Dato etiqueta={t('templates.vista.updated')}>
+                                {tpl.updated_by
+                                    ? t('templates.vista.updatedValue', { date: fechaDia(tpl.updated_at || tpl.created_at, lng), name: tpl.updated_by })
+                                    : fechaDia(tpl.updated_at || tpl.created_at, lng)}
+                            </Dato>
+                            {isAdmin && <Dato etiqueta={t('templates.vista.createdByLabel')}>{tpl.created_by}</Dato>}
+                        </dl>
+                    </div>
+                </>
+            );
+        })()
+    ) : (
+        <div className="px-5 py-8 @3xl/hoja:px-6">
+            <p className={cn('text-[13px] leading-[18px]', TEXTO_SUAVE)}>{t('templates.vista.pickOne')}</p>
+        </div>
+    );
+
+    /* ── Lista ── */
+    const fila = (tpl: Template, final: boolean) => {
+        const on = selected?.id === tpl.id;
+        const IconoTipo = TIPOS[tpl.message_type] ?? MessageSquare;
+        const [IconoAlcance, textoAlcance] = alcance(tpl);
+        const nAdj = adjuntosDe(tpl, '').length;
+        const alcanceTenue = tpl.is_global;
+        const estado = (
+            <EstadoPunto on={tpl.is_active} title={tpl.is_active ? undefined : t('templates.vista.inactiveHint')}>
+                {tpl.is_active ? t('templates.statusLabels.active') : t('templates.statusLabels.inactive')}
+            </EstadoPunto>
+        );
+        const icono = (
+            <span
+                className={cn(
+                    'flex size-8 shrink-0 items-center justify-center rounded-[9px]',
+                    on ? 'bg-white shadow-[inset_0_0_0_1px_rgba(46,63,132,0.14)] dark:bg-white/10 dark:shadow-none' : 'bg-[#2e3f84]/[0.055] dark:bg-white/[0.06]',
+                    tpl.is_active ? TEXTO_NAVY : TEXTO_SUAVE
+                )}
+                title={typeLabel(tpl.message_type)}
+            >
+                <IconoTipo className="size-4" strokeWidth={1.9} aria-hidden="true" />
+                <span className="sr-only">{typeLabel(tpl.message_type)}</span>
+            </span>
+        );
+        const nombre = (
+            <span className="flex min-w-0 items-center gap-[7px]">
+                <span className={cn('truncate text-[13.5px] leading-[18px] font-semibold', tpl.is_active ? TEXTO_NAVY : TEXTO_SUAVE)}>{tpl.name}</span>
+                {nAdj > 0 && (
+                    <span className={cn('inline-flex shrink-0 items-center gap-[3px] text-[12px] leading-4 font-semibold tabular-nums', TEXTO_SUAVE)} title={t('templates.vista.attachmentsCount', { count: nAdj })}>
+                        <Paperclip className="size-3" strokeWidth={2} aria-hidden="true" />
+                        {nAdj}
+                        <span className="sr-only">{t('templates.vista.attachmentsCount', { count: nAdj })}</span>
+                    </span>
+                )}
+            </span>
+        );
+        const extracto = <span className={cn('truncate text-[12.5px] leading-4', TEXTO_SUAVE)}>{tpl.content}</span>;
+        const quien = (
+            <span className={cn('inline-flex min-w-0 items-center gap-1.5 text-[12.5px] leading-4 font-medium', alcanceTenue ? TEXTO_SUAVE : TEXTO_NAVY)}>
+                <IconoAlcance className="size-3.5 shrink-0" strokeWidth={1.9} aria-hidden="true" />
+                <span className="truncate">{textoAlcance}</span>
+            </span>
+        );
+        return (
+            <li key={tpl.id} className={cn(!final && 'border-b', FILETE)}>
+                <button
+                    type="button"
+                    onClick={() => elegir(tpl.id)}
+                    aria-current={on ? 'true' : undefined}
+                    aria-controls="panel-plantilla"
+                    title={t('templates.vista.rowHint')}
+                    className={cn(
+                        'block w-full cursor-pointer text-left transition-colors',
+                        on
+                            ? 'bg-[#2e3f84]/6 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16)] dark:bg-white/[0.06] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]'
+                            : 'hover:bg-[#2e3f84]/[0.025] dark:hover:bg-white/[0.025]',
+                        FOCO,
+                        'focus-visible:ring-inset'
+                    )}
+                >
+                    {/* Fila ancha (lista de 32rem o más) */}
+                    <span className={cn('hidden min-h-14 items-center px-5 py-2 @lg/lista:grid', COLUMNAS)}>
+                        {icono}
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                            {nombre}
+                            {extracto}
+                        </span>
+                        {quien}
+                        <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', TEXTO_NAVY)}>{miles(usos(tpl), lng)}</span>
+                        {estado}
+                    </span>
+                    {/* Fila estrecha */}
+                    <span className="flex items-start gap-3 px-4 py-3 @lg/lista:hidden">
+                        {icono}
+                        <span className="flex min-w-0 flex-1 flex-col gap-1">
+                            {nombre}
+                            {extracto}
+                            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                {quien}
+                                <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{t('templates.vista.usesInChat', { count: usos(tpl), value: miles(usos(tpl), lng) })}</span>
+                                {estado}
+                            </span>
+                        </span>
+                    </span>
+                </button>
+            </li>
+        );
+    };
+
+    const gruposConFilas = grupos.filter((g) => g.lista.length > 0);
+    const ultimoGrupo = gruposConFilas[gruposConFilas.length - 1]?.clave;
+
+    const lista =
+        visibles.length === 0 ? (
+            <div className="px-4 py-8 @3xl/hoja:px-5">
+                <div className="flex flex-col items-center gap-2 rounded-xl border-[1.5px] border-dashed border-[#2e3f84]/26 bg-[#2e3f84]/[0.035] px-5 py-7 text-center dark:border-white/20 dark:bg-white/[0.03]">
+                    <span className={cn('flex size-10 items-center justify-center rounded-xl bg-white shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]', TEXTO_SUAVE)}>
+                        {hasFilters ? <Search className="size-[19px]" strokeWidth={1.9} aria-hidden="true" /> : <MessageSquareText className="size-[19px]" strokeWidth={1.9} aria-hidden="true" />}
+                    </span>
+                    <p className={cn('text-[13.5px] leading-[18px] font-semibold', TEXTO_NAVY)} aria-live="polite">
+                        {hasFilters ? t('templates.vista.noResults') : isAdmin ? t('templates.vista.emptyAdminTitle') : t('templates.vista.emptyAdvisorTitle')}
+                    </p>
+                    <p className={cn('max-w-md text-[12.5px] leading-[18px]', TEXTO_SUAVE)}>
+                        {hasFilters ? t('templates.vista.noResultsHint') : isAdmin ? t('templates.vista.emptyAdminText') : t('templates.vista.listTextAdvisor')}
+                    </p>
+                    {hasFilters ? (
+                        <button type="button" onClick={clearFilters} className={cn(BOTON_SECUNDARIO, 'mt-2')}>
+                            <X strokeWidth={2} aria-hidden="true" />
+                            {t('templates.vista.clearFilters')}
+                        </button>
+                    ) : (
+                        isAdmin && (
+                            <button type="button" onClick={() => setIsCreateModalOpen(true)} className={cn(BOTON_PRIMARIO, 'mt-2')}>
+                                <Plus strokeWidth={2} aria-hidden="true" />
+                                {t('templates.newTemplate')}
+                            </button>
+                        )
+                    )}
+                </div>
+            </div>
+        ) : (
+            <>
+                <div aria-hidden="true" className={cn('hidden h-[34px] items-center border-b px-5 @lg/lista:grid', COLUMNAS, FILETE)}>
+                    <span />
+                    {[t('templates.vista.colTemplate'), t('templates.vista.colWho'), t('templates.vista.colUses'), t('templates.vista.colStatus')].map((h, i) => (
+                        <span key={h} className={cn('truncate text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE, i === 2 && 'text-right')}>
+                            {h}
+                        </span>
+                    ))}
+                </div>
+                {gruposConFilas.map((g) => {
+                    const Icono = g.icono;
+                    return (
+                        <section key={g.clave} aria-labelledby={`grupo-${g.clave}`}>
+                            <div className={cn('flex min-h-8 flex-wrap items-center gap-x-2 gap-y-0.5 border-b bg-[#2e3f84]/[0.028] px-4 py-1.5 @3xl/hoja:px-5 dark:bg-white/[0.03]', FILETE)}>
+                                <Icono className={cn('size-3.5 shrink-0', TEXTO_SUAVE)} strokeWidth={1.9} aria-hidden="true" />
+                                <h3 id={`grupo-${g.clave}`} className={cn('text-[12.5px] leading-4 font-semibold whitespace-nowrap', TEXTO_NAVY)}>
+                                    {g.titulo}
+                                </h3>
+                                <span className={cn('text-[12.5px] leading-4 font-medium tabular-nums', TEXTO_SUAVE)}>{miles(g.lista.length, lng)}</span>
+                                <span className={cn('ml-auto truncate text-[12px] leading-4', TEXTO_SUAVE)}>{g.nota}</span>
+                            </div>
+                            <ul aria-labelledby={`grupo-${g.clave}`} className={cn(g.clave !== ultimoGrupo && 'border-b', FILETE)}>
+                                {g.lista.map((tpl, i) => fila(tpl, i === g.lista.length - 1))}
+                            </ul>
+                        </section>
+                    );
+                })}
+            </>
+        );
+
+    const personalDeleteUsos = personalDelete ? usos(personalDelete) : 0;
+    const deleteUsos = templateToDelete ? usos(templateToDelete) : 0;
 
     return (
         <AdminLayout>
             <Head title={t('templates.title')} />
 
-            <div className="min-h-screen bg-background p-4 md:p-6 lg:p-8">
-                <div className="mx-auto max-w-7xl space-y-6">
-                    <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="flex items-start gap-3">
-                            <div className="mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/70 text-[#2e3f84] shadow-sm shadow-[#2e3f84]/5 dark:bg-white/[0.04] dark:text-neutral-100">
-                                <FileText className="h-5 w-5" />
-                            </div>
-                            <div className="min-w-0">
-                                <h1 className="text-3xl font-bold leading-tight settings-title">{t('templates.title')}</h1>
-                                <p className="mt-1 max-w-2xl text-sm settings-subtitle">
-                                    {isAdmin ? t('templates.adminSubtitle') : t('templates.viewerSubtitle')}
-                                </p>
-                            </div>
-                        </div>
+            <div className="min-h-screen bg-background px-4 pt-5 pb-8 md:px-7 md:pt-7">
+                <div className="@container/pagina mx-auto flex max-w-7xl flex-col gap-6">
+                    {/* ── Cabecera ── */}
+                    <header className="flex min-w-0 flex-wrap items-start justify-between gap-x-6 gap-y-1">
+                        <h1 className={cn(H1, 'order-1')}>{t('templates.title')}</h1>
+                        {/* Ancho: botones a la derecha del título y el subtítulo debajo, a lo ancho (como el diseño).
+                            Estrecho: título, subtítulo y luego los botones. */}
+                        <p className="order-2 basis-full text-[14px] leading-5 text-muted-foreground @3xl/pagina:order-3 dark:text-neutral-400">
+                            {isAdmin ? t('templates.vista.subAdmin') : t('templates.vista.subAdvisor')}
+                        </p>
                         {isAdmin && (
-                            <Button onClick={() => setIsCreateModalOpen(true)} className="w-full rounded-xl settings-btn-primary text-white sm:w-auto">
-                                <Plus className="h-4 w-4" />
-                                {t('templates.newTemplate')}
-                            </Button>
+                            <div className="order-3 mt-2 flex flex-wrap items-center gap-2.5 @3xl/pagina:order-2 @3xl/pagina:mt-0 @3xl/pagina:pt-px">
+                                <button type="button" onClick={irAlMenu} title={t('templates.vista.welcomeMenuButtonHint')} className={BOTON_SECUNDARIO}>
+                                    <Bot strokeWidth={1.9} aria-hidden="true" />
+                                    {t('templates.vista.welcomeMenuButton')}
+                                </button>
+                                <button type="button" onClick={() => setIsCreateModalOpen(true)} aria-haspopup="dialog" className={BOTON_PRIMARIO}>
+                                    <Plus strokeWidth={2} aria-hidden="true" />
+                                    {t('templates.newTemplate')}
+                                </button>
+                            </div>
                         )}
                     </header>
 
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricCard icon={MessageSquare} label={t('templates.metricTotal')} value={formatNumber(templates.length)} detail={t('templates.metricActiveDetail', { value: formatNumber(stats.active) })} />
-                        <MetricCard icon={Paperclip} label={t('templates.metricWithMedia')} value={formatNumber(stats.withMedia)} detail={t('templates.metricWithMediaDetail')} tone="info" />
-                        <MetricCard icon={Users} label={t('templates.metricReach')} value={formatNumber(stats.assigned)} detail={t('templates.metricReachDetail')} tone="warning" />
-                        <MetricCard icon={Bot} label={t('templates.metricWelcome')} value={formatNumber(welcomeFlows.length)} detail={t('templates.metricWelcomeDetail', { value: formatNumber(stats.activeWelcomeFlows) })} tone="success" />
-                    </div>
+                    {/* ── Franja de cifras ── */}
+                    <FranjaCifras etiqueta={t('templates.vista.summaryLabel')} cifras={cifras} />
+
+                    {/* ── Hoja: lista a la izquierda, plantilla elegida a la derecha ── */}
+                    <section aria-labelledby="respuestas-rapidas" className={HOJA}>
+                        <Banda
+                            id="respuestas-rapidas"
+                            icon={MessageSquareText}
+                            titulo={isAdmin ? t('templates.vista.listTitleAdmin') : t('templates.vista.listTitleAdvisor')}
+                            cuenta={miles(templates.length, lng)}
+                            texto={isAdmin ? t('templates.vista.listTextAdmin') : t('templates.vista.listTextAdvisor')}
+                            className="rounded-t-2xl"
+                        />
+                        <div className="grid grid-cols-1 @5xl/hoja:grid-cols-[minmax(0,1fr)_400px] @min-[68rem]/hoja:grid-cols-[minmax(0,1fr)_452px]">
+                            <div className="@container/lista flex min-w-0 flex-col">
+                                {/* Filtros: instantáneos, sin botón "Filtrar" */}
+                                <div className={cn('flex flex-wrap items-center gap-2.5 border-b px-4 py-3 @3xl/hoja:px-5', FILETE)}>
+                                    <div className="relative min-w-0 flex-[1_1_100%] @xl/lista:flex-[1_1_10rem]">
+                                        <label htmlFor="template-search" className="sr-only">
+                                            {t('templates.vista.searchLabel')}
+                                        </label>
+                                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground dark:text-neutral-400" strokeWidth={1.75} aria-hidden="true" />
+                                        <input
+                                            id="template-search"
+                                            name="template-search"
+                                            type="text"
+                                            value={search}
+                                            onChange={(event) => setSearch(event.target.value)}
+                                            onKeyDown={(event) => event.key === 'Escape' && setSearch('')}
+                                            placeholder={t('templates.vista.searchPlaceholder')}
+                                            className={cn(
+                                                'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-3 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                                                FOCO
+                                            )}
+                                        />
+                                    </div>
+                                    <Segmentado opciones={statusOptions} activa={statusFilter} onElegir={setStatusFilter} etiqueta={t('templates.vista.filterStatus')} className="[&>button]:px-[9px]" />
+                                    <div className="relative min-w-[9.5rem] flex-1 @xl/lista:w-40 @xl/lista:flex-none @3xl/lista:w-44">
+                                        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v)}>
+                                            <SelectTrigger id="template-type" aria-label={t('templates.vista.filterType')} className={cn(DISPARADOR, 'h-9 rounded-[10px]')}>
+                                                <LayoutGrid className="size-[15px] shrink-0 text-muted-foreground dark:text-neutral-400" strokeWidth={1.75} aria-hidden="true" />
+                                                <span className="flex min-w-0 flex-1 truncate text-left">
+                                                    <SelectValue />
+                                                </span>
+                                            </SelectTrigger>
+                                            <SelectContent className={MENU}>
+                                                {typeOptions.map((option) => (
+                                                    <SelectItem key={option.value} value={option.value} className={OPCION}>
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    {hasFilters && (
+                                        <span className="flex basis-full items-center justify-between gap-3 @3xl/lista:basis-auto">
+                                            <span className={cn('text-[12.5px] leading-4 font-medium whitespace-nowrap tabular-nums', TEXTO_SUAVE)} aria-live="polite">
+                                                {t('templates.vista.showing', { shown: miles(filteredTemplates.length, lng), total: miles(templates.length, lng) })}
+                                            </span>
+                                            <button type="button" onClick={clearFilters} className={BOTON_TEXTO_NAVY}>
+                                                <X strokeWidth={2} aria-hidden="true" />
+                                                {t('common.clear')}
+                                            </button>
+                                        </span>
+                                    )}
+                                </div>
+                                {lista}
+                            </div>
+
+                            <aside
+                                ref={panelRef}
+                                id="panel-plantilla"
+                                aria-labelledby={selected ? 'detalle-plantilla' : undefined}
+                                aria-label={selected ? undefined : t('templates.vista.detailLabel')}
+                                className={cn('scroll-mt-4 rounded-b-2xl border-t bg-[#f7f8fb] @5xl/hoja:rounded-bl-none @5xl/hoja:border-t-0 @5xl/hoja:border-l dark:bg-white/[0.02]', FILETE)}
+                            >
+                                {/* Con dos columnas el panel acompaña al bajar por la lista (se pega arriba del
+                                    <main> de la isla, que es el contenedor de scroll del Marco). */}
+                                <div className="custom-scrollbar @5xl/hoja:sticky @5xl/hoja:top-0 @5xl/hoja:max-h-dvh @5xl/hoja:overflow-y-auto">{panel}</div>
+                            </aside>
+                        </div>
+                    </section>
 
                     {isAdmin && <WelcomeFlowSection welcomeFlows={welcomeFlows} />}
-
-                    <SectionCard
-                        icon={FileText}
-                        title={t('templates.catalogTitle')}
-                        subtitle={t('templates.catalogSubtitle', { count: templates.length, countFormatted: formatNumber(templates.length), sends: formatNumber(stats.totalSends) })}
-                        action={
-                            <span className="hidden rounded-md bg-white/50 px-2.5 py-1 text-[11px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04] sm:inline-flex">
-                                {t('templates.inactiveCount', { value: formatNumber(stats.inactive) })}
-                            </span>
-                        }
-                    >
-                        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_170px_170px_auto_auto] lg:items-end">
-                            <div>
-                                <label htmlFor="template-search" className="mb-1.5 block text-xs font-semibold settings-label">
-                                    {t('common.search')}
-                                </label>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 settings-subtitle" />
-                                    <Input
-                                        id="template-search"
-                                        name="template-search"
-                                        type="text"
-                                        value={search}
-                                        onChange={(event) => setSearch(event.target.value)}
-                                        onKeyDown={(event) => event.key === 'Escape' && setSearch('')}
-                                        placeholder={t('templates.searchPlaceholder')}
-                                        className="h-9 rounded-xl pl-9 settings-input"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label htmlFor="template-status" className="mb-1.5 block text-xs font-semibold settings-label">
-                                    {t('common.status')}
-                                </label>
-                                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
-                                    <SelectTrigger id="template-status" className="w-full h-9 settings-input rounded-xl">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl max-h-[320px]">
-                                        {statusOptions.map((option) => (
-                                            <SelectItem key={option.value} value={option.value} className="rounded-lg cursor-pointer">
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <label htmlFor="template-type" className="mb-1.5 block text-xs font-semibold settings-label">
-                                    {t('templates.type')}
-                                </label>
-                                <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v)}>
-                                    <SelectTrigger id="template-type" className="w-full h-9 settings-input rounded-xl">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl max-h-[320px]">
-                                        {typeOptions.map((option) => (
-                                            <SelectItem key={option.value} value={option.value} className="rounded-lg cursor-pointer">
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Sin botón "Filtrar": el filtrado es instantáneo al escribir/elegir.
-                                Se muestra cuántas plantillas quedan para dar feedback inmediato. */}
-                            <span className="flex h-9 items-center whitespace-nowrap text-xs font-semibold settings-subtitle">
-                                {hasFilters
-                                    ? t('templates.showingCount', {
-                                          shown: formatNumber(filteredTemplates.length),
-                                          total: formatNumber(templates.length),
-                                          defaultValue: '{{shown}} de {{total}}',
-                                      })
-                                    : null}
-                            </span>
-                            <Button onClick={clearFilters} variant="outline" className="h-9 rounded-xl settings-btn-secondary" disabled={!hasFilters}>
-                                <X className="h-4 w-4" />
-                                {t('common.clear')}
-                            </Button>
-                        </div>
-
-                        {filteredTemplates.length === 0 ? (
-                            hasFilters ? (
-                                // Sin resultados por los filtros: no es lo mismo que no tener plantillas.
-                                <div className="flex flex-col items-center justify-center gap-3 py-14 text-center">
-                                    <Search className="h-8 w-8 settings-subtitle opacity-50" />
-                                    <p className="text-sm font-semibold settings-title">{t('templates.noResults', 'Sin resultados')}</p>
-                                    <p className="text-xs settings-subtitle">
-                                        {t('templates.noResultsHint', 'Prueba con otro texto o quita los filtros.')}
-                                    </p>
-                                    <Button onClick={clearFilters} variant="outline" className="h-9 rounded-xl settings-btn-secondary">
-                                        {t('templates.clearFilters', 'Limpiar filtros')}
-                                    </Button>
-                                </div>
-                            ) : (
-                                <EmptyState isAdmin={isAdmin} onCreate={() => setIsCreateModalOpen(true)} />
-                            )
-                        ) : (
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                                            {filteredTemplates.map((template) => {
-                                                const attachedFiles = template.media_files?.length ?? (template.media_url ? 1 : 0);
-                                                const assignedCount = template.assigned_users?.length ?? 0;
-
-                                                return (
-                                                    <motion.div
-                                                        key={template.id}
-                                                        layoutId={`template-${template.id}`}
-                                                        onClick={() => setOpenTemplate(template)}
-                                                        whileHover={{ y: -3 }}
-                                                        whileTap={{ scale: 0.98 }}
-                                                        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                                                        className="card-gradient flex cursor-pointer flex-col gap-3 rounded-2xl p-4 shadow-sm shadow-[#2e3f84]/5 hover:shadow-md hover:shadow-[#2e3f84]/10"
-                                                    >
-                                                        <div className="flex items-start justify-between gap-2">
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="flex min-w-0 items-center gap-2">
-                                                                    <h3 className="truncate text-sm font-bold settings-title">{template.name}</h3>
-                                                                    {attachedFiles > 0 && (
-                                                                        <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-[#d4d8e8] bg-white/50 px-1.5 py-0.5 text-[10px] font-semibold settings-subtitle dark:border-white/10 dark:bg-white/[0.04]">
-                                                                            <Paperclip className="h-3 w-3" />
-                                                                            {attachedFiles}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                {template.subject && <p className="mt-0.5 truncate text-xs settings-subtitle">{template.subject}</p>}
-                                                            </div>
-                                                            <StatusPill active={template.is_active} />
-                                                        </div>
-
-                                                        <p className="line-clamp-3 min-h-[3.75rem] text-xs leading-5 settings-subtitle [overflow-wrap:anywhere]">{template.content}</p>
-
-                                                        <div className="mt-auto flex items-center justify-between gap-2 border-t border-[#d4d8e8]/60 pt-3 dark:border-white/10">
-                                                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                                                <TemplateTypePill type={template.message_type} label={getTypeLabel(template.message_type)} icon={getTypeIcon(template.message_type)} />
-                                                                <ScopePill global={template.is_global} assignedCount={assignedCount} />
-                                                            </div>
-                                                            <span className="shrink-0 text-xs settings-subtitle">
-                                                                <span className="font-bold settings-title">{formatNumber(template.usage_stats?.total_sends)}</span> {t('templates.sends')}
-                                                            </span>
-                                                        </div>
-                                                    </motion.div>
-                                                );
-                                            })}
-                            </div>
-                        )}
-                    </SectionCard>
                 </div>
             </div>
 
-            <AnimatePresence>
-                {openTemplate && (
-                    <motion.div
-                        key="template-detail"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        onClick={() => setOpenTemplate(null)}
-                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
-                    >
-                        <motion.div
-                            layoutId={`template-${openTemplate.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="card-gradient flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl shadow-2xl"
-                        >
-                            <div className="flex items-start justify-between gap-3 border-b border-[#d4d8e8]/80 p-5 dark:border-white/10">
-                                <div className="min-w-0">
-                                    <h2 className="truncate text-lg font-bold settings-title">{openTemplate.name}</h2>
-                                    {openTemplate.subject && <p className="mt-0.5 truncate text-xs settings-subtitle">{openTemplate.subject}</p>}
-                                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                        <TemplateTypePill type={openTemplate.message_type} label={getTypeLabel(openTemplate.message_type)} icon={getTypeIcon(openTemplate.message_type)} />
-                                        <ScopePill global={openTemplate.is_global} assignedCount={openTemplate.assigned_users?.length ?? 0} />
-                                        <StatusPill active={openTemplate.is_active} />
-                                    </div>
-                                </div>
-                                <button onClick={() => setOpenTemplate(null)} className="shrink-0 rounded-full p-2 settings-subtitle transition-colors hover:bg-[#2e3f84]/10 dark:hover:bg-white/10" title={t('common.close')}>
-                                    <X className="h-5 w-5" />
-                                </button>
-                            </div>
-
-                            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="flex-1 space-y-4 overflow-y-auto p-5">
-                                <div>
-                                    <p className="mb-1.5 text-xs font-semibold settings-label">{t('templates.contentLabel')}</p>
-                                    <div className="whitespace-pre-wrap rounded-xl border border-[#d4d8e8]/80 bg-white/45 p-3 text-sm leading-6 settings-title [overflow-wrap:anywhere] dark:border-white/10 dark:bg-white/[0.03]">
-                                        {openTemplate.content}
-                                    </div>
-                                </div>
-
-                                {(openTemplate.media_files?.length || openTemplate.media_url) && (
-                                    <div>
-                                        <p className="mb-1.5 text-xs font-semibold settings-label">{t('templates.attachments')}</p>
-                                        <div className="flex flex-wrap gap-2">
-                                            {(openTemplate.media_files?.length
-                                                ? openTemplate.media_files
-                                                : [{ url: openTemplate.media_url!, filename: openTemplate.media_filename || t('templates.fileFallback'), type: (openTemplate.message_type === 'image' ? 'image' : openTemplate.message_type === 'video' ? 'video' : 'document') as MediaFile['type'] }]
-                                            ).map((file, i) => (
-                                                file.type === 'image' ? (
-                                                    <img key={i} src={file.url} alt={file.filename} className="h-28 w-28 rounded-xl border border-[#d4d8e8] object-cover dark:border-white/10" />
-                                                ) : file.type === 'video' ? (
-                                                    <video key={i} src={file.url} className="h-28 w-28 rounded-xl border border-[#d4d8e8] object-cover dark:border-white/10" />
-                                                ) : (
-                                                    <a key={i} href={file.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-xl border border-[#d4d8e8] bg-white/50 px-3 py-2 text-xs font-semibold settings-title dark:border-white/10 dark:bg-white/[0.04]">
-                                                        <FileText className="h-4 w-4" /> {file.filename}
-                                                    </a>
-                                                )
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl bg-white/45 p-3 dark:bg-white/[0.03]">
-                                        <p className="text-[11px] settings-subtitle">{t('templates.recordedSends')}</p>
-                                        <p className="mt-0.5 text-lg font-bold settings-title">{formatNumber(openTemplate.usage_stats?.total_sends)}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white/45 p-3 dark:bg-white/[0.03]">
-                                        <p className="text-[11px] settings-subtitle">{t('templates.lastUpdate')}</p>
-                                        <p className="mt-0.5 text-sm font-bold settings-title">{formatDate(openTemplate.updated_at || openTemplate.created_at)}</p>
-                                        <p className="text-[11px] settings-subtitle">{openTemplate.updated_by ? t('templates.updatedBy', { name: openTemplate.updated_by }) : t('templates.createdBy', { name: openTemplate.created_by })}</p>
-                                    </div>
-                                </div>
-                            </motion.div>
-
-                            {isAdmin && (
-                                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#d4d8e8]/80 p-4 dark:border-white/10">
-                                    <Button variant="outline" onClick={() => { deleteTemplate(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-xl border-red-200 text-red-600 hover:bg-red-50 dark:border-red-500/20 dark:text-red-300 dark:hover:bg-red-500/10">
-                                        <Trash2 className="h-4 w-4" /> {t('common.delete')}
-                                    </Button>
-                                    <Button variant="outline" onClick={() => { toggleStatus(openTemplate.id); setOpenTemplate(null); }} className="h-9 rounded-xl settings-btn-secondary">
-                                        {openTemplate.is_active ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
-                                        {openTemplate.is_active ? t('common.deactivate') : t('common.activate')}
-                                    </Button>
-                                    <Button variant="outline" onClick={() => { setTemplateToEdit(openTemplate); setIsEditModalOpen(true); setOpenTemplate(null); }} className="h-9 rounded-xl settings-btn-secondary">
-                                        <Edit3 className="h-4 w-4" /> {t('common.edit')}
-                                    </Button>
-                                    <Button onClick={() => router.get(`/admin/templates/${openTemplate.id}/send-form`)} className="h-9 rounded-xl settings-btn-primary text-white">
-                                        <Send className="h-4 w-4" /> {t('common.submit')}
-                                    </Button>
-                                </div>
-                            )}
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
             <TemplateCreateModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} users={users} />
 
-            <TemplateEditModal
-                isOpen={isEditModalOpen}
-                onClose={() => setIsEditModalOpen(false)}
-                template={templateToEdit}
-                users={users}
-            />
+            <TemplateEditModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} template={templateToEdit} users={users} />
 
-            {/* Confirmación de borrado: dice QUÉ se borra y CUÁNTO se usa. */}
-            <Dialog open={templateToDelete !== null} onOpenChange={(open) => !open && setTemplateToDelete(null)}>
-                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:max-w-md sm:rounded-2xl">
-                    <DialogHeader>
-                        {/* Título en el tono de la app (no rojo): el color destructivo se
-                            reserva para el botón, que es la acción irreversible. */}
-                        <DialogTitle className="settings-title">
-                            {t('templates.deleteTitle', 'Eliminar plantilla')}
-                        </DialogTitle>
-                        <DialogDescription className="settings-subtitle">
-                            {t('templates.deleteIrreversible', 'Esta acción no se puede deshacer.')}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    {templateToDelete && (
-                        <div className="space-y-3">
-                            <div className="rounded-xl bg-white/50 p-3 dark:bg-white/[0.04]">
-                                <p className="truncate text-sm font-semibold settings-title">{templateToDelete.name}</p>
-                                <p className="mt-0.5 text-xs settings-subtitle">
-                                    {t('templates.deleteUsageCount', {
-                                        count: Number(templateToDelete.usage_stats?.total_sends ?? 0),
-                                        value: formatNumber(Number(templateToDelete.usage_stats?.total_sends ?? 0)),
-                                        defaultValue: 'Se ha usado {{value}} veces',
-                                    })}
-                                </p>
-                            </div>
-
-                            {/* Si es muy usada, no basta con informar: hay que frenar al usuario. */}
-                            {Number(templateToDelete.usage_stats?.total_sends ?? 0) >= 100 && (
-                                <div className="rounded-lg border-l-4 border-amber-400 bg-amber-50 p-3 dark:border-amber-500 dark:bg-amber-900/20">
-                                    <p className="text-xs font-medium text-amber-900 dark:text-amber-300">
-                                        {t(
-                                            'templates.deleteHighUsage',
-                                            'Es una de las plantillas más usadas del equipo. Si solo quieres dejar de ofrecerla, considera desactivarla en lugar de eliminarla.',
-                                        )}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setTemplateToDelete(null)} className="rounded-xl font-medium settings-btn-secondary">
+            {/* ── Eliminar plantilla (administrador): qué se borra y cuánto se usa. Cancelar tiene el foco ── */}
+            <DialogoPlantilla
+                abierto={templateToDelete !== null}
+                onCerrar={() => setTemplateToDelete(null)}
+                icono={Trash2}
+                peligro
+                titulo={t('templates.vista.deleteTitle')}
+                ancho="max-w-[400px]"
+                enfoqueInicial={seguroBorrar}
+                pie={
+                    <>
+                        <button ref={seguroBorrar} type="button" onClick={() => setTemplateToDelete(null)} className={BOTON_SECUNDARIO}>
+                            <X strokeWidth={1.9} aria-hidden="true" />
                             {t('common.cancel')}
-                        </Button>
-                        <Button
-                            onClick={confirmDeleteTemplate}
-                            className="rounded-xl border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md transition-all duration-200 hover:from-red-600 hover:to-red-700"
-                        >
-                            {t('common.delete')}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                        </button>
+                        <button type="button" onClick={confirmDeleteTemplate} className={BOTON_PELIGRO_LLENO}>
+                            <Trash2 strokeWidth={2} aria-hidden="true" />
+                            {t('templates.vista.deleteYes')}
+                        </button>
+                    </>
+                }
+            >
+                {templateToDelete && (
+                    <>
+                        <p className={cn('text-[13.5px] leading-5', TEXTO_SUAVE)}>{templateToDelete.is_global ? t('templates.vista.deleteTextGlobal') : t('templates.vista.deleteTextSome')}</p>
+                        <QueSeBorra nombre={templateToDelete.name} detalle={t('templates.vista.usedTimes', { count: deleteUsos, value: miles(deleteUsos, lng) })} />
+                        {/* Si es muy usada, no basta con informar: hay que frenar al usuario. */}
+                        {deleteUsos >= 100 && <Nota tipo="aviso">{t('templates.vista.deleteHighUsage')}</Nota>}
+                    </>
+                )}
+            </DialogoPlantilla>
+
+            {/* ── Editar plantilla personal (asesor): PUT /admin/my-templates/{id} ── */}
+            <DialogoPlantilla
+                abierto={personalEdit !== null}
+                onCerrar={cerrarEditarPersonal}
+                icono={UserRound}
+                titulo={t('templates.vista.personalEditTitle')}
+                sub={t('templates.vista.personalEditSub')}
+                cerrarConX
+                ancho="max-w-[470px]"
+                pie={
+                    <>
+                        <button type="button" onClick={cerrarEditarPersonal} disabled={personalSaving} className={BOTON_SECUNDARIO}>
+                            <X strokeWidth={1.9} aria-hidden="true" />
+                            {t('common.cancel')}
+                        </button>
+                        <button type="submit" form="form-personal" disabled={personalSaving} className={BOTON_PRIMARIO}>
+                            <Save strokeWidth={2} aria-hidden="true" />
+                            {personalSaving ? t('common.saving') : t('common.save')}
+                        </button>
+                    </>
+                }
+            >
+                <form id="form-personal" onSubmit={guardarPersonal} className="flex flex-col gap-3.5" noValidate>
+                    {personalErrors.general && <Nota tipo="mal">{personalErrors.general}</Nota>}
+                    <div className="flex flex-col gap-[7px]">
+                        <label htmlFor="personal-name" className={ETIQUETA}>
+                            {t('templates.vista.nameLabel')} <span className={cn('font-normal', TEXTO_SUAVE)}>{t('templates.vista.countOf', { count: personalName.length, max: 60 })}</span>
+                        </label>
+                        <input
+                            id="personal-name"
+                            type="text"
+                            value={personalName}
+                            maxLength={60}
+                            onChange={(e) => setPersonalName(e.target.value)}
+                            aria-invalid={personalErrors.name ? true : undefined}
+                            aria-describedby="personal-name-ayuda"
+                            className={CAMPO}
+                        />
+                        {personalErrors.name ? (
+                            <span id="personal-name-ayuda" className={ERROR_CAMPO}>
+                                {personalErrors.name}
+                            </span>
+                        ) : (
+                            <span id="personal-name-ayuda" className={AYUDA}>
+                                {t('templates.vista.personalNameHelp')}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex flex-col gap-[7px]">
+                        <label htmlFor="personal-content" className={ETIQUETA}>
+                            {t('templates.vista.textLabel')}
+                        </label>
+                        <textarea
+                            id="personal-content"
+                            value={personalContent}
+                            maxLength={4096}
+                            rows={4}
+                            onChange={(e) => setPersonalContent(e.target.value)}
+                            aria-invalid={personalErrors.content ? true : undefined}
+                            aria-describedby="personal-content-ayuda"
+                            className={cn(AREA, 'min-h-[104px]')}
+                        />
+                        <span id="personal-content-ayuda" className="flex items-start justify-between gap-3">
+                            <span className={ERROR_CAMPO}>{personalErrors.content}</span>
+                            <span className={cn(AYUDA, 'shrink-0 tabular-nums')}>{t('templates.vista.charCount', { value: miles(personalContent.length, lng), max: miles(4096, lng) })}</span>
+                        </span>
+                    </div>
+                </form>
+            </DialogoPlantilla>
+
+            {/* ── Eliminar plantilla personal (asesor): DELETE /admin/my-templates/{id} ── */}
+            <DialogoPlantilla
+                abierto={personalDelete !== null}
+                onCerrar={() => !personalDeleting && setPersonalDelete(null)}
+                icono={Trash2}
+                peligro
+                titulo={t('templates.vista.deleteTitle')}
+                ancho="max-w-[400px]"
+                enfoqueInicial={seguroBorrarPersonal}
+                pie={
+                    <>
+                        <button ref={seguroBorrarPersonal} type="button" onClick={() => setPersonalDelete(null)} disabled={personalDeleting} className={BOTON_SECUNDARIO}>
+                            <X strokeWidth={1.9} aria-hidden="true" />
+                            {t('common.cancel')}
+                        </button>
+                        <button type="button" onClick={confirmarBorrarPersonal} disabled={personalDeleting} className={BOTON_PELIGRO_LLENO}>
+                            <Trash2 strokeWidth={2} aria-hidden="true" />
+                            {personalDeleting ? t('templates.vista.deleting') : t('templates.vista.deleteYes')}
+                        </button>
+                    </>
+                }
+            >
+                {personalDelete && (
+                    <>
+                        <p className={cn('text-[13.5px] leading-5', TEXTO_SUAVE)}>{t('templates.vista.deletePersonalText')}</p>
+                        <QueSeBorra nombre={personalDelete.name} detalle={t('templates.vista.usedTimes', { count: personalDeleteUsos, value: miles(personalDeleteUsos, lng) })} />
+                        {personalDeleteError && <Nota tipo="mal">{personalDeleteError}</Nota>}
+                    </>
+                )}
+            </DialogoPlantilla>
         </AdminLayout>
     );
 }
