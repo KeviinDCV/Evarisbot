@@ -90,7 +90,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useTranslation, Trans } from 'react-i18next';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
 
 // CSRF: las mutaciones van por axios para usar el token VIVO de la cookie XSRF-TOKEN
@@ -633,6 +633,28 @@ export default function ConversationsIndex({ conversations: initialConversations
         '😮': 'Me asombra', '😢': 'Me entristece', '🙏': 'Gracias',
     };
     const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
+    // El selector de reacciones se cierra al pulsar fuera de él o con Esc. No sirve una capa
+    // `fixed inset-0`: la barra que lo contiene lleva `-translate-y-1/2`, y un transform hace de esa
+    // barra el contenedor de sus hijos `position: fixed` (la capa solo cubría la barra y el clic fuera
+    // no cerraba nada). Esc se atiende en captura y no sigue: si no, además cerraría el chat.
+    useEffect(() => {
+        if (reactionPickerFor === null) return;
+        const alPulsar = (e: PointerEvent) => {
+            if ((e.target as HTMLElement | null)?.closest('[data-selector-reacciones]')) return;
+            setReactionPickerFor(null);
+        };
+        const alTeclear = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            e.stopPropagation();
+            setReactionPickerFor(null);
+        };
+        document.addEventListener('pointerdown', alPulsar, true);
+        document.addEventListener('keydown', alTeclear, true);
+        return () => {
+            document.removeEventListener('pointerdown', alPulsar, true);
+            document.removeEventListener('keydown', alTeclear, true);
+        };
+    }, [reactionPickerFor]);
 
     const handleReact = async (message: Message, emoji: string) => {
         if (!selectedConversation) return;
@@ -4654,7 +4676,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <Copy className="w-4 h-4" />
                                                 </button>
                                                 )}
-                                                <div className="relative">
+                                                <div className="relative" data-selector-reacciones>
                                                     <button
                                                         onClick={() => setReactionPickerFor(reactionPickerFor === message.id ? null : message.id)}
                                                         className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
@@ -4662,10 +4684,6 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     >
                                                         <SmilePlus className="w-4 h-4" />
                                                     </button>
-                                                    {/* Backdrop invisible: clic afuera cierra el picker (igual que se abre). */}
-                                                    {reactionPickerFor === message.id && (
-                                                        <div className="fixed inset-0 z-20" onClick={() => setReactionPickerFor(null)} />
-                                                    )}
                                                     <AnimatePresence>
                                                     {reactionPickerFor === message.id && (
                                                         <motion.div

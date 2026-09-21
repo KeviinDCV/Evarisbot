@@ -1,6 +1,6 @@
 import { router, useForm } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BOTON_PELIGRO_LLENO, BOTON_PRIMARIO, BOTON_SECUNDARIO, FILETE, FOCO, HOJA, MONO, TEXTO_NAVY, TEXTO_SUAVE } from '@/components/appointments/piezas-citas';
 import { Banda, Nota, Rotulo, miles } from '@/components/bulk-sends/piezas-envio';

@@ -13,7 +13,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { Lock, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Undo2, UserCircle, X } from 'lucide-react';
 import { type CSSProperties, type FocusEvent as ReactFocusEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Toaster } from 'sonner';
+import { Avisos } from '@/components/avisos';
 
 /**
  * EL MARCO NAVY — el menú nuevo (detrás del interruptor de lib/shell-preference).
@@ -621,7 +621,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                 </main>
             </div>
 
-            <Toaster position="bottom-right" richColors closeButton duration={4000} />
+            <Avisos />
         </div>
     );
 }

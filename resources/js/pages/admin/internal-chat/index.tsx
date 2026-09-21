@@ -2,43 +2,82 @@ import AdminLayout from '@/layouts/admin-layout';
 import { Head } from '@inertiajs/react';
 import { useState, useEffect, useRef, useMemo, useCallback, type MouseEvent } from 'react';
 import {
-    Send,
-    Paperclip,
-    Search,
-    MoreVertical,
-    FileText,
+    ArrowLeft,
+    Check,
+    Download,
+    Ellipsis,
+    Expand,
     Image as ImageIcon,
-    Music,
+    Inbox,
+    LogOut,
     MessageSquare,
+    MessagesSquare,
+    Music,
     PanelLeftClose,
     PanelLeftOpen,
-    Download,
-    Plus,
-    Users,
-    X,
-    Check,
-    Trash2,
+    Paperclip,
     Pencil,
-    LogOut,
-    Expand,
+    Play,
+    Plus,
+    Reply,
+    RotateCcw,
+    Search,
+    SearchX,
+    Send,
+    SmilePlus,
+    Trash2,
+    UserMinus,
+    Users,
+    Video,
+    X,
     ZoomIn,
     ZoomOut,
-    RotateCcw,
-    UserPlus,
-    UserMinus,
-    Reply,
-    SmilePlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next';
+import { toast } from '@/lib/toast';
+import { Trans, useTranslation } from 'react-i18next';
+import { BOTON_PELIGRO_LLENO, BOTON_PRIMARIO, BOTON_SECUNDARIO, FOCO, TEXTO_NAVY, fechaLarga } from '@/components/appointments/piezas-citas';
+import { AYUDA, CAMPO, DialogoPlantilla, ETIQUETA } from '@/components/templates/piezas-plantillas';
+import {
+    ACENTO,
+    AdjuntoDocumento,
+    AdjuntoSubiendo,
+    ArchivoNoDisponible,
+    AvatarGrupo,
+    AvatarPersona,
+    AyudaTeclas,
+    BOTON_ICONO_CHAT,
+    Burbuja,
+    CajaCitada,
+    ConIcono,
+    FONDO_CHAT,
+    FilaChat,
+    FranjaCompositor,
+    FranjaInfo,
+    GRIS,
+    HOJA_CHAT,
+    MenuFlotante,
+    MetaMensaje,
+    NombreAutor,
+    OpcionMenu,
+    Reacciones,
+    SOMBRA_FLOTA,
+    Segmentos,
+    SeparadorDia,
+    SeparadorMenu,
+    TINTA,
+    Vacio,
+    Visto,
+    listaNombres,
+    nombreCorto,
+    nombreVisible,
+} from '@/components/internal-chat/piezas-chat';
+import { TextoMensaje } from '@/components/internal-chat/texto-mensaje';
+import { PanelDetalles, type TextosDetalles } from '@/components/internal-chat/panel-detalles';
 
 // --- Interfaces matching backend API ---
 
@@ -107,11 +146,17 @@ interface Props {
 type ChatFilter = 'all' | 'unread' | 'groups' | 'directs';
 
 export default function InternalChat({ auth, chats: serverChats, users: serverUsers }: Props) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [chats, setChats] = useState<ChatItem[]>(serverChats || []);
     const [availableUsers] = useState<UserInfo[]>(serverUsers || []);
     const [activeChat, setActiveChat] = useState<ChatItem | null>(null);
     const [chatContextMenu, setChatContextMenu] = useState<{ chatId: number; x: number; y: number } | null>(null);
+    // Menú de un mensaje (clic derecho / mantener pulsado): mismas acciones que la barra al pasar el ratón.
+    const [msgMenu, setMsgMenu] = useState<{ msg: MessageItem; x: number; y: number } | null>(null);
+    const pulsacionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Confirmación propia (en lugar de window.confirm): eliminar chat/grupo, salir del grupo, quitar a alguien.
+    const [confirmacion, setConfirmacion] = useState<{ tipo: 'chat' | 'grupo' | 'salir' | 'quitar'; chat: ChatItem; persona?: UserInfo } | null>(null);
+    const cancelarConfirmRef = useRef<HTMLButtonElement>(null);
     const [activeChatInfo, setActiveChatInfo] = useState<{ name: string; type: string; participants: UserInfo[] } | null>(null);
     const [messages, setMessages] = useState<MessageItem[]>([]);
     const [inputText, setInputText] = useState('');
@@ -131,6 +176,28 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         '😮': t('internalChat.reactionWow'), '😢': t('internalChat.reactionSad'), '🙏': t('internalChat.reactionThanks'),
     };
     const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
+    // El selector de reacciones se cierra al pulsar fuera de él o con Esc. No sirve una capa
+    // `fixed inset-0`: la barra que lo contiene lleva `-translate-y-1/2`, y un transform hace de esa
+    // barra el contenedor de sus hijos `position: fixed` (la capa solo cubría la barra y el clic fuera
+    // no cerraba nada). Esc se atiende en captura y no sigue: si no, además cerraría el chat.
+    useEffect(() => {
+        if (reactionPickerFor === null) return;
+        const alPulsar = (e: PointerEvent) => {
+            if ((e.target as HTMLElement | null)?.closest('[data-selector-reacciones]')) return;
+            setReactionPickerFor(null);
+        };
+        const alTeclear = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            e.stopPropagation();
+            setReactionPickerFor(null);
+        };
+        document.addEventListener('pointerdown', alPulsar, true);
+        document.addEventListener('keydown', alTeclear, true);
+        return () => {
+            document.removeEventListener('pointerdown', alPulsar, true);
+            document.removeEventListener('keydown', alTeclear, true);
+        };
+    }, [reactionPickerFor]);
 
     // Edición de mensajes
     const [editingMessage, setEditingMessage] = useState<MessageItem | null>(null);
@@ -361,7 +428,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                 // Aplicar cambios en mensajes existentes (reacciones / ediciones)
                 if (Array.isArray(res.data?.updates) && res.data.updates.length > 0) {
-                    const upd = new Map(res.data.updates.map((u: { id: number; body: string; edited: boolean; reactions: MessageItem['reactions'] }) => [u.id, u]));
+                    type Cambio = { id: number; body: string; edited: boolean; reactions: MessageItem['reactions'] };
+                    const upd = new Map<number, Cambio>(res.data.updates.map((u: Cambio) => [u.id, u]));
                     setMessages(prev => {
                         let changed = false;
                         const next = prev.map(m => {
@@ -489,17 +557,23 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             if (e.key === 'Escape') {
                 if (chatContextMenu) {
                     setChatContextMenu(null);
+                } else if (msgMenu) {
+                    setMsgMenu(null);
+                } else if (confirmacion) {
+                    // Esc = Cancelar: cierra la confirmación sin llamar a nada.
+                    setConfirmacion(null);
                 } else if (mediaViewer) {
                     setMediaViewer(null);
                     setZoomLevel(1);
                     setImagePosition({ x: 0, y: 0 });
                     setImageRotation(0);
-                } else if (showParticipantsModal) {
-                    setShowParticipantsModal(false);
                 } else if (showRenameModal) {
+                    // Renombrar puede abrirse desde Detalles: Esc cierra primero la ventana de encima.
                     setShowRenameModal(false);
                 } else if (showCreateGroup) {
                     setShowCreateGroup(false);
+                } else if (showParticipantsModal) {
+                    setShowParticipantsModal(false);
                 } else if (replyingTo) {
                     setReplyingTo(null);
                 } else if (activeChat) {
@@ -512,7 +586,37 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         };
         window.addEventListener('keydown', handleEsc);
         return () => window.removeEventListener('keydown', handleEsc);
-    }, [chatContextMenu, mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, replyingTo, activeChat]);
+    }, [chatContextMenu, msgMenu, confirmacion, mediaViewer, showParticipantsModal, showRenameModal, showCreateGroup, replyingTo, activeChat]);
+
+    // El menú de un mensaje se cierra como el de la lista: clic fuera, cambio de tamaño o scroll.
+    useEffect(() => {
+        if (!msgMenu) return;
+
+        const cerrar = () => setMsgMenu(null);
+        window.addEventListener('click', cerrar);
+        window.addEventListener('resize', cerrar);
+        window.addEventListener('scroll', cerrar, true);
+
+        return () => {
+            window.removeEventListener('click', cerrar);
+            window.removeEventListener('resize', cerrar);
+            window.removeEventListener('scroll', cerrar, true);
+        };
+    }, [msgMenu]);
+
+    // Al cerrar Detalles (por la X o con Esc), se descarta lo que se estaba añadiendo, como al cerrar la ventana de antes.
+    useEffect(() => {
+        if (!showParticipantsModal) {
+            setShowAddParticipants(false);
+            setAddParticipantSearch('');
+            setAddParticipantIds([]);
+        }
+    }, [showParticipantsModal]);
+
+    // Si cambia el chat abierto, el menú de un mensaje ya no aplica.
+    useEffect(() => {
+        setMsgMenu(null);
+    }, [activeChat?.id]);
 
     useEffect(() => {
         if (!chatContextMenu) return;
@@ -572,15 +676,20 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         setShowParticipantsModal(true);
     };
 
+    // Lo decide quién CREÓ el grupo (es lo que hace InternalChatController::destroy): el creador lo
+    // elimina para todos; los demás solo salen. Antes se miraba si eras participante y a todos les decía
+    // «Eliminar grupo».
     const getDeleteChatLabel = (chat: ChatItem) => chat.type === 'group'
-        ? (chat.participants.some(p => p.id === auth.user.id) ? t('internalChat.deleteGroup') : t('internalChat.leaveGroup'))
+        ? (chat.created_by === auth.user.id ? t('internalChat.deleteGroup') : t('internalChat.leaveGroup'))
         : t('internalChat.deleteChat');
 
-    const handleDeleteChat = async (chat: ChatItem) => {
+    // Primero pregunta (diálogo propio); al confirmar, la MISMA llamada de siempre.
+    const handleDeleteChat = (chat: ChatItem) => {
         setChatContextMenu(null);
-        const label = getDeleteChatLabel(chat);
-        if (!confirm(t('internalChat.deleteConfirm', { label }))) return;
+        setConfirmacion({ tipo: chat.type === 'group' ? (chat.created_by === auth.user.id ? 'grupo' : 'salir') : 'chat', chat });
+    };
 
+    const ejecutarEliminarChat = async (chat: ChatItem) => {
         try {
             const deletedId = chat.id;
             await axios.delete(`/admin/internal-chat/${deletedId}`);
@@ -996,669 +1105,790 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         );
     };
 
+    // Renombrar (Enter en el campo o «Guardar»): la misma llamada de siempre.
+    const guardarNombre = async () => {
+        if (!activeChat || !renameValue.trim()) return;
+        try {
+            await axios.put(`/admin/internal-chat/${activeChat.id}/rename`, { name: renameValue.trim() });
+            // Update local state
+            setActiveChat({ ...activeChat, name: renameValue.trim() });
+            setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, name: renameValue.trim() } : c));
+            setShowRenameModal(false);
+        } catch (err) {
+            console.error('Error renombrando grupo:', err);
+        }
+    };
+
+    // Quitar a una persona del grupo (tras confirmar): la misma llamada de siempre.
+    const quitarParticipante = async (p: UserInfo) => {
+        try {
+            const res = await axios.delete(`/admin/internal-chat/${activeChat!.id}/participants/${p.id}`);
+            if (res.data.success) {
+                // Actualizar participantes localmente
+                setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
+                setChats(prev => prev.map(c => c.id === activeChat!.id ? { ...c, participants: res.data.participants } : c));
+                toast.success(res.data.message);
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || t('internalChat.removeParticipantError'));
+        }
+    };
+
+    // Añadir personas al grupo: la misma llamada de siempre.
+    const anadirParticipantes = async () => {
+        if (!activeChat || addParticipantIds.length === 0) return;
+        setIsAddingParticipants(true);
+        try {
+            const res = await axios.post(`/admin/internal-chat/${activeChat.id}/participants`, {
+                user_ids: addParticipantIds,
+            });
+            if (res.data.success) {
+                setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
+                setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, participants: res.data.participants } : c));
+                toast.success(res.data.message);
+                setShowAddParticipants(false);
+                setAddParticipantSearch('');
+                setAddParticipantIds([]);
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || t('internalChat.addParticipantsError'));
+        } finally {
+            setIsAddingParticipants(false);
+        }
+    };
+
+    // «Sí» en el diálogo de confirmación.
+    const confirmarAccion = () => {
+        const c = confirmacion;
+        setConfirmacion(null);
+        if (!c) return;
+        if (c.tipo === 'quitar') {
+            if (c.persona) void quitarParticipante(c.persona);
+            return;
+        }
+        void ejecutarEliminarChat(c.chat);
+    };
+
+    // --- Presentación (solo pinta: no hace llamadas) ---
+
+    const soyCreador = (chat: ChatItem | null | undefined) => !!chat && chat.type === 'group' && chat.created_by === auth.user.id;
+
+    const rolTexto = (rol: string) =>
+        rol === 'admin' ? t('internalChat.roleAdmin') : rol === 'advisor' ? t('internalChat.roleAdvisor') : rol === 'ai' ? t('internalChat.vista.roleBot') : rol;
+
+    const nombreChat = (chat: ChatItem) => (chat.type === 'direct' ? nombreVisible(chat.name) : chat.name);
+
+    function previaChat(chat: ChatItem) {
+        if (!chat.latest_message) return t('internalChat.vista.noMessagesYet');
+        const { type, body, user_name } = chat.latest_message;
+        const mio = !!user_name && user_name === auth.user.name;
+        const quien = mio ? `${t('common.you')}: ` : chat.type === 'group' && user_name ? `${nombreCorto(user_name)}: ` : '';
+        const cuerpo =
+            type === 'image' ? <ConIcono icono={ImageIcon}>{t('internalChat.photo')}</ConIcono>
+            : type === 'video' ? <ConIcono icono={Video}>{t('internalChat.video')}</ConIcono>
+            : type === 'audio' ? <ConIcono icono={Music}>{t('internalChat.audio')}</ConIcono>
+            : type === 'document' || type === 'file' ? <ConIcono icono={Paperclip}>{t('internalChat.file')}</ConIcono>
+            : body || '';
+        return (
+            <>
+                {quien && <span className={cn(chat.unread > 0 ? cn('font-semibold', ACENTO) : 'font-medium')}>{quien}</span>}
+                {cuerpo}
+            </>
+        );
+    }
+
+    /** Resumen de un mensaje citado o que se responde: icono + texto. */
+    const resumenCita = (m: { type: string; body: string | null; file_name: string | null }): { texto: string; icono?: typeof ImageIcon } =>
+        m.type === 'image' ? { texto: t('internalChat.photo'), icono: ImageIcon }
+        : m.type === 'video' ? { texto: t('internalChat.video'), icono: Video }
+        : m.type === 'audio' ? { texto: t('internalChat.audio'), icono: Music }
+        : m.type === 'document' ? { texto: m.file_name || t('internalChat.file'), icono: Paperclip }
+        : { texto: m.body || '' };
+
+    const tipoDocumento = (nombre: string | null) => {
+        const ext = (nombre?.split('.').pop() ?? '').toLowerCase();
+        if (ext === 'pdf') return t('internalChat.vista.docPdf');
+        if (['xls', 'xlsx', 'csv', 'ods'].includes(ext)) return t('internalChat.vista.docSheet');
+        if (['doc', 'docx', 'odt', 'rtf'].includes(ext)) return t('internalChat.vista.docText');
+        if (['ppt', 'pptx', 'odp'].includes(ext)) return t('internalChat.vista.docSlides');
+        if (['zip', 'rar', '7z'].includes(ext)) return t('internalChat.vista.docZip');
+        return t('internalChat.file');
+    };
+
+    /** created_at_full → Date. El optimista llega como "2026-09-13 15:04" (UTC sin zona): se lee como UTC. */
+    const fechaDe = (m: MessageItem): Date | null => {
+        const s = m.created_at_full;
+        if (!s) return null;
+        const d = new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s) ? `${s.replace(' ', 'T')}:00Z` : s);
+        return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const claveDia = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const textoDia = (d: Date) => {
+        const hoy = new Date();
+        const ayer = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 1);
+        if (claveDia(d) === claveDia(hoy)) return t('common.today');
+        if (claveDia(d) === claveDia(ayer)) return t('common.yesterday');
+        const larga = fechaLarga(d, i18n.language);
+        const conAnio = d.getFullYear() !== hoy.getFullYear() ? `${larga} ${d.getFullYear()}` : larga;
+        return conAnio.charAt(0).toLocaleUpperCase() + conAnio.slice(1);
+    };
+
+    // Mensaje optimista (id temporal = Date.now()): los reales son ids pequeños de la base de datos.
+    const esPendiente = (m: MessageItem) => m.id > 1_000_000_000_000;
+
+    const abrirMenuMensaje = (msg: MessageItem, x: number, y: number) => {
+        setChatContextMenu(null);
+        setMsgMenu({ msg, x, y });
+    };
+    const alPulsarLargo = (msg: MessageItem) => (e: React.TouchEvent) => {
+        const toque = e.touches[0];
+        if (!toque) return;
+        const { clientX, clientY } = toque;
+        if (pulsacionRef.current) clearTimeout(pulsacionRef.current);
+        pulsacionRef.current = setTimeout(() => abrirMenuMensaje(msg, clientX, clientY), 500);
+    };
+    const cancelarPulsacion = () => {
+        if (pulsacionRef.current) {
+            clearTimeout(pulsacionRef.current);
+            pulsacionRef.current = null;
+        }
+    };
+
+    const abrirVisor = (msg: MessageItem) => {
+        if (!msg.file_url) return;
+        if (msg.type === 'image') {
+            // Igual que al pulsar la imagen: no abrir si no se pudo cargar.
+            if (document.getElementById(`msg-${msg.id}`)?.querySelector('[data-unavailable="1"]')) return;
+            setMediaViewer({ url: msg.file_url, type: 'image', caption: msg.body && msg.body !== t('internalChat.image') ? msg.body : undefined });
+            setZoomLevel(1);
+            setImagePosition({ x: 0, y: 0 });
+        } else if (msg.type === 'video') {
+            setMediaViewer({ url: msg.file_url, type: 'video', caption: msg.body && msg.body !== t('internalChat.video') ? msg.body : undefined });
+        }
+    };
+
+    const irAlMensaje = (id: number) => {
+        const el = document.getElementById(`msg-${id}`);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-2', 'ring-[#2e3f84]/40', 'dark:ring-blue-400/40', 'rounded-xl');
+            setTimeout(() => el.classList.remove('ring-2', 'ring-[#2e3f84]/40', 'dark:ring-blue-400/40', 'rounded-xl'), 2000);
+        }
+    };
+
+    const participantesActivos = activeChat?.participants ?? [];
+    const enLineaGrupo = participantesActivos.filter((p) => p.is_online && p.id !== auth.user.id).length;
+    const otroDirecto = activeChatInfo?.participants?.find((p) => p.id !== auth.user.id);
+    const personasMencionables = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
+    const esChatIa = isAiChat(activeChat);
+    const creadorActivo = soyCreador(activeChat);
+
+    const TECLAS = [
+        { tecla: 'Enter', que: t('internalChat.vista.keySend') },
+        { tecla: 'Shift + Enter', que: t('internalChat.vista.keyNewLine') },
+        { tecla: '@', que: t('internalChat.vista.keyMention') },
+        { tecla: 'Ctrl + V', que: t('internalChat.vista.keyPaste') },
+    ];
+
+    const textosDetalles: TextosDetalles = {
+        titulo: t('internalChat.vista.detailsTitle'),
+        tituloAnadir: t('internalChat.vista.addPeopleTitle'),
+        cerrar: t('internalChat.closeEsc'),
+        volver: t('common.back'),
+        renombrar: t('internalChat.renameGroup'),
+        resumen: t('internalChat.vista.groupSummary', { count: participantesActivos.length, online: enLineaGrupo }),
+        rotuloParticipantes: t('internalChat.vista.participantsLabel', { count: participantesActivos.length }),
+        anadir: t('internalChat.vista.add'),
+        anadirTitulo: t('internalChat.vista.addHint'),
+        tu: t('internalChat.youParenthesis'),
+        creador: t('internalChat.vista.creatorChip'),
+        enLinea: t('internalChat.online'),
+        quitar: (nombre) => t('internalChat.vista.removeHint', { name: nombre }),
+        rol: rolTexto,
+        eliminarGrupo: t('internalChat.vista.deleteGroupEllipsis'),
+        eliminarNota: t('internalChat.vista.deleteGroupNote'),
+        salirGrupo: t('internalChat.vista.leaveGroupEllipsis'),
+        salirNota: t('internalChat.vista.leaveGroupNote'),
+        buscar: t('internalChat.searchUserPlaceholder'),
+        soloFuera: t('internalChat.vista.onlyOutside'),
+        sinResultados: t('internalChat.noUsersFound'),
+        anadirN: t('internalChat.vista.addPeople', { count: addParticipantIds.length }),
+    };
+
+    const candidatosAnadir = availableUsers
+        .filter(u => !(activeChat?.participants ?? []).some(p => p.id === u.id))
+        .filter(u => !addParticipantSearch || u.name.toLowerCase().includes(addParticipantSearch.toLowerCase()));
+
+    const filtroActivo = quickChatFilters.find((f) => f.value === chatFilter);
+
+    // Confirmación en curso: textos y acción (la MISMA llamada de siempre).
+    const confirmarTextos = (() => {
+        if (!confirmacion) return null;
+        const { tipo, chat, persona } = confirmacion;
+        if (tipo === 'quitar' && persona) {
+            return {
+                icono: UserMinus,
+                titulo: t('internalChat.vista.confirmRemoveTitle', { name: nombreCorto(persona.name) }),
+                clave: 'internalChat.vista.confirmRemoveText',
+                valores: { name: nombreVisible(persona.name) },
+                boton: t('internalChat.vista.confirmRemoveButton'),
+            };
+        }
+        if (tipo === 'grupo') {
+            return { icono: Trash2, titulo: t('internalChat.vista.confirmDeleteGroupTitle'), clave: 'internalChat.vista.confirmDeleteGroupText', valores: { name: chat.name, count: chat.participants.length }, boton: t('internalChat.deleteGroup') };
+        }
+        if (tipo === 'salir') {
+            return { icono: LogOut, titulo: t('internalChat.vista.confirmLeaveTitle'), clave: 'internalChat.vista.confirmLeaveText', valores: { name: chat.name }, boton: t('internalChat.vista.confirmLeaveButton') };
+        }
+        return { icono: Trash2, titulo: t('internalChat.vista.confirmDeleteChatTitle'), clave: 'internalChat.vista.confirmDeleteChatText', valores: { name: nombreChat(chat) }, boton: t('internalChat.deleteChat') };
+    })();
+
     return (
         <AdminLayout>
             <Head title={t('internalChat.pageTitle')} />
 
-            <div className="h-[calc(100vh-0px)] flex bg-background overflow-hidden">
-                {/* Lista de Chats - Izquierda */}
-                <div className={cn(
-                    "bg-background dark:bg-neutral-900 flex-col transition-all duration-300 flex-shrink-0 border-r border-border dark:border-neutral-700/50",
-                    activeChat ? 'hidden md:flex' : 'flex',
-                    isSidebarVisible ? 'w-full md:w-80 lg:w-[340px] xl:w-[360px]' : 'hidden md:w-0 md:overflow-hidden'
-                )}>
-                    {/* Header */}
-                    <div className="px-4 pt-4 pb-3">
-                        <div className="flex items-start justify-between gap-3 mb-3">
-                            <div className="min-w-0">
-                                <h1 className="text-2xl font-extrabold text-[#2e3f84] dark:text-blue-200 tracking-tight">{t('internalChat.title')}</h1>
-                                <p className="mt-0.5 text-xs text-[#5f5e5e] dark:text-neutral-400">
-                                    {t('internalChat.conversationsOnlineSummary', { conversations: chats.length, online: chatSummary.onlineUsers })}
+            <div className={cn('h-[calc(100vh-0px)] max-lg:h-[calc(100dvh-4rem)] flex overflow-hidden', FONDO_CHAT)}>
+                {/* ══ Lista de chats ══ */}
+                <section
+                    aria-label={t('internalChat.title')}
+                    className={cn(
+                        'relative z-[2] flex-col flex-shrink-0 shadow-[1px_0_0_rgba(46,63,132,0.08)] dark:shadow-[1px_0_0_rgba(255,255,255,0.08)]',
+                        HOJA_CHAT,
+                        activeChat ? 'hidden md:flex' : 'flex',
+                        isSidebarVisible ? 'w-full md:w-[320px] xl:w-[340px]' : 'hidden md:w-0 md:overflow-hidden'
+                    )}
+                >
+                    <div className="flex flex-col gap-3 px-4 pt-3.5 pb-3 md:px-[18px] md:pt-5">
+                        <div className="flex items-center gap-2.5">
+                            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <h1 className={cn('truncate text-[20px] leading-[26px] font-semibold tracking-[-0.02em]', TEXTO_NAVY)}>{t('internalChat.title')}</h1>
+                                <p className={cn('truncate text-[12.5px] leading-4 tabular-nums', GRIS)}>
+                                    {t('internalChat.vista.conversationsCount', { count: chats.length })}
+                                    {' · '}
+                                    <span className="font-medium text-emerald-700 dark:text-emerald-400">{t('internalChat.vista.onlineCount', { count: chatSummary.onlineUsers })}</span>
                                 </p>
                             </div>
-
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                                <button
-                                    onClick={() => setShowCreateGroup(true)}
-                                    className="w-9 h-9 rounded-full bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] text-white flex items-center justify-center shadow-lg hover:shadow-xl active:scale-95 transition-all"
-                                    title={t('internalChat.newChatOrGroup')}
-                                >
-                                    <Plus className="w-4 h-4" />
-                                </button>
-                            </div>
+                            <button type="button" onClick={() => setShowCreateGroup(true)} title={t('internalChat.vista.newHint')} className={cn(BOTON_PRIMARIO, 'h-[34px] pr-3.5 pl-3')}>
+                                <Plus aria-hidden="true" />
+                                {t('internalChat.vista.new')}
+                            </button>
                         </div>
 
-                        {/* Búsqueda */}
-                        <div className="relative group">
-                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#767681] w-4 h-4" />
+                        <div className="relative min-w-0">
+                            <Search className={cn('pointer-events-none absolute top-1/2 left-[11px] size-4 -translate-y-1/2', GRIS)} strokeWidth={1.75} aria-hidden="true" />
                             <input
                                 type="text"
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
-                                className="w-full pl-11 pr-4 py-2.5 bg-muted dark:bg-neutral-800 border-none rounded-full text-sm focus:ring-2 focus:ring-[#2e3f84]/10 transition-all placeholder:text-[#767681]"
+                                aria-label={t('internalChat.searchPlaceholder')}
                                 placeholder={t('internalChat.searchPlaceholder')}
+                                className={cn(
+                                    'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-3 pl-9 text-[13px] leading-[18px] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] outline-none placeholder:text-[#5c6485] focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.14)]',
+                                    'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] dark:placeholder:text-neutral-400 dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]'
+                                )}
                             />
                         </div>
 
-                        <div className="filter-pills-scroll flex items-center gap-1.5 px-1 pt-2 pb-2 overflow-x-auto">
-                            {quickChatFilters.map(filter => (
-                                <button
-                                    key={filter.value}
-                                    type="button"
-                                    onClick={() => setChatFilter(filter.value)}
-                                    className={cn(
-                                        'flex-shrink-0 px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition-all duration-200',
-                                        chatFilter === filter.value
-                                            ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#2e3f84] dark:text-blue-300 font-semibold'
-                                            : 'bg-muted dark:bg-neutral-800 text-[#5f5e5e] dark:text-neutral-400 hover:bg-muted/80 dark:hover:bg-neutral-700 font-medium'
-                                    )}
-                                >
-                                    {filter.label} {filter.count}
-                                </button>
-                            ))}
-                        </div>
+                        <Segmentos opciones={quickChatFilters} valor={chatFilter} onCambio={setChatFilter} etiqueta={t('internalChat.vista.filtersLabel')} />
                     </div>
 
-                    {/* Lista de Chats */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light">
+                    <div className="custom-scrollbar-light flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pb-2">
                         {filteredChats.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-full text-[#767681] p-8">
-                                <MessageSquare className="w-16 h-16 mb-4 text-[#767681]/50" />
-                                <p className="text-center text-sm">{t('internalChat.noConversations')}</p>
-                                <p className="text-center text-xs text-[#767681] mt-2">
-                                    {searchQuery || chatFilter !== 'all' ? t('internalChat.noConversationsFiltered') : t('internalChat.noConversationsHint')}
-                                </p>
-                            </div>
+                            chats.length === 0 ? (
+                                <Vacio
+                                    icono={Inbox}
+                                    titulo={t('internalChat.vista.emptyTitle')}
+                                    texto={t('internalChat.vista.emptyText')}
+                                    className="flex-1"
+                                    accion={
+                                        <button type="button" onClick={() => setShowCreateGroup(true)} className={BOTON_PRIMARIO}>
+                                            <Plus aria-hidden="true" />
+                                            {t('internalChat.newChatOrGroup')}
+                                        </button>
+                                    }
+                                />
+                            ) : (
+                                <Vacio
+                                    icono={SearchX}
+                                    titulo={
+                                        searchQuery.trim()
+                                            ? t('internalChat.vista.noResultsQuery', { query: searchQuery.trim(), filter: filtroActivo?.label ?? '' })
+                                            : t('internalChat.vista.noResultsFilter', { filter: filtroActivo?.label ?? '' })
+                                    }
+                                    texto={t('internalChat.vista.noResultsText')}
+                                    className="flex-1"
+                                    accion={
+                                        <button type="button" onClick={() => { setSearchQuery(''); setChatFilter('all'); }} className={BOTON_SECUNDARIO}>
+                                            <X aria-hidden="true" />
+                                            {t('internalChat.vista.clearFilters')}
+                                        </button>
+                                    }
+                                />
+                            )
                         ) : (
-                            filteredChats.map(chat => {
+                            filteredChats.map((chat, k) => {
                                 const isActive = activeChat?.id === chat.id;
-
+                                const otro = chat.type === 'direct' ? chat.participants.find(p => p.id !== auth.user.id) : undefined;
+                                const bot = chat.type === 'direct' && otro?.role === 'ai';
                                 return (
-                                    <button
+                                    <FilaChat
                                         key={chat.id}
+                                        datosId={chat.id}
+                                        activo={isActive}
+                                        ultima={k === filteredChats.length - 1 || filteredChats[k + 1]?.id === activeChat?.id}
+                                        titulo={t('internalChat.vista.rowHint')}
                                         onClick={() => handleChatSelect(chat)}
                                         onContextMenu={(e) => handleChatContextMenu(e, chat.id)}
-                                        className={`w-full flex items-center gap-3 pl-3 transition-colors text-left select-none ${isActive
-                                            // Chat abierto: fondo blanco y barra de 3 px con el color de marca, igual que en la
-                                            // lista de conversaciones. El lavanda anterior casi no se distinguía del fondo
-                                            // (1,06:1). var(--primary) pasa sola a un azul visible en modo oscuro.
-                                            ? 'bg-white dark:bg-neutral-800 shadow-[inset_3px_0_0_var(--primary)]'
-                                            : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
-                                            }`}
-                                    >
-                                        {/* Avatar */}
-                                        <div className="relative flex-shrink-0">
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-[15px] font-bold tracking-wide ${chat.type === 'group' ? 'bg-[#2e3a75]' : 'bg-gradient-to-br from-[#4e5fa4] to-[#3e4f94]'
-                                                }`}>
-                                                {chat.type === 'group' ? (
-                                                    <Users className="w-5 h-5" />
-                                                ) : (
-                                                    <span>{getInitials(chat.name)}</span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* Info (divisor inset estilo WhatsApp: empieza después del avatar) */}
-                                        <div className="flex-grow min-w-0 py-3 pr-3 border-b border-[#ececf3] dark:border-white/[0.06]">
-                                            <div className="flex justify-between items-baseline mb-0.5">
-                                                {/* La negrita marca lo NO leído, con el mismo criterio que la lista de
-                                                    conversaciones. 600 y 400 son pesos reales de Instrument Sans; el
-                                                    font-bold anterior (700) no existe en la fuente y lo sintetizaba el navegador. */}
-                                                <h3 className={`truncate text-[15px] ${chat.unread > 0
-                                                    ? 'font-semibold text-[#1a1c1c] dark:text-neutral-100'
-                                                    : 'font-normal text-[#3b3d4a] dark:text-neutral-300'}`}>
-                                                    {chat.name}
-                                                </h3>
-                                                <span className={`text-[10px] font-medium flex-shrink-0 ml-2 ${chat.unread > 0 ? 'text-[#2e3f84] dark:text-blue-400' : 'text-[#5f5e5e] dark:text-neutral-500'
-                                                    }`}>
-                                                    {chat.latest_message?.created_at || ''}
+                                        avatar={
+                                            chat.type === 'group'
+                                                ? <AvatarGrupo tam={38} />
+                                                : <AvatarPersona nombre={otro?.name ?? chat.name} rol={otro?.role} enLinea={!!otro?.is_online} tam={38} anillo={isActive ? 'ring-[#eef0f7] dark:ring-[#2e2d2c]' : 'ring-white dark:ring-card'} />
+                                        }
+                                        nombre={nombreChat(chat)}
+                                        extra={
+                                            chat.type === 'group' ? (
+                                                <span title={t('internalChat.participantsCount', { count: chat.participants.length })} className={cn('inline-flex shrink-0 items-center gap-[3px] text-[12px] leading-4 font-medium tabular-nums', GRIS)}>
+                                                    <Users className="size-3" strokeWidth={2} aria-hidden="true" />
+                                                    {chat.participants.length}
                                                 </span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className={`text-sm truncate flex-1 min-w-0 ${chat.unread > 0 ? 'text-[#1a1c1c] dark:text-neutral-200 font-medium' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
-                                                    {getLastMessagePreview(chat)}
-                                                </p>
-                                                {/* Badge de no-leídos a la derecha (estilo WhatsApp) */}
-                                                {chat.unread > 0 && (
-                                                    <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold">
-                                                        {chat.unread}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center justify-between mt-1.5">
-                                                <div className="flex items-center gap-1.5">
-                                                    <span className={cn('w-2 h-2 rounded-full', chat.type === 'group' ? 'bg-[#2e3f84] dark:bg-blue-400' : 'bg-emerald-500')}></span>
-                                                    <span className="text-[11px] font-medium text-[#5f5e5e] dark:text-neutral-400">
-                                                        {chat.type === 'group' ? t('internalChat.participantsCount', { count: chat.participants.length }) : t('internalChat.direct')}
-                                                    </span>
-                                                </div>
-                                                {chat.type === 'direct' && chat.participants.some(p => p.id !== auth.user.id && p.is_online) && (
-                                                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-2 py-0.5 rounded-full">
-                                                        {t('internalChat.online')}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </button>
+                                            ) : bot ? (
+                                                <span className="inline-flex h-[18px] shrink-0 items-center rounded-[5px] bg-sky-50 px-1.5 text-[11px] leading-3 font-semibold whitespace-nowrap text-sky-700 dark:bg-sky-500/10 dark:text-sky-300">
+                                                    {t('internalChat.vista.testChip')}
+                                                </span>
+                                            ) : null
+                                        }
+                                        hora={chat.latest_message?.created_at || ''}
+                                        previa={previaChat(chat)}
+                                        noLeidos={chat.unread}
+                                        tituloNoLeidos={t('internalChat.vista.unreadCount', { count: chat.unread })}
+                                    />
                                 );
                             })
                         )}
                     </div>
-                </div>
+                </section>
 
+                {/* Menú de clic derecho de la lista */}
                 {chatContextMenu && (() => {
                     const chat = chats.find(c => c.id === chatContextMenu.chatId);
                     if (!chat) return null;
-
-                    const windowHeight = window.innerHeight;
-                    const windowWidth = window.innerWidth;
-                    const menuWidth = 224;
-                    const menuHeight = chat.type === 'group' ? 156 : 56;
-                    const adjustedX = windowWidth - chatContextMenu.x < menuWidth
-                        ? Math.max(12, windowWidth - menuWidth - 12)
-                        : chatContextMenu.x;
-                    const adjustedY = windowHeight - chatContextMenu.y < menuHeight
-                        ? Math.max(12, chatContextMenu.y - menuHeight)
-                        : chatContextMenu.y;
-
+                    const creador = soyCreador(chat);
+                    const alto = chat.type === 'group' ? (creador ? 138 : 102) : 48;
                     return (
-                        <div
-                            className="fixed z-50 min-w-[224px] overflow-hidden rounded-xl card-gradient py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-150"
-                            style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
+                        <MenuFlotante x={chatContextMenu.x} y={chatContextMenu.y} alto={alto} etiqueta={nombreChat(chat)}>
                             {chat.type === 'group' && (
                                 <>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleRenameChat(chat)}
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-neutral-800"
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                        {t('internalChat.renameGroup')}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleShowParticipants(chat)}
-                                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/70 dark:hover:bg-neutral-800"
-                                    >
-                                        <Users className="h-4 w-4" />
+                                    {creador && (
+                                        <OpcionMenu icono={Pencil} onClick={() => handleRenameChat(chat)}>
+                                            {t('internalChat.renameGroup')}
+                                        </OpcionMenu>
+                                    )}
+                                    <OpcionMenu icono={Users} onClick={() => handleShowParticipants(chat)}>
                                         {t('internalChat.viewParticipants', { count: chat.participants.length })}
-                                    </button>
-                                    <div className="my-1 h-px bg-border" />
+                                    </OpcionMenu>
+                                    <SeparadorMenu />
                                 </>
                             )}
-                            <button
-                                type="button"
-                                onClick={() => handleDeleteChat(chat)}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
-                            >
-                                <Trash2 className="h-4 w-4" />
-                                {getDeleteChatLabel(chat)}
-                            </button>
-                        </div>
+                            <OpcionMenu icono={chat.type === 'group' && !creador ? LogOut : Trash2} peligro onClick={() => handleDeleteChat(chat)}>
+                                {getDeleteChatLabel(chat)}…
+                            </OpcionMenu>
+                        </MenuFlotante>
                     );
                 })()}
 
-                {/* Área de Chat - Derecha */}
+                {/* ══ Conversación ══ */}
                 {!activeChat ? (
-                    <div className="hidden md:flex flex-1 items-center justify-center bg-background dark:bg-neutral-950">
-                        <div className="text-center p-8 md:p-12">
-                            <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#c6c5d1]" />
-                            <h3 className="text-xl font-bold text-[#1a1c1c]/60 dark:text-neutral-400 mb-2">
-                                {t('internalChat.welcomeTitle')}
-                            </h3>
-                            <p className="text-sm text-[#5f5e5e]">
-                                {t('internalChat.welcomeSubtitle')}
-                            </p>
-                        </div>
+                    <div className={cn('hidden flex-1 items-center justify-center md:flex', FONDO_CHAT)}>
+                        <Vacio
+                            icono={MessagesSquare}
+                            titulo={t('internalChat.vista.pickTitle')}
+                            texto={t('internalChat.vista.pickText')}
+                            accion={
+                                <button type="button" onClick={() => setShowCreateGroup(true)} className={BOTON_SECUNDARIO}>
+                                    <Plus aria-hidden="true" />
+                                    {t('internalChat.newChatOrGroup')}
+                                </button>
+                            }
+                        />
                     </div>
                 ) : (
-                    <div className="flex-1 min-w-0 flex flex-col bg-background dark:bg-neutral-900 w-full md:w-auto relative">
-                        {/* Header del Chat */}
-                        <header className="flex items-center justify-between w-full px-4 md:px-6 py-3 md:py-4 bg-card/80 dark:bg-neutral-900/80 backdrop-blur-md shadow-sm z-10">
-                            <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
-                                {/* Botón volver (mobile) / toggle sidebar (desktop) */}
-                                <button
-                                    onClick={() => {
-                                        if (window.innerWidth < 768) {
-                                            setActiveChat(null);
-                                        } else {
-                                            setIsSidebarVisible(!isSidebarVisible);
-                                        }
-                                    }}
-                                    className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300 flex-shrink-0"
-                                    title={isSidebarVisible ? t('internalChat.hideList') : t('internalChat.showList')}
-                                >
-                                    {isSidebarVisible ? (
-                                        <PanelLeftClose className="w-5 h-5" />
-                                    ) : (
-                                        <PanelLeftOpen className="w-5 h-5" />
-                                    )}
-                                </button>
+                    <div className={cn('relative flex w-full min-w-0 flex-1 flex-col md:w-auto', FONDO_CHAT)}>
+                        {/* Cabecera */}
+                        <header className={cn('relative z-[3] flex h-[60px] shrink-0 items-center gap-2.5 pr-3 pl-3 shadow-[0_1px_0_rgba(46,63,132,0.08)] md:h-16 md:pr-4 dark:shadow-[0_1px_0_rgba(255,255,255,0.08)]', HOJA_CHAT)}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (window.innerWidth < 768) {
+                                        setActiveChat(null);
+                                    } else {
+                                        setIsSidebarVisible(!isSidebarVisible);
+                                    }
+                                }}
+                                className={cn(BOTON_ICONO_CHAT, 'size-9 max-md:-ml-1.5 max-md:text-[#2e3f84] md:size-[34px] dark:max-md:text-neutral-100')}
+                                title={isSidebarVisible ? t('internalChat.hideList') : t('internalChat.showList')}
+                                aria-label={isSidebarVisible ? t('internalChat.hideList') : t('internalChat.showList')}
+                            >
+                                <ArrowLeft className="size-[18px] md:hidden" strokeWidth={1.9} aria-hidden="true" />
+                                {isSidebarVisible ? (
+                                    <PanelLeftClose className="hidden size-[18px] md:block" strokeWidth={1.9} aria-hidden="true" />
+                                ) : (
+                                    <PanelLeftOpen className="hidden size-[18px] md:block" strokeWidth={1.9} aria-hidden="true" />
+                                )}
+                            </button>
 
-                                {/* Avatar e Info */}
-                                <div className="relative flex-shrink-0">
-                                    <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white text-sm md:text-base font-bold ${activeChat.type === 'group' ? 'bg-[#2e3a75]' : 'bg-gradient-to-br from-[#2e3f84] to-[#2e3a75]'}`}>
-                                        {activeChat.type === 'group' ? (
-                                            <Users className="w-5 h-5" />
-                                        ) : (
-                                            <span>{getInitials(activeChat.name)}</span>
-                                        )}
-                                    </div>
-                                    {activeChat.type === 'direct' && activeChatInfo?.participants?.find(p => p.id !== auth.user.id)?.is_online && (
-                                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-neutral-900 rounded-full"></div>
+                            {activeChat.type === 'group'
+                                ? <AvatarGrupo tam={38} />
+                                : <AvatarPersona nombre={otroDirecto?.name ?? activeChat.name} rol={activeChat.participants.find(p => p.id !== auth.user.id)?.role} enLinea={!!otroDirecto?.is_online} tam={38} />}
+
+                            <div className="ml-0.5 flex min-w-0 flex-1 flex-col gap-0.5">
+                                <h2 className={cn('truncate text-[15px] leading-5 font-semibold tracking-[-0.01em]', TEXTO_NAVY)}>{nombreChat(activeChat)}</h2>
+                                <p className={cn('flex min-w-0 items-center gap-1.5 truncate text-[12.5px] leading-4 whitespace-nowrap tabular-nums', GRIS)}>
+                                    {activeChat.type === 'group' ? (
+                                        <>
+                                            <span className="truncate">{t('internalChat.vista.groupHeader', { count: activeChat.participants.length })}</span>
+                                            <span className="text-[#2e3f84]/30 dark:text-white/30" aria-hidden="true">·</span>
+                                            <span className="inline-flex shrink-0 items-center gap-[5px] font-medium text-emerald-700 dark:text-emerald-400">
+                                                <span className="size-[7px] rounded-full bg-emerald-500" aria-hidden="true" />
+                                                {t('internalChat.vista.onlineCount', { count: enLineaGrupo })}
+                                            </span>
+                                        </>
+                                    ) : otroDirecto?.is_online ? (
+                                        <>
+                                            <span className="inline-flex shrink-0 items-center gap-[5px] font-medium text-emerald-700 dark:text-emerald-400">
+                                                <span className="size-[7px] rounded-full bg-emerald-500" aria-hidden="true" />
+                                                {t('internalChat.online')}
+                                            </span>
+                                            <span className="text-[#2e3f84]/30 dark:text-white/30" aria-hidden="true">·</span>
+                                            <span className="truncate">{esChatIa ? t('internalChat.vista.botSubtitle') : t('internalChat.direct')}</span>
+                                        </>
+                                    ) : (
+                                        <span className="truncate">{esChatIa ? t('internalChat.vista.botSubtitle') : `${t('internalChat.offline')} · ${t('internalChat.direct')}`}</span>
                                     )}
-                                </div>
-                                <div className="min-w-0 flex-1 overflow-hidden">
-                                    <h2 className="font-bold text-[#2e3f84] dark:text-neutral-200 text-sm md:text-base leading-tight truncate">
-                                        {activeChat.name}
-                                    </h2>
-                                    <p className="text-xs md:text-sm text-[#5f5e5e] dark:text-neutral-400 truncate">
-                                        {activeChat.type === 'group'
-                                            ? t('internalChat.participantsCount', { count: activeChat.participants.length })
-                                            : (activeChatInfo?.participants?.find(p => p.id !== auth.user.id)?.is_online
-                                                ? <span className="text-green-600 font-medium">{t('internalChat.online')}</span>
-                                                : t('internalChat.offline'))
-                                        }
-                                    </p>
-                                </div>
+                                </p>
                             </div>
 
-                            {/* Acciones del header */}
-                            <div className="flex items-center gap-1">
-                                <div className="hidden sm:flex items-center gap-2 mr-1 px-3 py-1 rounded-full bg-[#dee1ff]/60 dark:bg-neutral-800">
-                                    <span className={cn('w-2 h-2 rounded-full', activeChat.type === 'group' ? 'bg-[#2e3f84] dark:bg-blue-400' : 'bg-emerald-500')}></span>
-                                    <span className="text-xs font-medium text-[#2e3f84] dark:text-neutral-300">
-                                        {activeChat.type === 'group' ? t('internalChat.group') : t('internalChat.direct')}
-                                    </span>
-                                </div>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                                {activeChat.type === 'group' && (
+                                    <button type="button" onClick={() => handleShowParticipants(activeChat)} title={t('internalChat.vista.detailsHint')} className={cn(BOTON_SECUNDARIO, 'hidden h-[34px] pr-3.5 pl-3 sm:inline-flex')}>
+                                        <Users aria-hidden="true" />
+                                        {t('internalChat.vista.details')}
+                                    </button>
+                                )}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <button className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted dark:hover:bg-neutral-800 transition-colors text-[#2e3f84] dark:text-neutral-300 opacity-80 hover:opacity-100">
-                                            <MoreVertical className="w-5 h-5" />
+                                        <button type="button" className={cn(BOTON_ICONO_CHAT, 'size-[34px]', TEXTO_NAVY)} title={t('internalChat.vista.more')} aria-label={t('internalChat.vista.more')}>
+                                            <Ellipsis className="size-[18px]" strokeWidth={1.9} aria-hidden="true" />
                                         </button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-48">
-                                        {activeChat.type === 'group' && (
-                                            <DropdownMenuItem
-                                                onClick={() => handleRenameChat(activeChat)}
-                                                className="cursor-pointer"
-                                            >
-                                                <Pencil className="w-4 h-4 mr-2" />
+                                    <DropdownMenuContent align="end" className={cn('w-56 rounded-xl border-0 p-1.5', SOMBRA_FLOTA)}>
+                                        {activeChat.type === 'group' && creadorActivo && (
+                                            <DropdownMenuItem onClick={() => handleRenameChat(activeChat)} className={cn('h-9 cursor-pointer gap-2.5 rounded-lg px-2.5 text-[13px] font-medium', TEXTO_NAVY)}>
+                                                <Pencil className="size-4" strokeWidth={1.9} />
                                                 {t('internalChat.renameGroup')}
                                             </DropdownMenuItem>
                                         )}
                                         {activeChat.type === 'group' && (
-                                            <DropdownMenuItem
-                                                className="cursor-pointer"
-                                                onClick={() => handleShowParticipants(activeChat)}
-                                            >
-                                                <Users className="w-4 h-4 mr-2" />
+                                            <DropdownMenuItem onClick={() => handleShowParticipants(activeChat)} className={cn('h-9 cursor-pointer gap-2.5 rounded-lg px-2.5 text-[13px] font-medium', TEXTO_NAVY)}>
+                                                <Users className="size-4" strokeWidth={1.9} />
                                                 {t('internalChat.viewParticipants', { count: activeChat.participants.length })}
                                             </DropdownMenuItem>
                                         )}
-                                        <DropdownMenuSeparator />
+                                        {activeChat.type === 'group' && <DropdownMenuSeparator />}
                                         <DropdownMenuItem
-                                            className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/30"
                                             onClick={() => handleDeleteChat(activeChat)}
+                                            className="h-9 cursor-pointer gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-red-700 focus:bg-red-50 focus:text-red-700 dark:text-red-300 dark:focus:bg-red-500/10 dark:focus:text-red-300"
                                         >
-                                            <Trash2 className="w-4 h-4 mr-2" />
-                                            {getDeleteChatLabel(activeChat)}
+                                            {activeChat.type === 'group' && !creadorActivo ? <LogOut className="size-4 text-current" strokeWidth={1.9} /> : <Trash2 className="size-4 text-current" strokeWidth={1.9} />}
+                                            {getDeleteChatLabel(activeChat)}…
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </div>
                         </header>
 
+                        {esChatIa && (
+                            <FranjaInfo titulo={t('internalChat.vista.aiBannerTitle')}>
+                                {t('internalChat.vista.aiBannerText', { name: otroDirecto?.name ?? activeChat.name })}
+                            </FranjaInfo>
+                        )}
+
                         {/* Mensajes */}
                         <div
                             ref={messagesContainerRef}
                             onScroll={handleMessagesScroll}
-                            className="flex-1 min-w-0 overflow-y-auto px-3 md:px-5 py-3 md:py-4 relative custom-scrollbar chat-bg-pattern chat-messages-scroll"
-
+                            className="custom-scrollbar chat-messages-scroll relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pb-4 md:px-7"
                         >
                             {messages.length === 0 ? (
-                                <div className="flex items-center justify-center h-full text-[#767681]">
-                                    <div className="text-center">
-                                        <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-white/60 dark:bg-neutral-800/60 flex items-center justify-center">
-                                            <MessageSquare className="w-8 h-8 text-[#767681]/50" />
-                                        </div>
-                                        <p className="font-medium">{t('internalChat.noMessages')}</p>
-                                        <p className="text-xs mt-1 text-[#767681]/70">{t('internalChat.noMessagesHint')}</p>
-                                    </div>
-                                </div>
+                                <Vacio icono={MessageSquare} titulo={t('internalChat.vista.noMessagesTitle')} texto={t('internalChat.vista.noMessagesText')} className="h-full" />
                             ) : (
-                                <div className="flex flex-col gap-2">
+                                <div className="flex min-h-full flex-col justify-end">
                                     {messages.map((msg, idx) => {
-                                        // Primer mensaje de un grupo (cambia el remitente) → lleva la
-                                        // "colita" de burbuja estilo WhatsApp.
-                                        const isFirstOfGroup = idx === 0 || messages[idx - 1].user?.id !== msg.user?.id;
+                                        // Primer mensaje de un grupo (cambia el remitente) → lleva nombre, cara y la esquina «colita».
+                                        const fecha = fechaDe(msg);
+                                        const fechaPrevia = idx > 0 ? fechaDe(messages[idx - 1]) : null;
+                                        const cambiaDia = !!fecha && (idx === 0 || !fechaPrevia || claveDia(fecha) !== claveDia(fechaPrevia));
+                                        const isFirstOfGroup = idx === 0 || cambiaDia || messages[idx - 1].user?.id !== msg.user?.id;
                                         // Quién llegó a leer hasta aquí (ver receiptsByMessageId).
                                         const readersHere = receiptsByMessageId.get(msg.id) ?? [];
+                                        const propia = msg.is_mine;
+                                        const conCara = !propia && (activeChat.type === 'group' || esChatIa);
+                                        const autor = availableUsers.find(u => u.id === msg.user?.id) ?? activeChat.participants.find(p => p.id === msg.user?.id);
+                                        const pendiente = esPendiente(msg);
+                                        const tieneAdjunto = msg.type !== 'text' && (!!msg.file_url || !!msg.file_missing || pendiente);
+                                        const mostrarTexto = !!msg.body && !(pendiente && msg.type !== 'text');
+                                        const huecoHora = Math.round((msg.edited ? 58 : 0) + 52 + (propia ? 16 : 0));
+                                        const meta = (
+                                            <MetaMensaje hora={msg.created_at} editado={msg.edited} textoEditado={t('internalChat.edited')} propia={propia} textoEnviado={t('internalChat.vista.sent')} />
+                                        );
 
                                         return (
-                                            <div
-                                                key={msg.id}
-                                                id={`msg-${msg.id}`}
-                                                className={`group/msg relative flex ${msg.is_mine ? 'flex-row-reverse' : 'flex-row'} items-start gap-1 min-w-0 max-w-[85%] md:max-w-[56%] ${msg.is_mine ? 'self-end' : 'self-start'}`}
-                                            >
-                                                {/* Hover actions: reaccionar, responder, editar */}
-                                                <div className={cn(
-                                                    'absolute top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 px-1 transition-opacity duration-150',
-                                                    msg.is_mine ? 'right-full' : 'left-full',
-                                                    reactionPickerFor === msg.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto group-focus-within/msg:opacity-100 group-focus-within/msg:pointer-events-auto'
-                                                )}>
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={() => setReactionPickerFor(reactionPickerFor === msg.id ? null : msg.id)}
-                                                            className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
-                                                            title={t('internalChat.react')}
-                                                        >
-                                                            <SmilePlus className="w-4 h-4" />
-                                                        </button>
-                                                        {reactionPickerFor === msg.id && (
-                                                            <>
-                                                                <div className="fixed inset-0 z-20" onClick={() => setReactionPickerFor(null)} />
-                                                                <motion.div
-                                                                    initial={{ opacity: 0, scale: 0.6, y: 12 }}
-                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                                    transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-                                                                    style={{ transformOrigin: 'bottom center' }}
-                                                                    className={cn(
-                                                                        'absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-white dark:bg-neutral-800 shadow-xl px-2 py-1.5',
-                                                                        msg.is_mine ? 'right-0' : 'left-0'
-                                                                    )}
-                                                                >
-                                                                    {QUICK_REACTIONS.map((emoji, i) => (
-                                                                        <motion.button
-                                                                            key={emoji}
-                                                                            initial={{ opacity: 0, scale: 0, y: 10 }}
-                                                                            animate={{ opacity: 1, scale: 1, y: 0, transition: { delay: 0.04 + i * 0.035, type: 'spring', stiffness: 600, damping: 18 } }}
-                                                                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                                                                            whileHover={{ scale: 1.35, y: -14, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
-                                                                            whileTap={{ scale: 0.9, transition: { duration: 0.12, ease: [0.22, 1, 0.36, 1] } }}
-                                                                            // Reaccionar al PRESIONAR (pointerdown), no al click: whileHover/whileTap
-                                                                            // desplazan y encogen el emoji, así que al soltar el puntero ya no está
-                                                                            // encima y el navegador nunca dispara "click" → la reacción se perdía.
-                                                                            onPointerDown={(e) => { if (e.button === 0) handleReact(msg, emoji); }}
-                                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleReact(msg, emoji); } }}
-                                                                            aria-label={REACTION_LABELS[emoji]}
-                                                                            className="group relative flex items-center justify-center cursor-pointer rounded-full px-1 py-1 text-[26px] leading-none"
-                                                                        >
-                                                                            <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:bg-white dark:text-black">
-                                                                                {REACTION_LABELS[emoji]}
-                                                                            </span>
-                                                                            {emoji}
-                                                                        </motion.button>
-                                                                    ))}
-                                                                </motion.div>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                    <button
-                                                        onClick={() => { setReplyingTo(msg); textareaRef.current?.focus(); }}
-                                                        className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
-                                                        title={t('internalChat.reply')}
+                                            <div key={msg.id}>
+                                                {cambiaDia && fecha && <SeparadorDia texto={textoDia(fecha)} />}
+                                                <div className={cn('flex items-start gap-2', propia ? 'justify-end' : 'justify-start', isFirstOfGroup ? 'mt-2.5' : 'mt-[3px]')}>
+                                                    {conCara && (isFirstOfGroup
+                                                        ? <AvatarPersona nombre={msg.user?.name ?? ''} rol={autor?.role} enLinea={!!autor?.is_online} tam={30} anillo="ring-[#f4f5f9] dark:ring-background" />
+                                                        : <span className="w-[30px] shrink-0" aria-hidden="true" />)}
+                                                    <div
+                                                        id={`msg-${msg.id}`}
+                                                        className={cn('group/msg flex min-w-0 flex-col', propia ? 'items-end' : 'items-start', 'max-w-[85%] md:max-w-[min(560px,72%)]')}
                                                     >
-                                                        <Reply className="w-4 h-4" />
-                                                    </button>
-                                                    {msg.is_mine && msg.type === 'text' && (
-                                                        <button
-                                                            onClick={() => startEdit(msg)}
-                                                            className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
-                                                            title={t('common.edit')}
-                                                        >
-                                                            <Pencil className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                <div className={`flex flex-col min-w-0 ${msg.is_mine ? 'items-end' : 'items-start'}`}>
-                                                <div
-                                                    className={`min-w-0 px-3 pt-2 pb-1 flex flex-col relative ${msg.is_mine
-                                                        ? `bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] rounded-xl rounded-br-sm shadow-sm ${isFirstOfGroup ? 'bubble-tail-out rounded-tr-none' : ''}`
-                                                        : `bg-white dark:bg-neutral-800 text-[#1a1c1c] dark:text-neutral-100 rounded-xl rounded-bl-sm shadow-sm ${isFirstOfGroup ? 'bubble-tail-in rounded-tl-none' : ''}`
-                                                        }`}
-                                                >
-                                                        {/* Reply quote bubble */}
-                                                        {msg.reply_to && (
-                                                            <div
-                                                                className={`mb-2 px-3 py-2 rounded-lg border-l-3 cursor-pointer transition-colors ${msg.is_mine
-                                                                    ? 'bg-black/5 border-[#2e3f84] hover:bg-black/10 dark:bg-white/10 dark:border-blue-300 dark:hover:bg-white/15'
-                                                                    : 'bg-[#2e3f84]/5 dark:bg-blue-500/10 border-[#2e3f84] dark:border-blue-400 hover:bg-[#2e3f84]/10 dark:hover:bg-blue-500/15'
-                                                                }`}
-                                                                onClick={() => {
-                                                                    const el = document.getElementById(`msg-${msg.reply_to!.id}`);
-                                                                    if (el) {
-                                                                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                        el.classList.add('ring-2', 'ring-[#2e3f84]/40', 'dark:ring-blue-400/40', 'rounded-xl');
-                                                                        setTimeout(() => el.classList.remove('ring-2', 'ring-[#2e3f84]/40', 'dark:ring-blue-400/40', 'rounded-xl'), 2000);
-                                                                    }
-                                                                }}
+                                                        <div className="relative max-w-full">
+                                                            <Burbuja
+                                                                propia={propia}
+                                                                primero={isFirstOfGroup}
+                                                                onContextMenu={(e) => { e.preventDefault(); abrirMenuMensaje(msg, e.clientX, e.clientY); }}
+                                                                onTouchStart={alPulsarLargo(msg)}
+                                                                onTouchEnd={cancelarPulsacion}
+                                                                onTouchMove={cancelarPulsacion}
+                                                                className={cn(msgMenu?.msg.id === msg.id && 'outline-2 outline-offset-1 outline-[#2e3f84]/15 dark:outline-white/20')}
                                                             >
-                                                                <p className={`text-[11px] font-bold mb-0.5 ${msg.is_mine ? 'text-[#2e3f84] dark:text-blue-200' : 'text-[#2e3f84] dark:text-blue-400'}`}>
-                                                                    {msg.reply_to.user_name}
-                                                                </p>
-                                                                <p className={`text-xs truncate max-w-[250px] ${msg.is_mine ? 'text-[#3b4a54] dark:text-white/70' : 'text-[#5f5e5e] dark:text-neutral-400'}`}>
-                                                                    {msg.reply_to.type === 'image' ? t('internalChat.previewPhoto')
-                                                                        : msg.reply_to.type === 'video' ? t('internalChat.previewVideo')
-                                                                        : msg.reply_to.type === 'audio' ? t('internalChat.previewAudio')
-                                                                        : msg.reply_to.type === 'document' ? `📎 ${msg.reply_to.file_name || t('internalChat.file')}`
-                                                                        : msg.reply_to.body || ''}
-                                                                </p>
-                                                            </div>
-                                                        )}
+                                                                {conCara && isFirstOfGroup && activeChat.type === 'group' && msg.user && (
+                                                                    <NombreAutor nombre={msg.user.name} etiqueta={autor?.role === 'admin' ? t('internalChat.roleAdmin') : undefined} />
+                                                                )}
 
-                                                        {/* Sender name (in groups show for all; in direct only for others) */}
-                                                        {msg.user && (activeChat?.type === 'group' || !msg.is_mine) && (
-                                                            <p className={`text-[11px] mb-1 font-bold ${msg.is_mine ? 'text-[#1f7aad] dark:text-[#53bdeb]' : 'text-[#2e3f84] dark:text-blue-400'}`}>
-                                                                {msg.is_mine ? t('common.you') : msg.user.name}
-                                                            </p>
-                                                        )}
-
-                                                        {/* Image */}
-                                                        {msg.type === 'image' && msg.file_url && (
-                                                            <div className="mb-2">
-                                                                <div
-                                                                    className="relative cursor-pointer group"
-                                                                    onClick={(e) => {
-                                                                        // No abrir visor si la imagen no se cargó
-                                                                        if ((e.currentTarget as HTMLElement).dataset.unavailable === '1') return;
-                                                                        setMediaViewer({
-                                                                            url: msg.file_url!,
-                                                                            type: 'image',
-                                                                            caption: msg.body && msg.body !== t('internalChat.image') ? msg.body : undefined
-                                                                        });
-                                                                        setZoomLevel(1);
-                                                                        setImagePosition({ x: 0, y: 0 });
-                                                                    }}
-                                                                >
-                                                                    <img
-                                                                        src={msg.file_url}
-                                                                        alt={t('internalChat.image')}
-                                                                        className="max-w-full max-h-96 rounded-xl object-cover"
-                                                                        loading="lazy"
-                                                                        onError={(e) => {
-                                                                            const img = e.currentTarget;
-                                                                            img.onerror = null;
-                                                                            // Placeholder SVG: imagen no disponible
-                                                                            img.src = `data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 220' width='320' height='220'%3E%3Crect width='320' height='220' fill='%23e5e7eb'/%3E%3Cg fill='%239ca3af'%3E%3Cpath d='M120 80h80v60h-80z' fill='none' stroke='%239ca3af' stroke-width='3'/%3E%3Ccircle cx='140' cy='100' r='6'/%3E%3Cpath d='M125 135l20-20 20 15 15-25 25 30v5h-80z'/%3E%3C/g%3E%3Ctext x='160' y='175' text-anchor='middle' font-family='Arial, sans-serif' font-size='14' fill='%236b7280'%3E${encodeURIComponent(t('internalChat.imageUnavailable'))}%3C/text%3E%3Ctext x='160' y='195' text-anchor='middle' font-family='Arial, sans-serif' font-size='11' fill='%239ca3af'%3E${encodeURIComponent(t('internalChat.filePreMigration'))}%3C/text%3E%3C/svg%3E`;
-                                                                            img.classList.add('opacity-80');
-                                                                            const wrapper = img.closest('.group') as HTMLElement | null;
-                                                                            if (wrapper) {
-                                                                                wrapper.dataset.unavailable = '1';
-                                                                                wrapper.classList.remove('cursor-pointer');
-                                                                                wrapper.classList.add('cursor-not-allowed');
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
-                                                                        <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Video */}
-                                                        {msg.type === 'video' && msg.file_url && (
-                                                            <div className="mb-2">
-                                                                <div
-                                                                    className="relative cursor-pointer group"
-                                                                    onClick={() => {
-                                                                        setMediaViewer({
-                                                                            url: msg.file_url!,
-                                                                            type: 'video',
-                                                                            caption: msg.body && msg.body !== t('internalChat.video') ? msg.body : undefined
-                                                                        });
-                                                                    }}
-                                                                >
-                                                                    <video
-                                                                        src={msg.file_url}
-                                                                        className="max-w-full max-h-96 rounded-xl"
-                                                                        preload="metadata"
-                                                                    />
-                                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-200 rounded-xl flex items-center justify-center">
-                                                                        <Expand className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* File / Document */}
-                                                        {(msg.type === 'document') && msg.file_url && (
-                                                            <div className="flex items-center gap-4 bg-background dark:bg-neutral-700/50 p-4 rounded-lg mb-2">
-                                                                <div className="w-12 h-12 bg-[#2e3f84]/10 dark:bg-blue-500/20 rounded flex items-center justify-center text-[#2e3f84] dark:text-blue-300">
-                                                                    <FileText className="w-6 h-6" />
-                                                                </div>
-                                                                <div className="flex flex-col overflow-hidden flex-1">
-                                                                    <span className="text-sm font-bold truncate">{msg.file_name || t('internalChat.file')}</span>
-                                                                    {msg.file_size_human && (
-                                                                        <span className="text-xs text-[#5f5e5e] dark:text-neutral-400 font-normal">{msg.file_size_human}</span>
-                                                                    )}
-                                                                </div>
-                                                                <a href={msg.file_url} download target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-muted dark:hover:bg-neutral-600 rounded-full transition-colors">
-                                                                    <Download className="w-5 h-5 text-[#5f5e5e] dark:text-neutral-300" />
-                                                                </a>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Audio */}
-                                                        {msg.type === 'audio' && msg.file_url && (
-                                                            <div className="mb-2">
-                                                                <audio
-                                                                    src={msg.file_url}
-                                                                    controls
-                                                                    className="max-w-full"
-                                                                    preload="metadata"
-                                                                />
-                                                            </div>
-                                                        )}
-
-                                                        {/* Archivo no disponible (perdido en migración) */}
-                                                        {msg.file_missing && msg.type !== 'text' && (
-                                                            <div className="mb-2 flex items-center gap-3 bg-neutral-100 dark:bg-neutral-800/60 border border-dashed border-neutral-300 dark:border-neutral-600 rounded-lg px-4 py-3 text-neutral-500 dark:text-neutral-400">
-                                                                <FileText className="w-5 h-5 flex-shrink-0 opacity-60" />
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-sm font-medium">{t('internalChat.fileUnavailable')}</span>
-                                                                    <span className="text-xs opacity-75">{msg.file_name || t('internalChat.filePreMigrationName')}</span>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Text Content (with @mention highlighting) */}
-                                                        {msg.body && (
-                                                            <p className="text-[15px] leading-snug whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                                                                {(() => {
-                                                                    const allParticipants = activeChat?.type === 'group' ? activeChat.participants : availableUsers;
-                                                                    const names = allParticipants.map(u => u.name).sort((a, b) => b.length - a.length);
-                                                                    // Build regex matching @Name for all known users
-                                                                    if (names.length === 0) return msg.body;
-                                                                    const escaped = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-                                                                    const regex = new RegExp(`(@(?:${escaped.join('|')}))`, 'g');
-                                                                    const parts = msg.body.split(regex);
-                                                                    return parts.map((part: string, pi: number) => {
-                                                                        if (part.startsWith('@')) {
-                                                                            const name = part.slice(1);
-                                                                            const mentioned = allParticipants.find(u => u.name === name);
-                                                                            if (mentioned) {
-                                                                                const isMe = mentioned.id === auth.user.id;
-                                                                                return (
-                                                                                    <span
-                                                                                        key={pi}
-                                                                                        className={cn(
-                                                                                            'font-semibold rounded px-0.5',
-                                                                                            msg.is_mine
-                                                                                                ? 'text-white underline decoration-white/50'
-                                                                                                : isMe
-                                                                                                    ? 'text-primary bg-primary/10'
-                                                                                                    : 'text-primary'
-                                                                                        )}
-                                                                                    >
-                                                                                        @{name}
-                                                                                    </span>
-                                                                                );
-                                                                            }
-                                                                        }
-                                                                        return part;
-                                                                    });
+                                                                {msg.reply_to && (() => {
+                                                                    const r = resumenCita(msg.reply_to);
+                                                                    return <CajaCitada autor={msg.reply_to.user_name} texto={r.texto} icono={r.icono} propia={propia} titulo={t('internalChat.vista.goToOriginal')} onClick={() => irAlMensaje(msg.reply_to!.id)} />;
                                                                 })()}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                {/* Reaction badges (estilo del chat principal) */}
-                                                {msg.reactions && msg.reactions.length > 0 && (
-                                                    <div className={`flex flex-wrap gap-1 -mt-1.5 relative z-10 ${msg.is_mine ? 'justify-end mr-2' : 'ml-2'}`}>
-                                                        {msg.reactions.map(r => (
-                                                            <button
-                                                                key={r.emoji}
-                                                                onClick={() => handleReact(msg, r.emoji)}
-                                                                title={r.users.join(', ')}
+
+                                                                {/* Imagen */}
+                                                                {msg.type === 'image' && msg.file_url && (
+                                                                    <div className="-mx-[5px] mt-px mb-[7px]">
+                                                                        <div
+                                                                            className="group relative cursor-pointer overflow-hidden rounded-lg shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)]"
+                                                                            title={t('internalChat.vista.openLarge')}
+                                                                            onClick={(e) => {
+                                                                                // No abrir visor si la imagen no se cargó
+                                                                                if ((e.currentTarget as HTMLElement).dataset.unavailable === '1') return;
+                                                                                setMediaViewer({
+                                                                                    url: msg.file_url!,
+                                                                                    type: 'image',
+                                                                                    caption: msg.body && msg.body !== t('internalChat.image') ? msg.body : undefined
+                                                                                });
+                                                                                setZoomLevel(1);
+                                                                                setImagePosition({ x: 0, y: 0 });
+                                                                            }}
+                                                                        >
+                                                                            <img
+                                                                                src={msg.file_url}
+                                                                                alt={msg.file_name || t('internalChat.image')}
+                                                                                className="block max-h-72 w-auto max-w-[260px] sm:max-w-[320px] object-cover"
+                                                                                loading="lazy"
+                                                                                onError={(e) => {
+                                                                                    const img = e.currentTarget;
+                                                                                    img.onerror = null;
+                                                                                    // Placeholder SVG: imagen no disponible
+                                                                                    img.src = `data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 220' width='320' height='220'%3E%3Crect width='320' height='220' fill='%23e5e7eb'/%3E%3Cg fill='%239ca3af'%3E%3Cpath d='M120 80h80v60h-80z' fill='none' stroke='%239ca3af' stroke-width='3'/%3E%3Ccircle cx='140' cy='100' r='6'/%3E%3Cpath d='M125 135l20-20 20 15 15-25 25 30v5h-80z'/%3E%3C/g%3E%3Ctext x='160' y='175' text-anchor='middle' font-family='Arial, sans-serif' font-size='14' fill='%236b7280'%3E${encodeURIComponent(t('internalChat.imageUnavailable'))}%3C/text%3E%3Ctext x='160' y='195' text-anchor='middle' font-family='Arial, sans-serif' font-size='11' fill='%239ca3af'%3E${encodeURIComponent(t('internalChat.filePreMigration'))}%3C/text%3E%3C/svg%3E`;
+                                                                                    img.classList.add('opacity-80');
+                                                                                    const wrapper = img.closest('.group') as HTMLElement | null;
+                                                                                    if (wrapper) {
+                                                                                        wrapper.dataset.unavailable = '1';
+                                                                                        wrapper.classList.remove('cursor-pointer');
+                                                                                        wrapper.classList.add('cursor-not-allowed');
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover:bg-black/20">
+                                                                                <Expand className="size-7 text-white opacity-0 drop-shadow-lg transition-opacity duration-200 group-hover:opacity-100" aria-hidden="true" />
+                                                                            </div>
+                                                                            {msg.file_name && (
+                                                                                <span className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] truncate rounded-[5px] bg-[rgba(28,34,56,0.72)] px-[7px] py-0.5 font-mono text-[11px] leading-[14px] text-white">
+                                                                                    {msg.file_name}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Video */}
+                                                                {msg.type === 'video' && msg.file_url && (
+                                                                    <div className="-mx-[5px] mt-px mb-[7px]">
+                                                                        <div
+                                                                            className="group relative cursor-pointer overflow-hidden rounded-lg"
+                                                                            title={t('internalChat.vista.openLarge')}
+                                                                            onClick={() => {
+                                                                                setMediaViewer({
+                                                                                    url: msg.file_url!,
+                                                                                    type: 'video',
+                                                                                    caption: msg.body && msg.body !== t('internalChat.video') ? msg.body : undefined
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            <video src={msg.file_url} className="block max-h-72 max-w-[260px] sm:max-w-[320px]" preload="metadata" />
+                                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/10 transition-colors duration-200 group-hover:bg-black/25">
+                                                                                <span className="flex size-11 items-center justify-center rounded-full bg-[rgba(17,27,33,0.55)] text-white">
+                                                                                    <Play className="size-5" strokeWidth={2} aria-hidden="true" />
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Documento */}
+                                                                {msg.type === 'document' && msg.file_url && (
+                                                                    <AdjuntoDocumento nombre={msg.file_name || t('internalChat.file')} tipo={tipoDocumento(msg.file_name)} peso={msg.file_size_human} url={msg.file_url} propia={propia} textoDescargar={t('common.download')} />
+                                                                )}
+
+                                                                {/* Audio */}
+                                                                {msg.type === 'audio' && msg.file_url && (
+                                                                    <div className="mt-px mb-1.5">
+                                                                        <audio src={msg.file_url} controls className="h-10 max-w-full" preload="metadata" />
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Archivo no disponible (perdido en migración) */}
+                                                                {msg.file_missing && msg.type !== 'text' && (
+                                                                    <ArchivoNoDisponible titulo={t('internalChat.fileUnavailable')} nombre={msg.file_name || t('internalChat.filePreMigrationName')} />
+                                                                )}
+
+                                                                {/* Subiendo (mensaje optimista con archivo) */}
+                                                                {pendiente && msg.type !== 'text' && !msg.file_url && (
+                                                                    <AdjuntoSubiendo nombre={msg.file_name || t('internalChat.file')} peso={msg.file_size_human} texto={t('common.sending')} />
+                                                                )}
+
+                                                                {/* Texto (con @menciones y *negrita*) */}
+                                                                {mostrarTexto && (
+                                                                    <TextoMensaje texto={msg.body} personas={personasMencionables} miId={auth.user.id} propia={propia} hueco={tieneAdjunto ? 0 : huecoHora} />
+                                                                )}
+
+                                                                {tieneAdjunto || !mostrarTexto
+                                                                    ? <div className="mt-0.5 flex justify-end">{meta}</div>
+                                                                    : <span className="absolute right-2.5 bottom-[5px]">{meta}</span>}
+                                                            </Burbuja>
+
+                                                            {/* Acciones al pasar el ratón: reaccionar, responder, editar. La franja exterior es transparente,
+                                                                ocupa todo el alto de la burbuja y cubre el hueco de 8 px hasta la barra: al llevar el ratón a los
+                                                                botones nunca se sale del mensaje, así que la barra no desaparece por el camino. */}
+                                                            <div
                                                                 className={cn(
-                                                                    'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[13px] leading-none shadow-md ring-1 transition-transform hover:scale-105 active:scale-95',
-                                                                    r.mine
-                                                                        ? 'bg-white dark:bg-neutral-800 ring-[#2e3f84]/40 dark:ring-blue-400/40'
-                                                                        : 'bg-white dark:bg-neutral-800 ring-black/5 dark:ring-white/10'
+                                                                    'absolute inset-y-0 z-10 flex items-center transition-opacity duration-150 max-md:hidden',
+                                                                    propia ? 'right-full pr-2' : 'left-full pl-2',
+                                                                    reactionPickerFor === msg.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto group-focus-within/msg:opacity-100 group-focus-within/msg:pointer-events-auto'
                                                                 )}
                                                             >
-                                                                <span>{r.emoji}</span>
-                                                                {r.count > 1 && <span className="text-[10px] font-semibold opacity-80">{r.count}</span>}
-                                                            </button>
-                                                        ))}
+                                                                <div className={cn('flex h-[34px] items-center gap-px rounded-[10px] bg-white px-[3px] dark:bg-neutral-900', SOMBRA_FLOTA)}>
+                                                                    <div className="relative" data-selector-reacciones>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setReactionPickerFor(reactionPickerFor === msg.id ? null : msg.id)}
+                                                                            className={cn(BOTON_ICONO_CHAT, 'size-7')}
+                                                                            title={t('internalChat.react')}
+                                                                            aria-label={t('internalChat.react')}
+                                                                        >
+                                                                            <SmilePlus className="size-4" strokeWidth={1.9} aria-hidden="true" />
+                                                                        </button>
+                                                                        {reactionPickerFor === msg.id && (
+                                                                            <>
+                                                                                <motion.div
+                                                                                    initial={{ opacity: 0, scale: 0.6, y: 12 }}
+                                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                                                    transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                                                                                    style={{ transformOrigin: 'bottom center' }}
+                                                                                    className={cn(
+                                                                                        'absolute bottom-full z-30 mb-2 flex h-[46px] items-center gap-0.5 rounded-full bg-white px-1.5 dark:bg-neutral-900',
+                                                                                        SOMBRA_FLOTA,
+                                                                                        propia ? 'right-0' : 'left-0'
+                                                                                    )}
+                                                                                >
+                                                                                    {QUICK_REACTIONS.map((emoji, i) => (
+                                                                                        <motion.button
+                                                                                            key={emoji}
+                                                                                            initial={{ opacity: 0, scale: 0, y: 10 }}
+                                                                                            animate={{ opacity: 1, scale: 1, y: 0, transition: { delay: 0.04 + i * 0.035, type: 'spring', stiffness: 600, damping: 18 } }}
+                                                                                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                                                                                            whileHover={{ scale: 1.35, y: -14, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
+                                                                                            whileTap={{ scale: 0.9, transition: { duration: 0.12, ease: [0.22, 1, 0.36, 1] } }}
+                                                                                            // Reaccionar al PRESIONAR (pointerdown), no al click: whileHover/whileTap
+                                                                                            // desplazan y encogen el emoji, así que al soltar el puntero ya no está
+                                                                                            // encima y el navegador nunca dispara "click" → la reacción se perdía.
+                                                                                            onPointerDown={(e) => { if (e.button === 0) handleReact(msg, emoji); }}
+                                                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleReact(msg, emoji); } }}
+                                                                                            aria-label={REACTION_LABELS[emoji]}
+                                                                                            className="group relative flex size-[38px] cursor-pointer items-center justify-center rounded-full text-[24px] leading-none hover:bg-[#2e3f84]/7 dark:hover:bg-white/8"
+                                                                                        >
+                                                                                            <span className="pointer-events-none absolute -top-[26px] left-1/2 flex h-5 -translate-x-1/2 items-center rounded-md bg-[#1c2238] px-[7px] text-[11px] leading-[14px] font-semibold whitespace-nowrap text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:bg-white dark:text-[#1c2238]">
+                                                                                                {REACTION_LABELS[emoji]}
+                                                                                            </span>
+                                                                                            {emoji}
+                                                                                        </motion.button>
+                                                                                    ))}
+                                                                                </motion.div>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => { setReplyingTo(msg); textareaRef.current?.focus(); }}
+                                                                        className={cn(BOTON_ICONO_CHAT, 'size-7')}
+                                                                        title={t('internalChat.reply')}
+                                                                        aria-label={t('internalChat.reply')}
+                                                                    >
+                                                                        <Reply className="size-4" strokeWidth={1.9} aria-hidden="true" />
+                                                                    </button>
+                                                                    {msg.is_mine && msg.type === 'text' && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => startEdit(msg)}
+                                                                            className={cn(BOTON_ICONO_CHAT, 'size-7')}
+                                                                            title={t('common.edit')}
+                                                                            aria-label={t('common.edit')}
+                                                                        >
+                                                                            <Pencil className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Reacciones */}
+                                                        {msg.reactions && msg.reactions.length > 0 && (
+                                                            <Reacciones reacciones={msg.reactions} propia={propia} onReaccionar={(emoji) => handleReact(msg, emoji)} tituloQuitar={t('internalChat.vista.removeYours')} />
+                                                        )}
+
+                                                        {/* Vistos */}
+                                                        {readersHere.length > 0 && (
+                                                            <Visto
+                                                                conReacciones={!!msg.reactions?.length}
+                                                                titulo={readersHere.map(r => nombreVisible(r.user_name)).join(', ')}
+                                                                texto={activeChat.type === 'group'
+                                                                    ? t('internalChat.seenBy', { names: listaNombres(readersHere.map(r => nombreCorto(r.user_name)), t('internalChat.vista.and')) })
+                                                                    : t('internalChat.vista.seen')}
+                                                            />
+                                                        )}
                                                     </div>
-                                                )}
-                                                {/* Timestamp - outside bubble */}
-                                                <div className={`flex items-center gap-1 mt-1 ${msg.is_mine ? 'mr-1 justify-end' : 'ml-1'}`}>
-                                                    <span className="text-[10px] text-[#5f5e5e] dark:text-neutral-500">{msg.created_at}</span>
-                                                    {msg.edited && (
-                                                        <span className="text-[10px] italic text-[#5f5e5e]/80 dark:text-neutral-500">{t('internalChat.edited')}</span>
-                                                    )}
-                                                    {msg.is_mine && (
-                                                        <Check className="w-3 h-3 text-[#2e3f84] dark:text-blue-400" style={{ fontSize: '14px' }} />
-                                                    )}
-                                                </div>
-                                                {/* Read receipts */}
-                                                {readersHere.length > 0 && (
-                                                    <div className={`flex items-center gap-1 mt-1.5 px-1 ${msg.is_mine ? 'justify-end mr-1' : 'justify-start ml-1'}`}>
-                                                        <Check className="w-3.5 h-3.5 text-[#2e3f84] dark:text-blue-400 opacity-80 flex-shrink-0" />
-                                                        <span className="text-[10px] font-medium text-[#5f5e5e] dark:text-neutral-400 leading-none">
-                                                            {t('internalChat.seenBy', { names: readersHere.map(r => r.user_name).join(', ') })}
-                                                        </span>
-                                                    </div>
-                                                )}
                                                 </div>
                                             </div>
                                         );
                                     })}
                                     {aiTyping && (
-                                        <div className="flex justify-start px-1">
-                                            <div className="flex items-center gap-2 rounded-2xl rounded-bl-md bg-card dark:bg-neutral-800 px-3 py-2 shadow-sm">
-                                                <span className="text-base">🤖</span>
-                                                <span className="text-xs text-[#5f5e5e] dark:text-neutral-400">{t('internalChat.aiTyping')}</span>
-                                                <span className="flex gap-1">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '0ms' }} />
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '150ms' }} />
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#2e3f84]/70 dark:bg-blue-400/70 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                        <div className="mt-2.5 flex items-start gap-2" role="status">
+                                            <AvatarPersona nombre={otroDirecto?.name ?? activeChat.name} rol="ai" enLinea tam={30} anillo="ring-[#f4f5f9] dark:ring-background" />
+                                            <div className="flex h-9 items-center gap-2 rounded-xl rounded-tl-[4px] bg-white px-3 shadow-[0_0_0_1px_rgba(46,63,132,0.07),0_1px_2px_rgba(46,63,132,0.06)] dark:bg-neutral-800 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.07)]">
+                                                <span className={cn('text-[12.5px] leading-4 font-medium whitespace-nowrap', GRIS)}>{t('internalChat.aiTyping')}</span>
+                                                <span className="flex gap-[3px]" aria-hidden="true">
+                                                    <span className="size-1.5 animate-bounce rounded-full bg-[#2e3f84]/70 dark:bg-[#b4bff0]/80" style={{ animationDelay: '0ms' }} />
+                                                    <span className="size-1.5 animate-bounce rounded-full bg-[#2e3f84]/45 dark:bg-[#b4bff0]/55" style={{ animationDelay: '150ms' }} />
+                                                    <span className="size-1.5 animate-bounce rounded-full bg-[#2e3f84]/25 dark:bg-[#b4bff0]/35" style={{ animationDelay: '300ms' }} />
                                                 </span>
                                             </div>
                                         </div>
@@ -1668,52 +1898,63 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                             )}
                         </div>
 
-                        {/* Input Area */}
-                        <form onSubmit={handleSendMessage} className="px-3 md:px-6 py-3 md:py-4 bg-[#f0f2f5] dark:bg-[hsl(30,4%,10%)]">
-                            {/* Reply preview bar */}
-                            {replyingTo && (
-                                <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-muted dark:bg-neutral-800 rounded-xl border-l-3 border-[#2e3f84] dark:border-blue-400 animate-in slide-in-from-bottom-2 duration-200">
-                                    <Reply className="w-4 h-4 text-[#2e3f84] dark:text-blue-400 flex-shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold text-[#2e3f84] dark:text-blue-400">
-                                            {replyingTo.is_mine ? t('common.you') : replyingTo.user.name}
-                                        </p>
-                                        <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">
-                                            {replyingTo.type === 'image' ? t('internalChat.previewPhoto')
-                                                : replyingTo.type === 'video' ? t('internalChat.previewVideo')
-                                                : replyingTo.type === 'audio' ? t('internalChat.previewAudio')
-                                                : replyingTo.type === 'document' ? `📎 ${replyingTo.file_name || t('internalChat.file')}`
-                                                : replyingTo.body || ''}
-                                        </p>
+                        {/* Compositor */}
+                        <form onSubmit={handleSendMessage} className={cn('relative z-[3] flex shrink-0 flex-col gap-2 px-2.5 pt-2 pb-2.5 shadow-[0_-1px_0_rgba(46,63,132,0.08)] md:px-5 md:pt-2.5 md:pb-3 dark:shadow-[0_-1px_0_rgba(255,255,255,0.08)]', HOJA_CHAT)}>
+                            {/* @Mentions dropdown */}
+                            {showMentions && mentionUsers.length > 0 && (
+                                <div className={cn('absolute bottom-full left-2.5 z-50 mb-2 flex max-h-64 w-[calc(100%-1.25rem)] max-w-[540px] flex-col rounded-xl bg-white p-1.5 md:left-14 dark:bg-neutral-900', SOMBRA_FLOTA)} role="listbox" aria-label={t('internalChat.vista.mentionTitle')}>
+                                    <div className={cn('flex items-center justify-between gap-3 px-2.5 pt-1 pb-1.5 text-[11.5px] leading-4 font-medium', GRIS)}>
+                                        <span className="truncate">{activeChat.type === 'group' ? t('internalChat.vista.mentionTitle') : t('internalChat.vista.mentionTitleAll')}</span>
+                                        <span className="hidden shrink-0 sm:inline">{t('internalChat.vista.mentionKeys')}</span>
                                     </div>
-                                    <button
-                                        type="button"
-                                        onClick={() => setReplyingTo(null)}
-                                        className="p-1 rounded-full hover:bg-background dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 transition-colors flex-shrink-0"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
+                                    <div className="custom-scrollbar-light min-h-0 overflow-y-auto">
+                                        {mentionUsers.map((user, i) => (
+                                            <button
+                                                key={user.id}
+                                                type="button"
+                                                role="option"
+                                                aria-selected={i === mentionIndex}
+                                                className={cn(
+                                                    'flex h-[42px] w-full items-center gap-2.5 rounded-lg px-2.5 text-left transition-colors',
+                                                    i === mentionIndex ? 'bg-[#e5e9f6] dark:bg-white/10' : 'hover:bg-[#2e3f84]/[0.04] dark:hover:bg-white/[0.05]'
+                                                )}
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    insertMention(user);
+                                                }}
+                                                onMouseEnter={() => setMentionIndex(i)}
+                                            >
+                                                <AvatarPersona nombre={user.name} rol={user.role} enLinea={user.is_online} tam={26} anillo={i === mentionIndex ? 'ring-[#e5e9f6] dark:ring-neutral-800' : 'ring-white dark:ring-neutral-900'} />
+                                                <span className={cn('min-w-0 flex-1 truncate text-[13px] leading-[18px]', i === mentionIndex ? 'font-semibold' : 'font-medium', TEXTO_NAVY)}>{nombreVisible(user.name)}</span>
+                                                <span className={cn('shrink-0 text-[12px] leading-4', GRIS)}>{rolTexto(user.role)}</span>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
-                            {/* Edit banner */}
+                            {replyingTo && (() => {
+                                const r = resumenCita(replyingTo);
+                                return (
+                                    <FranjaCompositor
+                                        tipo="responder"
+                                        titulo={t('internalChat.vista.replyingTo', { name: replyingTo.is_mine ? t('common.you') : nombreVisible(replyingTo.user.name) })}
+                                        texto={r.texto}
+                                        icono={r.icono}
+                                        tituloCerrar={t('internalChat.vista.removeReply')}
+                                        onCerrar={() => setReplyingTo(null)}
+                                    />
+                                );
+                            })()}
                             {editingMessage && (
-                                <div className="flex items-center gap-3 mb-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-xl border-l-3 border-amber-500 animate-in slide-in-from-bottom-2 duration-200">
-                                    <Pencil className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-bold text-amber-600 dark:text-amber-400">{t('internalChat.editingMessage')}</p>
-                                        <p className="text-xs text-[#5f5e5e] dark:text-neutral-400 truncate">{editingMessage.body}</p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={cancelEdit}
-                                        className="p-1 rounded-full hover:bg-background dark:hover:bg-neutral-700 text-[#5f5e5e] dark:text-neutral-400 transition-colors flex-shrink-0"
-                                        title={t('internalChat.cancelEdit')}
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
+                                <FranjaCompositor tipo="editar" titulo={t('internalChat.vista.editingYours')} texto={editingMessage.body} tituloCerrar={t('internalChat.cancelEdit')} onCerrar={cancelEdit} />
                             )}
-                            <div className="flex items-end gap-2 md:gap-3 bg-white dark:bg-[hsl(30,4%,18%)] px-3 md:px-4 py-2 rounded-full ring-1 ring-black/5 dark:ring-white/[0.04] focus-within:ring-2 focus-within:ring-[#2e3f84]/30 transition-all relative">
+                            <div
+                                className={cn(
+                                    'relative flex items-end gap-1.5 rounded-xl bg-white p-1 transition-shadow dark:bg-white/[0.04]',
+                                    'shadow-[inset_0_0_0_1px_rgba(46,63,132,0.22)] focus-within:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.1)]',
+                                    'dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.18)] dark:focus-within:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.25)]'
+                                )}
+                            >
                                 {/* Hidden file input */}
                                 <input
                                     type="file"
@@ -1724,48 +1965,27 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                                 <button
                                     type="button"
-                                    className="p-2 text-[#5f5e5e] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300 transition-colors flex-shrink-0"
+                                    className={cn(BOTON_ICONO_CHAT, 'size-9')}
                                     onClick={() => fileInputRef.current?.click()}
-                                    title={t('internalChat.attachFile')}
+                                    title={t('internalChat.vista.attachHint')}
+                                    aria-label={t('internalChat.attachFile')}
                                     disabled={isUploading}
                                 >
-                                    <Paperclip className="w-5 h-5" />
+                                    <Paperclip className="size-[18px]" strokeWidth={1.9} aria-hidden="true" />
                                 </button>
 
                                 {/* Text input */}
-                                <div className="relative flex-1">
-                                    {/* @Mentions dropdown */}
-                                    {showMentions && mentionUsers.length > 0 && (
-                                        <div className="absolute bottom-full left-0 right-0 mb-3 bg-card dark:bg-neutral-800 rounded-xl shadow-xl z-50 max-h-52 overflow-y-auto custom-scrollbar">
-                                            {mentionUsers.map((user, i) => (
-                                                <button
-                                                    key={user.id}
-                                                    type="button"
-                                                    className={cn(
-                                                        'w-full flex items-center gap-2 px-3 py-2 text-sm text-left transition-colors',
-                                                        i === mentionIndex ? 'bg-[#dee1ff] dark:bg-blue-900/30 text-[#2e3f84] dark:text-blue-300' : 'hover:bg-muted/60 dark:hover:bg-neutral-700'
-                                                    )}
-                                                    onMouseDown={(e) => {
-                                                        e.preventDefault();
-                                                        insertMention(user);
-                                                    }}
-                                                    onMouseEnter={() => setMentionIndex(i)}
-                                                >
-                                                    <div className="w-7 h-7 rounded-full bg-[#2e3f84]/10 dark:bg-blue-500/20 text-[#2e3f84] dark:text-blue-300 flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                                                        {getInitials(user.name)}
-                                                    </div>
-                                                    <span className="font-medium truncate">{user.name}</span>
-                                                    <span className="text-xs text-[#5f5e5e] dark:text-neutral-400 ml-auto capitalize">{user.role}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
+                                <div className="relative min-w-0 flex-1">
                                     <Textarea
                                         ref={textareaRef}
                                         value={inputText}
                                         onChange={handleInputChange}
-                                        placeholder={t('internalChat.messagePlaceholder')}
-                                        className="flex-1 min-h-[40px] max-h-[120px] py-2 pr-4 pl-0 text-sm resize-none border-0 bg-transparent focus-visible:ring-0 shadow-none rounded-none placeholder:text-[#767681]"
+                                        placeholder={t('internalChat.vista.messagePlaceholder')}
+                                        aria-label={t('internalChat.vista.messageLabel')}
+                                        className={cn(
+                                            'custom-scrollbar-light max-h-[120px] min-h-9 w-full resize-none rounded-none border-0 bg-transparent px-1 py-2 text-[14px] leading-5 shadow-none placeholder:text-[#5c6485] focus-visible:ring-0 md:text-[14px] dark:bg-transparent dark:placeholder:text-neutral-400',
+                                            TINTA
+                                        )}
                                         onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}
                                     />
@@ -1775,401 +1995,318 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 <button
                                     type="submit"
                                     disabled={(!inputText.trim() && !isUploading) || isUploading}
-                                    className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2e3f84] to-[#2e3a75] flex items-center justify-center text-white shadow-lg hover:shadow-xl active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                                    title={editingMessage ? t('internalChat.vista.saveEnter') : t('internalChat.vista.sendEnter')}
+                                    aria-label={editingMessage ? t('internalChat.vista.saveEnter') : t('internalChat.vista.sendEnter')}
+                                    className={cn(
+                                        'flex size-9 shrink-0 items-center justify-center rounded-[9px] transition-colors',
+                                        FOCO,
+                                        'bg-[#2e3f84] text-white shadow-[0_1px_2px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.14)] hover:bg-[#27366f] dark:bg-[#4e5fa4] dark:hover:bg-[#5a6bb2]',
+                                        'disabled:cursor-not-allowed disabled:bg-[#2e3f84]/10 disabled:text-[#2e3f84]/45 disabled:shadow-none dark:disabled:bg-white/8 dark:disabled:text-white/40',
+                                        isUploading && 'disabled:bg-[#2e3f84] disabled:text-white dark:disabled:bg-[#4e5fa4] dark:disabled:text-white'
+                                    )}
                                 >
                                     {isUploading ? (
-                                        <div className="w-5 h-5 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
+                                        <span className="size-[18px] animate-spin rounded-full border-2 border-white/50 border-t-white" aria-hidden="true" />
+                                    ) : editingMessage ? (
+                                        <Check className="size-[17px]" strokeWidth={2.2} aria-hidden="true" />
                                     ) : (
-                                        <Send className="w-4 h-4 ml-0.5" />
+                                        <Send className="size-4" strokeWidth={2} aria-hidden="true" />
                                     )}
                                 </button>
                             </div>
+                            <AyudaTeclas teclas={TECLAS} derecha={t('internalChat.vista.maxSize')} />
                         </form>
+
+                        {/* Detalles del grupo */}
+                        {showParticipantsModal && activeChat.type === 'group' && (
+                            <PanelDetalles
+                                nombreGrupo={activeChat.name}
+                                participantes={activeChat.participants}
+                                miId={auth.user.id}
+                                creadorId={activeChat.created_by}
+                                soyCreador={creadorActivo}
+                                vista={showAddParticipants && creadorActivo ? 'anadir' : 'personas'}
+                                t={textosDetalles}
+                                onCerrar={() => setShowParticipantsModal(false)}
+                                onRenombrar={() => handleRenameChat(activeChat)}
+                                onVerAnadir={() => setShowAddParticipants(true)}
+                                onVolver={() => { setShowAddParticipants(false); setAddParticipantSearch(''); setAddParticipantIds([]); }}
+                                onQuitar={(p) => setConfirmacion({ tipo: 'quitar', chat: activeChat, persona: p })}
+                                onEliminarOSalir={() => handleDeleteChat(activeChat)}
+                                busqueda={addParticipantSearch}
+                                onBusqueda={setAddParticipantSearch}
+                                candidatos={candidatosAnadir}
+                                elegidos={addParticipantIds}
+                                onMarcar={(id) => setAddParticipantIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+                                anadiendo={isAddingParticipants}
+                                onAnadir={anadirParticipantes}
+                            />
+                        )}
                     </div>
                 )}
             </div>
 
-            {/* Modal: Crear nuevo chat o grupo */}
-            <Dialog open={showCreateGroup} onOpenChange={setShowCreateGroup}>
-                <DialogContent className="sm:max-w-md card-gradient max-h-[90vh] overflow-y-auto overflow-x-hidden custom-scrollbar-light">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
-                            <Users className="w-6 h-6" />
-                            {t('internalChat.newChatModalTitle')}
-                        </DialogTitle>
-                        <DialogDescription className="sr-only">
-                            {t('internalChat.newChatModalDescription')}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 pt-2">
-                        {/* Group name (only shows when multiple selected) */}
-                        {selectedUserIds.length > 1 && (
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
-                                    {t('internalChat.groupNameLabel')}
-                                </label>
-                                <Input
-                                    type="text"
-                                    placeholder={t('internalChat.groupNamePlaceholder')}
-                                    value={groupName}
-                                    onChange={(e) => setGroupName(e.target.value)}
-                                    className="settings-input rounded-xl"
-                                />
-                            </div>
+            {/* Menú de un mensaje (clic derecho; en el celular, mantener pulsado): las mismas acciones de siempre */}
+            {msgMenu && (() => {
+                const m = msgMenu.msg;
+                const editable = m.is_mine && m.type === 'text';
+                const verGrande = (m.type === 'image' || m.type === 'video') && !!m.file_url;
+                const descargable = m.type !== 'text' && !!m.file_url;
+                const alto = 12 + 36 * (2 + (editable ? 1 : 0) + (verGrande ? 1 : 0) + (descargable ? 1 : 0)) + (verGrande || descargable ? 11 : 0);
+                return (
+                    <MenuFlotante x={msgMenu.x} y={msgMenu.y} ancho={236} alto={alto} etiqueta={t('internalChat.vista.messageActions')}>
+                        <OpcionMenu icono={SmilePlus} onClick={() => { setMsgMenu(null); setReactionPickerFor(m.id); }}>
+                            {t('internalChat.react')}
+                        </OpcionMenu>
+                        <OpcionMenu icono={Reply} onClick={() => { setMsgMenu(null); setReplyingTo(m); textareaRef.current?.focus(); }}>
+                            {t('internalChat.reply')}
+                        </OpcionMenu>
+                        {editable && (
+                            <OpcionMenu icono={Pencil} onClick={() => { setMsgMenu(null); startEdit(m); }}>
+                                {t('common.edit')}
+                            </OpcionMenu>
                         )}
-
-                        {/* User search */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-primary dark:text-[hsl(231,15%,92%)]">
-                                {selectedUserIds.length > 1 ? t('internalChat.participants') : t('internalChat.selectUser')}
-                            </label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                                <Input
-                                    type="text"
-                                    placeholder={t('internalChat.searchUsersPlaceholder')}
-                                    value={userSearchQuery}
-                                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                                    className="pl-10 settings-input rounded-xl"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Selected users chips */}
-                        {selectedUserIds.length > 0 && (
-                            <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto custom-scrollbar-light p-1">
-                                {selectedUserIds.map(uid => {
-                                    const user = availableUsers.find(u => u.id === uid);
-                                    if (!user) return null;
-                                    return (
-                                        <span
-                                            key={uid}
-                                            className="inline-flex items-center gap-1 px-2.5 py-1 chat-message-sent text-white text-xs font-medium rounded-full"
-                                        >
-                                            {user.name}
-                                            <button
-                                                onClick={() => toggleUserSelection(uid)}
-                                                className="hover:bg-white/20 rounded-full p-0.5"
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </span>
-                                    );
-                                })}
-                            </div>
+                        {(verGrande || descargable) && <SeparadorMenu />}
+                        {verGrande && (
+                            <OpcionMenu icono={Expand} onClick={() => { setMsgMenu(null); abrirVisor(m); }}>
+                                {t('internalChat.vista.viewLarge')}
+                            </OpcionMenu>
                         )}
-
-                        {/* User list (filas planas con divisores, estilo WhatsApp) */}
-                        <div className="max-h-[300px] overflow-y-auto overflow-x-hidden custom-scrollbar-light rounded-xl divide-y divide-[#ececf3] dark:divide-white/[0.06]">
-                            {filteredUsers.length === 0 ? (
-                                <div className="p-4 text-center text-sm text-muted-foreground">
-                                    {t('internalChat.noUsersFound')}
-                                </div>
-                            ) : (
-                                filteredUsers.map(user => {
-                                    const isSelected = selectedUserIds.includes(user.id);
-                                    return (
-                                        <button
-                                            key={user.id}
-                                            onClick={() => toggleUserSelection(user.id)}
-                                            className={`w-full flex items-center gap-3 p-3 transition-colors ${isSelected
-                                                ? 'bg-[#e9ebf5] dark:bg-neutral-800'
-                                                : 'hover:bg-[#f5f6fa] dark:hover:bg-white/[0.04]'
-                                                }`}
-                                        >
-                                            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                                                {getInitials(user.name)}
-                                            </div>
-                                            <div className="flex-1 min-w-0 text-left">
-                                                <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {user.role === 'admin' ? t('internalChat.roleAdmin') : user.role === 'advisor' ? t('internalChat.roleAdvisor') : user.role}
-                                                    {user.is_online && <span className="ml-1.5 text-green-500">{t('internalChat.onlineDot')}</span>}
-                                                </p>
-                                            </div>
-                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected
-                                                ? 'bg-primary border-primary text-white'
-                                                : 'border-border'
-                                                }`}>
-                                                {isSelected && <Check className="w-3 h-3" />}
-                                            </div>
-                                        </button>
-                                    );
-                                })
-                            )}
-                        </div>
-
-                        {/* Hint text */}
-                        <p className="text-xs text-muted-foreground">
-                            {selectedUserIds.length === 0
-                                ? t('internalChat.hintNoSelection')
-                                : selectedUserIds.length === 1
-                                    ? t('internalChat.hintOneSelected')
-                                    : t('internalChat.hintGroupCount', { count: selectedUserIds.length })
-                            }
-                        </p>
-
-                        {/* Actions */}
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    setShowCreateGroup(false);
-                                    setGroupName('');
-                                    setSelectedUserIds([]);
-                                    setUserSearchQuery('');
-                                }}
-                                className="rounded-lg"
+                        {descargable && (
+                            <a
+                                href={m.file_url!}
+                                download
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                role="menuitem"
+                                onClick={() => setMsgMenu(null)}
+                                className={cn('flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] leading-[18px] font-medium whitespace-nowrap transition-colors hover:bg-[#2e3f84]/[0.055] dark:hover:bg-white/8', FOCO, TEXTO_NAVY)}
                             >
-                                {t('common.cancel')}
-                            </Button>
-                            <Button
-                                onClick={handleCreateGroup}
-                                disabled={selectedUserIds.length === 0 || isCreatingGroup}
-                                className="chat-message-sent text-white rounded-lg shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] disabled:opacity-50"
-                            >
-                                {isCreatingGroup ? (
-                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                ) : null}
-                                {selectedUserIds.length > 1 ? t('internalChat.createGroup') : t('internalChat.startChat')}
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                                <Download className="size-4 shrink-0" strokeWidth={1.9} aria-hidden="true" />
+                                {t('common.download')}
+                            </a>
+                        )}
+                    </MenuFlotante>
+                );
+            })()}
 
-            {/* Modal: Ver participantes */}
-            <Dialog open={showParticipantsModal} onOpenChange={(open) => {
-                setShowParticipantsModal(open);
-                if (!open) {
-                    setShowAddParticipants(false);
-                    setAddParticipantSearch('');
-                    setAddParticipantIds([]);
-                }
-            }}>
-                <DialogContent className="sm:max-w-md card-gradient">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
-                            <Users className="w-5 h-5" />
-                            {t('internalChat.participantsModalTitle', { count: activeChat?.participants.length ?? 0 })}
-                        </DialogTitle>
-                        <DialogDescription className="sr-only">{t('internalChat.participantsModalDescription')}</DialogDescription>
-                    </DialogHeader>
-
-                    {/* Lista de participantes actuales */}
-                    {!showAddParticipants && (
-                        <>
-                            <div className="mt-2 space-y-1 max-h-[50vh] overflow-y-auto custom-scrollbar-light pr-1">
-                                {(activeChat?.participants ?? []).map(p => {
-                                    const isCreator = activeChat && p.id === (activeChat as any).created_by;
-                                    const canRemove = activeChat?.type === 'group' && p.id !== auth.user.id && !isCreator;
-                                    return (
-                                        <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-accent transition-colors group">
-                                            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
-                                                {p.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-semibold text-foreground truncate">
-                                                    {p.name}
-                                                    {p.id === auth.user.id && <span className="ml-1.5 text-xs font-normal text-muted-foreground">{t('internalChat.youParenthesis')}</span>}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {p.role === 'admin' ? t('internalChat.roleAdmin') : p.role === 'advisor' ? t('internalChat.roleAdvisor') : p.role}
-                                                    {p.is_online && <span className="ml-1.5 text-green-500">{t('internalChat.onlineDot')}</span>}
-                                                </p>
-                                            </div>
-                                            {canRemove && (
-                                                <button
-                                                    onClick={async () => {
-                                                        if (!confirm(t('internalChat.removeParticipantConfirm', { name: p.name }))) return;
-                                                        try {
-                                                            const res = await axios.delete(`/admin/internal-chat/${activeChat!.id}/participants/${p.id}`);
-                                                            if (res.data.success) {
-                                                                // Actualizar participantes localmente
-                                                                setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
-                                                                setChats(prev => prev.map(c => c.id === activeChat!.id ? { ...c, participants: res.data.participants } : c));
-                                                                toast.success(res.data.message);
-                                                            }
-                                                        } catch (err: any) {
-                                                            toast.error(err.response?.data?.error || t('internalChat.removeParticipantError'));
-                                                        }
-                                                    }}
-                                                    className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 opacity-0 group-hover:opacity-100 transition-all"
-                                                    title={t('internalChat.removeFromGroup')}
-                                                >
-                                                    <UserMinus className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            <div className="flex justify-between pt-2">
-                                {activeChat?.type === 'group' && (
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setShowAddParticipants(true)}
-                                        className="rounded-lg gap-2"
-                                    >
-                                        <UserPlus className="w-4 h-4" />
-                                        {t('internalChat.add')}
-                                    </Button>
-                                )}
-                                <Button variant="outline" onClick={() => setShowParticipantsModal(false)} className="rounded-lg ml-auto">{t('common.close')}</Button>
-                            </div>
-                        </>
-                    )}
-
-                    {/* Vista de agregar participantes */}
-                    {showAddParticipants && (
-                        <>
-                            <div className="mt-2">
-                                <Input
-                                    placeholder={t('internalChat.searchUserPlaceholder')}
-                                    value={addParticipantSearch}
-                                    onChange={(e) => setAddParticipantSearch(e.target.value)}
-                                    className="rounded-lg"
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="space-y-1 max-h-[40vh] overflow-y-auto custom-scrollbar-light pr-1">
-                                {availableUsers
-                                    .filter(u => !(activeChat?.participants ?? []).some(p => p.id === u.id))
-                                    .filter(u => !addParticipantSearch || u.name.toLowerCase().includes(addParticipantSearch.toLowerCase()))
-                                    .map(u => {
-                                        const selected = addParticipantIds.includes(u.id);
-                                        return (
-                                            <div
-                                                key={u.id}
-                                                onClick={() => setAddParticipantIds(prev => selected ? prev.filter(id => id !== u.id) : [...prev, u.id])}
-                                                className={cn(
-                                                    'flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-colors',
-                                                    selected ? 'bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-200 dark:ring-blue-800' : 'hover:bg-accent'
-                                                )}
-                                            >
-                                                <div className={cn(
-                                                    'w-9 h-9 rounded-full flex items-center justify-center text-xs font-medium flex-shrink-0',
-                                                    selected ? 'bg-blue-500 text-white' : 'bg-primary text-white'
-                                                )}>
-                                                    {selected ? <Check className="w-4 h-4" /> : u.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {u.role === 'admin' ? t('internalChat.roleAdmin') : u.role === 'advisor' ? t('internalChat.roleAdvisor') : u.role}
-                                                        {u.is_online && <span className="ml-1.5 text-green-500">{t('internalChat.onlineDot')}</span>}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                            </div>
-                            <div className="flex justify-between pt-2 gap-2">
-                                <Button variant="outline" onClick={() => { setShowAddParticipants(false); setAddParticipantSearch(''); setAddParticipantIds([]); }} className="rounded-lg">
-                                    {t('common.back')}
-                                </Button>
-                                <Button
-                                    disabled={addParticipantIds.length === 0 || isAddingParticipants}
-                                    onClick={async () => {
-                                        if (!activeChat || addParticipantIds.length === 0) return;
-                                        setIsAddingParticipants(true);
-                                        try {
-                                            const res = await axios.post(`/admin/internal-chat/${activeChat.id}/participants`, {
-                                                user_ids: addParticipantIds,
-                                            });
-                                            if (res.data.success) {
-                                                setActiveChat(prev => prev ? { ...prev, participants: res.data.participants } : null);
-                                                setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, participants: res.data.participants } : c));
-                                                toast.success(res.data.message);
-                                                setShowAddParticipants(false);
-                                                setAddParticipantSearch('');
-                                                setAddParticipantIds([]);
-                                            }
-                                        } catch (err: any) {
-                                            toast.error(err.response?.data?.error || t('internalChat.addParticipantsError'));
-                                        } finally {
-                                            setIsAddingParticipants(false);
-                                        }
-                                    }}
-                                    className="rounded-lg gap-2"
-                                    style={{ backgroundColor: 'var(--primary-base)' }}
-                                >
-                                    <UserPlus className="w-4 h-4" />
-                                    {t('internalChat.addWithCount', { count: addParticipantIds.length })}
-                                </Button>
-                            </div>
-                        </>
-                    )}
-                </DialogContent>
-            </Dialog>
-
-            {/* Modal: Renombrar grupo */}
-            <Dialog open={showRenameModal} onOpenChange={setShowRenameModal}>
-                <DialogContent className="sm:max-w-sm card-gradient">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-primary dark:text-[hsl(231,15%,92%)] flex items-center gap-2">
-                            <Pencil className="w-5 h-5" />
-                            {t('internalChat.renameGroup')}
-                        </DialogTitle>
-                        <DialogDescription className="sr-only">
-                            {t('internalChat.renameModalDescription')}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 pt-2">
-                        <Input
-                            type="text"
-                            placeholder={t('internalChat.groupNameLabel')}
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            className="settings-input rounded-xl"
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && renameValue.trim()) {
-                                    e.preventDefault();
-                                    // trigger rename
-                                    (async () => {
-                                        if (!activeChat || !renameValue.trim()) return;
-                                        try {
-                                            await axios.put(`/admin/internal-chat/${activeChat.id}/rename`, { name: renameValue.trim() });
-                                            // Update local state
-                                            setActiveChat({ ...activeChat, name: renameValue.trim() });
-                                            setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, name: renameValue.trim() } : c));
-                                            setShowRenameModal(false);
-                                        } catch (err) {
-                                            console.error('Error renombrando grupo:', err);
-                                        }
-                                    })();
-                                }
+            {/* Nuevo chat o grupo */}
+            <DialogoPlantilla
+                abierto={showCreateGroup}
+                onCerrar={() => setShowCreateGroup(false)}
+                icono={Plus}
+                titulo={t('internalChat.newChatOrGroup')}
+                sub={t('internalChat.vista.newSub')}
+                cerrarConX
+                ancho="max-w-[470px]"
+                pie={
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowCreateGroup(false);
+                                setGroupName('');
+                                setSelectedUserIds([]);
+                                setUserSearchQuery('');
                             }}
-                            autoFocus
+                            className={BOTON_SECUNDARIO}
+                        >
+                            {t('common.cancel')}
+                        </button>
+                        <button type="button" onClick={handleCreateGroup} disabled={selectedUserIds.length === 0 || isCreatingGroup} className={BOTON_PRIMARIO}>
+                            {isCreatingGroup
+                                ? <span className="size-4 animate-spin rounded-full border-2 border-white/50 border-t-white" aria-hidden="true" />
+                                : selectedUserIds.length > 1 ? <Users aria-hidden="true" /> : <MessageSquare aria-hidden="true" />}
+                            {selectedUserIds.length > 1 ? t('internalChat.createGroup') : t('internalChat.startChat')}
+                        </button>
+                    </>
+                }
+            >
+                {/* Nombre del grupo (solo con varias personas) */}
+                {selectedUserIds.length > 1 && (
+                    <div className="flex flex-col gap-[7px]">
+                        <label htmlFor="nuevo-grupo-nombre" className={ETIQUETA}>
+                            {t('internalChat.groupNameLabel')} <span className={cn('font-normal', GRIS)}>{t('internalChat.vista.groupNameOptional')}</span>
+                        </label>
+                        <input
+                            id="nuevo-grupo-nombre"
+                            type="text"
+                            placeholder={t('internalChat.groupNamePlaceholder')}
+                            value={groupName}
+                            onChange={(e) => setGroupName(e.target.value)}
+                            className={CAMPO}
                         />
-
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setShowRenameModal(false)} className="rounded-lg">
-                                {t('common.cancel')}
-                            </Button>
-                            <Button
-                                onClick={async () => {
-                                    if (!activeChat || !renameValue.trim()) return;
-                                    try {
-                                        await axios.put(`/admin/internal-chat/${activeChat.id}/rename`, { name: renameValue.trim() });
-                                        setActiveChat({ ...activeChat, name: renameValue.trim() });
-                                        setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, name: renameValue.trim() } : c));
-                                        setShowRenameModal(false);
-                                    } catch (err) {
-                                        console.error('Error renombrando grupo:', err);
-                                    }
-                                }}
-                                disabled={!renameValue.trim()}
-                                className="chat-message-sent text-white rounded-lg shadow-[0_2px_4px_rgba(46,63,132,0.2),0_4px_12px_rgba(46,63,132,0.3),inset_0_1px_0_rgba(255,255,255,0.15)] disabled:opacity-50"
-                            >
-                                {t('common.save')}
-                            </Button>
-                        </div>
                     </div>
-                </DialogContent>
-            </Dialog>
+                )}
+
+                <div className="flex flex-col gap-[7px]">
+                    <div className="flex items-baseline justify-between gap-3">
+                        <label htmlFor="nuevo-chat-buscar" className={ETIQUETA}>{t('internalChat.vista.people')}</label>
+                        {selectedUserIds.length > 0 && <span className={cn('text-[12px] leading-4 tabular-nums', GRIS)}>{t('internalChat.vista.chosen', { count: selectedUserIds.length })}</span>}
+                    </div>
+                    <div className="relative">
+                        <Search className={cn('pointer-events-none absolute top-1/2 left-[11px] size-4 -translate-y-1/2', GRIS)} strokeWidth={1.75} aria-hidden="true" />
+                        <input
+                            id="nuevo-chat-buscar"
+                            type="text"
+                            placeholder={t('internalChat.vista.searchByName')}
+                            value={userSearchQuery}
+                            onChange={(e) => setUserSearchQuery(e.target.value)}
+                            className={cn(CAMPO, 'pl-9 font-normal')}
+                        />
+                    </div>
+                    {selectedUserIds.length > 0 && (
+                        <div className="custom-scrollbar-light flex max-h-[76px] flex-wrap gap-1.5 overflow-y-auto pt-0.5">
+                            {selectedUserIds.map(uid => {
+                                const user = availableUsers.find(u => u.id === uid);
+                                if (!user) return null;
+                                return (
+                                    <span key={uid} className={cn('inline-flex h-[26px] items-center gap-1 rounded-full bg-[#e5e9f6] pr-1 pl-2.5 text-[12.5px] leading-4 font-semibold whitespace-nowrap shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16)] dark:bg-white/10 dark:shadow-none', TEXTO_NAVY)}>
+                                        {nombreVisible(user.name).split(' ').slice(0, 2).join(' ')}
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleUserSelection(uid)}
+                                            title={t('internalChat.vista.unselect', { name: nombreVisible(user.name) })}
+                                            aria-label={t('internalChat.vista.unselect', { name: nombreVisible(user.name) })}
+                                            className={cn(BOTON_ICONO_CHAT, 'size-5 rounded-full')}
+                                        >
+                                            <X className="size-[13px]" strokeWidth={2.2} aria-hidden="true" />
+                                        </button>
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                <div className="custom-scrollbar-light -mx-2 flex max-h-[300px] flex-col overflow-x-hidden overflow-y-auto">
+                    {filteredUsers.length === 0 ? (
+                        <div className={cn('p-4 text-center text-[13px]', GRIS)}>{t('internalChat.noUsersFound')}</div>
+                    ) : (
+                        filteredUsers.map(user => {
+                            const isSelected = selectedUserIds.includes(user.id);
+                            return (
+                                <button
+                                    key={user.id}
+                                    type="button"
+                                    role="checkbox"
+                                    aria-checked={isSelected}
+                                    onClick={() => toggleUserSelection(user.id)}
+                                    className={cn(
+                                        'flex h-[50px] w-full shrink-0 cursor-pointer items-center gap-[11px] rounded-[9px] px-2 text-left transition-colors',
+                                        FOCO,
+                                        isSelected ? 'bg-[#2e3f84]/5 dark:bg-white/[0.06]' : 'hover:bg-[#2e3f84]/[0.035] dark:hover:bg-white/[0.04]'
+                                    )}
+                                >
+                                    <span
+                                        className={cn(
+                                            'flex size-[18px] shrink-0 items-center justify-center rounded-[5px]',
+                                            isSelected ? 'bg-[#2e3f84] text-white dark:bg-[#8b9ae0] dark:text-neutral-900' : 'bg-white shadow-[inset_0_0_0_1.5px_var(--color-slate-500)] dark:bg-transparent dark:shadow-[inset_0_0_0_1.5px_var(--color-neutral-400)]'
+                                        )}
+                                        aria-hidden="true"
+                                    >
+                                        {isSelected && <Check className="size-3" strokeWidth={3} />}
+                                    </span>
+                                    <AvatarPersona nombre={user.name} rol={user.role} enLinea={user.is_online} tam={32} anillo="ring-white dark:ring-card" />
+                                    <span className="flex min-w-0 flex-1 flex-col gap-px">
+                                        <span className={cn('truncate text-[13px] leading-[18px]', isSelected ? 'font-semibold' : 'font-medium', TEXTO_NAVY)}>{nombreVisible(user.name)}</span>
+                                        <span className={cn('flex items-center gap-1.5 text-[12px] leading-4 whitespace-nowrap', GRIS)}>
+                                            {rolTexto(user.role)}
+                                            {user.is_online && <span className="font-medium text-emerald-700 dark:text-emerald-400">· {t('internalChat.online')}</span>}
+                                        </span>
+                                    </span>
+                                </button>
+                            );
+                        })
+                    )}
+                </div>
+
+                <p className={cn('flex items-start gap-2 text-[12.5px] leading-[18px]', GRIS)}>
+                    <Users className={cn('mt-0.5 size-3.5 shrink-0', ACENTO)} strokeWidth={2} aria-hidden="true" />
+                    <span>
+                        {selectedUserIds.length === 0
+                            ? t('internalChat.hintNoSelection')
+                            : selectedUserIds.length === 1
+                                ? t('internalChat.vista.hintDirect')
+                                : t('internalChat.vista.hintGroup', { count: selectedUserIds.length })}
+                    </span>
+                </p>
+            </DialogoPlantilla>
+
+            {/* Renombrar grupo */}
+            <DialogoPlantilla
+                abierto={showRenameModal}
+                onCerrar={() => setShowRenameModal(false)}
+                icono={Pencil}
+                titulo={t('internalChat.renameGroup')}
+                sub={t('internalChat.vista.renameSub')}
+                cerrarConX
+                ancho="max-w-[400px]"
+                pie={
+                    <>
+                        <button type="button" onClick={() => setShowRenameModal(false)} className={BOTON_SECUNDARIO}>
+                            {t('common.cancel')}
+                        </button>
+                        <button type="button" onClick={guardarNombre} disabled={!renameValue.trim()} className={BOTON_PRIMARIO}>
+                            <Check aria-hidden="true" />
+                            {t('common.save')}
+                        </button>
+                    </>
+                }
+            >
+                <div className="flex flex-col gap-[7px]">
+                    <label htmlFor="renombrar-grupo" className={ETIQUETA}>{t('internalChat.groupNameLabel')}</label>
+                    <input
+                        id="renombrar-grupo"
+                        type="text"
+                        maxLength={100}
+                        placeholder={t('internalChat.groupNameLabel')}
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        className={CAMPO}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && renameValue.trim()) {
+                                e.preventDefault();
+                                void guardarNombre();
+                            }
+                        }}
+                    />
+                    <span className={AYUDA}>{t('internalChat.vista.renameHelp')}</span>
+                </div>
+            </DialogoPlantilla>
+
+            {/* Confirmaciones: eliminar chat/grupo, salir del grupo, quitar a una persona. Cancelar a la izquierda y con el foco. */}
+            <DialogoPlantilla
+                abierto={!!confirmacion}
+                onCerrar={() => setConfirmacion(null)}
+                icono={confirmarTextos?.icono ?? Trash2}
+                peligro
+                titulo={confirmarTextos?.titulo ?? ''}
+                ancho="max-w-[400px]"
+                enfoqueInicial={cancelarConfirmRef}
+                pie={
+                    <>
+                        <button ref={cancelarConfirmRef} type="button" onClick={() => setConfirmacion(null)} className={BOTON_SECUNDARIO}>
+                            {t('common.cancel')}
+                        </button>
+                        <button type="button" onClick={confirmarAccion} className={BOTON_PELIGRO_LLENO}>
+                            {confirmarTextos && <confirmarTextos.icono aria-hidden="true" />}
+                            {confirmarTextos?.boton}
+                        </button>
+                    </>
+                }
+            >
+                {confirmarTextos && (
+                    <p className={cn('text-[13px] leading-[19px]', GRIS)}>
+                        <Trans
+                            i18nKey={confirmarTextos.clave}
+                            values={confirmarTextos.valores}
+                            count={'count' in confirmarTextos.valores ? confirmarTextos.valores.count : undefined}
+                            components={{ b: <b className={cn('font-semibold', TINTA)} /> }}
+                        />
+                    </p>
+                )}
+            </DialogoPlantilla>
 
             {/* Visor de medios fullscreen - estilo WhatsApp Web */}
             {mediaViewer && (
@@ -2200,25 +2337,28 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 <>
                                     <button
                                         onClick={() => setImageRotation(prev => prev - 90)}
-                                        className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                        className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                                         title={t('internalChat.rotate')}
+                                        aria-label={t('internalChat.rotate')}
                                     >
                                         <RotateCcw className="w-5 h-5" />
                                     </button>
                                     <button
                                         onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))}
-                                        className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                        className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                                         title={t('internalChat.zoomOut')}
+                                        aria-label={t('internalChat.zoomOut')}
                                     >
                                         <ZoomOut className="w-5 h-5" />
                                     </button>
-                                    <span className="text-white/70 text-sm min-w-[50px] text-center">
+                                    <span className="text-white/80 text-sm min-w-[50px] text-center tabular-nums">
                                         {Math.round(zoomLevel * 100)}%
                                     </span>
                                     <button
                                         onClick={() => setZoomLevel(Math.min(4, zoomLevel + 0.25))}
-                                        className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                        className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                                         title={t('internalChat.zoomIn')}
+                                        aria-label={t('internalChat.zoomIn')}
                                     >
                                         <ZoomIn className="w-5 h-5" />
                                     </button>
@@ -2232,8 +2372,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                                 title={t('common.download')}
+                                aria-label={t('common.download')}
                             >
                                 <Download className="w-5 h-5" />
                             </a>
@@ -2246,8 +2387,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                     setImagePosition({ x: 0, y: 0 });
                                     setImageRotation(0);
                                 }}
-                                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors ml-2"
+                                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-full transition-colors ml-2"
                                 title={t('internalChat.closeEsc')}
+                                aria-label={t('internalChat.closeEsc')}
                             >
                                 <X className="w-6 h-6" />
                             </button>

@@ -62,7 +62,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useRef, useState, type ComponentProps, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import TemplateCreateModal from './components/TemplateCreateModal';
 import TemplateEditModal from './components/TemplateEditModal';
 import WelcomeFlowSection from './components/WelcomeFlowSection';

@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import AppearanceToggleDropdown from '@/components/appearance-dropdown';
 import { MessageNotifications } from '@/components/message-notifications';
 import { subscribeUnread, getUnread, seedUnreadChat, type UnreadState } from '@/lib/unread-store';
-import { Toaster } from 'sonner';
+import { Avisos } from '@/components/avisos';
 import { GROUPS, readPinned, type NavEntry } from '@/layouts/admin-nav';
 import MarcoLayout from '@/layouts/marco-layout';
 import { setMarcoShell, useMarcoShell } from '@/lib/shell-preference';
@@ -637,7 +637,7 @@ function LegacyAdminLayout({ children }: PropsWithChildren<AdminLayoutProps>) {
                 {children}
             </main>
 
-            <Toaster position="bottom-right" richColors closeButton duration={4000} />
+            <Avisos />
         </div>
     );
 }

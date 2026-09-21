@@ -2033,3 +2033,30 @@ tr.table-row-hover:hover {
         transition: none !important;
     }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AVISOS (Sileo, ver components/avisos.tsx y lib/toast.ts). La librería inyecta su propio CSS; aquí
+   solo se ajusta a la app. El prefijo `html` sube la especificidad porque ese CSS llega después:
+   - los títulos van en frase: Sileo pone text-transform: capitalize y nuestros avisos son frases;
+   - la descripción, en blanco al 82 % (Sileo la deja al 50 %) para leerla sin esfuerzo;
+   - el rojo de error, un punto más claro: sobre el navy de la píldora el de Sileo daba 4,45:1 (ahora 5,1:1);
+   - en modo oscuro la píldora es un navy más claro y los estados usan tonos claros (todos ≥ 5,4:1);
+   - por encima de diálogos y paneles (z 50-80), como estaban los avisos de antes.
+   ══════════════════════════════════════════════════════════════════════════ */
+html [data-sileo-viewport] {
+    z-index: 90;
+    --sileo-state-error: oklch(0.67 0.22 25);
+}
+html [data-sileo-title] {
+    text-transform: none;
+    font-weight: 600;
+}
+html [data-sileo-viewport][data-theme="light"] [data-sileo-description] {
+    color: rgba(255, 255, 255, 0.82);
+}
+html.dark [data-sileo-viewport] {
+    --sileo-state-success: oklch(0.8 0.17 150);
+    --sileo-state-error: oklch(0.76 0.15 22);
+    --sileo-state-warning: oklch(0.84 0.15 86);
+    --sileo-state-info: oklch(0.79 0.12 237);
+}

@@ -6,7 +6,7 @@ import { DialogoPlantilla } from '@/components/templates/piezas-plantillas';
 import { MessageSquareText, Save, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useRef, useState, FormEvent } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 interface User {
     id: number;

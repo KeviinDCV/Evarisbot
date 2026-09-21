@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import axios from 'axios';
 
 interface Settings {

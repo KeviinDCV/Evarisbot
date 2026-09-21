@@ -574,6 +574,12 @@ class InternalChatController extends Controller
             return response()->json(['error' => 'Solo se pueden renombrar grupos'], 400);
         }
 
+        // Solo quien creó el grupo lo administra (renombrar, añadir y quitar personas). Los demás
+        // participantes pueden escribir y salir del grupo, pero no cambiarlo.
+        if ($chat->created_by !== $userId) {
+            return response()->json(['error' => 'Solo quien creó el grupo puede cambiarlo'], 403);
+        }
+
         $request->validate([
             'name' => 'required|string|max:100',
         ]);
@@ -645,6 +651,12 @@ class InternalChatController extends Controller
             return response()->json(['error' => 'Solo se pueden agregar participantes a grupos'], 400);
         }
 
+        // Solo quien creó el grupo lo administra (renombrar, añadir y quitar personas). Los demás
+        // participantes pueden escribir y salir del grupo, pero no cambiarlo.
+        if ($chat->created_by !== $userId) {
+            return response()->json(['error' => 'Solo quien creó el grupo puede cambiarlo'], 403);
+        }
+
         $request->validate([
             'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:users,id',
@@ -692,6 +704,12 @@ class InternalChatController extends Controller
 
         if ($chat->type !== 'group') {
             return response()->json(['error' => 'Solo se pueden eliminar participantes de grupos'], 400);
+        }
+
+        // Solo quien creó el grupo lo administra (renombrar, añadir y quitar personas). Los demás
+        // participantes pueden escribir y salir del grupo, pero no cambiarlo.
+        if ($chat->created_by !== $userId) {
+            return response()->json(['error' => 'Solo quien creó el grupo puede cambiarlo'], 403);
         }
 
         // No se puede eliminar al creador del grupo

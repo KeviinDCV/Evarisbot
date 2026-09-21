@@ -8,7 +8,8 @@ const nombres = ['users','activity','shield-check','headphones','search','x','se
   'download','calendar-range','wallet','calendar-check-2','bot','trending-up','timer','arrow-right','award','file-spreadsheet','arrow-up-right',
   'upload','pause','play','square','arrow-up-down','arrow-up','arrow-down','chevron-left','calendar-x','arrow-left','circle-x','calendar-clock','refresh-cw',
   'paperclip','image','video','globe','megaphone','file-plus-2','columns-3','user','ban','message-square-text','type','square-check',
-  'power','power-off','mouse-pointer-click','keyboard','workflow','chevron-up','save','list-checks','corner-down-right','flag','slash'];
+  'power','power-off','mouse-pointer-click','keyboard','workflow','chevron-up','save','list-checks','corner-down-right','flag','slash',
+  'smile-plus','reply','pencil','user-minus','at-sign','expand','check-check','search-x','inbox','menu'];
 const leer = (n, vistos = new Set()) => {
   if (vistos.has(n)) return null; vistos.add(n);
   const f = path.join(D, n + '.js');
