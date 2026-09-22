@@ -5,24 +5,23 @@ import { MessageNotifications } from '@/components/message-notifications';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
 import { GROUPS, PINNED_KEY, readPinned, type NavEntry, type NavGroupDef } from '@/layouts/admin-nav';
-import { setMarcoShell } from '@/lib/shell-preference';
 import { getUnread, seedUnreadChat, subscribeUnread, type UnreadState } from '@/lib/unread-store';
 import { logout } from '@/routes';
 import { type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Lock, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Undo2, UserCircle, X } from 'lucide-react';
+import { Lock, LogOut, Menu, PanelLeftClose, PanelLeftOpen, UserCircle, X } from 'lucide-react';
 import { type CSSProperties, type FocusEvent as ReactFocusEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avisos } from '@/components/avisos';
 
 /**
- * EL MARCO NAVY — el menú nuevo (detrás del interruptor de lib/shell-preference).
+ * EL MARCO NAVY — el menú de la app (lo pinta AdminLayout en todas las páginas).
  *
  * El navy deja de ser una pieza flotante y pasa a ser el MARCO de toda la app: el menú vive
  * directamente sobre él y el contenido de cada página va en una ISLA clara con esquinas
  * redondeadas. Diseño aprobado: design/usuarios/_marco.mjs (medidas, tintas y contrastes).
  *
- * Todo lo FUNCIONAL es el riel de hoy (admin-layout.tsx) sin cambios: filtro de rol,
+ * Lo FUNCIONAL es el del riel anterior (retirado; está en el historial de git): filtro de rol,
  * contadores vivos, fijar/desfijar, Ctrl+B, Esc por capas, carnet, turno del asesor.
  * Lo que cambia es la forma. El CSS vive en el bloque .marco-* de app.css.
  */
@@ -575,21 +574,6 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                             <UserCircle className="h-4 w-4" />
                             {t('navigation.profile', 'Perfil')}
                         </Link>
-                        {/* Salida de emergencia al riel anterior, sólo para administradores: si una
-                            pantalla se viera mal con este menú, pueden seguir trabajando con el de antes. */}
-                        {!isAdvisor && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setCarnetOpen(false);
-                                    setMarcoShell(false);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg p-2 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
-                            >
-                                <Undo2 className="h-4 w-4" />
-                                {t('navigation.backToOldMenu', 'Volver al menú anterior')}
-                            </button>
-                        )}
                         <Link
                             href={logout()}
                             method="post"

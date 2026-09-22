@@ -1,12 +1,11 @@
 import { BarChart3, Calendar, FileText, MessageSquare, MessagesSquare, Send, Settings, Users, type LucideIcon } from 'lucide-react';
 
 /**
- * Lo que comparten los dos menús (el riel de hoy y el "Marco navy"): los ítems, sus grupos
- * y la preferencia de fijado. Vive aparte para que haya UNA sola lista de secciones: si
- * mañana se añade una, aparece igual en los dos menús mientras convivan.
+ * Las secciones del menú (ítems y grupos) y la preferencia de fijado, aparte del layout para
+ * que añadir una sección sea tocar solo esta lista.
  */
 
-/** Clave de localStorage del menú fijado (la comparten ambos menús a propósito). */
+/** Clave de localStorage del menú fijado (la del riel anterior: así se respeta a quien ya lo tenía fijado). */
 export const PINNED_KEY = 'evaris.rail.pinned';
 
 /** Lee el estado fijado guardado, con guarda de SSR. */

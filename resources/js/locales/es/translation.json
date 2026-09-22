@@ -1054,9 +1054,7 @@
         "appointmentsScope": "Ámbito de citas",
         "groupWork": "Trabajo",
         "groupManagement": "Gestión",
-        "institution": "Hospital Universitario del Valle",
-        "tryNewMenu": "Volver al menú nuevo",
-        "backToOldMenu": "Volver al menú anterior"
+        "institution": "Hospital Universitario del Valle"
     },
     "statistics": {
         "title": "Estadísticas",

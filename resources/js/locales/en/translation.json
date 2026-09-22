@@ -1054,9 +1054,7 @@
         "appointmentsScope": "Appointments scope",
         "groupWork": "Work",
         "groupManagement": "Management",
-        "institution": "Hospital Universitario del Valle",
-        "tryNewMenu": "Back to the new menu",
-        "backToOldMenu": "Back to the previous menu"
+        "institution": "Hospital Universitario del Valle"
     },
     "statistics": {
         "title": "Statistics",
