@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ChatMessagesSkeleton, ConversationListSkeleton } from '@/components/chat-skeletons';
+import { PastillaReacciones, SelectorReacciones } from '@/components/selector-reacciones';
 import {
     Search,
     MessageSquare,
@@ -626,17 +627,13 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(filters.specialty ?? null);
     const [specialtySearchQuery, setSpecialtySearchQuery] = useState('');
 
-    // Reacciones (emojis) a mensajes
-    const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-    const REACTION_LABELS: Record<string, string> = {
-        '👍': 'Me gusta', '❤️': 'Me encanta', '😂': 'Me divierte',
-        '😮': 'Me asombra', '😢': 'Me entristece', '🙏': 'Gracias',
-    };
+    // Reacciones (emojis) a mensajes: qué mensaje tiene abierta la bandeja (components/selector-reacciones).
     const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
-    // El selector de reacciones se cierra al pulsar fuera de él o con Esc. No sirve una capa
-    // `fixed inset-0`: la barra que lo contiene lleva `-translate-y-1/2`, y un transform hace de esa
-    // barra el contenedor de sus hijos `position: fixed` (la capa solo cubría la barra y el clic fuera
-    // no cerraba nada). Esc se atiende en captura y no sigue: si no, además cerraría el chat.
+    // La bandeja de reacciones se cierra al pulsar fuera de ella o con Esc. Se escucha el documento en
+    // vez de poner una capa `fixed inset-0`: dentro de un ancestro con transform (la barra de acciones,
+    // los globos al entrar) esa capa solo cubre ese ancestro y el clic fuera no cerraba nada. Lo que lleva
+    // `data-selector-reacciones` (la bandeja y el botón que la abre) no la cierra. Esc se atiende en
+    // captura y no sigue: si no, además cerraría el chat.
     useEffect(() => {
         if (reactionPickerFor === null) return;
         const alPulsar = (e: PointerEvent) => {
@@ -4679,50 +4676,21 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 <div className="relative" data-selector-reacciones>
                                                     <button
                                                         onClick={() => setReactionPickerFor(reactionPickerFor === message.id ? null : message.id)}
+                                                        aria-expanded={reactionPickerFor === message.id}
                                                         className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
                                                         aria-label={t('conversations.react')} title={t('conversations.react')}
                                                     >
                                                         <SmilePlus className="w-4 h-4" />
                                                     </button>
-                                                    <AnimatePresence>
-                                                    {reactionPickerFor === message.id && (
-                                                        <motion.div
-                                                            key="reaction-picker"
-                                                            initial={{ opacity: 0, scale: 0.6, y: 12 }}
-                                                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                            exit={{ opacity: 0, scale: 0.8, y: 8 }}
-                                                            transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-                                                            style={{ transformOrigin: 'bottom center' }}
-                                                            className={`absolute z-30 bottom-full mb-2 flex items-center gap-0.5 rounded-full bg-white dark:bg-neutral-800 border border-[#e9edef] dark:border-neutral-700 shadow-xl px-2 py-1.5 ${message.is_from_user ? 'left-0' : 'right-0'}`}
-                                                        >
-                                                            {QUICK_REACTIONS.map((emoji, i) => (
-                                                                <motion.button
-                                                                    key={emoji}
-                                                                    initial={{ opacity: 0, scale: 0, y: 10 }}
-                                                                    animate={{ opacity: 1, scale: 1, y: 0, transition: { delay: 0.04 + i * 0.035, type: 'spring', stiffness: 600, damping: 18 } }}
-                                                                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                                                                    whileHover={{ scale: 1.35, y: -14, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
-                                                                    whileTap={{ scale: 0.9, transition: { duration: 0.12, ease: [0.22, 1, 0.36, 1] } }}
-                                                                    // Reaccionar al PRESIONAR (pointerdown), no al click: whileHover/whileTap
-                                                                    // desplazan y encogen el emoji, así que al soltar el puntero ya no está
-                                                                    // encima y el navegador nunca dispara "click" → la reacción se perdía.
-                                                                    onPointerDown={(e) => { if (e.button === 0) handleReact(message, emoji); }}
-                                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleReact(message, emoji); } }}
-                                                                    aria-label={REACTION_LABELS[emoji]}
-                                                                    className="group relative flex items-center justify-center cursor-pointer rounded-full px-1 py-1 text-[26px] leading-none"
-                                                                >
-                                                                    <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-1.5 py-0.5 text-[10px] font-semibold text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:bg-white dark:text-black">
-                                                                        {REACTION_LABELS[emoji]}
-                                                                    </span>
-                                                                    {emoji}
-                                                                </motion.button>
-                                                            ))}
-                                                        </motion.div>
-                                                    )}
-                                                    </AnimatePresence>
                                                 </div>
                                             </div>
                                             )}
+                                            <SelectorReacciones
+                                                abierto={reactionPickerFor === message.id && !isLockedByOther}
+                                                propia={!message.is_from_user}
+                                                actual={message.reactions?.find(r => !r.from_user)?.emoji}
+                                                onElegir={(emoji) => handleReact(message, emoji)}
+                                            />
                                             <div className={`flex flex-col ${message.is_from_user ? 'items-start' : 'items-end'}`}>
                                             <div
                                                 id={`msg-${message.id}`}
@@ -4917,19 +4885,20 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <span title={formatFullDateTime(message.created_at)} className={`text-[10px] ${message.is_from_user ? 'text-[#667781] dark:text-neutral-500' : 'text-[#557d6b] dark:text-white/55'}`}>{formatTime(message.created_at)}</span>
                                                     {!message.is_from_user && getStatusIcon(message.status, message.error_message)}
                                                 </div>
-                                                {message.reactions && message.reactions.length > 0 && (
-                                                    <div className="absolute left-2 -bottom-2.5 z-10 flex gap-1">
-                                                        {message.reactions.map(r => (
-                                                            <span
-                                                                key={`${r.from_user}-${r.id}-${r.emoji}`}
-                                                                className="inline-flex items-center rounded-full bg-white dark:bg-neutral-800 px-1.5 py-0.5 text-[13px] leading-none shadow-md ring-1 ring-black/5 dark:ring-white/10"
-                                                                title={r.from_user ? (selectedConversation?.contact_name || t('conversations.customer')) : t('conversations.agent')}
-                                                            >
-                                                                {r.emoji}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                {/* Reacciones: la del paciente y la del asesor en una sola pastilla, como WhatsApp (montada siempre para el salto al llegar) */}
+                                                {(() => {
+                                                    const reacciones = message.reactions ?? [];
+                                                    const mia = !isLockedByOther ? reacciones.find(r => !r.from_user) : undefined;
+                                                    const quien = reacciones.map(r => `${r.from_user ? (selectedConversation?.contact_name || t('conversations.customer')) : t('conversations.agent')} ${r.emoji}`).join(' · ');
+                                                    return (
+                                                        <PastillaReacciones
+                                                            emojis={reacciones.map(r => r.emoji)}
+                                                            propia={!message.is_from_user}
+                                                            titulo={mia ? `${quien} · ${t('reactions.removeYours')}` : quien}
+                                                            onQuitar={mia ? () => handleReact(message, mia.emoji) : undefined}
+                                                        />
+                                                    );
+                                                })()}
                                             </div>
                                             </div>
                                           </div>

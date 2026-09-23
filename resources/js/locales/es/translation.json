@@ -1860,12 +1860,6 @@
         "checkWarnings_other": "Hay {{count}} avisos sobre las columnas (revisa el paso 3)"
     },
     "internalChat": {
-        "reactionLike": "Me gusta",
-        "reactionLove": "Me encanta",
-        "reactionHaha": "Me divierte",
-        "reactionWow": "Me asombra",
-        "reactionSad": "Me entristece",
-        "reactionThanks": "Gracias",
         "filterAll": "Todos",
         "filterUnread": "No leídos",
         "filterGroups": "Grupos",
@@ -2395,5 +2389,16 @@
         "headingDescription": "Personaliza el tema visual de la aplicación",
         "themeLabel": "Tema",
         "themeDescription": "Selecciona el modo de visualización que prefieras"
+    },
+    "reactions": {
+        "tray": "Reacciones",
+        "like": "Me gusta",
+        "love": "Me encanta",
+        "haha": "Me divierte",
+        "wow": "Me asombra",
+        "sad": "Me entristece",
+        "thanks": "Gracias",
+        "more": "Más emojis",
+        "removeYours": "pulsa para quitar la tuya"
     }
 }

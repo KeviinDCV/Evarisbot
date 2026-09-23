@@ -34,7 +34,7 @@ import {
     ZoomOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { motion } from 'framer-motion';
+import { SelectorReacciones } from '@/components/selector-reacciones';
 import axios from 'axios';
 import { Textarea } from '@/components/ui/textarea';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -169,17 +169,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     // IA local (LM Studio): indicador "escribiendo…" mientras el chatbot genera su respuesta
     const [aiTyping, setAiTyping] = useState(false);
 
-    // Reacciones (emoji) a mensajes
-    const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-    const REACTION_LABELS: Record<string, string> = {
-        '👍': t('internalChat.reactionLike'), '❤️': t('internalChat.reactionLove'), '😂': t('internalChat.reactionHaha'),
-        '😮': t('internalChat.reactionWow'), '😢': t('internalChat.reactionSad'), '🙏': t('internalChat.reactionThanks'),
-    };
+    // Reacciones (emoji) a mensajes: qué mensaje tiene abierta la bandeja (components/selector-reacciones).
     const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
-    // El selector de reacciones se cierra al pulsar fuera de él o con Esc. No sirve una capa
-    // `fixed inset-0`: la barra que lo contiene lleva `-translate-y-1/2`, y un transform hace de esa
-    // barra el contenedor de sus hijos `position: fixed` (la capa solo cubría la barra y el clic fuera
-    // no cerraba nada). Esc se atiende en captura y no sigue: si no, además cerraría el chat.
+    // La bandeja de reacciones se cierra al pulsar fuera de ella o con Esc. Se escucha el documento en
+    // vez de poner una capa `fixed inset-0`: dentro de un ancestro con transform (la barra de acciones,
+    // los globos al entrar) esa capa solo cubre ese ancestro y el clic fuera no cerraba nada. Lo que lleva
+    // `data-selector-reacciones` (la bandeja y el botón que la abre) no la cierra. Esc se atiende en
+    // captura y no sigue: si no, además cerraría el chat.
     useEffect(() => {
         if (reactionPickerFor === null) return;
         const alPulsar = (e: PointerEvent) => {
@@ -1791,50 +1787,13 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => setReactionPickerFor(reactionPickerFor === msg.id ? null : msg.id)}
+                                                                            aria-expanded={reactionPickerFor === msg.id}
                                                                             className={cn(BOTON_ICONO_CHAT, 'size-7')}
                                                                             title={t('internalChat.react')}
                                                                             aria-label={t('internalChat.react')}
                                                                         >
                                                                             <SmilePlus className="size-4" strokeWidth={1.9} aria-hidden="true" />
                                                                         </button>
-                                                                        {reactionPickerFor === msg.id && (
-                                                                            <>
-                                                                                <motion.div
-                                                                                    initial={{ opacity: 0, scale: 0.6, y: 12 }}
-                                                                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                                                                    transition={{ type: 'spring', stiffness: 500, damping: 22 }}
-                                                                                    style={{ transformOrigin: 'bottom center' }}
-                                                                                    className={cn(
-                                                                                        'absolute bottom-full z-30 mb-2 flex h-[46px] items-center gap-0.5 rounded-full bg-white px-1.5 dark:bg-neutral-900',
-                                                                                        SOMBRA_FLOTA,
-                                                                                        propia ? 'right-0' : 'left-0'
-                                                                                    )}
-                                                                                >
-                                                                                    {QUICK_REACTIONS.map((emoji, i) => (
-                                                                                        <motion.button
-                                                                                            key={emoji}
-                                                                                            initial={{ opacity: 0, scale: 0, y: 10 }}
-                                                                                            animate={{ opacity: 1, scale: 1, y: 0, transition: { delay: 0.04 + i * 0.035, type: 'spring', stiffness: 600, damping: 18 } }}
-                                                                                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                                                                                            whileHover={{ scale: 1.35, y: -14, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } }}
-                                                                                            whileTap={{ scale: 0.9, transition: { duration: 0.12, ease: [0.22, 1, 0.36, 1] } }}
-                                                                                            // Reaccionar al PRESIONAR (pointerdown), no al click: whileHover/whileTap
-                                                                                            // desplazan y encogen el emoji, así que al soltar el puntero ya no está
-                                                                                            // encima y el navegador nunca dispara "click" → la reacción se perdía.
-                                                                                            onPointerDown={(e) => { if (e.button === 0) handleReact(msg, emoji); }}
-                                                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleReact(msg, emoji); } }}
-                                                                                            aria-label={REACTION_LABELS[emoji]}
-                                                                                            className="group relative flex size-[38px] cursor-pointer items-center justify-center rounded-full text-[24px] leading-none hover:bg-[#2e3f84]/7 dark:hover:bg-white/8"
-                                                                                        >
-                                                                                            <span className="pointer-events-none absolute -top-[26px] left-1/2 flex h-5 -translate-x-1/2 items-center rounded-md bg-[#1c2238] px-[7px] text-[11px] leading-[14px] font-semibold whitespace-nowrap text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 dark:bg-white dark:text-[#1c2238]">
-                                                                                                {REACTION_LABELS[emoji]}
-                                                                                            </span>
-                                                                                            {emoji}
-                                                                                        </motion.button>
-                                                                                    ))}
-                                                                                </motion.div>
-                                                                            </>
-                                                                        )}
                                                                     </div>
                                                                     <button
                                                                         type="button"
@@ -1858,12 +1817,19 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                     )}
                                                                 </div>
                                                             </div>
+
+                                                            {/* Bandeja de reacciones, sobre el globo (se abre con el botón de la barra o desde el menú del mensaje) */}
+                                                            <SelectorReacciones
+                                                                abierto={reactionPickerFor === msg.id}
+                                                                propia={propia}
+                                                                actual={msg.reactions?.find(r => r.mine)?.emoji}
+                                                                onElegir={(emoji) => handleReact(msg, emoji)}
+                                                                tono="navy"
+                                                            />
                                                         </div>
 
-                                                        {/* Reacciones */}
-                                                        {msg.reactions && msg.reactions.length > 0 && (
-                                                            <Reacciones reacciones={msg.reactions} propia={propia} onReaccionar={(emoji) => handleReact(msg, emoji)} tituloQuitar={t('internalChat.vista.removeYours')} />
-                                                        )}
+                                                        {/* Reacciones (montadas siempre: así las que llegan después aparecen con un salto) */}
+                                                        <Reacciones reacciones={msg.reactions ?? []} propia={propia} onReaccionar={(emoji) => handleReact(msg, emoji)} tituloQuitar={t('internalChat.vista.removeYours')} />
 
                                                         {/* Vistos */}
                                                         {readersHere.length > 0 && (

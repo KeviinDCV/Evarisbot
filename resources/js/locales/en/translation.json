@@ -1860,12 +1860,6 @@
         "checkWarnings_other": "There are {{count}} warnings about the columns (check step 3)"
     },
     "internalChat": {
-        "reactionLike": "Like",
-        "reactionLove": "Love",
-        "reactionHaha": "Haha",
-        "reactionWow": "Wow",
-        "reactionSad": "Sad",
-        "reactionThanks": "Thanks",
         "filterAll": "All",
         "filterUnread": "Unread",
         "filterGroups": "Groups",
@@ -2395,5 +2389,16 @@
         "headingDescription": "Customize the app's visual theme",
         "themeLabel": "Theme",
         "themeDescription": "Select your preferred display mode"
+    },
+    "reactions": {
+        "tray": "Reactions",
+        "like": "Like",
+        "love": "Love",
+        "haha": "Haha",
+        "wow": "Wow",
+        "sad": "Sad",
+        "thanks": "Thanks",
+        "more": "More emojis",
+        "removeYours": "click to remove yours"
     }
 }

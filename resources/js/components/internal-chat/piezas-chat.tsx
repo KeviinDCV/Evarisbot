@@ -1,5 +1,6 @@
 import { FOCO, TEXTO_NAVY, nombrePropio } from '@/components/appointments/piezas-citas';
 import { cn } from '@/lib/utils';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Bot, Download, FileSpreadsheet, FileText, Info, Paperclip, Reply, Users, X, type LucideIcon } from 'lucide-react';
 import { forwardRef, type ButtonHTMLAttributes, type MouseEvent, type ReactNode, type TouchEvent } from 'react';
 
@@ -460,7 +461,11 @@ export function MetaMensaje({ hora, editado, textoEditado, propia, textoEnviado 
     );
 }
 
-/** Chips de reacciones bajo el globo. `mia` resalta la tuya (pulsar la quita). */
+/**
+ * Chips de reacciones bajo el globo. `mia` resalta la tuya (pulsar la quita). Se monta SIEMPRE (vacío no
+ * ocupa sitio): así una reacción que llega después aparece con un pequeño salto, mientras que al abrir el
+ * chat las que ya estaban no saltan. La que se quita se va al momento, a la vez que su hueco.
+ */
 export function Reacciones({
     reacciones,
     propia,
@@ -472,26 +477,32 @@ export function Reacciones({
     onReaccionar: (emoji: string) => void;
     tituloQuitar: string;
 }) {
+    const reducir = useReducedMotion();
     return (
-        <div className={cn('relative z-[2] -mt-[7px] flex flex-wrap gap-1', propia ? 'justify-end pr-2.5' : 'pl-2.5')}>
-            {reacciones.map((r) => (
-                <button
-                    key={r.emoji}
-                    type="button"
-                    onClick={() => onReaccionar(r.emoji)}
-                    title={`${r.users.map(nombreVisible).join(', ')}${r.mine ? ` · ${tituloQuitar}` : ''}`}
-                    className={cn(
-                        'inline-flex h-6 cursor-pointer items-center gap-1 rounded-full pr-[7px] pl-1.5 transition-transform hover:scale-105 active:scale-95',
-                        FOCO,
-                        r.mine
-                            ? 'bg-[#e5e9f6] shadow-[0_0_0_1px_rgba(46,63,132,0.42),0_1px_2px_rgba(46,63,132,0.08)] dark:bg-[#2c3766] dark:shadow-[0_0_0_1px_rgba(180,191,240,0.5)]'
-                            : 'bg-white shadow-[0_0_0_1px_rgba(46,63,132,0.14),0_1px_2px_rgba(46,63,132,0.08)] dark:bg-neutral-800 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.14)]'
-                    )}
-                >
-                    <span className="text-[13px] leading-none">{r.emoji}</span>
-                    {r.count > 1 && <span className={cn('text-[11.5px] leading-3 font-semibold tabular-nums', r.mine ? ACENTO : GRIS)}>{r.count}</span>}
-                </button>
-            ))}
+        <div className={cn('relative z-[2] flex flex-wrap gap-1', reacciones.length > 0 && '-mt-[7px]', propia ? 'justify-end pr-2.5' : 'pl-2.5')}>
+            <AnimatePresence initial={false}>
+                {reacciones.map((r) => (
+                    <motion.button
+                        key={r.emoji}
+                        type="button"
+                        initial={reducir ? { opacity: 0 } : { scale: 0 }}
+                        animate={{ opacity: 1, scale: 1, transition: { duration: reducir ? 0.01 : 0.32, ease: [0.34, 1.56, 0.64, 1] } }}
+                        // e.detail > 1: el segundo clic de un doble clic no vuelve a alternar la reacción.
+                        onClick={(e) => { if (e.detail <= 1) onReaccionar(r.emoji); }}
+                        title={`${r.users.map(nombreVisible).join(', ')}${r.mine ? ` · ${tituloQuitar}` : ''}`}
+                        className={cn(
+                            'inline-flex h-6 cursor-pointer items-center gap-1 rounded-full pr-[7px] pl-1.5 transition-[scale] hover:scale-105 active:scale-95',
+                            FOCO,
+                            r.mine
+                                ? 'bg-[#e5e9f6] shadow-[0_0_0_1px_rgba(46,63,132,0.42),0_1px_2px_rgba(46,63,132,0.08)] dark:bg-[#2c3766] dark:shadow-[0_0_0_1px_rgba(180,191,240,0.5)]'
+                                : 'bg-white shadow-[0_0_0_1px_rgba(46,63,132,0.14),0_1px_2px_rgba(46,63,132,0.08)] dark:bg-neutral-800 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.14)]'
+                        )}
+                    >
+                        <span className="text-[13px] leading-none">{r.emoji}</span>
+                        {r.count > 1 && <span className={cn('text-[11.5px] leading-3 font-semibold tabular-nums', r.mine ? ACENTO : GRIS)}>{r.count}</span>}
+                    </motion.button>
+                ))}
+            </AnimatePresence>
         </div>
     );
 }
