@@ -84,9 +84,9 @@ export default function CreateTemplate() {
 
     const getFileTypeLabel = (type: 'image' | 'video' | 'document') => {
         switch (type) {
-            case 'image': return 'Imagen';
-            case 'video': return 'Video';
-            default: return 'Documento';
+            case 'image': return t('templates.fileTypeImage');
+            case 'video': return t('templates.fileTypeVideo');
+            default: return t('templates.fileTypeDocument');
         }
     };
 
@@ -135,7 +135,7 @@ export default function CreateTemplate() {
 
                     {/* Form */}
                     <div className="max-w-2xl mx-auto">
-                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
+                        <form onSubmit={handleSubmit} className="card-gradient rounded-2xl shadow-lg shadow-[#2e3f84]/5 p-4 sm:p-8 space-y-5 md:space-y-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
                             {/* Nombre */}
                             <div className="space-y-2">
                                 <Label htmlFor="name" className="text-sm font-medium settings-label">
@@ -176,10 +176,10 @@ export default function CreateTemplate() {
                             {/* Archivos Adjuntos (Opcional - Múltiples) */}
                             <div className="space-y-2">
                                 <Label className="text-sm font-medium settings-label">
-                                    Archivos adjuntos (opcional)
+                                    {t('templates.attachmentsLabel')}
                                 </Label>
                                 <p className="text-xs settings-subtitle mb-2">
-                                    Puedes adjuntar múltiples imágenes, videos o documentos. Formatos soportados: JPG, PNG, GIF, WebP (se convierte a PNG), MP4, MOV, PDF, DOC. Máximo 20MB por archivo.
+                                    {t('templates.attachmentsHelp')}
                                 </p>
 
                                 <input
@@ -197,13 +197,13 @@ export default function CreateTemplate() {
                                         {selectedFiles.map((mediaFile, index) => (
                                             <div
                                                 key={index}
-                                                className="p-3 rounded-xl user-stats-box bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800"
+                                                className="p-3 rounded-xl user-stats-box bg-white/50 dark:bg-black/20"
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {mediaFile.preview ? (
-                                                        <img src={mediaFile.preview} alt="Preview" className="w-12 h-12 object-cover rounded-lg" />
+                                                        <img src={mediaFile.preview} alt={t('templates.previewAlt')} className="w-12 h-12 object-cover rounded-xl" />
                                                     ) : (
-                                                        <div className="w-12 h-12 chat-message-sent rounded-lg flex items-center justify-center text-white">
+                                                        <div className="w-12 h-12 chat-message-sent rounded-xl flex items-center justify-center text-white">
                                                             {getFileIcon(mediaFile.type)}
                                                         </div>
                                                     )}
@@ -235,19 +235,19 @@ export default function CreateTemplate() {
                                     {selectedFiles.length === 0 ? (
                                         <>
                                             <Paperclip className="w-8 h-8" />
-                                            <span className="text-sm">Haz clic para seleccionar archivos</span>
+                                            <span className="text-sm">{t('templates.clickToSelectFiles')}</span>
                                         </>
                                     ) : (
                                         <>
                                             <Plus className="w-6 h-6" />
-                                            <span className="text-sm">Agregar más archivos</span>
+                                            <span className="text-sm">{t('templates.addMoreFiles')}</span>
                                         </>
                                     )}
                                 </button>
 
                                 {selectedFiles.length > 0 && (
                                     <p className="text-xs settings-subtitle mt-2">
-                                        {selectedFiles.length} archivo{selectedFiles.length !== 1 ? 's' : ''} seleccionado{selectedFiles.length !== 1 ? 's' : ''}
+                                        {t('templates.filesSelectedCount', { count: selectedFiles.length })}
                                     </p>
                                 )}
                                 <InputError message={(errors as any).media_files} />
@@ -256,7 +256,7 @@ export default function CreateTemplate() {
                             {/* Tipo de Plantilla */}
                             <div className="space-y-3">
                                 <Label className="text-sm font-medium settings-label">
-                                    Tipo de Plantilla
+                                    {t('templates.templateType')}
                                 </Label>
                                 <div className="space-y-2">
                                     <label className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-xl cursor-pointer transition-colors template-radio-option">
@@ -272,8 +272,8 @@ export default function CreateTemplate() {
                                         />
                                         <Globe className="w-5 h-5 settings-title" />
                                         <div>
-                                            <p className="font-medium settings-title">Plantilla Global</p>
-                                            <p className="text-sm settings-subtitle">Disponible para todos los asesores y administradores</p>
+                                            <p className="font-medium settings-title">{t('templates.globalTemplate')}</p>
+                                            <p className="text-sm settings-subtitle">{t('templates.globalTemplateDescription')}</p>
                                         </div>
                                     </label>
                                     <label className="flex items-center space-x-3 p-3 border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-xl cursor-pointer transition-colors template-radio-option">
@@ -286,8 +286,8 @@ export default function CreateTemplate() {
                                         />
                                         <Users className="w-5 h-5 settings-title" />
                                         <div>
-                                            <p className="font-medium settings-title">Plantilla Asignada</p>
-                                            <p className="text-sm settings-subtitle">Disponible solo para los usuarios seleccionados</p>
+                                            <p className="font-medium settings-title">{t('templates.assignedTemplate')}</p>
+                                            <p className="text-sm settings-subtitle">{t('templates.assignedTemplateDescription')}</p>
                                         </div>
                                     </label>
                                 </div>
@@ -298,7 +298,7 @@ export default function CreateTemplate() {
                                 <div className="space-y-3">
                                     <Label className="text-sm font-medium settings-label">
                                         <UserCheck className="inline w-4 h-4 mr-2" />
-                                        Asignar a Usuarios
+                                        {t('templates.assignToUsers')}
                                     </Label>
                                     <div className="max-h-40 overflow-y-auto border border-[#e2e4ed] dark:border-[hsl(231,20%,22%)] rounded-xl p-3 space-y-2 template-users-list p-1">
                                         {users?.map((user: any) => (
@@ -326,7 +326,7 @@ export default function CreateTemplate() {
                                         ))}
                                     </div>
                                     {data.assigned_users.length === 0 && !data.is_global && (
-                                        <p className="text-sm text-amber-600 dark:text-amber-400">Debes seleccionar al menos un usuario</p>
+                                        <p className="text-sm text-amber-600 dark:text-amber-400">{t('templates.selectAtLeastOneUser')}</p>
                                     )}
                                 </div>
                             )}

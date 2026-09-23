@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class InternalMessage extends Model
 {
@@ -17,7 +18,17 @@ class InternalMessage extends Model
         'file_mime',
         'file_size',
         'reply_to_id',
+        'edited_at',
     ];
+
+    protected $casts = [
+        'edited_at' => 'datetime',
+    ];
+
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(InternalMessageReaction::class);
+    }
 
     public function chat(): BelongsTo
     {

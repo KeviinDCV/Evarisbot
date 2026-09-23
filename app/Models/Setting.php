@@ -22,12 +22,17 @@ class Setting extends Model
     ];
 
     /**
-     * Lista de configuraciones que siempre deben estar encriptadas
+     * Lista de configuraciones que siempre deben estar encriptadas.
+     * Estar aquí también hace que getPreview() la enmascare: sin groq_api_key en la lista, la
+     * pantalla de Configuración recibía la API key ENTERA en las props de la página.
+     * Una key guardada antes de este cambio sigue en claro (su fila tiene is_encrypted = false y
+     * get() la lee según esa marca); se cifra la próxima vez que se guarde desde Configuración.
      */
     protected static $encryptedKeys = [
         'whatsapp_token',
         'whatsapp_verify_token',
         'whatsapp_app_secret',
+        'groq_api_key',
     ];
 
     /**

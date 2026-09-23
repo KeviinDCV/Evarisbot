@@ -15,8 +15,11 @@ return [
     |
     */
 
+    // Desactivado a propósito: el cliente arranca con createRoot (resources/js/app.tsx), no
+    // con hydrateRoot, así que el SSR nunca se usó. Con 'enabled' => true Laravel intentaba
+    // alcanzar el servidor SSR en cada request antes de caer al render de cliente.
     'ssr' => [
-        'enabled' => true,
+        'enabled' => false,
         'url' => 'http://127.0.0.1:13714',
         // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
 

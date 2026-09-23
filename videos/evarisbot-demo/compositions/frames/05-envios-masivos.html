@@ -1,0 +1,609 @@
+<template>
+  <div data-hf-id="hf-my0x" id="root" data-composition-id="05-envios-masivos" data-duration="9.5" data-width="1920" data-height="1080">
+    <style>
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-400-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-500-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-600-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 700;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-700-normal.woff2') format('woff2');
+    }
+
+    
+    
+    
+    
+
+      #root,
+      #root *,
+      #root *::before,
+      #root *::after {
+        box-sizing: border-box;
+      }
+
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: 'Instrument Sans', system-ui, sans-serif;
+        color: #1c1f2e;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ---- full-bleed ground (never on #root) ---- */
+      .em5-bg {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1920px;
+        height: 1080px;
+        background: #f0f2f8;
+      }
+
+      /* ---- rótulo / cabecera ---- */
+      .em5-head {
+        position: absolute;
+        left: 0;
+        top: 96px;
+        width: 1920px;
+        text-align: center;
+        transform-origin: 50% 0%;
+      }
+      .em5-rule {
+        width: 64px;
+        height: 4px;
+        border-radius: 2px;
+        background: #2e3f84;
+        margin: 0 auto 22px;
+      }
+      .em5-title {
+        font-size: 46px;
+        font-weight: 600;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        color: #1c1f2e;
+        white-space: nowrap;
+      }
+
+      /* ---- superficie del asistente ---- */
+      .em5-card {
+        position: absolute;
+        left: 220px;
+        top: 224px;
+        width: 1480px;
+        height: 632px;
+        padding: 50px 60px;
+        background: #ffffff;
+        border-radius: 16px;
+        box-shadow:
+          0 24px 60px rgba(28, 31, 46, 0.09),
+          0 3px 10px rgba(28, 31, 46, 0.04);
+        display: flex;
+        flex-direction: column;
+        transform-origin: 50% 50%;
+      }
+
+      .em5-row-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 40px;
+      }
+      .em5-eyebrow {
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        color: #2e3f84;
+      }
+      .em5-pill {
+        font-size: 20px;
+        font-weight: 500;
+        color: #2e3f84;
+        background: rgba(46, 63, 132, 0.08);
+        border-radius: 100px;
+        padding: 8px 22px;
+        line-height: 1.2;
+      }
+
+      /* ---- pasos ---- */
+      .em5-steps {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        margin-top: 52px;
+        height: 62px;
+      }
+      .em5-step {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+      }
+      .em5-badge {
+        position: relative;
+        width: 62px;
+        height: 62px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(46, 63, 132, 0.08);
+        transform-origin: 50% 50%;
+        flex: 0 0 auto;
+      }
+      .em5-num {
+        font-size: 26px;
+        font-weight: 600;
+        color: #5c6485;
+        line-height: 1;
+      }
+      .em5-chk {
+        position: absolute;
+        left: 14px;
+        top: 14px;
+        width: 34px;
+        height: 34px;
+        opacity: 0;
+      }
+      .em5-chk path {
+        fill: none;
+        stroke: #ffffff;
+        stroke-width: 2.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .em5-label {
+        font-size: 34px;
+        font-weight: 500;
+        color: #767b90;
+        white-space: nowrap;
+      }
+
+      .em5-step[data-state="active"] .em5-badge {
+        background: #2e3f84;
+      }
+      .em5-step[data-state="active"] .em5-num {
+        color: #ffffff;
+      }
+      .em5-step[data-state="active"] .em5-label {
+        color: #1c1f2e;
+        font-weight: 600;
+      }
+
+      .em5-step[data-state="done"] .em5-badge {
+        background: #059669;
+      }
+      .em5-step[data-state="done"] .em5-num {
+        opacity: 0;
+      }
+      .em5-step[data-state="done"] .em5-chk {
+        opacity: 1;
+      }
+      .em5-step[data-state="done"] .em5-label {
+        color: #1c1f2e;
+        font-weight: 600;
+      }
+
+      .em5-conn {
+        flex: 1 1 auto;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(46, 63, 132, 0.12);
+        overflow: hidden;
+      }
+      .em5-conn-fill {
+        width: 100%;
+        height: 100%;
+        background: #059669;
+        border-radius: 2px;
+        transform-origin: 0% 50%;
+      }
+
+      /* ---- progreso ---- */
+      .em5-progress {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        margin-top: 66px;
+      }
+      .em5-count-line {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        height: 132px;
+      }
+      .em5-count {
+        display: inline-block;
+        min-width: 250px;
+        font-size: 132px;
+        font-weight: 700;
+        line-height: 1;
+        color: #2e3f84;
+        font-variant-numeric: tabular-nums;
+        transform-origin: 0% 100%;
+      }
+      .em5-count-suffix {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: #059669;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        flex: 0 0 auto;
+      }
+      .em5-count-suffix svg {
+        width: 26px;
+        height: 26px;
+      }
+      .em5-count-suffix path {
+        fill: none;
+        stroke: #ffffff;
+        stroke-width: 2.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .em5-count-label {
+        margin-top: 10px;
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        color: #5c6485;
+      }
+      .em5-pct {
+        min-width: 180px;
+        text-align: right;
+        font-size: 54px;
+        font-weight: 600;
+        line-height: 1;
+        color: #5c6485;
+        font-variant-numeric: tabular-nums;
+        padding-bottom: 6px;
+      }
+
+      .em5-track {
+        margin-top: 30px;
+        height: 26px;
+        border-radius: 6px;
+        background: rgba(46, 63, 132, 0.1);
+        overflow: hidden;
+      }
+      .em5-fill {
+        width: 100%;
+        height: 100%;
+        border-radius: 6px;
+        background: #2e3f84;
+        transform-origin: 0% 50%;
+      }
+
+      /* ---- apoyo final ---- */
+      .em5-support {
+        margin-top: 34px;
+        text-align: center;
+        font-size: 30px;
+        font-weight: 400;
+        line-height: 1.3;
+        color: #5c6485;
+      }
+      .em5-support span {
+        display: inline-block;
+      }
+    </style>
+
+    <div data-hf-id="hf-9mm2" class="clip em5-bg" data-start="0" data-duration="10" data-track-index="0"></div>
+
+    <div data-hf-id="hf-0smg" class="clip em5-head" id="em5-head" data-start="0" data-duration="10" data-track-index="1">
+      <div data-hf-id="hf-nnfy" class="em5-rule"></div>
+      <div data-hf-id="hf-glgh" class="em5-title">Avisar a cientos de pacientes, en minutos.</div>
+    </div>
+
+    <div data-hf-id="hf-74j7" class="clip em5-card" id="em5-card" data-start="0" data-duration="10" data-track-index="2">
+      <div data-hf-id="hf-mn6n" class="em5-row-head">
+        <div data-hf-id="hf-aes9" class="em5-eyebrow">ENVÍO MASIVO</div>
+        <div data-hf-id="hf-ava7" class="em5-pill">WhatsApp</div>
+      </div>
+
+      <div data-hf-id="hf-vyol" class="em5-steps">
+        <div data-hf-id="hf-5i4w" class="em5-step" id="em5-step-1" data-state="pending">
+          <div data-hf-id="hf-6kpm" class="em5-badge" id="em5-badge-1">
+            <span data-hf-id="hf-tqwe" class="em5-num">1</span>
+            <svg data-hf-id="hf-7ys6" class="em5-chk" viewBox="0 0 24 24">
+              <path data-hf-id="hf-j2u6" id="em5-chk-1" d="M5.6 12.4 L10.1 16.9 L18.4 7.9" />
+            </svg>
+          </div>
+          <div data-hf-id="hf-e6ml" class="em5-label">Plantilla</div>
+        </div>
+
+        <div data-hf-id="hf-51ny" class="em5-conn"><div data-hf-id="hf-wihu" class="em5-conn-fill" id="em5-conn-1"></div></div>
+
+        <div data-hf-id="hf-gdmj" class="em5-step" id="em5-step-2" data-state="pending">
+          <div data-hf-id="hf-0ezt" class="em5-badge" id="em5-badge-2">
+            <span data-hf-id="hf-u57f" class="em5-num">2</span>
+            <svg data-hf-id="hf-d3ui" class="em5-chk" viewBox="0 0 24 24">
+              <path data-hf-id="hf-f4q5" id="em5-chk-2" d="M5.6 12.4 L10.1 16.9 L18.4 7.9" />
+            </svg>
+          </div>
+          <div data-hf-id="hf-su5w" class="em5-label">Destinatarios</div>
+        </div>
+
+        <div data-hf-id="hf-csky" class="em5-conn"><div data-hf-id="hf-skdt" class="em5-conn-fill" id="em5-conn-2"></div></div>
+
+        <div data-hf-id="hf-a7wq" class="em5-step" id="em5-step-3" data-state="pending">
+          <div data-hf-id="hf-znc0" class="em5-badge" id="em5-badge-3">
+            <span data-hf-id="hf-ujig" class="em5-num">3</span>
+            <svg data-hf-id="hf-di5j" class="em5-chk" viewBox="0 0 24 24">
+              <path data-hf-id="hf-ed2c" id="em5-chk-3" d="M5.6 12.4 L10.1 16.9 L18.4 7.9" />
+            </svg>
+          </div>
+          <div data-hf-id="hf-vo6j" class="em5-label">Enviar</div>
+        </div>
+      </div>
+
+      <div data-hf-id="hf-z13p" class="em5-progress">
+        <div data-hf-id="hf-yeow">
+          <div data-hf-id="hf-xjee" class="em5-count-line" id="em5-count-line">
+            <span data-hf-id="hf-1ppr" class="em5-count" id="em5-count">0</span>
+            <span data-hf-id="hf-sg5x" class="em5-count-suffix" id="em5-suffix">
+              <svg data-hf-id="hf-y9f5" viewBox="0 0 24 24"><path data-hf-id="hf-rram" d="M5.6 12.4 L10.1 16.9 L18.4 7.9" /></svg>
+            </span>
+          </div>
+          <div data-hf-id="hf-kn3f" class="em5-count-label" id="em5-count-label">ENVIADOS</div>
+        </div>
+        <div data-hf-id="hf-m03j" class="em5-pct" id="em5-pct">0%</div>
+      </div>
+
+      <div data-hf-id="hf-5j7d" class="em5-track"><div data-hf-id="hf-25c2" class="em5-fill" id="em5-fill"></div></div>
+
+      <div data-hf-id="hf-q7a1" class="em5-support">
+        <span data-hf-id="hf-18lf" id="em5-sup-1">Un festivo,</span>
+        <span data-hf-id="hf-ogtz" id="em5-sup-2">un cambio de sede,</span>
+        <span data-hf-id="hf-9kw7" id="em5-sup-3">una cancelación masiva.</span>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        var FRAME_ID = "05-envios-masivos";
+        var scope = document.querySelector('[data-composition-id="' + FRAME_ID + '"]') || document;
+        var q = function (sel) {
+          return scope.querySelector(sel);
+        };
+
+        var head = q("#em5-head");
+        var card = q("#em5-card");
+        var countEl = q("#em5-count");
+        var countLine = q("#em5-count-line");
+        var countLabel = q("#em5-count-label");
+        var suffix = q("#em5-suffix");
+        var pctEl = q("#em5-pct");
+        var fill = q("#em5-fill");
+
+        var steps = [q("#em5-step-1"), q("#em5-step-2"), q("#em5-step-3")];
+        var badges = [q("#em5-badge-1"), q("#em5-badge-2"), q("#em5-badge-3")];
+        var checks = [q("#em5-chk-1"), q("#em5-chk-2"), q("#em5-chk-3")];
+        var conns = [q("#em5-conn-1"), q("#em5-conn-2")];
+        var sup = [q("#em5-sup-1"), q("#em5-sup-2"), q("#em5-sup-3")];
+
+        /* ---- deterministic start states (no CSS-hidden entrances, no transitions) ---- */
+        gsap.set(fill, { scaleX: 0 });
+        gsap.set(conns, { scaleX: 0 });
+        var chkLen = checks.map(function (p) {
+          var len = p.getTotalLength();
+          p.style.strokeDasharray = len;
+          p.style.strokeDashoffset = len;
+          return len;
+        });
+        countEl.textContent = "0";
+        pctEl.textContent = "0%";
+
+        window.__timelines = window.__timelines || {};
+        var tl = gsap.timeline({ paused: true });
+        window.__timelines[FRAME_ID] = tl;
+
+        /* ================= Scene 1 (0.0–1.6) — solo el rótulo ================= */
+        tl.fromTo(
+          head,
+          { opacity: 0, y: 386, scale: 1.55 },
+          { opacity: 1, y: 354, scale: 1.55, duration: 0.7, ease: "power3.out" },
+          0.04,
+        );
+
+        /* ========== Scene 2 (1.6–2.4) — rótulo a cabecera + entra la superficie ========== */
+        tl.fromTo(
+          head,
+          { y: 354, scale: 1.55 },
+          { y: 0, scale: 1, duration: 0.8, ease: "power3.inOut", immediateRender: false },
+          1.56,
+        );
+        tl.fromTo(
+          card,
+          { opacity: 0, y: 46, scale: 0.975 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.85, ease: "power3.out" },
+          1.62,
+        );
+
+        /* ========== Scene 3 (2.4–4.8) — los pasos se encienden en orden ==========
+           dynamic-content-sequencing: pre-computed state table + one linear driver;
+           the DOM is written only on state transitions (seek-safe, no callbacks). */
+        var STEP_STATES = [
+          { t: 0.0, s: ["pending", "pending", "pending"] },
+          { t: 2.4, s: ["active", "pending", "pending"] },
+          { t: 3.1, s: ["done", "active", "pending"] },
+          { t: 3.8, s: ["done", "done", "active"] },
+          { t: 7.0, s: ["done", "done", "done"] },
+        ];
+
+        function stateAt(time) {
+          for (var i = STEP_STATES.length - 1; i >= 0; i--) {
+            if (time >= STEP_STATES[i].t) return STEP_STATES[i].s;
+          }
+          return STEP_STATES[0].s;
+        }
+
+        var driver = { t: 0 };
+        var lastKey = "";
+        tl.to(
+          driver,
+          {
+            t: 9.5,
+            duration: 9.5,
+            ease: "none",
+            onUpdate: function () {
+              var s = stateAt(driver.t);
+              var key = s.join("|");
+              if (key === lastKey) return;
+              lastKey = key;
+              for (var i = 0; i < 3; i++) steps[i].setAttribute("data-state", s[i]);
+            },
+          },
+          0,
+        );
+
+        /* badge scale bounce on each flip + checkmark draw-in on completion */
+        var BOUNCE = [
+          [badges[0], 2.4],
+          [badges[0], 3.1],
+          [badges[1], 3.1],
+          [badges[1], 3.8],
+          [badges[2], 3.8],
+          [badges[2], 7.0],
+        ];
+        BOUNCE.forEach(function (b) {
+          tl.fromTo(
+            b[0],
+            { scale: 0.78 },
+            { scale: 1, duration: 0.5, ease: "back.out(2.2)" },
+            b[1],
+          );
+        });
+
+        [3.1, 3.8, 7.0].forEach(function (at, i) {
+          tl.fromTo(
+            checks[i],
+            { strokeDashoffset: chkLen[i] },
+            {
+              strokeDashoffset: 0,
+              duration: 0.34,
+              ease: "power2.out",
+              immediateRender: false,
+            },
+            at,
+          );
+        });
+
+        tl.fromTo(conns[0], { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power2.out" }, 3.14);
+        tl.fromTo(conns[1], { scaleX: 0 }, { scaleX: 1, duration: 0.45, ease: "power2.out" }, 3.84);
+
+        /* ========== Scene 4 (4.8–7.2) — la barra corre y el contador cuenta ==========
+           stat-bars-and-fills (scaleX from a left origin) + counting-dynamic-scale
+           (proxy value + transform growth) sharing start, duration and ease. */
+        tl.fromTo(
+          [countLine, pctEl],
+          { opacity: 0, y: 18 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+          4.5,
+        );
+
+        var COUNT_AT = 4.8;
+        var COUNT_DUR = 2.2;
+        var COUNT_EASE = "power2.out";
+        var TARGET = 217;
+
+        var sent = { v: 0 };
+        tl.to(
+          sent,
+          {
+            v: TARGET,
+            duration: COUNT_DUR,
+            ease: COUNT_EASE,
+            onUpdate: function () {
+              countEl.textContent = String(Math.round(sent.v));
+            },
+          },
+          COUNT_AT,
+        );
+        tl.fromTo(
+          countEl,
+          { scale: 0.56 },
+          { scale: 1, duration: COUNT_DUR, ease: COUNT_EASE },
+          COUNT_AT,
+        );
+
+        var pct = { v: 0 };
+        tl.to(
+          pct,
+          {
+            v: 100,
+            duration: COUNT_DUR,
+            ease: COUNT_EASE,
+            onUpdate: function () {
+              pctEl.textContent = Math.round(pct.v) + "%";
+            },
+          },
+          COUNT_AT,
+        );
+
+        tl.fromTo(
+          fill,
+          { scaleX: 0 },
+          { scaleX: 1, duration: COUNT_DUR, ease: COUNT_EASE },
+          COUNT_AT,
+        );
+
+        /* label arrives before the count peaks; the suffix lands after it */
+        tl.fromTo(
+          countLabel,
+          { opacity: 0, y: 14 },
+          { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+          COUNT_AT + 0.3,
+        );
+        tl.fromTo(
+          suffix,
+          { opacity: 0, scale: 0.4 },
+          { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(1.6)" },
+          COUNT_AT + COUNT_DUR,
+        );
+
+        /* one slow camera-ish push on the surface across the send (single move) */
+        tl.fromTo(
+          card,
+          { scale: 1 },
+          { scale: 1.02, duration: 4.2, ease: "sine.inOut", immediateRender: false },
+          4.8,
+        );
+
+        /* ================= Scene 5 (7.2–9.0) — apoyo final ================= */
+        sup.forEach(function (el, i) {
+          tl.fromTo(
+            el,
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" },
+            7.22 + i * 0.26,
+          );
+        });
+      })();
+    </script>
+  </div>
+</template>

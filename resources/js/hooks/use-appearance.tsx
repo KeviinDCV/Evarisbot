@@ -18,10 +18,22 @@ const getSystemTheme = (): 'light' | 'dark' => {
 
 const applyTheme = (appearance: Appearance) => {
     const isDark = appearance === 'dark' || (appearance === 'system' && getSystemTheme() === 'dark');
-    
+
     document.documentElement.classList.toggle('dark', isDark);
     document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
 };
+
+// Última posición del puntero: es el origen del círculo de la transición de tema
+// (el botón donde se hizo clic). Se registra en fase de captura para tenerla lista
+// justo cuando updateAppearance se dispara desde el onClick del botón.
+let lastPointerPosition: { x: number; y: number } | null = null;
+if (typeof window !== 'undefined') {
+    window.addEventListener(
+        'pointerdown',
+        (e) => { lastPointerPosition = { x: e.clientX, y: e.clientY }; },
+        { capture: true },
+    );
+}
 
 export function initializeTheme() {
     const saved = localStorage.getItem('appearance') as Appearance | null;
@@ -44,7 +56,32 @@ export function useAppearance() {
         setAppearance(mode);
         localStorage.setItem('appearance', mode);
         setCookie('appearance', mode);
-        applyTheme(mode);
+
+        const doc = document as Document & {
+            startViewTransition?: (callback: () => void) => unknown;
+        };
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        // Sin View Transitions API (o con "reducir movimiento" activo): cambio instantáneo.
+        if (!doc.startViewTransition || prefersReducedMotion) {
+            applyTheme(mode);
+            return;
+        }
+
+        // Origen del círculo = último clic (el botón de tema); si no hubo (activación por
+        // teclado) usa el centro. Radio = distancia a la esquina más lejana, para que el
+        // círculo alcance a cubrir toda la pantalla salga desde donde salga.
+        const { innerWidth: w, innerHeight: h } = window;
+        const x = lastPointerPosition?.x ?? w / 2;
+        const y = lastPointerPosition?.y ?? h / 2;
+        const radius = Math.hypot(Math.max(x, w - x), Math.max(y, h - y));
+
+        const root = document.documentElement;
+        root.style.setProperty('--theme-x', `${x}px`);
+        root.style.setProperty('--theme-y', `${y}px`);
+        root.style.setProperty('--theme-r', `${radius}px`);
+
+        doc.startViewTransition(() => applyTheme(mode));
     }, []);
 
     useEffect(() => {

@@ -1,34 +1,74 @@
 import { router, useForm } from '@inertiajs/react';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { useTranslation } from 'react-i18next';
+import { toast } from '@/lib/toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BOTON_PELIGRO_LLENO, BOTON_PRIMARIO, BOTON_SECUNDARIO, FILETE, FOCO, HOJA, MONO, TEXTO_NAVY, TEXTO_SUAVE } from '@/components/appointments/piezas-citas';
+import { Banda, Nota, Rotulo, miles } from '@/components/bulk-sends/piezas-envio';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+    AREA,
+    AYUDA,
+    BOTON_ICONO,
+    BOTON_TEXTO_NAVY,
+    BOTON_TEXTO_ROJO,
+    BurbujaEntra,
+    CAMPO,
+    Chip,
+    DISPARADOR,
+    DialogoPlantilla,
+    ERROR_CAMPO,
+    ETIQUETA,
+    EstadoPunto,
+    Interruptor,
+    MENU,
+    OPCION,
+    QueSeBorra,
+    fechaDia,
+} from '@/components/templates/piezas-plantillas';
+import { cn } from '@/lib/utils';
 import {
+    ArrowRight,
     Bot,
-    Plus,
-    Trash2,
-    Power,
-    PowerOff,
-    Edit,
-    MessageSquare,
-    Sparkles,
-    MousePointerClick,
     ChevronDown,
-    ChevronUp,
+    CircleDot,
+    CornerDownRight,
+    Edit3,
+    Flag,
+    Info,
+    Keyboard,
+    List,
+    MessageSquare,
+    MousePointerClick,
+    Plus,
     Save,
+    Trash2,
+    Workflow,
+    X,
+    type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 
 interface WelcomeFlowButton {
     id: string;
     title: string;
+}
+
+interface WelcomeFlowListRow {
+    id: string;
+    title: string;
+    description?: string | null;
+}
+
+interface WelcomeFlowStep {
+    id: number | string;
+    step_key: string;
+    message: string;
+    message_type: 'interactive_buttons' | 'interactive_list' | 'wait_response' | 'text' | string;
+    buttons?: WelcomeFlowButton[] | null;
+    // Lista de WhatsApp (interactive_list): { button_text, sections: [{ title, rows: [{ id, title }] }] }.
+    options?: { button_text?: string | null; sections?: { title?: string | null; rows?: WelcomeFlowListRow[] | null }[] | null } | null;
+    next_steps?: Record<string, string> | null;
+    next_step_on_text?: string | null;
+    is_entry_point?: boolean;
 }
 
 interface WelcomeFlow {
@@ -43,6 +83,7 @@ interface WelcomeFlow {
     updated_by: number | null;
     creator?: { name: string } | null;
     updater?: { name: string } | null;
+    steps?: WelcomeFlowStep[] | null;
     created_at: string;
     updated_at: string;
 }
@@ -51,10 +92,36 @@ interface WelcomeFlowSectionProps {
     welcomeFlows: WelcomeFlow[];
 }
 
+/* ── Menú de bienvenida (diseño aprobado, design/vista-plantillas) ─────────────────────────────────
+   Cada flujo es una fila con su interruptor (POST /toggle: encender uno apaga los demás, y la pantalla
+   lo dice). El flujo abierto muestra sus pasos como burbujas de WhatsApp, tal como los vive el paciente;
+   cada botón u opción dice a qué paso lleva. Crear, editar, encender y eliminar hacen las mismas
+   llamadas de siempre; eliminar pregunta en un diálogo propio (antes era window.confirm). */
+
+const sendsKeys: Record<string, string> = {
+    first_contact: 'welcomeFlow.vista.sendsFirstContact',
+    every_new_conversation: 'welcomeFlow.vista.sendsEveryNew',
+    always: 'welcomeFlow.vista.sendsAlways',
+};
+
+const TIPO_PASO: Record<string, [LucideIcon, string]> = {
+    interactive_buttons: [MousePointerClick, 'welcomeFlow.messageTypeButtons'],
+    interactive_list: [List, 'welcomeFlow.vista.messageTypeList'],
+    wait_response: [Keyboard, 'welcomeFlow.messageTypeWaitResponse'],
+    text: [MessageSquare, 'welcomeFlow.messageTypeText'],
+};
+
+const FIN = '__complete__';
+
 export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionProps) {
+    const { t, i18n } = useTranslation();
+    const lng = i18n.language;
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingFlow, setEditingFlow] = useState<WelcomeFlow | null>(null);
-    const [expandedFlowId, setExpandedFlowId] = useState<number | null>(null);
+    // Abierto de salida: el flujo encendido (el que el paciente vive hoy).
+    const [expandedFlowId, setExpandedFlowId] = useState<number | null>(() => welcomeFlows.find((flow) => flow.is_active)?.id ?? null);
+    const [flowToDelete, setFlowToDelete] = useState<WelcomeFlow | null>(null);
+    const seguroBorrar = useRef<HTMLButtonElement>(null);
 
     const { data, setData, post, put, processing, errors, reset } = useForm<{
         name: string;
@@ -71,6 +138,12 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
         is_active: false,
         trigger_type: 'first_contact',
     });
+
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setEditingFlow(null);
+        reset();
+    };
 
     const openCreateModal = () => {
         reset();
@@ -99,64 +172,58 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
         setIsModalOpen(true);
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = (event: FormEvent) => {
+        event.preventDefault();
 
         if (editingFlow) {
             put(`/admin/welcome-flows/${editingFlow.id}`, {
                 preserveScroll: true,
-                onSuccess: () => {
-                    setIsModalOpen(false);
-                    setEditingFlow(null);
-                    reset();
-                },
+                onSuccess: () => closeModal(),
             });
-        } else {
-            post('/admin/welcome-flows', {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setIsModalOpen(false);
-                    reset();
-                },
-            });
+            return;
         }
+
+        post('/admin/welcome-flows', {
+            preserveScroll: true,
+            onSuccess: () => closeModal(),
+        });
     };
 
     const addButton = () => {
-        if (data.buttons.length >= 3) return; // WhatsApp limit
+        if (data.buttons.length >= 3) return;
+
         const newId = `btn_${Date.now()}`;
         setData('buttons', [...data.buttons, { id: newId, title: '' }]);
     };
 
     const removeButton = (index: number) => {
         const buttonId = data.buttons[index].id;
-        const newButtons = data.buttons.filter((_, i) => i !== index);
-        const newResponses = { ...data.responses };
-        delete newResponses[buttonId];
-        setData((prev) => ({
-            ...prev,
-            buttons: newButtons,
-            responses: newResponses,
-        }));
+        const nextButtons = data.buttons.filter((_, buttonIndex) => buttonIndex !== index);
+        const nextResponses = { ...data.responses };
+        delete nextResponses[buttonId];
+
+        setData({ ...data, buttons: nextButtons, responses: nextResponses });
     };
 
     const updateButton = (index: number, field: 'id' | 'title', value: string) => {
-        const newButtons = [...data.buttons];
+        const nextButtons = [...data.buttons];
+
         if (field === 'title') {
-            newButtons[index] = { ...newButtons[index], title: value.slice(0, 20) };
-        } else {
-            // If changing id, update responses key as well
-            const oldId = newButtons[index].id;
-            newButtons[index] = { ...newButtons[index], id: value };
-            const newResponses = { ...data.responses };
-            if (newResponses[oldId]) {
-                newResponses[value] = newResponses[oldId];
-                delete newResponses[oldId];
-            }
-            setData((prev) => ({ ...prev, buttons: newButtons, responses: newResponses }));
+            nextButtons[index] = { ...nextButtons[index], title: value.slice(0, 20) };
+            setData('buttons', nextButtons);
             return;
         }
-        setData('buttons', newButtons);
+
+        const oldId = nextButtons[index].id;
+        nextButtons[index] = { ...nextButtons[index], id: value };
+        const nextResponses = { ...data.responses };
+
+        if (nextResponses[oldId]) {
+            nextResponses[value] = nextResponses[oldId];
+            delete nextResponses[oldId];
+        }
+
+        setData({ ...data, buttons: nextButtons, responses: nextResponses });
     };
 
     const updateResponse = (buttonId: string, value: string) => {
@@ -164,571 +231,564 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
     };
 
     const toggleFlowStatus = (flowId: number) => {
-        router.post(`/admin/welcome-flows/${flowId}/toggle`, {}, {
+        router.post(
+            `/admin/welcome-flows/${flowId}/toggle`,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success(t('welcomeFlow.statusUpdated')),
+                onError: () => toast.error(t('welcomeFlow.statusUpdateError')),
+            }
+        );
+    };
+
+    /** Eliminar pasa por su diálogo; al confirmar, la MISMA llamada de antes. */
+    const deleteFlow = (flowId: number) => {
+        router.delete(`/admin/welcome-flows/${flowId}`, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Estado del flujo actualizado'),
+            onSuccess: () => toast.success(t('welcomeFlow.deleted')),
+            onError: () => toast.error(t('welcomeFlow.deleteError')),
         });
     };
 
-    const deleteFlow = (flowId: number) => {
-        if (confirm('¿Estás seguro de eliminar este flujo de bienvenida?')) {
-            router.delete(`/admin/welcome-flows/${flowId}`, {
-                preserveScroll: true,
-                onSuccess: () => toast.success('Flujo eliminado'),
-                onError: () => toast.error('Error al eliminar el flujo'),
-            });
-        }
+    const confirmDeleteFlow = () => {
+        if (!flowToDelete) return;
+        const id = flowToDelete.id;
+        setFlowToDelete(null);
+        deleteFlow(id);
     };
 
-    const triggerTypeLabels: Record<string, string> = {
-        first_contact: 'Primer contacto',
-        every_new_conversation: 'Cada conversación nueva',
-        always: 'Siempre',
+    const activeFlow = welcomeFlows.find((flow) => flow.is_active) ?? null;
+    const inactivos = welcomeFlows.filter((flow) => !flow.is_active);
+
+    /** "6 pasos" · "mensaje con 2 botones" · "solo mensaje". */
+    const resumenFlujo = (flow: WelcomeFlow) => {
+        const steps = flow.steps || [];
+        const buttons = flow.buttons || [];
+        if (steps.length > 0) return t('welcomeFlow.stepsCount', { count: steps.length });
+        if (buttons.length > 0) return t('welcomeFlow.vista.buttonsMessage', { count: buttons.length });
+        return t('welcomeFlow.vista.onlyMessage');
     };
+
+    /** A qué paso lleva: el step_key en mono o "Fin". */
+    const destino = (clave?: string | null) => {
+        if (!clave) return null;
+        if (clave === FIN)
+            return (
+                <span className={cn('inline-flex items-center gap-[5px] text-[12px] leading-4 font-semibold whitespace-nowrap', TEXTO_SUAVE)}>
+                    <Flag className="size-3" strokeWidth={2} aria-hidden="true" />
+                    {t('welcomeFlow.flowEnd')}
+                </span>
+            );
+        return <span className={cn('text-[12px] leading-4 font-semibold whitespace-nowrap', MONO, TEXTO_NAVY)}>{clave}</span>;
+    };
+
+    const salida = (Icono: LucideIcon, texto: ReactNode, clave?: string | null, key?: string | number) => (
+        <div key={key} className={cn('flex min-h-[30px] items-center gap-2 border-t py-1', FILETE)}>
+            <Icono className={cn('size-[13px] shrink-0', TEXTO_SUAVE)} strokeWidth={2} aria-hidden="true" />
+            <span className={cn('min-w-0 flex-1 truncate text-[12.5px] leading-4 font-medium', TEXTO_NAVY)}>{texto}</span>
+            {clave && (
+                <>
+                    <ArrowRight className={cn('size-[13px] shrink-0', TEXTO_SUAVE)} strokeWidth={2} aria-hidden="true" />
+                    <span className="sr-only">{t('welcomeFlow.vista.goesTo')}</span>
+                    {destino(clave)}
+                </>
+            )}
+        </div>
+    );
+
+    const tarjeta = (cabeza: ReactNode, cuerpo: ReactNode, pie: ReactNode, key: string | number) => (
+        <li
+            key={key}
+            className="flex min-w-0 flex-col gap-2.5 rounded-xl bg-white px-3.5 pt-3 pb-2 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] dark:bg-white/[0.03] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+        >
+            <div className="flex min-w-0 flex-wrap items-center gap-2">{cabeza}</div>
+            {cuerpo}
+            {pie ? <div className="flex flex-col">{pie}</div> : <div className="h-1" />}
+        </li>
+    );
+
+    const tarjetaPaso = (step: WelcomeFlowStep, index: number) => {
+        const [IconoTipo, claveTipo] = TIPO_PASO[step.message_type] ?? [MessageSquare, ''];
+        const botones = step.buttons || [];
+        const filas = (step.options?.sections ?? []).flatMap((s) => s.rows ?? []);
+        const siguientes = step.next_steps ?? {};
+        let botonesBurbuja: ReactNode[] = [];
+        let pie: ReactNode = null;
+
+        if (step.message_type === 'interactive_buttons' || (botones.length > 0 && step.message_type !== 'interactive_list')) {
+            botonesBurbuja = botones.map((b) => (
+                <span key={b.id} className="flex w-full min-w-0 items-center justify-between gap-2">
+                    <span className="min-w-0 truncate">{b.title}</span>
+                    {siguientes[b.id] && (
+                        <span className={cn('inline-flex shrink-0 items-center gap-[5px]', TEXTO_SUAVE)} title={t('welcomeFlow.vista.goesToStep', { step: siguientes[b.id] })}>
+                            <ArrowRight className="size-3" strokeWidth={2} aria-hidden="true" />
+                            <span className="sr-only">{t('welcomeFlow.vista.goesTo')}</span>
+                            {destino(siguientes[b.id])}
+                        </span>
+                    )}
+                </span>
+            ));
+        } else if (step.message_type === 'interactive_list') {
+            botonesBurbuja = [
+                <span key="lista" className="inline-flex items-center gap-1.5">
+                    <List className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                    {step.options?.button_text || t('welcomeFlow.vista.seeOptions')}
+                </span>,
+            ];
+            pie = filas.map((r, i) => salida(List, r.title, siguientes[r.id], `${r.id}-${i}`));
+        }
+
+        if (!pie && step.message_type !== 'interactive_buttons') {
+            pie = step.next_step_on_text
+                ? salida(Keyboard, t('welcomeFlow.vista.whenPatientWrites'), step.next_step_on_text)
+                : (
+                      <div className={cn('flex min-h-[30px] items-center gap-2 border-t py-1 text-[12.5px] leading-4', FILETE, TEXTO_SUAVE)}>
+                          <CornerDownRight className="size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                          {t('welcomeFlow.vista.pathEnds')}
+                      </div>
+                  );
+        }
+
+        return tarjeta(
+            <>
+                <span
+                    className={cn(
+                        'flex size-[22px] shrink-0 items-center justify-center rounded-full text-[11.5px] leading-[14px] font-semibold text-white tabular-nums',
+                        step.is_entry_point ? 'bg-emerald-700' : 'bg-[#2e3f84] dark:bg-[#4e5fa4]'
+                    )}
+                >
+                    {index + 1}
+                </span>
+                <span className={cn('min-w-0 flex-1 truncate text-[12.5px] leading-4 font-semibold', MONO, TEXTO_NAVY)}>{step.step_key}</span>
+                {step.is_entry_point && (
+                    <Chip icon={CircleDot} tono="ok">
+                        {t('welcomeFlow.entryPoint')}
+                    </Chip>
+                )}
+                <Chip icon={IconoTipo}>{claveTipo ? t(claveTipo) : step.message_type}</Chip>
+            </>,
+            <BurbujaEntra texto={step.message} botones={botonesBurbuja} />,
+            pie,
+            step.id
+        );
+    };
+
+    /** Flujo sin pasos: el mensaje con sus botones y, por cada botón, su respuesta automática. */
+    const tarjetasMensaje = (flow: WelcomeFlow) => {
+        const buttons = flow.buttons || [];
+        const responses = flow.responses || {};
+        return [
+            tarjeta(
+                <>
+                    <span className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[11.5px] leading-[14px] font-semibold text-white">1</span>
+                    <span className={cn('min-w-0 flex-1 truncate text-[12.5px] leading-4 font-semibold', TEXTO_NAVY)}>{t('welcomeFlow.welcomeMessage')}</span>
+                    <Chip icon={CircleDot} tono="ok">
+                        {t('welcomeFlow.entryPoint')}
+                    </Chip>
+                </>,
+                <BurbujaEntra texto={flow.message} botones={buttons.map((b) => b.title)} />,
+                null,
+                'mensaje'
+            ),
+            ...buttons.map((b, i) =>
+                tarjeta(
+                    <>
+                        <span className="flex size-[22px] shrink-0 items-center justify-center rounded-full bg-[#2e3f84] text-[11.5px] leading-[14px] font-semibold text-white tabular-nums dark:bg-[#4e5fa4]">{i + 2}</span>
+                        <span className={cn('min-w-0 flex-1 truncate text-[12.5px] leading-4 font-semibold', TEXTO_NAVY)}>{t('welcomeFlow.vista.ifPresses', { button: b.title })}</span>
+                    </>,
+                    responses[b.id] ? (
+                        <BurbujaEntra texto={responses[b.id]} />
+                    ) : (
+                        <p className={cn('flex items-center gap-2 text-[12.5px] leading-4', TEXTO_SUAVE)}>
+                            <CornerDownRight className="size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                            {t('welcomeFlow.vista.noAutoResponse')}
+                        </p>
+                    ),
+                    null,
+                    `r-${b.id}-${i}`
+                )
+            ),
+        ];
+    };
+
+    /* ── Formulario: preview del paciente, aviso de pasos e interruptor ── */
+    const editingSteps = editingFlow?.steps?.length ?? 0;
+    const otroEncendido = activeFlow && activeFlow.id !== editingFlow?.id ? activeFlow : null;
+    const flowToDeleteSteps = flowToDelete ? resumenFlujo(flowToDelete) : '';
 
     return (
         <>
-            {/* Sección Menú de Bienvenida */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div
-                            className="p-2.5 rounded-xl"
-                            style={{
-                                background: 'linear-gradient(135deg, var(--primary-base), var(--primary-darker))',
-                                boxShadow: '0 4px 12px rgba(46, 63, 132, 0.3)',
-                            }}
-                        >
-                            <Bot className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <h2
-                                className="font-bold settings-title"
-                                style={{ fontSize: 'var(--text-lg)' }}
-                            >
-                                Menú de Bienvenida
-                            </h2>
-                            <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                                Respuesta automática cuando un contacto nuevo escribe por WhatsApp
-                            </p>
-                        </div>
-                    </div>
-                    <Button
-                        onClick={openCreateModal}
-                        className="font-semibold text-white transition-all duration-200 border-0 relative overflow-hidden rounded-xl"
-                        style={{
-                            backgroundColor: 'var(--primary-base)',
-                            boxShadow: 'var(--shadow-md)',
-                            backgroundImage: 'var(--gradient-shine)',
-                            height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                            padding: '0 var(--space-lg)',
-                            fontSize: 'var(--text-sm)',
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                        }}
-                    >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Nuevo flujo
-                    </Button>
-                </div>
+            <section id="menu-bienvenida" aria-labelledby="menu-bienvenida-titulo" className={cn(HOJA, 'scroll-mt-4')}>
+                <Banda
+                    id="menu-bienvenida-titulo"
+                    icon={Bot}
+                    titulo={t('welcomeFlow.sectionTitle')}
+                    cuenta={miles(welcomeFlows.length, lng)}
+                    texto={t('welcomeFlow.vista.sectionText')}
+                    className={cn('rounded-t-2xl', welcomeFlows.length === 0 && 'border-b-0')}
+                    acciones={
+                        <button type="button" onClick={openCreateModal} aria-haspopup="dialog" className={BOTON_PRIMARIO}>
+                            <Plus strokeWidth={2} aria-hidden="true" />
+                            {t('welcomeFlow.newFlow')}
+                        </button>
+                    }
+                />
 
                 {welcomeFlows.length === 0 ? (
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 p-8 text-center">
-                        <Sparkles className="w-12 h-12 mx-auto mb-4 settings-subtitle opacity-40" />
-                        <h3
-                            className="font-bold mb-2 settings-title"
-                            style={{ fontSize: 'var(--text-lg)' }}
-                        >
-                            Sin flujos de bienvenida
-                        </h3>
-                        <p className="settings-subtitle mb-4" style={{ fontSize: 'var(--text-sm)' }}>
-                            Crea un menú de bienvenida para responder automáticamente a los nuevos contactos.
-                        </p>
-                        <Button
-                            onClick={openCreateModal}
-                            style={{ backgroundColor: 'var(--primary-base)', color: 'white' }}
-                            className="rounded-xl"
-                        >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Crear flujo de bienvenida
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="space-y-3">
-                        {welcomeFlows.map((flow) => (
-                            <div
-                                key={flow.id}
-                                className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-lg shadow-[#2e3f84]/5 overflow-hidden transition-all duration-300"
-                            >
-                                {/* Header del flujo */}
-                                <div className="p-4 md:p-5 flex items-center justify-between">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div
-                                            className={`p-2 rounded-lg transition-colors ${flow.is_active
-                                                ? 'bg-green-100 dark:bg-green-900/30'
-                                                : 'bg-gray-100 dark:bg-gray-800/50'
-                                                }`}
-                                        >
-                                            <MessageSquare
-                                                className={`w-4 h-4 ${flow.is_active
-                                                    ? 'text-green-600 dark:text-green-400'
-                                                    : 'text-gray-400 dark:text-gray-500'
-                                                    }`}
-                                            />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <h3
-                                                    className="font-semibold settings-title truncate"
-                                                    style={{ fontSize: 'var(--text-base)' }}
-                                                >
-                                                    {flow.name}
-                                                </h3>
-                                                <span
-                                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${flow.is_active
-                                                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                                        : 'bg-gray-100 text-gray-500 dark:bg-gray-800/50 dark:text-gray-400'
-                                                        }`}
-                                                >
-                                                    {flow.is_active ? 'Activo' : 'Inactivo'}
-                                                </span>
-                                            </div>
-                                            <p
-                                                className="settings-subtitle truncate mt-0.5"
-                                                style={{ fontSize: 'var(--text-xs)' }}
-                                            >
-                                                {triggerTypeLabels[flow.trigger_type]}
-                                                {(flow as any).steps?.length > 0
-                                                    ? ` · ${(flow as any).steps.length} paso(s)`
-                                                    : ` · ${flow.buttons?.length || 0} botón(es)`}
-                                                {flow.creator &&
-                                                    ` · Creado por ${flow.creator.name}`}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2 ml-4">
-                                        <button
-                                            onClick={() =>
-                                                setExpandedFlowId(
-                                                    expandedFlowId === flow.id ? null : flow.id,
-                                                )
-                                            }
-                                            className="p-2 rounded-lg hover:bg-accent transition-colors settings-subtitle"
-                                            title="Ver detalles"
-                                        >
-                                            {expandedFlowId === flow.id ? (
-                                                <ChevronUp className="w-4 h-4" />
-                                            ) : (
-                                                <ChevronDown className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={() => toggleFlowStatus(flow.id)}
-                                            className={`p-2 rounded-lg transition-colors ${flow.is_active
-                                                ? 'hover:bg-red-50 dark:hover:bg-red-900/20 text-green-600 dark:text-green-400'
-                                                : 'hover:bg-green-50 dark:hover:bg-green-900/20 text-gray-400 dark:text-gray-500'
-                                                }`}
-                                            title={flow.is_active ? 'Desactivar' : 'Activar'}
-                                        >
-                                            {flow.is_active ? (
-                                                <Power className="w-4 h-4" />
-                                            ) : (
-                                                <PowerOff className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={() => openEditModal(flow)}
-                                            className="p-2 rounded-lg hover:bg-accent transition-colors settings-subtitle"
-                                            title="Editar"
-                                        >
-                                            <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={() => deleteFlow(flow.id)}
-                                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-                                            title="Eliminar"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Detalle expandido */}
-                                {expandedFlowId === flow.id && (
-                                    <div className="border-t border-border dark:border-[hsl(231,20%,20%)] p-4 md:p-5 animate-in fade-in slide-in-from-top-1 duration-200">
-                                        {/* Si tiene steps, mostrar flujo multi-paso */}
-                                        {(flow as any).steps && (flow as any).steps.length > 0 ? (
-                                            <div className="space-y-4">
-                                                <Label className="settings-label mb-2 block font-semibold" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    Flujo conversacional ({(flow as any).steps.length} pasos)
-                                                </Label>
-                                                {(flow as any).steps.map((step: any, stepIdx: number) => (
-                                                    <div key={step.id}>
-                                                        {/* Step card */}
-                                                        <div className="relative p-4 rounded-xl border border-border dark:border-[hsl(231,20%,20%)] bg-background/50">
-                                                            {/* Step header */}
-                                                            <div className="flex items-center gap-2 mb-3">
-                                                                <div
-                                                                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${step.is_entry_point
-                                                                        ? 'bg-green-500'
-                                                                        : step.step_key === 'rejected' || step.step_key === '__complete__'
-                                                                            ? 'bg-red-400'
-                                                                            : 'bg-[var(--primary-base)]'
-                                                                        }`}
-                                                                    style={
-                                                                        !step.is_entry_point && step.step_key !== 'rejected'
-                                                                            ? { backgroundColor: 'var(--primary-base)' }
-                                                                            : {}
-                                                                    }
-                                                                >
-                                                                    {stepIdx + 1}
-                                                                </div>
-                                                                <div className="flex-1">
-                                                                    <span className="text-sm font-semibold settings-title">
-                                                                        {step.step_key}
-                                                                    </span>
-                                                                    <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-accent settings-subtitle">
-                                                                        {step.message_type === 'interactive_buttons'
-                                                                            ? '🔘 Botones'
-                                                                            : step.message_type === 'wait_response'
-                                                                                ? '⌨️ Espera texto'
-                                                                                : '💬 Texto'}
-                                                                    </span>
-                                                                    {step.is_entry_point && (
-                                                                        <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                                                                            Punto de entrada
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Message bubble */}
-                                                            <div className="bg-[#e7f8d4] dark:bg-[#1b3a1a] p-3 rounded-2xl rounded-tl-none max-w-lg shadow-sm mb-3">
-                                                                <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                                                    {step.message.length > 200
-                                                                        ? step.message.slice(0, 200) + '...'
-                                                                        : step.message}
-                                                                </p>
-                                                            </div>
-
-                                                            {/* Buttons preview */}
-                                                            {step.buttons && step.buttons.length > 0 && (
-                                                                <div className="flex gap-2 flex-wrap mb-2">
-                                                                    {step.buttons.map((btn: any) => (
-                                                                        <div
-                                                                            key={btn.id}
-                                                                            className="px-3 py-1.5 rounded-lg border border-[#25D366]/30 bg-white dark:bg-gray-800 font-medium text-xs flex items-center gap-1.5"
-                                                                        >
-                                                                            <MousePointerClick className="w-3 h-3 text-[#25D366]" />
-                                                                            {btn.title}
-                                                                            {step.next_steps?.[btn.id] && (
-                                                                                <span className="text-[9px] text-muted-foreground ml-1">
-                                                                                    → {step.next_steps[btn.id]}
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-
-                                                            {/* Wait response indicator */}
-                                                            {step.message_type === 'wait_response' && (
-                                                                <div className="flex items-center gap-2 text-xs settings-subtitle italic">
-                                                                    <span>⏳ Esperando respuesta de texto del usuario</span>
-                                                                    {step.next_step_on_text && (
-                                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent">
-                                                                            → {step.next_step_on_text === '__complete__' ? '✅ Fin' : step.next_step_on_text}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Connection arrow */}
-                                                        {stepIdx < (flow as any).steps.length - 1 && (
-                                                            <div className="flex justify-center py-1">
-                                                                <div className="w-px h-4 bg-border dark:bg-[hsl(231,20%,25%)]" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            /* Fallback: flujo simple sin steps */
-                                            <>
-                                                <div className="mb-4">
-                                                    <Label className="settings-label mb-2 block font-semibold" style={{ fontSize: 'var(--text-xs)' }}>
-                                                        Mensaje de bienvenida
-                                                    </Label>
-                                                    <div className="bg-[#e7f8d4] dark:bg-[#1b3a1a] p-4 rounded-2xl rounded-tl-none max-w-lg shadow-sm">
-                                                        <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-                                                            {flow.message}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                {flow.buttons && flow.buttons.length > 0 && (
-                                                    <div className="mb-4">
-                                                        <Label className="settings-label mb-2 block font-semibold" style={{ fontSize: 'var(--text-xs)' }}>
-                                                            Botones interactivos
-                                                        </Label>
-                                                        <div className="flex gap-2 flex-wrap">
-                                                            {flow.buttons.map((btn) => (
-                                                                <div
-                                                                    key={btn.id}
-                                                                    className="px-4 py-2 rounded-xl border-2 border-[#25D366]/30 bg-white dark:bg-gray-800 font-medium text-sm flex items-center gap-2"
-                                                                >
-                                                                    <MousePointerClick className="w-3.5 h-3.5 text-[#25D366]" />
-                                                                    {btn.title}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Modal Crear/Editar Flujo */}
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="card-gradient sm:max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar border border-white/40 dark:border-white/10">
-                    <DialogHeader>
-                        <DialogTitle className="settings-title flex items-center gap-2" style={{ fontSize: 'var(--text-xl)' }}>
-                            <Bot className="w-5 h-5" />
-                            {editingFlow ? 'Editar flujo de bienvenida' : 'Nuevo flujo de bienvenida'}
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    <form onSubmit={handleSubmit} className="space-y-5 mt-2">
-                        {/* Nombre del flujo */}
-                        <div>
-                            <Label htmlFor="flow-name" className="settings-label font-semibold" style={{ fontSize: 'var(--text-sm)' }}>
-                                Nombre del flujo
-                            </Label>
-                            <Input
-                                id="flow-name"
-                                value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
-                                placeholder="Ej: Menú de Bienvenida HUV"
-                                className="mt-1.5 settings-input rounded-xl"
-                                required
-                            />
-                            {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-                        </div>
-
-                        {/* Tipo de activación */}
-                        <div>
-                            <Label htmlFor="flow-trigger" className="settings-label font-semibold" style={{ fontSize: 'var(--text-sm)' }}>
-                                ¿Cuándo se envía?
-                            </Label>
-                            <select
-                                id="flow-trigger"
-                                value={data.trigger_type}
-                                onChange={(e) => setData('trigger_type', e.target.value)}
-                                className="mt-1.5 w-full settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 cursor-pointer"
-                                style={{
-                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                    fontSize: 'var(--text-sm)',
-                                    padding: '0 2.5rem 0 var(--space-base)',
-                                    appearance: 'none',
-                                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-                                    backgroundRepeat: 'no-repeat',
-                                    backgroundPosition: 'right 0.75rem center',
-                                    backgroundSize: '1rem',
-                                }}
-                            >
-                                <option value="first_contact">Solo primer contacto (contacto nuevo)</option>
-                                <option value="every_new_conversation">Cada conversación nueva</option>
-                                <option value="always">Siempre (cada mensaje)</option>
-                            </select>
-                        </div>
-
-                        {/* Mensaje de bienvenida */}
-                        <div>
-                            <Label htmlFor="flow-message" className="settings-label font-semibold" style={{ fontSize: 'var(--text-sm)' }}>
-                                Mensaje de bienvenida
-                            </Label>
-                            <Textarea
-                                id="flow-message"
-                                value={data.message}
-                                onChange={(e) => setData('message', e.target.value)}
-                                placeholder="Escribe el mensaje que recibirá el usuario al escribir por primera vez..."
-                                className="mt-1.5 settings-input rounded-xl min-h-[150px]"
-                                required
-                            />
-                            <p className="text-xs settings-subtitle mt-1">
-                                Puedes usar emojis y formateo de WhatsApp: *negrita*, _cursiva_, ~tachado~
-                            </p>
-                            {errors.message && <p className="text-red-500 text-xs mt-1">{errors.message}</p>}
-                        </div>
-
-                        {/* Botones interactivos */}
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <Label className="settings-label font-semibold" style={{ fontSize: 'var(--text-sm)' }}>
-                                    Botones interactivos (máx. 3)
-                                </Label>
-                                {data.buttons.length < 3 && (
-                                    <button
-                                        type="button"
-                                        onClick={addButton}
-                                        className="text-xs font-semibold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-accent transition-colors"
-                                        style={{ color: 'var(--primary-base)' }}
-                                    >
-                                        <Plus className="w-3 h-3" />
-                                        Añadir botón
-                                    </button>
-                                )}
-                            </div>
-
-                            {data.buttons.length === 0 && (
-                                <p className="text-xs settings-subtitle italic">
-                                    Sin botones. Se enviará como texto plano.
-                                </p>
-                            )}
-
-                            <div className="space-y-3">
-                                {data.buttons.map((button, index) => (
-                                    <div
-                                        key={index}
-                                        className="p-4 rounded-xl border border-border dark:border-[hsl(231,20%,20%)] bg-background/50"
-                                    >
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <MousePointerClick className="w-4 h-4 text-[#25D366]" />
-                                            <span className="text-sm font-semibold settings-title">
-                                                Botón {index + 1}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeButton(index)}
-                                                className="ml-auto p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3 mb-3">
-                                            <div>
-                                                <Label className="settings-subtitle mb-1 block" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    Texto del botón (máx. 20 chars)
-                                                </Label>
-                                                <Input
-                                                    value={button.title}
-                                                    onChange={(e) =>
-                                                        updateButton(index, 'title', e.target.value)
-                                                    }
-                                                    placeholder="Ej: ✅ Acepto"
-                                                    maxLength={20}
-                                                    className="settings-input rounded-xl"
-                                                    required
-                                                />
-                                                <span className="text-[10px] settings-subtitle">{button.title.length}/20</span>
-                                            </div>
-                                            <div>
-                                                <Label className="settings-subtitle mb-1 block" style={{ fontSize: 'var(--text-xs)' }}>
-                                                    ID del botón
-                                                </Label>
-                                                <Input
-                                                    value={button.id}
-                                                    onChange={(e) =>
-                                                        updateButton(index, 'id', e.target.value)
-                                                    }
-                                                    placeholder="Ej: accept"
-                                                    className="settings-input rounded-xl"
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Respuesta automática para este botón */}
-                                        <div>
-                                            <Label className="settings-subtitle mb-1 block" style={{ fontSize: 'var(--text-xs)' }}>
-                                                Respuesta automática al presionar este botón
-                                            </Label>
-                                            <Textarea
-                                                value={data.responses[button.id] || ''}
-                                                onChange={(e) =>
-                                                    updateResponse(button.id, e.target.value)
-                                                }
-                                                placeholder="Mensaje que se enviará al usuario cuando presione este botón..."
-                                                className="settings-input rounded-xl min-h-[80px]"
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Toggle activo */}
-                        <div className="flex items-center justify-between p-4 rounded-xl border border-border dark:border-[hsl(231,20%,20%)] bg-background/50">
-                            <div>
-                                <p className="font-semibold settings-title" style={{ fontSize: 'var(--text-sm)' }}>
-                                    Activar flujo
-                                </p>
-                                <p className="settings-subtitle" style={{ fontSize: 'var(--text-xs)' }}>
-                                    Solo puede haber un flujo activo a la vez
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setData('is_active', !data.is_active)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${data.is_active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                                    }`}
-                            >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${data.is_active ? 'translate-x-6' : 'translate-x-1'
-                                        }`}
-                                />
+                    <div className="px-4 pb-6 @3xl/hoja:px-5">
+                        <div className="flex flex-col items-center gap-2 rounded-xl border-[1.5px] border-dashed border-[#2e3f84]/26 bg-[#2e3f84]/[0.035] px-5 py-7 text-center dark:border-white/20 dark:bg-white/[0.03]">
+                            <span className={cn('flex size-10 items-center justify-center rounded-xl bg-white shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]', TEXTO_SUAVE)}>
+                                <Workflow className="size-[19px]" strokeWidth={1.9} aria-hidden="true" />
+                            </span>
+                            <p className={cn('text-[13.5px] leading-[18px] font-semibold', TEXTO_NAVY)}>{t('welcomeFlow.emptyTitle')}</p>
+                            <p className={cn('max-w-lg text-[12.5px] leading-[18px]', TEXTO_SUAVE)}>{t('welcomeFlow.emptyDescription')}</p>
+                            <button type="button" onClick={openCreateModal} className={cn(BOTON_PRIMARIO, 'mt-2')}>
+                                <Plus strokeWidth={2} aria-hidden="true" />
+                                {t('welcomeFlow.createFlow')}
                             </button>
                         </div>
+                    </div>
+                ) : (
+                    <>
+                        <ul aria-labelledby="menu-bienvenida-titulo">
+                            {welcomeFlows.map((flow) => {
+                                const steps = flow.steps || [];
+                                const expanded = expandedFlowId === flow.id;
+                                const otro = activeFlow && activeFlow.id !== flow.id ? activeFlow : null;
+                                const detalle = [
+                                    sendsKeys[flow.trigger_type] ? t(sendsKeys[flow.trigger_type]) : flow.trigger_type,
+                                    resumenFlujo(flow),
+                                    flow.creator ? t('welcomeFlow.vista.createdBy', { name: flow.creator.name }) : null,
+                                    flow.updated_at ? t('welcomeFlow.vista.updatedOn', { date: fechaDia(flow.updated_at, lng) }) : null,
+                                ]
+                                    .filter(Boolean)
+                                    .join(' · ');
+                                const tituloInterruptor = flow.is_active
+                                    ? t('welcomeFlow.vista.switchOnHint')
+                                    : otro
+                                      ? t('welcomeFlow.vista.switchOffHintOther', { name: otro.name })
+                                      : t('welcomeFlow.vista.switchOffHint');
 
-                        {/* Acciones */}
-                        <div className="flex justify-end gap-3 pt-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    setIsModalOpen(false);
-                                    setEditingFlow(null);
-                                    reset();
-                                }}
-                                className="rounded-xl"
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                type="submit"
-                                disabled={processing}
-                                className="font-semibold text-white rounded-xl transition-all duration-200"
-                                style={{
-                                    backgroundColor: 'var(--primary-base)',
-                                    boxShadow: 'var(--shadow-md)',
-                                }}
-                            >
-                                <Save className="w-4 h-4 mr-2" />
-                                {processing
-                                    ? 'Guardando...'
-                                    : editingFlow
-                                        ? 'Actualizar'
-                                        : 'Crear flujo'}
-                            </Button>
+                                return (
+                                    <li key={flow.id} className={cn('border-b', FILETE)}>
+                                        <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 @3xl/hoja:min-h-[68px] @3xl/hoja:px-5', expanded && 'bg-[#2e3f84]/6 dark:bg-white/[0.05]')}>
+                                            <span className="flex w-8 shrink-0 justify-center">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedFlowId(expanded ? null : flow.id)}
+                                                    aria-expanded={expanded}
+                                                    aria-controls={`flujo-${flow.id}-pasos`}
+                                                    aria-label={`${expanded ? t('welcomeFlow.vista.hideSteps') : t('welcomeFlow.vista.showSteps')}: ${flow.name}`}
+                                                    title={expanded ? t('welcomeFlow.vista.hideSteps') : t('welcomeFlow.vista.showSteps')}
+                                                    className={cn(BOTON_ICONO, TEXTO_NAVY)}
+                                                >
+                                                    <ChevronDown className={cn('size-4 transition-transform', expanded && 'rotate-180')} strokeWidth={2} aria-hidden="true" />
+                                                </button>
+                                            </span>
+                                            <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-[3px]">
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                                    <h3 className={cn('text-[14px] leading-5 font-semibold', flow.is_active ? TEXTO_NAVY : TEXTO_SUAVE)}>{flow.name}</h3>
+                                                    <EstadoPunto on={flow.is_active}>{flow.is_active ? t('welcomeFlow.statusActive') : t('welcomeFlow.statusInactive')}</EstadoPunto>
+                                                </div>
+                                                <p className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{detalle}</p>
+                                            </div>
+                                            <div className="-mr-2 ml-auto flex flex-wrap items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    role="switch"
+                                                    aria-checked={flow.is_active}
+                                                    aria-label={t('welcomeFlow.vista.switchLabel', { name: flow.name })}
+                                                    onClick={() => toggleFlowStatus(flow.id)}
+                                                    title={tituloInterruptor}
+                                                    className={cn(
+                                                        'inline-flex h-[30px] cursor-pointer items-center gap-2 rounded-lg pr-2.5 pl-1 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors hover:bg-[#2e3f84]/5 dark:hover:bg-white/5',
+                                                        flow.is_active ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-neutral-300',
+                                                        FOCO
+                                                    )}
+                                                >
+                                                    <Interruptor on={flow.is_active} />
+                                                    {flow.is_active ? t('welcomeFlow.vista.switchOn') : t('welcomeFlow.vista.switchOff')}
+                                                </button>
+                                                <button type="button" onClick={() => openEditModal(flow)} aria-haspopup="dialog" className={BOTON_TEXTO_NAVY}>
+                                                    <Edit3 strokeWidth={2} aria-hidden="true" />
+                                                    {t('common.edit')}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFlowToDelete(flow)}
+                                                    aria-haspopup="dialog"
+                                                    title={t('templates.vista.asksConfirmation')}
+                                                    className={BOTON_TEXTO_ROJO}
+                                                >
+                                                    <Trash2 strokeWidth={2} aria-hidden="true" />
+                                                    {t('templates.vista.deleteEllipsis')}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {expanded && (
+                                            <div id={`flujo-${flow.id}-pasos`} className={cn('flex flex-col gap-3 border-t bg-[#f7f8fb] px-4 pt-4 pb-5 @3xl/hoja:pr-5 @3xl/hoja:pl-16 dark:bg-white/[0.02]', FILETE)}>
+                                                <Rotulo
+                                                    as="h4"
+                                                    titulo={t('welcomeFlow.vista.patientView')}
+                                                    apoyo={steps.length > 0 ? t('welcomeFlow.vista.patientViewSteps', { count: steps.length }) : t('welcomeFlow.vista.patientViewMessage')}
+                                                />
+                                                <ul className="grid grid-cols-1 items-start gap-3.5 @2xl/hoja:grid-cols-2 @5xl/hoja:grid-cols-3">
+                                                    {steps.length > 0 ? steps.map((step, index) => tarjetaPaso(step, index)) : tarjetasMensaje(flow)}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                        {/* Solo puede haber uno encendido: se dice qué pasa al encender otro. */}
+                        <p className={cn('flex min-h-11 items-center gap-2 rounded-b-2xl px-4 py-2.5 text-[12.5px] leading-4 @3xl/hoja:pr-5 @3xl/hoja:pl-16', TEXTO_SUAVE)}>
+                            <Info className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                            {activeFlow
+                                ? inactivos.length === 1
+                                    ? t('welcomeFlow.vista.infoOneOn', { other: inactivos[0].name, active: activeFlow.name })
+                                    : inactivos.length > 1
+                                      ? t('welcomeFlow.vista.infoManyOn', { active: activeFlow.name })
+                                      : t('welcomeFlow.vista.infoOnlyOne')
+                                : t('welcomeFlow.vista.infoNoneOn')}
+                        </p>
+                    </>
+                )}
+            </section>
+
+            {/* ── Crear / editar flujo ── */}
+            <DialogoPlantilla
+                abierto={isModalOpen}
+                onCerrar={closeModal}
+                icono={Bot}
+                titulo={editingFlow ? t('welcomeFlow.editFlowTitle') : t('welcomeFlow.newFlowTitle')}
+                sub={t('welcomeFlow.vista.formSub')}
+                cerrarConX
+                ancho="max-w-[752px]"
+                pie={
+                    <>
+                        <button type="button" onClick={closeModal} className={BOTON_SECUNDARIO}>
+                            <X strokeWidth={1.9} aria-hidden="true" />
+                            {t('common.cancel')}
+                        </button>
+                        <button type="submit" form="welcome-flow-form" disabled={processing} className={BOTON_PRIMARIO}>
+                            <Save strokeWidth={2} aria-hidden="true" />
+                            {processing ? t('common.saving') : editingFlow ? t('welcomeFlow.vista.saveFlow') : t('welcomeFlow.createFlow')}
+                        </button>
+                    </>
+                }
+            >
+                <form id="welcome-flow-form" onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+                    {editingSteps > 0 && <Nota tipo="aviso">{t('welcomeFlow.vista.stepsWarning', { count: editingSteps })}</Nota>}
+                    <div className="grid grid-cols-1 items-start gap-x-[22px] gap-y-5 md:grid-cols-[minmax(0,1fr)_262px]">
+                        <div className="flex min-w-0 flex-col gap-3.5">
+                            <div className="grid grid-cols-1 gap-x-3 gap-y-3.5 sm:grid-cols-[minmax(0,1fr)_200px]">
+                                <div className="flex min-w-0 flex-col gap-[7px]">
+                                    <label htmlFor="flow-name" className={ETIQUETA}>
+                                        {t('welcomeFlow.flowNameLabel')}
+                                    </label>
+                                    <input
+                                        id="flow-name"
+                                        value={data.name}
+                                        onChange={(event) => setData('name', event.target.value)}
+                                        placeholder={t('welcomeFlow.flowNamePlaceholder')}
+                                        aria-invalid={errors.name ? true : undefined}
+                                        className={CAMPO}
+                                        required
+                                    />
+                                    {errors.name && <span className={ERROR_CAMPO}>{errors.name}</span>}
+                                </div>
+                                <div className="flex min-w-0 flex-col gap-[7px]">
+                                    <label htmlFor="flow-trigger" className={ETIQUETA}>
+                                        {t('welcomeFlow.whenSentLabel')}
+                                    </label>
+                                    <Select value={data.trigger_type} onValueChange={(v) => setData('trigger_type', v)}>
+                                        <SelectTrigger id="flow-trigger" className={DISPARADOR}>
+                                            <SelectValue placeholder={t('welcomeFlow.whenSentPlaceholder')} />
+                                        </SelectTrigger>
+                                        <SelectContent className={MENU}>
+                                            <SelectItem value="first_contact" className={OPCION}>
+                                                {t('welcomeFlow.triggerFirstContactOption')}
+                                            </SelectItem>
+                                            <SelectItem value="every_new_conversation" className={OPCION}>
+                                                {t('welcomeFlow.triggerEveryNewConversation')}
+                                            </SelectItem>
+                                            <SelectItem value="always" className={OPCION}>
+                                                {t('welcomeFlow.triggerAlways')}
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <span className={cn(AYUDA, '-mt-1.5')}>{t('welcomeFlow.vista.whenHelp')}</span>
+
+                            <div className="flex flex-col gap-[7px]">
+                                <label htmlFor="flow-message" className={ETIQUETA}>
+                                    {t('welcomeFlow.welcomeMessage')}
+                                </label>
+                                <textarea
+                                    id="flow-message"
+                                    value={data.message}
+                                    onChange={(event) => setData('message', event.target.value)}
+                                    placeholder={t('welcomeFlow.welcomeMessagePlaceholder')}
+                                    aria-invalid={errors.message ? true : undefined}
+                                    className={cn(AREA, 'min-h-[96px]')}
+                                    required
+                                />
+                                {errors.message && <span className={ERROR_CAMPO}>{errors.message}</span>}
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                                    <span className="flex flex-wrap items-baseline gap-x-2">
+                                        <span id="flow-buttons-label" className={ETIQUETA}>
+                                            {t('welcomeFlow.vista.buttonsLabel')}
+                                        </span>
+                                        <span className={cn(AYUDA, 'tabular-nums')}>{t('welcomeFlow.vista.buttonsOf', { count: data.buttons.length })}</span>
+                                    </span>
+                                    <button type="button" onClick={addButton} disabled={data.buttons.length >= 3} className={cn(BOTON_TEXTO_NAVY, '-mr-2')}>
+                                        <Plus strokeWidth={2} aria-hidden="true" />
+                                        {t('welcomeFlow.vista.addButton')}
+                                    </button>
+                                </div>
+
+                                {data.buttons.length === 0 ? (
+                                    <p className={cn('rounded-[10px] border-[1.5px] border-dashed border-[#2e3f84]/26 px-3 py-2.5 text-[12.5px] leading-[18px] dark:border-white/20', TEXTO_SUAVE)}>
+                                        {t('welcomeFlow.noButtonsConfigured')}
+                                    </p>
+                                ) : (
+                                    <ul aria-labelledby="flow-buttons-label" className="flex flex-col gap-2.5">
+                                        {data.buttons.map((button, index) => (
+                                            <li
+                                                key={`${button.id}-${index}`}
+                                                className="flex flex-col gap-2.5 rounded-[10px] bg-white p-3 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.14)] dark:bg-white/[0.03] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <MousePointerClick className={cn('size-3.5', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />
+                                                    <span className={cn('flex-1 text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>{t('welcomeFlow.buttonNumber', { number: index + 1 })}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeButton(index)}
+                                                        aria-label={`${t('welcomeFlow.removeButton')} ${index + 1}`}
+                                                        title={t('welcomeFlow.vista.removeButtonHint')}
+                                                        className={cn(BOTON_ICONO, 'text-red-700 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-500/10 dark:hover:text-red-300')}
+                                                    >
+                                                        <Trash2 className="size-4" strokeWidth={2} aria-hidden="true" />
+                                                    </button>
+                                                </div>
+                                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                                                    <div className="flex min-w-0 flex-col gap-[7px]">
+                                                        <label htmlFor={`flow-btn-${index}-title`} className={ETIQUETA}>
+                                                            {t('welcomeFlow.buttonTextLabel')} <span className={cn('font-normal tabular-nums', TEXTO_SUAVE)}>({button.title.length}/20)</span>
+                                                        </label>
+                                                        <input
+                                                            id={`flow-btn-${index}-title`}
+                                                            value={button.title}
+                                                            onChange={(event) => updateButton(index, 'title', event.target.value)}
+                                                            placeholder={t('welcomeFlow.buttonTextPlaceholder')}
+                                                            maxLength={20}
+                                                            className={cn(CAMPO, 'h-[34px]')}
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div className="flex min-w-0 flex-col gap-[7px]">
+                                                        <label htmlFor={`flow-btn-${index}-id`} className={ETIQUETA}>
+                                                            {t('welcomeFlow.buttonIdLabel')}
+                                                        </label>
+                                                        <input
+                                                            id={`flow-btn-${index}-id`}
+                                                            value={button.id}
+                                                            onChange={(event) => updateButton(index, 'id', event.target.value)}
+                                                            placeholder={t('welcomeFlow.buttonIdPlaceholder')}
+                                                            className={cn(CAMPO, 'h-[34px] text-[12.5px]', MONO)}
+                                                            required
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col gap-[7px]">
+                                                    <label htmlFor={`flow-btn-${index}-resp`} className={ETIQUETA}>
+                                                        {t('welcomeFlow.autoResponseLabel')}
+                                                    </label>
+                                                    <textarea
+                                                        id={`flow-btn-${index}-resp`}
+                                                        value={data.responses[button.id] || ''}
+                                                        onChange={(event) => updateResponse(button.id, event.target.value)}
+                                                        placeholder={t('welcomeFlow.autoResponsePlaceholder')}
+                                                        rows={2}
+                                                        className={cn(AREA, 'min-h-[60px]')}
+                                                    />
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
                         </div>
-                    </form>
-                </DialogContent>
-            </Dialog>
+
+                        <div className="flex min-w-0 flex-col gap-2.5 md:sticky md:top-0">
+                            <Rotulo titulo={editingSteps > 0 ? t('welcomeFlow.vista.previewFormLabel') : t('welcomeFlow.vista.receivesLabel')} />
+                            <BurbujaEntra texto={data.message} botones={data.buttons.filter((b) => b.title.trim()).map((b) => b.title)} vacio={t('welcomeFlow.vista.previewEmpty')} />
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={data.is_active}
+                                aria-label={t('welcomeFlow.vista.turnOnLabel')}
+                                onClick={() => setData('is_active', !data.is_active)}
+                                className={cn(
+                                    'flex w-full cursor-pointer items-center justify-between gap-3 rounded-[10px] px-3.5 py-3 text-left transition-colors',
+                                    data.is_active
+                                        ? 'bg-emerald-50 text-emerald-800 shadow-[inset_0_0_0_1px_var(--color-emerald-200)] dark:bg-emerald-500/10 dark:text-emerald-200 dark:shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25)]'
+                                        : 'bg-white shadow-[inset_0_0_0_1px_rgba(46,63,132,0.14)] dark:bg-white/[0.03] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]',
+                                    FOCO
+                                )}
+                            >
+                                <span className="flex min-w-0 flex-col gap-0.5">
+                                    <span className={cn('text-[13px] leading-[18px] font-semibold', !data.is_active && TEXTO_NAVY)}>{t('welcomeFlow.vista.turnOnLabel')}</span>
+                                    <span className={cn('text-[12px] leading-4', !data.is_active && TEXTO_SUAVE)}>{t('welcomeFlow.vista.turnOnText')}</span>
+                                </span>
+                                <Interruptor on={data.is_active} />
+                            </button>
+                            {otroEncendido && <Nota tipo="info">{t('welcomeFlow.vista.turnOnInfo', { name: otroEncendido.name })}</Nota>}
+                        </div>
+                    </div>
+                </form>
+            </DialogoPlantilla>
+
+            {/* ── Eliminar flujo: diálogo propio (antes window.confirm). Cancelar a la izquierda con el foco; Esc cancela ── */}
+            <DialogoPlantilla
+                abierto={flowToDelete !== null}
+                onCerrar={() => setFlowToDelete(null)}
+                icono={Trash2}
+                peligro
+                titulo={t('welcomeFlow.vista.deleteTitle')}
+                ancho="max-w-[400px]"
+                enfoqueInicial={seguroBorrar}
+                pie={
+                    <>
+                        <button ref={seguroBorrar} type="button" onClick={() => setFlowToDelete(null)} className={BOTON_SECUNDARIO}>
+                            <X strokeWidth={1.9} aria-hidden="true" />
+                            {t('common.cancel')}
+                        </button>
+                        <button type="button" onClick={confirmDeleteFlow} className={BOTON_PELIGRO_LLENO}>
+                            <Trash2 strokeWidth={2} aria-hidden="true" />
+                            {t('templates.vista.deleteYes')}
+                        </button>
+                    </>
+                }
+            >
+                {flowToDelete && (
+                    <>
+                        <p className={cn('text-[13.5px] leading-5', TEXTO_SUAVE)}>{t('welcomeFlow.vista.deleteText')}</p>
+                        <QueSeBorra
+                            nombre={flowToDelete.name}
+                            detalle={`${flowToDeleteSteps} · ${flowToDelete.is_active ? t('welcomeFlow.vista.stateOn') : t('welcomeFlow.vista.stateOff')}`}
+                        />
+                        {flowToDelete.is_active && <Nota tipo="aviso">{t('welcomeFlow.vista.deleteActiveWarning')}</Nota>}
+                    </>
+                )}
+            </DialogoPlantilla>
         </>
     );
 }

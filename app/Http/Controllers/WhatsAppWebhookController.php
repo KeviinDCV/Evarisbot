@@ -28,15 +28,28 @@ class WhatsAppWebhookController extends Controller
 
         $verifyToken = Setting::get('whatsapp_verify_token');
 
-        // Verificar que el token coincida
-        if ($mode === 'subscribe' && $token === $verifyToken) {
-            Log::info('Webhook verified successfully');
-            return response($challenge, 200);
+        // FALLAR CERRADO. Setting::get() devuelve null si la fila no existe o su valor está
+        // vacío, y un hub_verify_token omitido también es null: sin esta guarda la condición
+        // null === null dejaba pasar la verificación SIN secreto y reflejaba el challenge a
+        // cualquiera. (SettingsController valida el token como 'nullable', así que un admin
+        // podía vaciarlo desde la UI y abrir el hueco en silencio.)
+        if (!is_string($verifyToken) || $verifyToken === '') {
+            Log::error('Webhook verify rechazado: whatsapp_verify_token no está configurado');
+            return response('Forbidden', 403);
         }
 
+        // hash_equals: comparación en tiempo constante, no filtra el token por timing.
+        if ($mode === 'subscribe' && is_string($token) && hash_equals($verifyToken, $token)) {
+            Log::info('Webhook verified successfully');
+            // text/plain: aunque el challenge se refleje, nunca se interpreta como HTML.
+            // No se castea a int: Meta manda un challenge numérico, pero forzarlo rompería
+            // la verificación si alguna vez no lo fuera. text/plain ya neutraliza el reflejo.
+            return response((string) $challenge, 200, ['Content-Type' => 'text/plain']);
+        }
+
+        // No se registra el token recibido: es dato controlado por quien llama.
         Log::warning('Webhook verification failed', [
             'mode' => $mode,
-            'token' => $token,
         ]);
 
         return response('Forbidden', 403);
@@ -145,7 +158,13 @@ class WhatsAppWebhookController extends Controller
                     $errorMsg = $errorCode ? "{$errorTitle} (code: {$errorCode})" : $errorTitle;
                     $updateData['error_message'] = $errorMsg;
                 }
-                
+
+                // Capturar datos de facturación que Meta envía en los callbacks
+                // 'sent'/'delivered' (objetos `pricing` y `conversation`) para el
+                // panel de costos. Solo se escriben si vienen: así un callback
+                // posterior ('read') no borra lo ya capturado.
+                $this->fillBillingData($status, $updateData);
+
                 $message->update($updateData);
 
                 // Si el mensaje era de envío masivo y falló, actualizar contadores del BulkSend
@@ -166,14 +185,10 @@ class WhatsAppWebhookController extends Controller
                             $recipientPhone = $status['recipient_id'] ?? null;
                             if ($recipientPhone) {
                                 $errorCodeMsg = $errorInfo[0]['code'] ?? null;
-                                $errorTitleMsg = $errorInfo[0]['title'] ?? 'Error desconocido';
+                                $errorTitleMsg = $errorInfo[0]['title'] ?? null;
                                 $errorDetail = $errorInfo[0]['error_data']['details'] ?? ($errorInfo[0]['message'] ?? null);
-                                $finalErrorMsg = $errorCodeMsg
-                                    ? "{$errorTitleMsg} (code: {$errorCodeMsg})"
-                                    : $errorTitleMsg;
-                                if ($errorDetail) {
-                                    $finalErrorMsg .= ' — ' . $errorDetail;
-                                }
+                                // Mensaje claro en español para el usuario (sin códigos técnicos)
+                                $finalErrorMsg = \App\Support\WhatsAppErrorTranslator::human($errorCodeMsg, $errorTitleMsg, $errorDetail);
 
                                 // El recipient phone puede venir sin prefijo "+" — comparar tolerante.
                                 $digits = preg_replace('/\D/', '', (string) $recipientPhone);
@@ -215,6 +230,38 @@ class WhatsAppWebhookController extends Controller
                 'error' => $e->getMessage(),
                 'status' => $status,
             ]);
+        }
+    }
+
+    /**
+     * Extrae los datos de facturación del status de Meta y los agrega a $updateData
+     * (por referencia). Meta manda `pricing` y `conversation` en los callbacks
+     * 'sent'/'delivered'. Solo se agregan las llaves presentes para no sobrescribir
+     * con null lo capturado en un callback anterior.
+     */
+    private function fillBillingData(array $status, array &$updateData): void
+    {
+        $pricing = $status['pricing'] ?? null;
+        if (is_array($pricing)) {
+            if (array_key_exists('billable', $pricing)) {
+                $updateData['billable'] = (bool) $pricing['billable'];
+            }
+            if (!empty($pricing['category'])) {
+                $updateData['pricing_category'] = $pricing['category'];
+            }
+            if (!empty($pricing['pricing_model'])) {
+                $updateData['pricing_model'] = $pricing['pricing_model'];
+            }
+        }
+
+        $conversation = $status['conversation'] ?? null;
+        if (is_array($conversation)) {
+            if (!empty($conversation['id'])) {
+                $updateData['wa_conversation_id'] = $conversation['id'];
+            }
+            if (!empty($conversation['origin']['type'])) {
+                $updateData['conversation_origin_type'] = $conversation['origin']['type'];
+            }
         }
     }
 }

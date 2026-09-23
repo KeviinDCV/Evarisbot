@@ -1,8 +1,23 @@
 import AdminLayout from '@/layouts/admin-layout';
+import {
+    BOTON_PRIMARIO,
+    BOTON_SECUNDARIO,
+    Buscador,
+    COLUMNAS_CITA,
+    FILETE,
+    FOCO,
+    FilaCita,
+    HOJA,
+    TEXTO_NAVY,
+    TEXTO_SUAVE,
+    Th,
+    miles,
+} from '@/components/appointments/piezas-citas';
+import { cn } from '@/lib/utils';
 import { Head, router } from '@inertiajs/react';
-import { Search, ChevronLeft, ChevronRight, CalendarCheck, CalendarX, Clock, Filter, ArrowLeft, Calendar, Download, ArrowUpDown, ArrowUp, ArrowDown, Phone, XCircle, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CalendarCheck2, CalendarX, Clock, ArrowLeft, Calendar, CalendarRange, Download, ArrowUpDown, ArrowUp, ArrowDown, Check, X, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Trans, useTranslation } from 'react-i18next';
 
 interface Appointment {
     id: number;
@@ -63,13 +78,29 @@ interface AppointmentsViewProps {
     pageTitle?: string;
 }
 
-export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, sort: initialSort, direction: initialDirection, stats, routePrefix = '/admin/appointments', pageTitle = 'Gestión de Citas' }: AppointmentsViewProps) {
+// Filete vertical entre cifras. Solo cuando la franja va en una fila.
+const Divisor = () => <div className="hidden w-px self-stretch bg-[#2e3f84]/12 @5xl/pagina:block dark:bg-white/10" aria-hidden="true" />;
+
+// Campo de fecha: borde navy al 58 % (3,1:1 contra la hoja), como los campos de Configuración.
+const CAMPO_FECHA = cn(
+    'h-9 w-[136px] rounded-[10px] bg-white px-2.5 text-[13px] leading-[18px] font-medium text-[#2e3f84] tabular-nums shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none',
+    'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)]',
+    'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)] dark:[color-scheme:dark] dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]'
+);
+
+export default function AppointmentsView({ appointments, filter: initialFilter, search: initialSearch, date_from: initialDateFrom, date_to: initialDateTo, sort: initialSort, direction: initialDirection, stats, routePrefix = '/admin/appointments', pageTitle }: AppointmentsViewProps) {
+    const { t, i18n } = useTranslation();
+    const lng = i18n.language;
+    const resolvedPageTitle = pageTitle ?? t('appointments.managementTitle');
     const [filter, setFilter] = useState(initialFilter || 'all');
     const [searchTerm, setSearchTerm] = useState(initialSearch || '');
     const [dateFrom, setDateFrom] = useState(initialDateFrom || '');
     const [dateTo, setDateTo] = useState(initialDateTo || '');
     const [sortField, setSortField] = useState<string | null>(initialSort || 'id');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>((initialDirection as 'asc' | 'desc') || 'desc');
+
+    // General y Oncología comparten esta pantalla: el ámbito sale del prefijo de rutas que manda el servidor.
+    const esOncologia = routePrefix.includes('oncology');
 
     const handleSort = (field: string) => {
         const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
@@ -89,7 +120,12 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         });
     };
 
-    const handleFilterChange = (newFilter: string) => {
+    const handleFilterChange = (clickedFilter: string) => {
+        // Volver a pulsar el filtro activo lo quita (vuelve a "Todas"). Sin esto, una vez
+        // aplicado un filtro no había forma de soltarlo salvo pulsando "Todas" a propósito.
+        // "Todas" ya ES el estado sin filtro, así que no se alterna consigo mismo.
+        const newFilter = clickedFilter === filter && clickedFilter !== 'all' ? 'all' : clickedFilter;
+
         setFilter(newFilter);
         router.get(`${routePrefix}/view`, {
             filter: newFilter,
@@ -146,460 +182,258 @@ export default function AppointmentsView({ appointments, filter: initialFilter, 
         });
     };
 
-    const filterButtons = [
-        { key: 'all', label: 'Todas', icon: Filter, count: stats.all },
-        { key: 'pending', label: 'Pendientes', icon: Clock, count: stats.pending },
-        { key: 'confirmed', label: 'Confirmadas', icon: CalendarCheck, count: stats.confirmed },
-        { key: 'cancelled', label: 'Canceladas', icon: CalendarX, count: stats.cancelled },
+    const filterButtons: { key: string; label: string; icon: LucideIcon; tono: string; count: number }[] = [
+        { key: 'all', label: t('common.allFeminine'), icon: Calendar, tono: TEXTO_NAVY, count: stats.all },
+        { key: 'pending', label: t('appointments.filterPending'), icon: Clock, tono: 'text-amber-600 dark:text-amber-400', count: stats.pending },
+        { key: 'confirmed', label: t('appointments.filterConfirmed'), icon: CalendarCheck2, tono: 'text-emerald-600 dark:text-emerald-400', count: stats.confirmed },
+        { key: 'cancelled', label: t('appointments.filterCancelled'), icon: CalendarX, tono: 'text-red-600 dark:text-red-400', count: stats.cancelled },
     ];
 
-    const getStatusBadge = (appointment: Appointment) => {
-        if (!appointment.reminder_sent) {
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium">
-                    <Clock className="w-3 h-3" />
-                    Pendiente
-                </span>
-            );
-        }
-        return (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
-                <CalendarCheck className="w-3 h-3" />
-                Enviado
-            </span>
-        );
-    };
+    // Cabecera ordenable: los mismos campos e indicadores de siempre.
+    const columnas: { campo: string | null; activos: string[]; etiqueta: string; derecha?: boolean }[] = [
+        { campo: 'id', activos: ['id'], etiqueta: '#', derecha: true },
+        { campo: 'nom_paciente', activos: ['nom_paciente', 'citide'], etiqueta: t('appointments.columnPatient') },
+        { campo: 'citfc', activos: ['citfc', 'cithor'], etiqueta: t('appointments.columnAppointment') },
+        { campo: 'mednom', activos: ['mednom', 'espnom'], etiqueta: t('appointments.columnProfessional') },
+        { campo: 'reminder_status', activos: ['reminder_status'], etiqueta: t('appointments.columnReminder') },
+        { campo: null, activos: [], etiqueta: t('appointments.columnResponse') },
+    ];
 
-    const getDeliveryStatusBadge = (appointment: Appointment) => {
-        if (!appointment.reminder_sent) {
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-medium settings-subtitle">
-                    —
-                </span>
-            );
-        }
-
-        if (appointment.reminder_status === 'failed') {
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-medium">
-                    <CalendarX className="w-3 h-3" />
-                    Error
-                </span>
-            );
-        }
-
-        if (appointment.reminder_status && ['delivered', 'read', 'confirmed', 'cancelled'].includes(appointment.reminder_status)) {
-            return (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium">
-                    <CalendarCheck className="w-3 h-3" />
-                    Recibido
-                </span>
-            );
-        }
-
-        return (
-            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
-                <Clock className="w-3 h-3" />
-                En camino
-            </span>
-        );
-    };
+    const exportHref = `${routePrefix}/export?filter=${filter}&search=${searchTerm || ''}&date_from=${dateFrom || ''}&date_to=${dateTo || ''}`;
 
     return (
         <AdminLayout>
-            <Head title={pageTitle} />
+            <Head title={resolvedPageTitle} />
 
-            <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-6 md:mb-8">
-                        <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
-                            <Button
-                                onClick={() => router.get(`${routePrefix}`)}
-                                className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                style={{
-                                    backgroundColor: 'var(--primary-base)',
-                                    boxShadow: 'var(--shadow-md)',
-                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                    padding: '0 var(--space-lg)',
-                                    fontSize: 'var(--text-sm)',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                }}
-                            >
-                                <ArrowLeft className="w-4 h-4 mr-2" />
-                                Volver a Citas
-                            </Button>
+            <div className="min-h-screen bg-background px-4 pt-5 pb-8 md:px-7 md:pt-7 lg:pb-0">
+                <div className="@container/pagina mx-auto flex max-w-7xl flex-col gap-6">
+                    {/* ── Cabecera ── */}
+                    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                        <div className="flex min-w-0 flex-col gap-1">
+                            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+                                <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('appointments.allAppointmentsTitle')}</h1>
+                                <span
+                                    title={t('appointments.scopeChipTitle')}
+                                    className="inline-flex h-6 items-center rounded-[7px] bg-[#2e3f84]/7 px-2.5 text-[12px] leading-4 font-semibold whitespace-nowrap text-[#2e3f84] dark:bg-white/8 dark:text-neutral-100"
+                                >
+                                    {esOncologia ? t('navigation.appointmentsOncology') : t('navigation.appointmentsGeneral')}
+                                </span>
+                            </div>
+                            <p className="text-[14px] leading-5 text-muted-foreground">{t('appointments.viewSubtitle')}</p>
+                        </div>
 
-                            <a
-                                href={`${routePrefix}/export?filter=${filter}&search=${searchTerm || ''}&date_from=${dateFrom || ''}&date_to=${dateTo || ''}`}
-                                style={{
-                                    backgroundColor: 'var(--primary-base)',
-                                    backgroundImage: 'var(--gradient-shine)',
-                                    color: 'white',
-                                    padding: '0.5rem 1rem',
-                                    fontSize: 'var(--text-sm)',
-                                    fontWeight: '600',
-                                    borderRadius: '0.75rem',
-                                    boxShadow: 'var(--shadow-md)',
-                                    transition: 'all 0.2s',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    cursor: 'pointer',
-                                    textDecoration: 'none',
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                }}
-                                onMouseDown={(e) => {
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                }}
-                                onMouseUp={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                }}
-                            >
-                                <Download className="w-4 h-4" />
-                                Exportar Excel
+                        <div className="flex flex-wrap items-center gap-2.5 sm:shrink-0">
+                            <button type="button" onClick={() => router.get(`${routePrefix}`)} className={BOTON_SECUNDARIO}>
+                                <ArrowLeft strokeWidth={1.9} aria-hidden="true" />
+                                {t('appointments.backToAppointments')}
+                            </button>
+                            <a href={exportHref} title={t('appointments.exportHint')} className={BOTON_PRIMARIO}>
+                                <Download strokeWidth={2} aria-hidden="true" />
+                                {t('appointments.exportExcel')}
                             </a>
                         </div>
-                        <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                            Gestión de Citas
-                        </h1>
-                        <p className="text-sm md:text-base settings-subtitle mt-1">
-                            Visualiza y filtra todas las citas con sus estados de recordatorio
-                        </p>
-                    </div>
+                    </header>
 
-                    {/* Filtros */}
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6">
-                        <div className="mb-4">
-                            <h2 className="text-lg font-semibold settings-title mb-3 flex items-center gap-2">
-                                <Filter className="w-5 h-5" />
-                                Filtros
-                            </h2>
-                            <div className="flex flex-wrap gap-2">
-                                {filterButtons.map(({ key, label, icon: Icon, count }) => (
-                                    <button
-                                        key={key}
-                                        onClick={() => handleFilterChange(key)}
-                                        className={`
-                                        flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200
-                                        ${filter === key
-                                                ? 'chat-message-sent text-white shadow-[0_2px_8px_rgba(46,63,132,0.25)]'
-                                                : 'filter-btn-inactive'
-                                            }
-                                    `}
+                    {/* ── Franja: las cuatro cifras son los filtros (pulsar la activa la quita) ── */}
+                    <section
+                        aria-label={t('appointments.filtersTitle')}
+                        className="grid grid-cols-2 gap-x-6 gap-y-5 @5xl/pagina:grid-cols-[repeat(3,minmax(0,1fr)_1px)_minmax(0,1fr)] @5xl/pagina:gap-y-0"
+                    >
+                        {filterButtons.map(({ key, label, icon: Icon, tono, count }, i) => {
+                            const activa = filter === key;
+                            const detalle = !activa ? t('appointments.applyFilter') : key === 'all' ? t('appointments.filterActive') : t('appointments.removeFilter');
+
+                            return [
+                                i > 0 && <Divisor key={`d-${key}`} />,
+                                <button
+                                    key={key}
+                                    type="button"
+                                    onClick={() => handleFilterChange(key)}
+                                    aria-pressed={activa}
+                                    className={cn(
+                                        'group relative -m-2 flex min-w-0 cursor-pointer flex-col rounded-xl p-2 pb-3.5 text-left transition-colors hover:bg-[#2e3f84]/[0.04] dark:hover:bg-white/[0.04]',
+                                        FOCO
+                                    )}
+                                >
+                                    <span className="flex h-4 items-center gap-2">
+                                        <Icon className={cn('size-3.5 shrink-0', tono)} strokeWidth={2} aria-hidden="true" />
+                                        <span className={cn('truncate text-[12px] leading-4', activa ? cn('font-semibold', TEXTO_NAVY) : 'font-medium text-muted-foreground')}>{label}</span>
+                                    </span>
+                                    <span className={cn('mt-[7px] text-[28px] leading-8 font-medium tracking-[-0.03em] whitespace-nowrap tabular-nums', TEXTO_NAVY)}>{miles(count, lng)}</span>
+                                    <span
+                                        className={cn(
+                                            'mt-[5px] flex h-4 min-w-0 items-center gap-1.5 text-[12.5px] leading-4',
+                                            activa ? cn('font-semibold', TEXTO_NAVY) : 'text-muted-foreground group-hover:text-[#2e3f84] dark:group-hover:text-neutral-200'
+                                        )}
                                     >
-                                        <Icon className="w-4 h-4" />
-                                        <span>{label}</span>
-                                        <span
-                                            className={`
-                                            px-2 py-0.5 rounded-xl text-xs
-                                            ${filter === key ? 'bg-white/20 text-white' : 'filter-badge-inactive'}
-                                        `}
-                                        >
-                                            {count.toLocaleString()}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                                        {activa && <Check className="size-[13px] shrink-0" strokeWidth={2.5} aria-hidden="true" />}
+                                        <span className="truncate">{detalle}</span>
+                                    </span>
+                                    {activa && <span className="absolute right-2 bottom-0 left-2 h-[3px] rounded-[3px] bg-[#2e3f84] dark:bg-[#8b9ae0]" aria-hidden="true" />}
+                                </button>,
+                            ];
+                        })}
+                    </section>
 
-                        {/* Filtro por Fecha */}
-                        <div className="mb-4">
-                            <h3 className="text-sm font-semibold settings-title mb-2 flex items-center gap-2">
-                                <Calendar className="w-4 h-4" />
-                                Filtrar por Fecha de Cita
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <div>
-                                    <label htmlFor="date-from" className="block text-xs font-medium settings-label mb-1">Desde</label>
+                    {/* ── La hoja: barra (buscar + fechas), cabecera ordenable, citas y paginado fijo al pie ── */}
+                    <section aria-label={t('appointments.allAppointmentsTitle')} className={cn(HOJA, 'lg:rounded-b-none')}>
+                        <div className={cn('flex flex-wrap items-center gap-x-3.5 gap-y-3 border-b px-4 py-3 @3xl/hoja:px-5 @5xl/hoja:min-h-16 @5xl/hoja:py-2.5', FILETE)}>
+                            <Buscador
+                                id="view-search"
+                                etiqueta={t('appointments.searchAppointmentsLabel')}
+                                placeholder={t('appointments.viewSearchPlaceholder')}
+                                value={searchTerm}
+                                onChange={handleSearch}
+                                className="w-full @5xl/hoja:w-[410px] @5xl/hoja:shrink-0"
+                            />
+                            <div className="mx-1 hidden h-7 w-px bg-[#2e3f84]/12 @5xl/hoja:block dark:bg-white/10" aria-hidden="true" />
+                            <fieldset className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2.5">
+                                <legend className="sr-only">{t('appointments.filterByAppointmentDate')}</legend>
+                                <span className={cn('flex items-center gap-[7px] text-[12.5px] leading-4 font-semibold whitespace-nowrap', TEXTO_NAVY)} aria-hidden="true">
+                                    <CalendarRange className="size-[15px]" strokeWidth={1.9} />
+                                    {t('appointments.filterByAppointmentDate')}
+                                </span>
+                                <span className="flex items-center gap-2">
+                                    <label htmlFor="date-from" className={cn('text-[12.5px] leading-4 font-medium whitespace-nowrap', TEXTO_SUAVE)}>
+                                        {t('appointments.dateFrom')}
+                                    </label>
                                     <input
                                         id="date-from"
                                         name="date-from"
                                         type="date"
                                         value={dateFrom}
                                         onChange={(e) => handleDateChange('from', e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
+                                        className={CAMPO_FECHA}
                                     />
-                                </div>
-                                <div>
-                                    <label htmlFor="date-to" className="block text-xs font-medium settings-label mb-1">Hasta</label>
+                                </span>
+                                <span className="flex items-center gap-2">
+                                    <label htmlFor="date-to" className={cn('text-[12.5px] leading-4 font-medium whitespace-nowrap', TEXTO_SUAVE)}>
+                                        {t('appointments.dateTo')}
+                                    </label>
                                     <input
                                         id="date-to"
                                         name="date-to"
                                         type="date"
                                         value={dateTo}
                                         onChange={(e) => handleDateChange('to', e.target.value)}
-                                        className="w-full px-3 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
+                                        className={CAMPO_FECHA}
                                     />
-                                </div>
-                                <div className="flex items-end">
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={handleClearDates}
+                                    disabled={!dateFrom && !dateTo}
+                                    className={cn(
+                                        'flex h-8 cursor-pointer items-center gap-[5px] rounded-lg px-2 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors hover:bg-[#2e3f84]/6 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent dark:hover:bg-white/8',
+                                        TEXTO_NAVY,
+                                        FOCO
+                                    )}
+                                >
+                                    <X className="size-3.5" strokeWidth={2.25} aria-hidden="true" />
+                                    {t('appointments.clearDates')}
+                                </button>
+                            </fieldset>
+                        </div>
+
+                        {/* Cabecera ordenable (hoja ≥ 768 px). */}
+                        <div
+                            className={cn(
+                                'hidden h-9 border-b bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] lg:sticky lg:top-0 lg:z-[2] @3xl/hoja:grid dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]',
+                                COLUMNAS_CITA,
+                                FILETE
+                            )}
+                        >
+                            {columnas.map(({ campo, activos, etiqueta, derecha }) => {
+                                if (!campo) return <Th key="respuesta">{etiqueta}</Th>;
+                                const activa = !!sortField && activos.includes(sortField);
+                                const Flecha = activa ? (sortDirection === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
+
+                                return (
                                     <button
-                                        onClick={handleClearDates}
-                                        disabled={!dateFrom && !dateTo}
-                                        className="w-full px-4 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] text-[#6b7494] dark:text-[hsl(231,15%,60%)] bg-white dark:bg-[hsl(231,25%,14%)] hover:bg-[#f8f9fc] dark:hover:bg-[hsl(231,25%,18%)] dark:hover:text-[hsl(231,55%,70%)] hover:border-[#2e3f84] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm font-medium"
+                                        key={campo}
+                                        type="button"
+                                        onClick={() => handleSort(campo)}
+                                        title={t('appointments.sortBy', { column: etiqueta === '#' ? '#' : etiqueta.toLocaleLowerCase(lng) })}
+                                        aria-label={t('appointments.sortBy', { column: etiqueta === '#' ? '#' : etiqueta.toLocaleLowerCase(lng) })}
+                                        className={cn('-mx-1.5 flex h-7 min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-[#2e3f84]/6 dark:hover:bg-white/8', derecha && 'justify-end', FOCO)}
                                     >
-                                        Limpiar Fechas
+                                        <Th activa={activa}>{etiqueta}</Th>
+                                        <Flecha
+                                            className={cn('size-[13px] shrink-0', activa ? TEXTO_NAVY : 'text-[#2e3f84]/45 dark:text-neutral-500')}
+                                            strokeWidth={2}
+                                            aria-hidden="true"
+                                        />
                                     </button>
+                                );
+                            })}
+                        </div>
+
+                        {appointments.data.length > 0 ? (
+                            <ul aria-label={t('appointments.allAppointmentsTitle')}>
+                                {appointments.data.map((appointment, index) => (
+                                    <FilaCita key={appointment.id} cita={appointment} indice={appointments.from + index} conCedula />
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className={cn('border-b px-4 py-14 text-center text-[13px] leading-[18px]', FILETE, TEXTO_SUAVE)}>{t('appointments.noAppointmentsFound')}</p>
+                        )}
+
+                        {/* Paginado fijo al pie de la hoja (el scroll, desde lg, es el de la isla). */}
+                        <div
+                            className={cn(
+                                'bottom-0 z-[3] flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 rounded-b-2xl border-t bg-card/95 px-4 py-3 backdrop-blur-sm lg:sticky lg:rounded-none lg:shadow-[0_-10px_20px_-14px_rgba(46,63,132,0.25)] @3xl/hoja:min-h-14 @3xl/hoja:pr-5 @3xl/hoja:pl-16 dark:lg:shadow-[0_-10px_20px_-14px_rgba(0,0,0,0.6)]',
+                                'border-[#2e3f84]/12 dark:border-white/10',
+                                '-mt-px'
+                            )}
+                        >
+                            <p className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)} aria-live="polite">
+                                {appointments.total > 0 ? (
+                                    <Trans
+                                        i18nKey="appointments.showingResultsRich"
+                                        values={{ from: miles(appointments.from ?? 0, lng), to: miles(appointments.to ?? 0, lng), total: miles(appointments.total, lng) }}
+                                        components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                    />
+                                ) : (
+                                    t('appointments.resultsTitle', { count: 0 })
+                                )}
+                            </p>
+
+                            {appointments.last_page > 1 && (
+                                <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+                                    <span className={cn('text-[12.5px] leading-4 font-medium tabular-nums', TEXTO_SUAVE)}>
+                                        <Trans
+                                            i18nKey="appointments.pageOfRich"
+                                            values={{ current: miles(appointments.current_page, lng), total: miles(appointments.last_page, lng) }}
+                                            components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                        />
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
+                                            disabled={!appointments.prev_page_url}
+                                            title={!appointments.prev_page_url ? t('appointments.noPreviousPage') : undefined}
+                                            className={cn(BOTON_SECUNDARIO, 'h-[34px] pr-3 pl-[9px] disabled:opacity-45')}
+                                        >
+                                            <ChevronLeft strokeWidth={2} aria-hidden="true" />
+                                            {t('common.previous')}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
+                                            disabled={!appointments.next_page_url}
+                                            className={cn(BOTON_SECUNDARIO, 'h-[34px] pr-[9px] pl-3 disabled:opacity-45')}
+                                        >
+                                            {t('common.next')}
+                                            <ChevronRight strokeWidth={2} aria-hidden="true" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                            {(dateFrom || dateTo) && (
-                                <p className="mt-2 text-xs text-[#2e3f84] dark:text-[hsl(231,55%,70%)] flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    Filtrando citas {dateFrom && `desde ${dateFrom}`} {dateFrom && dateTo && '-'} {dateTo && `hasta ${dateTo}`}
-                                </p>
                             )}
                         </div>
-
-                        {/* Buscador */}
-                        <div className="relative">
-                            <label htmlFor="view-search" className="sr-only">Buscar citas</label>
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6b7494] dark:text-[hsl(231,15%,60%)]" />
-                            <input
-                                id="view-search"
-                                name="view-search"
-                                type="text"
-                                placeholder="Buscar por paciente, cédula, teléfono, médico, especialidad..."
-                                value={searchTerm}
-                                onChange={(e) => handleSearch(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Tabla */}
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                        <div className="mb-4">
-                            <h2 className="text-lg font-semibold settings-title">
-                                Resultados ({appointments.total})
-                            </h2>
-                            <p className="text-sm settings-subtitle">
-                                Mostrando {appointments.from} - {appointments.to} de {appointments.total} citas
-                            </p>
-                        </div>
-
-                        {/* Tabla con scroll horizontal */}
-                        <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)]">
-                            <table className="w-full text-left border-collapse">
-                                <thead className="bg-black/5 dark:bg-white/5 border-b border-border dark:border-[hsl(231,20%,20%)]">
-                                    <tr>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('id')} style={{ fontSize: 'var(--text-sm)' }}>
-                                            <div className="flex items-center gap-2">
-                                                #
-                                                {sortField === 'id' ? (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                                ) : (
-                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('nom_paciente')} style={{ fontSize: 'var(--text-sm)' }}>
-                                            <div className="flex items-center gap-2">
-                                                Paciente
-                                                {sortField === 'nom_paciente' || sortField === 'citide' ? (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                                ) : (
-                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('citfc')} style={{ fontSize: 'var(--text-sm)' }}>
-                                            <div className="flex items-center gap-2">
-                                                Detalles de Cita
-                                                {sortField === 'citfc' || sortField === 'cithor' ? (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                                ) : (
-                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('mednom')} style={{ fontSize: 'var(--text-sm)' }}>
-                                            <div className="flex items-center gap-2">
-                                                Profesional
-                                                {sortField === 'mednom' || sortField === 'espnom' ? (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                                ) : (
-                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                                )}
-                                            </div>
-                                        </th>
-                                        <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 transition-colors" onClick={() => handleSort('reminder_status')} style={{ fontSize: 'var(--text-sm)' }}>
-                                            <div className="flex items-center gap-2">
-                                                Estado Envío
-                                                {sortField === 'reminder_status' ? (
-                                                    sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                                                ) : (
-                                                    <ArrowUpDown className="w-4 h-4 opacity-50" />
-                                                )}
-                                            </div>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border dark:divide-[hsl(231,20%,20%)]">
-                                    {appointments.data.length > 0 ? (
-                                        appointments.data.map((appointment, index) => (
-                                            <tr
-                                                key={appointment.id}
-                                                className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors duration-200"
-                                            >
-                                                {/* Índice */}
-                                                <td className="px-4 py-4 whitespace-nowrap align-top settings-subtitle font-medium" style={{ fontSize: 'var(--text-sm)' }}>
-                                                    {appointments.from + index}
-                                                </td>
-
-                                                {/* Paciente, Doc y Teléfono */}
-                                                <td className="px-4 py-4 align-top w-[25%] min-w-[200px]">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold settings-title truncate leading-tight" style={{ fontSize: 'var(--text-md)' }}>
-                                                            {appointment.nom_paciente || '-'}
-                                                        </span>
-                                                        <span className="settings-subtitle mt-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                            CC: {appointment.citide || '-'}
-                                                        </span>
-                                                        <span className="settings-subtitle flex items-center gap-1.5 mt-1.5" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            {appointment.pactel ? (
-                                                                <>
-                                                                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                                                        <Phone className="w-3 h-3 text-primary" />
-                                                                    </div>
-                                                                    {appointment.pactel}
-                                                                </>
-                                                            ) : '-'}
-                                                        </span>
-                                                    </div>
-                                                </td>
-
-                                                {/* Fecha y Hora */}
-                                                <td className="px-4 py-4 whitespace-nowrap align-top">
-                                                    <div className="flex flex-col gap-1.5">
-                                                        <div className="inline-flex items-center gap-1.5 settings-title font-medium bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-md w-fit" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            <CalendarCheck className="w-4 h-4 text-primary" />
-                                                            {appointment.citfc || '-'}
-                                                        </div>
-                                                        <div className="inline-flex items-center gap-1.5 settings-subtitle pl-1" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            <Clock className="w-3.5 h-3.5" />
-                                                            {appointment.cithor || '-'}
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                {/* Médico y Especialidad */}
-                                                <td className="px-4 py-4 align-top w-[30%] min-w-[220px]">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-semibold settings-title line-clamp-2 leading-tight" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            Dr(a). {appointment.mednom || '-'}
-                                                        </span>
-                                                        <span className="settings-subtitle mt-1.5 inline-flex items-center gap-1.5" style={{ fontSize: 'var(--text-xs)' }}>
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
-                                                            {appointment.espnom || '-'}
-                                                        </span>
-                                                    </div>
-                                                </td>
-
-                                                {/* Estado Integrado */}
-                                                <td className="px-4 py-4 whitespace-nowrap align-top">
-                                                    <div className="flex flex-col gap-2">
-                                                        {appointment.reminder_sent ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-semibold w-fit">
-                                                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                                                Enviado
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold w-fit">
-                                                                <Clock className="w-3.5 h-3.5" />
-                                                                Pendiente
-                                                            </span>
-                                                        )}
-
-                                                        {appointment.reminder_sent && (
-                                                            <>
-                                                                {appointment.reminder_status === 'confirmed' ? (
-                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold w-fit">
-                                                                        <CalendarCheck className="w-3.5 h-3.5" /> Confirmada
-                                                                    </span>
-                                                                ) : appointment.reminder_status === 'cancelled' ? (
-                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-semibold w-fit">
-                                                                        <CalendarX className="w-3.5 h-3.5" /> Cancelada
-                                                                    </span>
-                                                                ) : appointment.reminder_status === 'failed' ? (
-                                                                    <span className="inline-flex items-center gap-1 text-red-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <XCircle className="w-3 h-3" /> Error
-                                                                    </span>
-                                                                ) : appointment.reminder_status && ['delivered', 'read'].includes(appointment.reminder_status) ? (
-                                                                    <span className="inline-flex items-center gap-1 text-emerald-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <CheckCircle2 className="w-3 h-3" /> Recibido
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-flex items-center gap-1 text-blue-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <Clock className="w-3 h-3" /> En camino
-                                                                    </span>
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={5} className="px-4 py-8 text-center settings-subtitle">
-                                                No se encontraron citas con los filtros seleccionados
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Paginación */}
-                        {appointments.last_page > 1 && (
-                            <div className="mt-4 flex items-center justify-between">
-                                <p className="text-sm settings-subtitle">
-                                    Página {appointments.current_page} de {appointments.last_page}
-                                </p>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => router.get(appointments.prev_page_url || '', {}, { preserveState: true, preserveScroll: true })}
-                                        disabled={!appointments.prev_page_url}
-                                        className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
-                                    >
-                                        <ChevronLeft className="w-4 h-4" />
-                                        Anterior
-                                    </button>
-                                    <button
-                                        onClick={() => router.get(appointments.next_page_url || '', {}, { preserveState: true, preserveScroll: true })}
-                                        disabled={!appointments.next_page_url}
-                                        className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(231,20%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(231,25%,18%)] dark:hover:to-[hsl(231,25%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
-                                    >
-                                        Siguiente
-                                        <ChevronRight className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    </section>
                 </div>
             </div>
         </AdminLayout>
     );
 }
-

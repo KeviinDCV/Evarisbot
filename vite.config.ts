@@ -7,8 +7,9 @@ import { defineConfig } from 'vite';
 export default defineConfig({
     plugins: [
         laravel({
+            // Sin SSR: app.tsx arranca con createRoot (no hydrateRoot), así que el bundle de
+            // SSR nunca se usaba — sólo era una bomba cebada apuntando a un cliente que hidrata.
             input: ['resources/css/app.css', 'resources/js/app.tsx'],
-            ssr: 'resources/js/ssr.tsx',
             refresh: true,
         }),
         react(),
@@ -21,8 +22,10 @@ export default defineConfig({
         host: '0.0.0.0', // Listen on all network interfaces
         port: 5173,
         strictPort: true,
+        // Sólo dev. origin:'*' con credentials dejaba que cualquier sitio leyera las
+        // respuestas del dev server; se acota a los orígenes reales de desarrollo.
         cors: {
-            origin: '*', // Allow all origins (or specify 'http://192.168.2.202:8000' for specific origin)
+            origin: [/^http:\/\/localhost(:\d+)?$/, /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/],
             credentials: true,
         },
         hmr: {

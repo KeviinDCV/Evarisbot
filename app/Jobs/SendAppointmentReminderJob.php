@@ -55,12 +55,10 @@ class SendAppointmentReminderJob implements ShouldQueue
      */
     public function handle(AppointmentReminderService $reminderService): void
     {
-        // Rate limiting: esperar 3 segundos entre mensajes
-        // Meta permite ~80 mensajes/segundo en Business API, pero es bueno ir conservador
-        // Con 3s entre mensajes = ~20 mensajes/minuto, seguro para cualquier tier
-        sleep(3);
-        
-        // Verificar si el batch fue cancelado
+        // Verificaciones ANTES del rate-limit: así cancelar/pausar/saltar es inmediato
+        // y no se gastan 3s en jobs que no van a enviar.
+
+        // Batch cancelado (p.ej. botón "Detener") → consumir el job (no reencolar).
         if ($this->batch() && $this->batch()->cancelled()) {
             Log::info('Batch cancelado, cancelando job', [
                 'appointment_id' => $this->appointmentId
@@ -68,11 +66,11 @@ class SendAppointmentReminderJob implements ShouldQueue
             return;
         }
 
-        // Verificar si los recordatorios están pausados
+        // Pausado → RETENER el job en la cola (release), NO consumirlo. Así al "Reanudar"
+        // el envío continúa donde quedó, sin perder las citas pendientes. El retryUntil
+        // de 3h acota el ciclo (si se deja pausado demasiado tiempo, el job caduca).
         if (Setting::get('reminder_paused', 'false') === 'true') {
-            Log::info('Recordatorios pausados, cancelando job', [
-                'appointment_id' => $this->appointmentId
-            ]);
+            $this->release(15);
             return;
         }
 
@@ -83,11 +81,15 @@ class SendAppointmentReminderJob implements ShouldQueue
             return;
         }
 
-        // Verificar si ya fue enviado
+        // Ya enviado → saltar (sin gastar el rate-limit).
         if ($appointment->reminder_sent) {
             Log::info('Recordatorio ya enviado', ['appointment_id' => $this->appointmentId]);
             return;
         }
+
+        // Rate limiting: 3 segundos entre ENVÍOS reales (Meta). ~20 mensajes/minuto,
+        // seguro para cualquier tier. Solo se aplica a los que de verdad se envían.
+        sleep(3);
 
         try {
             $result = $reminderService->sendReminder($appointment);
