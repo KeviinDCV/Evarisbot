@@ -108,6 +108,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/settings/groq', 'updateGroq')->name('settings.groq');
         Route::post('/settings/auto-release', 'updateAutoRelease')->name('settings.auto-release');
         Route::get('/settings/auto-release/preview', 'previewAutoRelease')->name('settings.auto-release.preview');
+        Route::post('/settings/weekend-notice', 'updateWeekendNotice')->name('settings.weekend-notice');
     });
     
     // Estadísticas

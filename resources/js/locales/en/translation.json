@@ -230,6 +230,7 @@
             "unassigned": "{{name}} removed the assignment",
             "autoAssigned": "{{name}} took the chat automatically",
             "autoReleased": "Released automatically: {{advisor}} didn't reply within {{time}}",
+            "weekendNotice": "The weekend message was sent",
             "resolved": "{{name}} marked it as resolved",
             "reopened": "{{name}} reopened the conversation",
             "statusChanged": "{{name}} changed status to {{status}}",
@@ -1033,6 +1034,26 @@
             "savedSuccess": "Automatic release saved",
             "saveError": "Couldn't save automatic release"
         },
+        "weekendNotice": {
+            "title": "Weekend message",
+            "bandText": "On Saturdays and Sundays it replies automatically with the opening hours.",
+            "activeState": "On",
+            "inactiveState": "Off",
+            "toggleLabel": "Reply on weekends",
+            "toggleHelp": "Saturday and Sunday (Colombia time), on the patient's first message. It's sent only once per chat each weekend, even if they write several times, and not at all if an advisor replied in the last 12 hours.",
+            "on": "On",
+            "off": "Off",
+            "textLabel": "Message",
+            "textHelp": "What the patient receives. You can use *text* for bold, like in WhatsApp.",
+            "restoreDefault": "Use the suggested text",
+            "charCount": "{{count}} of {{max}} characters",
+            "textRequired": "Write the message the patient will receive.",
+            "previewLabel": "Preview",
+            "previewHelp": "This is how the patient sees it on WhatsApp. Advisors see it when they open the chat.",
+            "saveNote": "It doesn't change the chat's assignment or status; it's kept in its history.",
+            "savedSuccess": "Weekend message saved",
+            "saveError": "Couldn't save the weekend message"
+        },
         "twoFactorAuth": "Two-Factor Auth",
         "description": "Manage your profile and account settings"
     },
@@ -1332,6 +1353,9 @@
             }
         },
         "view": {
+            "released": "Released",
+            "releasedDetail": "for inactivity",
+            "releasedHelp": "Conversations taken from the advisor for not replying in time (Settings → Automatic release).",
             "exportExcel": "Export to Excel",
             "dateRange": "Date range",
             "rangeShort": "Range",

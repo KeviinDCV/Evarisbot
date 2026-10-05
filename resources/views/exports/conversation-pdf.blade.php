@@ -108,6 +108,7 @@
                 @case('auto_assigned') tomó el chat automáticamente @break
                 @case('resolved') marcó como resuelto @break
                 @case('reopened') reabrió la conversación @break
+                @case('weekend_notice') envió el mensaje automático de fin de semana @break
                 @case('status_changed') cambió estado a {{ $activity->metadata['new_status'] ?? '' }} @break
                 @default {{ $activity->type }}
             @endswitch

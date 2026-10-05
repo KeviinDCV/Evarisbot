@@ -79,6 +79,14 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     const navRef = useRef<HTMLElement>(null);
     const carnetBtnRef = useRef<HTMLButtonElement>(null);
 
+    // ── Alturas pequeñas: si los ítems no caben, el <nav> se desplaza (la tarjeta del usuario
+    // queda fija abajo). Mientras caben, overflow visible como siempre. ──
+    const [desplaza, setDesplaza] = useState(false);
+
+    // Rótulo del ítem en el riel plegado. Va en position: fixed (no absoluto dentro del <nav>):
+    // con el <nav> desplazable, un absoluto que asoma a la derecha quedaría recortado.
+    const [rotulo, setRotulo] = useState<{ texto: string; top: number; left: number } | null>(null);
+
     const isAdvisor = auth.user.role === 'advisor';
     /** El turno sólo existe para asesores: es lo que decide si te auto-asignan pacientes. */
     const onDuty = isAdvisor && Boolean(auth.user.is_on_duty);
@@ -158,6 +166,50 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
             cancelAnimationFrame(r2);
         };
     }, [activeHref, visibleGroups.length, isAdvisor, capsula]);
+
+    // ── ¿Caben los ítems? Se mide al montar, al cambiar el tamaño de la ventana o del <nav> y al
+    // desplazar. De paso recoloca la cápsula: al cruzar el umbral de pantalla baja cambian los
+    // espacios y su offsetTop. ──
+    const medirMenu = useCallback(() => {
+        const nav = navRef.current;
+        if (!nav) return;
+        const sobra = nav.scrollHeight - nav.clientHeight;
+        setDesplaza(sobra > 1);
+        // Degradados que avisan de ítems ocultos arriba/abajo, tan altos como lo que falta por
+        // desplazar (tope 18/26 px). Directo al estilo: al desplazar no hace falta re-renderizar.
+        const restante = Math.max(0, sobra - nav.scrollTop);
+        nav.style.setProperty('--marco-fade-arriba', `${Math.min(18, Math.max(0, nav.scrollTop))}px`);
+        nav.style.setProperty('--marco-fade-abajo', `${Math.min(26, restante)}px`);
+
+        const activo = nav.querySelector<HTMLElement>('[aria-current="page"]');
+        if (activo) {
+            setCapsula((c) => (c && c.top !== activo.offsetTop ? { top: activo.offsetTop, href: c.href } : c));
+        }
+    }, []);
+
+    useEffect(() => {
+        const nav = navRef.current;
+        if (!nav) return;
+        medirMenu();
+        const ro = new ResizeObserver(() => medirMenu());
+        ro.observe(nav);
+        window.addEventListener('resize', medirMenu);
+        return () => {
+            ro.disconnect();
+            window.removeEventListener('resize', medirMenu);
+        };
+    }, [medirMenu, visibleGroups.length]);
+
+    const mostrarRotulo = (e: { currentTarget: HTMLElement }, texto: string) => {
+        // Solo con el riel plegado de escritorio; en el cajón móvil y expandido se lee el nombre.
+        if (expanded || !window.matchMedia('(min-width: 64rem)').matches) return;
+        const r = e.currentTarget.getBoundingClientRect();
+        setRotulo({ texto, top: r.top + r.height / 2, left: r.right + 16 });
+    };
+    const ocultarRotulo = () => setRotulo(null);
+    useEffect(() => {
+        if (expanded) setRotulo(null);
+    }, [expanded]);
 
     // ── Apertura con intención (espera de 220ms): en /admin/chat el cursor cruza el menú
     // decenas de veces por hora camino a la lista de conversaciones. ──
@@ -280,7 +332,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
             <button
                 onClick={() => setIsMobileOpen((v) => !v)}
                 className={`fixed top-4 z-[60] rounded-xl bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] p-3 text-white shadow-lg transition-[left] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] lg:hidden ${
-                    isMobileOpen ? 'left-[252px]' : 'left-4'
+                    isMobileOpen ? 'left-[min(252px,calc(100vw-60px))]' : 'left-4'
                 }`}
                 aria-label={isMobileOpen ? t('common.closeMenu') : t('common.menu')}
                 aria-expanded={isMobileOpen}
@@ -322,24 +374,26 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                     AQUÍ y no en el <aside>, para no desaturar el panel (haría costura con el marco)
                     ni el popover del carnet. */}
                 <div
-                    className={`relative flex min-h-0 flex-1 flex-col pb-2.5 pt-6 transition-[filter] duration-500 ${
+                    className={`relative flex min-h-0 flex-1 flex-col pb-2.5 pt-6 transition-[filter] duration-500 bajo:pt-3 ${
                         isAdvisor && !onDuty ? 'saturate-[.72]' : ''
                     }`}
                 >
                     {/* ── Cabecera: ALTO FIJO (120px) en los dos estados; si no, los iconos
                         saltarían al expandir. Plegado queda la baldosa sola, en el eje x=36. ── */}
-                    <div className="h-[120px] flex-shrink-0">
-                        <div className="flex h-16 items-start">
+                    <div className="h-[120px] flex-shrink-0 bajo:h-[52px]">
+                        <div className="flex h-16 items-start bajo:h-11">
                             <div
                                 className={`flex flex-shrink-0 items-center justify-center bg-white shadow-[0_1px_1px_rgba(0,0,0,.18),0_10px_22px_-10px_rgba(0,0,0,.55),inset_0_-1px_0_rgba(46,63,132,.08)] transition-[width,height,margin,border-radius] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
-                                    expanded ? 'ml-6 h-16 w-16 rounded-[14px]' : 'ml-[14px] h-11 w-11 rounded-xl'
+                                    expanded
+                                        ? 'ml-6 h-16 w-16 rounded-[14px] bajo:ml-[14px] bajo:h-11 bajo:w-11 bajo:rounded-xl'
+                                        : 'ml-[14px] h-11 w-11 rounded-xl'
                                 }`}
                             >
                                 {/* El logo a su color real (line-art azul) sobre blanco: aquí no se
                                     aplana a blanco como en el riel de hoy. */}
                                 <AppLogoIcon
                                     className={`marco-logo block object-contain transition-[width,height] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
-                                        expanded ? 'h-12 w-[60px]' : 'h-8 w-10'
+                                        expanded ? 'h-12 w-[60px] bajo:h-8 bajo:w-10' : 'h-8 w-10'
                                     }`}
                                 />
                             </div>
@@ -351,7 +405,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                     onClick={togglePin}
                                     aria-label={pinned ? t('navigation.collapseMenu', 'Contraer menú') : t('navigation.pinMenu', 'Fijar menú abierto')}
                                     title={pinned ? t('navigation.collapseMenu', 'Contraer menú') : t('navigation.pinMenu', 'Fijar menú abierto')}
-                                    className="ml-auto mr-5 mt-[17px] hidden h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-[10px] bg-white/[0.06] text-white/[0.72] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)] transition-colors hover:bg-white/[0.12] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 lg:inline-flex"
+                                    className="ml-auto mr-5 mt-[17px] hidden h-[30px] w-[30px] flex-shrink-0 bajo:mt-[7px] items-center justify-center rounded-[10px] bg-white/[0.06] text-white/[0.72] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)] transition-colors hover:bg-white/[0.12] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 lg:inline-flex"
                                 >
                                     {pinned ? (
                                         <PanelLeftClose className="h-[18px] w-[18px]" strokeWidth={1.75} />
@@ -365,7 +419,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                         {/* overflow-hidden: plegado, el texto invisible NO puede asomar sobre la isla
                             (captaría los clics de la cabecera de la página). */}
                         <div
-                            className={`mt-3.5 flex flex-col gap-0.5 overflow-hidden whitespace-nowrap pl-6 pr-2.5 transition-opacity duration-150 ${
+                            className={`mt-3.5 flex flex-col gap-0.5 overflow-hidden whitespace-nowrap pl-6 pr-2.5 transition-opacity duration-150 bajo:hidden ${
                                 expanded ? 'opacity-100' : 'opacity-0'
                             }`}
                         >
@@ -375,7 +429,16 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                     </div>
 
                     {/* ── Navegación ── overflow visible: si no, recortaría tooltips e insignias. */}
-                    <nav ref={navRef} className="relative mt-7 flex min-h-0 flex-1 flex-col gap-5 overflow-visible">
+                    <nav
+                        ref={navRef}
+                        onScroll={() => {
+                            medirMenu();
+                            ocultarRotulo();
+                        }}
+                        className={`relative mt-7 flex min-h-0 flex-1 flex-col gap-5 bajo:mt-2 bajo:gap-2 ${
+                            desplaza ? 'marco-nav-desplaza' : 'overflow-visible'
+                        }`}
+                    >
                         {/* LA CÁPSULA: blanca, con la sombra que la despega del marco sin halo.
                             top-0 obligatorio: el translate parte del borde del <nav>. */}
                         {capsula !== null && (
@@ -418,7 +481,14 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                             key={item.href}
                                             href={item.href}
                                             prefetch
-                                            onClick={() => setIsMobileOpen(false)}
+                                            onClick={() => {
+                                                setIsMobileOpen(false);
+                                                ocultarRotulo();
+                                            }}
+                                            // Pointer y no Mouse: <Link prefetch> pisa onMouseEnter/Leave con
+                                            // los suyos. El foco de teclado no lo necesita: expande el riel.
+                                            onPointerEnter={(e) => mostrarRotulo(e, t(item.title))}
+                                            onPointerLeave={ocultarRotulo}
                                             aria-current={active ? 'page' : undefined}
                                             className={`group relative z-10 ml-3 flex h-10 flex-shrink-0 items-center rounded-[10px] transition-[width,background-color,color] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 ${
                                                 shownActive ? 'text-[#2e3f84]' : 'text-white/80 hover:bg-white/[0.08] hover:text-white'
@@ -441,16 +511,6 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
 
                                             {item.badge && count > 0 && contador(item, count, shownActive)}
 
-                                            {/* Tooltip sólo plegado: navy a la derecha, anclado al icono.
-                                                aria-hidden: repite el nombre del enlace (ya en la etiqueta). */}
-                                            {!expanded && (
-                                                <span
-                                                    aria-hidden
-                                                    className="pointer-events-none absolute left-full top-1/2 z-[70] ml-4 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#26356f] px-2.5 py-1.5 text-[13px] font-medium text-white opacity-0 shadow-xl ring-1 ring-white/10 transition-opacity duration-150 before:absolute before:right-full before:top-1/2 before:-translate-y-1/2 before:border-4 before:border-transparent before:border-r-[#26356f] before:content-[''] group-hover:opacity-100 group-focus-visible:opacity-100 lg:block"
-                                                >
-                                                    {t(item.title)}
-                                                </span>
-                                            )}
                                         </Link>
                                     );
                                 })}
@@ -465,7 +525,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                         onClick={toggleCarnet}
                         aria-haspopup="dialog"
                         aria-expanded={carnetOpen}
-                        className={`ml-3 mt-4 flex h-[54px] flex-shrink-0 items-center rounded-[14px] text-left transition-[width,background-color,box-shadow] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 ${
+                        className={`ml-3 mt-4 flex h-[54px] flex-shrink-0 items-center rounded-[14px] text-left bajo:mt-2 transition-[width,background-color,box-shadow] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 ${
                             expanded
                                 ? 'bg-white/[0.07] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08),inset_0_1px_0_rgba(255,255,255,.05)] hover:bg-white/[0.1]'
                                 : 'hover:bg-white/[0.08]'
@@ -526,13 +586,25 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                     </button>
                 </div>
 
+                {/* Rótulo del ítem con el riel plegado: navy a la derecha, centrado en el ítem.
+                    aria-hidden: repite el nombre del enlace (ya en su etiqueta). */}
+                {rotulo && !expanded && (
+                    <span
+                        aria-hidden
+                        className="pointer-events-none fixed z-[70] -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#26356f] px-2.5 py-1.5 text-[13px] font-medium text-white shadow-xl ring-1 ring-white/10 before:absolute before:right-full before:top-1/2 before:-translate-y-1/2 before:border-4 before:border-transparent before:border-r-[#26356f] before:content-['']"
+                        style={{ top: rotulo.top, left: rotulo.left }}
+                    >
+                        {rotulo.texto}
+                    </span>
+                )}
+
                 {/* Popover del carnet: turno + tema + idioma + perfil + menú anterior + salir.
                     Fuera del contenedor con filtro: se lee siempre a todo color. */}
                 {carnetOpen && (
                     <div
                         role="dialog"
                         aria-label={t('navigation.yourStation', 'Tu puesto')}
-                        className="absolute bottom-[72px] left-3 z-[80] w-[248px] rounded-2xl border border-border bg-card p-3 shadow-2xl"
+                        className="absolute bottom-[72px] left-3 z-[80] max-h-[calc(100dvh-88px)] w-[248px] max-w-[calc(100vw-24px)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-3 shadow-2xl"
                     >
                         {isAdvisor && (
                             <>

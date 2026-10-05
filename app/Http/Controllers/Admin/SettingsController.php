@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\InactiveConversationReleaser;
+use App\Services\WeekendNotice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -41,8 +42,15 @@ class SettingsController extends Controller
             ->get();
 
         $autoRelease = InactiveConversationReleaser::settings();
+        $weekendNotice = WeekendNotice::settings();
 
         return Inertia::render('admin/settings/index', [
+            'weekendNotice' => [
+                'enabled' => $weekendNotice['enabled'],
+                'text' => $weekendNotice['text'],
+                'default_text' => WeekendNotice::DEFAULT_TEXT,
+                'max_length' => WeekendNotice::MAX_LENGTH,
+            ],
             'settings' => $settings,
             'advisors' => $advisors,
             'autoRelease' => [
@@ -75,6 +83,29 @@ class SettingsController extends Controller
         Setting::set(InactiveConversationReleaser::KEY_ENABLED, $validated['enabled'] ? 'true' : 'false', 'Liberación automática de conversaciones sin respuesta del asesor');
 
         return redirect()->back()->with('success', 'Liberación automática actualizada.');
+    }
+
+    /**
+     * Mensaje de fin de semana: activar/desactivar y texto que recibe el paciente.
+     */
+    public function updateWeekendNotice(Request $request)
+    {
+        $validated = $request->validate([
+            'enabled' => 'required|boolean',
+            'text' => 'required_if:enabled,true,1|nullable|string|max:' . WeekendNotice::MAX_LENGTH,
+        ], [
+            'text.required_if' => 'Escribe el mensaje que recibirá el paciente.',
+            'text.max' => 'El mensaje puede tener como máximo ' . WeekendNotice::MAX_LENGTH . ' caracteres.',
+        ]);
+
+        // Saltos de línea de Windows → \n (WhatsApp los muestra igual, y así no se duplican).
+        $texto = trim(str_replace("\r\n", "\n", (string) ($validated['text'] ?? '')));
+        if ($texto !== '') {
+            Setting::set(WeekendNotice::KEY_TEXT, $texto, 'Mensaje automático que reciben los pacientes que escriben el fin de semana');
+        }
+        Setting::set(WeekendNotice::KEY_ENABLED, $validated['enabled'] ? 'true' : 'false', 'Mensaje automático de fin de semana');
+
+        return redirect()->back()->with('success', 'Mensaje de fin de semana actualizado.');
     }
 
     /**

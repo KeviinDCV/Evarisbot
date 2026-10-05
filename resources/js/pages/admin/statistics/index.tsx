@@ -22,6 +22,7 @@ import {
     MessagesSquare,
     Send,
     Timer,
+    Hourglass,
     TrendingUp,
     Wallet,
     X,
@@ -43,6 +44,8 @@ interface AdvisorDetail {
         resolution_rate: number;
         /** Mediana (no media): la distribución tiene una cola larga que dispara el promedio. */
         median_response_time_minutes: number | null;
+        /** Conversaciones que se le liberaron por no responder a tiempo (liberación automática). */
+        released_inactive?: number;
     };
     daily_activity: Array<{ date: string; label: string; count: number }>;
     hourly_distribution: Array<{ hour: string; count: number }>;
@@ -60,6 +63,8 @@ interface AdvisorSummary {
     messages_sent: number;
     /** null = el asesor no tiene conversaciones asignadas (sin datos), distinto de 0%. */
     resolution_rate: number | null;
+    /** Liberadas por inactividad en el periodo (opcional: la caché de 5 min puede no traerlo aún). */
+    released_inactive?: number;
 }
 
 interface Statistics {
@@ -130,6 +135,7 @@ interface Statistics {
         total_with_unread: number;
         total_messages_sent: number;
         avg_resolution_rate: number;
+        total_released_inactive?: number;
         top_performer: AdvisorSummary | null;
         advisors: AdvisorSummary[];
     };
@@ -1512,7 +1518,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                         <Banda id="est-asesores-titulo" icono={Headphones} titulo={t('statistics.advisors.performanceTitle')} texto={t('statistics.view.advisorsSubtitle')} />
                         <div
                             className={cn(
-                                'grid grid-cols-2 gap-x-5 gap-y-5 border-b py-4 @xl/hoja:grid-cols-3 @5xl/hoja:grid-cols-[repeat(5,minmax(0,1fr)_1px)_minmax(0,1fr)] @5xl/hoja:gap-y-0',
+                                'grid grid-cols-2 gap-x-5 gap-y-5 border-b py-4 @xl/hoja:grid-cols-3 @5xl/hoja:grid-cols-[repeat(6,minmax(0,1fr)_1px)_minmax(0,1fr)] @5xl/hoja:gap-y-0',
                                 SANGRIA,
                                 FILETE
                             )}
@@ -1528,6 +1534,10 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                             <MiniCifra etiqueta={t('statistics.chart.messages')} valor={formatNumber(advisors.total_messages_sent)} detalle={t('statistics.advisors.sentLower')} />
                             <DivisorV desde="@5xl/hoja:block" />
                             <MiniCifra etiqueta={t('statistics.advisors.resolutionCap')} valor={formatRate(advisors.avg_resolution_rate)} detalle={t('statistics.view.teamAverage')} />
+                            <DivisorV desde="@5xl/hoja:block" />
+                            <div className="col-span-2 @xl/hoja:col-span-3 @5xl/hoja:col-span-1">
+                                <MiniCifra etiqueta={t('statistics.view.released')} valor={formatNumber(advisors.total_released_inactive ?? 0)} detalle={t('statistics.view.releasedDetail')} />
+                            </div>
                         </div>
 
                         <div className={cn('flex min-h-[52px] flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 @3xl/hoja:px-5 @5xl/hoja:flex-nowrap', FILETE)}>
@@ -1559,7 +1569,7 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
 
                         {advisorList.length > 0 ? (
                             <div className={cn('relative overflow-x-auto', FOCO)} role="region" aria-labelledby="est-asesores-titulo" tabIndex={0}>
-                                <table className="w-full min-w-[980px] table-fixed @4xl/hoja:min-w-[860px] border-collapse text-left">
+                                <table className="w-full min-w-[1072px] table-fixed @4xl/hoja:min-w-[952px] border-collapse text-left">
                                     <thead>
                                         <tr className={cn('h-9 border-b', BANDA, FILETE)}>
                                             <th scope="col" className="pr-2.5 pl-4 @3xl/hoja:pl-[64px]">
@@ -1570,6 +1580,10 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                             <th scope="col" className={cn('w-[92px] px-2.5 text-right text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE)}>{t('statistics.advisors.resolved')}</th>
                                             <th scope="col" className={cn('w-[80px] px-2.5 text-right text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE)}>{t('statistics.advisors.active')}</th>
                                             <th scope="col" className={cn('w-[98px] px-2.5 text-right text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE)}>{t('statistics.advisors.scheduled')}</th>
+                                            <th scope="col" title={t('statistics.view.releasedHelp')} className={cn('w-[92px] px-2.5 text-right text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE)}>
+                                                {t('statistics.view.released')}
+                                                <span className="sr-only"> {t('statistics.view.releasedDetail')}</span>
+                                            </th>
                                             <th scope="col" className={cn('w-[140px] px-2.5 text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase @6xl/hoja:w-[170px]', TEXTO_SUAVE)}>{t('statistics.chart.messages')}</th>
                                             <th scope="col" className="w-[44px] pr-5 font-normal"><span className="sr-only">{t('statistics.view.detail')}</span></th>
                                         </tr>
@@ -1661,6 +1675,14 @@ function StatisticsView({ statistics }: StatisticsViewProps) {
                                                     {numero(advisor.resolved_conversations)}
                                                     {numero(advisor.active_conversations)}
                                                     {numero(advisor.scheduled_conversations)}
+                                                    <td
+                                                        className={cn(
+                                                            'px-2.5 text-right text-[13px] leading-[18px] font-medium tabular-nums',
+                                                            advisor.released_inactive ? TXT_AVISO : TEXTO_SUAVE
+                                                        )}
+                                                    >
+                                                        {formatNumber(advisor.released_inactive ?? 0)}
+                                                    </td>
                                                     <td className="px-2.5">
                                                         <div className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3">
                                                             <span className={cn('text-right text-[13px] leading-[18px] font-medium tabular-nums', advisor.messages_sent ? TEXTO_NAVY : TEXTO_SUAVE)}>{formatNumber(advisor.messages_sent)}</span>
@@ -1856,6 +1878,8 @@ function PanelAsesor({
                                 valor={formatNumber(s.active_conversations + s.pending_conversations)}
                                 detalle={t('statistics.view.activePendingDetail', { active: formatNumber(s.active_conversations), pending: formatNumber(s.pending_conversations) })}
                             />
+                            <DivisorV desde="@md/cuerpo:block" />
+                            <MiniCifra icono={Hourglass} etiqueta={t('statistics.view.released')} valor={formatNumber(s.released_inactive ?? 0)} detalle={t('statistics.view.releasedDetail')} />
                         </div>
 
                         <div className={cn('grid gap-y-6 border-b px-4 pt-[18px] pb-4 sm:px-6 @md/cuerpo:grid-cols-2 @md/cuerpo:gap-x-7', FILETE)}>

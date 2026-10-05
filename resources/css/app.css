@@ -58,6 +58,9 @@
 
 /* CRITICAL: Configure dark mode to use .dark class instead of media query */
 @custom-variant dark (&:where(.dark, .dark *));
+/* Pantallas BAJAS (portátiles de 768 px con la barra del navegador, móviles en horizontal):
+   el menú lateral se compacta. Ver layouts/marco-layout.tsx. */
+@custom-variant bajo (@media (max-height: 760px));
 
 @theme {
     --font-sans:
@@ -1824,6 +1827,32 @@ tr.table-row-hover:hover {
 
 .marco-pildora-interna {
     background-color: var(--marco-pildora);
+}
+
+/* El menú no cabe en la altura de la ventana: los ítems se desplazan (la tarjeta del usuario
+   queda fija abajo). Sin barra visible —en el riel de 72 px taparía las insignias— y con un
+   degradado arriba/abajo que avisa de que hay más; el layout fija --marco-fade-* según lo que
+   falta por desplazar (si sobran 4 px, el degradado mide 4 px y no apaga el último ítem).
+   El margen negativo deja asomar las insignias plegadas, que pasan unos píxeles del riel. */
+.marco-nav-desplaza {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    margin-right: -8px;
+    padding-right: 8px;
+    --marco-fade-arriba: 0px;
+    --marco-fade-abajo: 0px;
+    mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--marco-fade-arriba),
+        #000 calc(100% - var(--marco-fade-abajo)),
+        transparent 100%
+    );
+}
+.marco-nav-desplaza::-webkit-scrollbar {
+    display: none;
 }
 
 @media (min-width: 64rem) {

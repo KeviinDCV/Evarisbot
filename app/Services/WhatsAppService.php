@@ -2047,6 +2047,10 @@ class WhatsAppService
                 return $message;
             }
 
+            // Aviso de fin de semana (Configuración): sábados y domingos, una vez por
+            // conversación, con el horario de atención. Nunca lanza excepciones.
+            app(\App\Services\WeekendNotice::class)->maybeSend($conversation, $from, $this);
+
             // --- Flujo de bienvenida ---
             // Refrescar la conversación para tener datos actualizados
             $conversation->refresh();

@@ -508,7 +508,9 @@ class StatisticsController extends Controller
             ->groupBy('sent_by')
             ->pluck('sent', 'sent_by');
 
-        $advisorStats = $advisors->map(function ($advisor) use ($convAgg, $msgAgg) {
+        $liberadas = $this->liberadasPorInactividad($startDate, $endDate);
+
+        $advisorStats = $advisors->map(function ($advisor) use ($convAgg, $msgAgg, $liberadas) {
             $c = $convAgg->get($advisor->id);
 
             $totalConversations = (int) ($c->total ?? 0);
@@ -535,6 +537,10 @@ class StatisticsController extends Controller
                 'conversations_with_unread' => $conversationsWithUnread,
                 'messages_sent' => $messagesSent,
                 'resolution_rate' => $resolutionRate,
+                // Conversaciones que se le quitaron por no responder a tiempo (Configuración →
+                // Liberación automática). Ya no cuentan en su total ni en su tasa, porque esas se
+                // calculan sobre la asignación ACTUAL; este número deja ver lo que se le liberó.
+                'released_inactive' => (int) ($liberadas[$advisor->id] ?? 0),
             ];
         })->sortByDesc('resolved_conversations')->values()->toArray();
 
@@ -569,9 +575,35 @@ class StatisticsController extends Controller
             'total_with_unread' => $totalUnread,
             'total_messages_sent' => $totalMessages,
             'avg_resolution_rate' => $avgResolutionRate,
+            // Suma de la tabla, como las demás cifras del bloque (no incluye administradores ni
+            // usuarios borrados, que no tienen fila).
+            'total_released_inactive' => array_sum(array_column($advisorStats, 'released_inactive')),
             'top_performer' => $topAdvisor,
             'advisors' => $advisorStats,
         ];
+    }
+
+    /**
+     * Liberaciones automáticas por inactividad en el periodo, por asesor: [user_id => n].
+     *
+     * Salen del historial de cada conversación (conversation_activities, type 'unassigned' con
+     * reason 'auto_release', ver InactiveConversationReleaser) y se fechan por el momento de
+     * la liberación, no por la creación de la conversación. Una sola consulta agrupada.
+     *
+     * @return array<int, int>
+     */
+    private function liberadasPorInactividad(?\Carbon\Carbon $startDate, ?\Carbon\Carbon $endDate, ?int $userId = null): array
+    {
+        return DB::table('conversation_activities')
+            ->where('type', 'unassigned')
+            ->where('metadata', 'like', '%"reason":"auto_release"%')
+            ->when($startDate && $endDate, fn ($q) => $q->whereBetween('created_at', [$startDate, $endDate]))
+            ->when($userId, fn ($q) => $q->whereRaw("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.released_from_id')) = ?", [(string) $userId]))
+            ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.released_from_id')) AS asesor, COUNT(*) AS n")
+            ->groupBy('asesor')
+            ->pluck('n', 'asesor')
+            ->mapWithKeys(fn ($n, $asesor) => [(int) $asesor => (int) $n])
+            ->all();
     }
 
     /**
@@ -695,6 +727,7 @@ class StatisticsController extends Controller
                     ? round(($resolvedConversations * 100.0) / $totalConversations, 2)
                     : 0,
                 'median_response_time_minutes' => $medianResponseTime,
+                'released_inactive' => $this->liberadasPorInactividad($dateStart, $dateEnd, $user->id)[$user->id] ?? 0,
             ],
             'daily_activity' => $dailyActivity,
             'hourly_distribution' => $hourly,

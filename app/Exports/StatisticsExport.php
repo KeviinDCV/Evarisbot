@@ -546,55 +546,61 @@ class StatisticsExport
         
         // Título de la hoja
         $sheet->setCellValue('A' . $row, 'RENDIMIENTO DE ASESORES');
-        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $sheet->mergeCells('A' . $row . ':H' . $row);
         $this->styleSheetTitle($sheet, $row, self::COLOR_PRIMARY);
         $row += 2;
 
         // Resumen general
         $sheet->setCellValue('A' . $row, 'RESUMEN GENERAL');
-        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $sheet->mergeCells('A' . $row . ':H' . $row);
         $this->styleSubtitle($sheet, $row);
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total de Asesores');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_advisors']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total Conversaciones');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_conversations']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total Resueltas');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_resolved']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total Activas');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_active']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Conversaciones Sin Leer');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_with_unread']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total Mensajes Enviados');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_messages_sent']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Tasa Resolución Promedio');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['avg_resolution_rate'] . '%');
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Liberadas por Inactividad');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_released_inactive'] ?? 0);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
@@ -602,26 +608,26 @@ class StatisticsExport
         if ($this->statistics['advisors']['top_performer']) {
             $row++;
             $sheet->setCellValue('A' . $row, 'MEJOR ASESOR');
-            $sheet->mergeCells('A' . $row . ':G' . $row);
+            $sheet->mergeCells('A' . $row . ':H' . $row);
             $this->styleSubtitle($sheet, $row);
             $row++;
 
             $top = $this->statistics['advisors']['top_performer'];
             $sheet->setCellValue('A' . $row, 'Nombre');
             $sheet->setCellValue('B' . $row, $top['name']);
-            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $sheet->mergeCells('B' . $row . ':H' . $row);
             $this->styleInfoRow($sheet, $row, 'A');
             $row++;
 
             $sheet->setCellValue('A' . $row, 'Conversaciones Resueltas');
             $sheet->setCellValue('B' . $row, $top['resolved_conversations']);
-            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $sheet->mergeCells('B' . $row . ':H' . $row);
             $this->styleInfoRow($sheet, $row, 'A');
             $row++;
 
             $sheet->setCellValue('A' . $row, 'Tasa de Resolución');
             $sheet->setCellValue('B' . $row, $top['resolution_rate'] . '%');
-            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $sheet->mergeCells('B' . $row . ':H' . $row);
             $this->styleInfoRow($sheet, $row, 'A');
             $row++;
         }
@@ -629,24 +635,24 @@ class StatisticsExport
         // Detalle por asesor
         $row++;
         $sheet->setCellValue('A' . $row, 'DETALLE POR ASESOR');
-        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $sheet->mergeCells('A' . $row . ':H' . $row);
         $this->styleSubtitle($sheet, $row);
         $row += 2;
 
         // Encabezados de la tabla
-        $headers = ['Asesor', 'Total Conversaciones', 'Resueltas', 'Activas', 'Con Sin Leer', 'Mensajes Enviados', 'Tasa de Resolución'];
+        $headers = ['Asesor', 'Total Conversaciones', 'Resueltas', 'Activas', 'Con Sin Leer', 'Mensajes Enviados', 'Tasa de Resolución', 'Liberadas por Inactividad'];
         $col = 'A';
         foreach ($headers as $header) {
             $sheet->setCellValue($col . $row, $header);
             $col++;
         }
-        $this->styleAdvisorHeader($sheet, $row, 'A', 'G');
+        $this->styleAdvisorHeader($sheet, $row, 'A', 'H');
         $row++;
 
         // Datos de cada asesor
         $dataRow = 0;
         foreach ($this->statistics['advisors']['advisors'] as $advisor) {
-            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0, 'A', 'G');
+            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0, 'A', 'H');
             
             $sheet->setCellValue('A' . $row, $advisor['name']);
             $sheet->setCellValue('B' . $row, $advisor['total_conversations']);
@@ -659,9 +665,14 @@ class StatisticsExport
             $sheet->setCellValue('G' . $row, $advisor['resolution_rate'] === null
                 ? 'Sin datos'
                 : $advisor['resolution_rate'] . '%');
+            $sheet->setCellValue('H' . $row, $advisor['released_inactive'] ?? 0);
+            // styleDataRow pone en negrita la última columna del rango: la cifra principal sigue
+            // siendo la tasa de resolución (G), no la columna nueva.
+            $sheet->getStyle('G' . $row)->getFont()->setBold(true);
+            $sheet->getStyle('H' . $row)->getFont()->setBold(false);
             
             // Centrar valores numéricos
-            $sheet->getStyle('B' . $row . ':G' . $row)->applyFromArray([
+            $sheet->getStyle('B' . $row . ':H' . $row)->applyFromArray([
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_CENTER,
                 ],
@@ -679,6 +690,7 @@ class StatisticsExport
         $sheet->getColumnDimension('E')->setWidth(15);
         $sheet->getColumnDimension('F')->setWidth(20);
         $sheet->getColumnDimension('G')->setWidth(18);
+        $sheet->getColumnDimension('H')->setWidth(24);
     }
 
     private function addSection($sheet, int $startRow, string $title, array $data, string $color): void

@@ -230,6 +230,7 @@
             "unassigned": "{{name}} removió la asignación",
             "autoAssigned": "{{name}} tomó el chat automáticamente",
             "autoReleased": "Liberada automáticamente: {{advisor}} no respondió en {{time}}",
+            "weekendNotice": "Se envió el mensaje de fin de semana",
             "resolved": "{{name}} marcó como resuelto",
             "reopened": "{{name}} reabrió la conversación",
             "statusChanged": "{{name}} cambió estado a {{status}}",
@@ -1033,6 +1034,26 @@
             "savedSuccess": "Liberación automática guardada",
             "saveError": "No se pudo guardar la liberación automática"
         },
+        "weekendNotice": {
+            "title": "Mensaje de fin de semana",
+            "bandText": "Los sábados y domingos responde solo con el horario de atención.",
+            "activeState": "Activo",
+            "inactiveState": "Desactivado",
+            "toggleLabel": "Responder los fines de semana",
+            "toggleHelp": "Sábado y domingo (hora de Colombia), al primer mensaje del paciente. Se envía una sola vez por chat cada fin de semana, aunque escriba varias veces, y no se envía si un asesor le respondió en las últimas 12 horas.",
+            "on": "Activado",
+            "off": "Desactivado",
+            "textLabel": "Mensaje",
+            "textHelp": "Lo que recibe el paciente. Puedes usar *texto* para negrita, como en WhatsApp.",
+            "restoreDefault": "Usar el texto sugerido",
+            "charCount": "{{count}} de {{max}} caracteres",
+            "textRequired": "Escribe el mensaje que recibirá el paciente.",
+            "previewLabel": "Vista previa",
+            "previewHelp": "Así lo verá el paciente en WhatsApp. Los asesores lo ven al abrir el chat.",
+            "saveNote": "No cambia la asignación ni el estado del chat; queda en su historial.",
+            "savedSuccess": "Mensaje de fin de semana guardado",
+            "saveError": "No se pudo guardar el mensaje de fin de semana"
+        },
         "twoFactorAuth": "Autenticación de dos factores",
         "description": "Gestiona tu perfil y la configuración de tu cuenta"
     },
@@ -1332,6 +1353,9 @@
             }
         },
         "view": {
+            "released": "Liberadas",
+            "releasedDetail": "por inactividad",
+            "releasedHelp": "Conversaciones que se le quitaron al asesor por no responder a tiempo (Configuración → Liberación automática).",
             "exportExcel": "Exportar a Excel",
             "dateRange": "Rango de fechas",
             "rangeShort": "Rango",

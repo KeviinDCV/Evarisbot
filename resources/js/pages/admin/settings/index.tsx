@@ -7,6 +7,7 @@ import {
     AudioLines,
     BadgeCheck,
     Building2,
+    CalendarDays,
     Check,
     CircleAlert,
     CircleCheck,
@@ -59,10 +60,39 @@ interface AutoReleaseConfig {
     max: number;
 }
 
+interface WeekendNoticeConfig {
+    enabled: boolean;
+    text: string;
+    default_text: string;
+    max_length: number;
+}
+
 interface SettingsIndexProps {
     settings: Settings;
     advisors: Advisor[];
     autoRelease: AutoReleaseConfig;
+    weekendNotice: WeekendNoticeConfig;
+}
+
+/**
+ * Vista previa al estilo WhatsApp: *negrita*, _cursiva_ y ~tachado~, sin interpretar HTML.
+ * Como en WhatsApp, la marca no aplica si hay un espacio justo después de abrir o antes de cerrar.
+ */
+const FORMATO_WHATSAPP = /([*_~])(?=\S)([^\n]*?\S)\1/g;
+function TextoWhatsApp({ texto }: { texto: string }) {
+    const partes: ReactNode[] = [];
+    let ultimo = 0;
+    for (const m of texto.matchAll(FORMATO_WHATSAPP)) {
+        const inicio = m.index ?? 0;
+        if (inicio > ultimo) partes.push(<span key={`t${inicio}`}>{texto.slice(ultimo, inicio)}</span>);
+        const contenido = m[2];
+        partes.push(
+            m[1] === '*' ? <strong key={inicio}>{contenido}</strong> : m[1] === '_' ? <em key={inicio}>{contenido}</em> : <s key={inicio}>{contenido}</s>
+        );
+        ultimo = inicio + m[0].length;
+    }
+    if (ultimo < texto.length) partes.push(<span key="fin">{texto.slice(ultimo)}</span>);
+    return <>{partes}</>;
 }
 
 // Tiempos frecuentes de la liberación automática (minutos).
@@ -389,7 +419,7 @@ const BOTON_SECUNDARIO = cn(
 // Avatares de "de turno" en la franja, tocándose. Si hay más gente que huecos, el último es "+N".
 const HUECOS_PILA = 7;
 
-export default function SettingsIndex({ settings, advisors, autoRelease }: SettingsIndexProps) {
+export default function SettingsIndex({ settings, advisors, autoRelease, weekendNotice }: SettingsIndexProps) {
     const { t } = useTranslation();
     const [testingConnection, setTestingConnection] = useState(false);
     const [loadingProfile, setLoadingProfile] = useState(false);
@@ -462,6 +492,31 @@ export default function SettingsIndex({ settings, advisors, autoRelease }: Setti
             window.clearTimeout(espera);
         };
     }, [releaseMinutes, releaseValid]);
+
+    // ── Mensaje de fin de semana ──
+    const [weekendEnabled, setWeekendEnabled] = useState(weekendNotice.enabled);
+    const [weekendText, setWeekendText] = useState(weekendNotice.text);
+    const [savingWeekend, setSavingWeekend] = useState(false);
+    const weekendTextTrim = weekendText.trim();
+    const weekendTextValid = weekendTextTrim.length > 0 && weekendText.length <= weekendNotice.max_length;
+    const weekendChanged = weekendEnabled !== weekendNotice.enabled || weekendTextTrim !== weekendNotice.text.trim();
+    // Apagar nunca depende del texto: si quedó vacío, se conserva el guardado.
+    const weekendCanSave = weekendChanged && (weekendTextValid || !weekendEnabled);
+
+    const saveWeekendNotice = () => {
+        if (!weekendCanSave) return;
+        setSavingWeekend(true);
+        router.post(
+            '/admin/settings/weekend-notice',
+            { enabled: weekendEnabled, text: weekendTextValid ? weekendText : null },
+            {
+                preserveScroll: true,
+                onFinish: () => setSavingWeekend(false),
+                onSuccess: () => toast.success(t('settings.weekendNotice.savedSuccess')),
+                onError: () => toast.error(t('settings.weekendNotice.saveError')),
+            }
+        );
+    };
 
     const saveAutoRelease = () => {
         if (!releaseCanSave) return;
@@ -1116,7 +1171,111 @@ export default function SettingsIndex({ settings, advisors, autoRelease }: Setti
                             </Pie>
                         </section>
 
-                        {/* ── 4. Asesores de turno ── */}
+                        {/* ── 4. Mensaje de fin de semana ── */}
+                        <section aria-labelledby="settings-weekend">
+                            <Banda
+                                id="settings-weekend"
+                                icon={CalendarDays}
+                                titulo={t('settings.weekendNotice.title')}
+                                estado={<Estado ok={weekendNotice.enabled} si={t('settings.weekendNotice.activeState')} no={t('settings.weekendNotice.inactiveState')} />}
+                                texto={t('settings.weekendNotice.bandText')}
+                            />
+
+                            <Fila
+                                etiqueta={t('settings.weekendNotice.toggleLabel')}
+                                htmlFor="weekend-toggle"
+                                ayuda={t('settings.weekendNotice.toggleHelp')}
+                                ayudaId="weekend-toggle-help"
+                            >
+                                <button
+                                    id="weekend-toggle"
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={weekendEnabled}
+                                    aria-describedby="weekend-toggle-help"
+                                    onClick={() => setWeekendEnabled((actual) => !actual)}
+                                    className={cn('inline-flex cursor-pointer items-center gap-2.5 rounded-full py-1 pr-1', FOCO)}
+                                >
+                                    <span
+                                        className={cn(
+                                            'relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors',
+                                            weekendEnabled ? 'bg-[#2e3f84] dark:bg-[#596bcf]' : 'bg-slate-300 dark:bg-neutral-600'
+                                        )}
+                                        aria-hidden="true"
+                                    >
+                                        <span
+                                            className={cn(
+                                                'absolute left-[3px] size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-transform',
+                                                weekendEnabled && 'translate-x-4'
+                                            )}
+                                        />
+                                    </span>
+                                    <span className={cn('text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>
+                                        {weekendEnabled ? t('settings.weekendNotice.on') : t('settings.weekendNotice.off')}
+                                    </span>
+                                </button>
+                            </Fila>
+
+                            <Fila etiqueta={t('settings.weekendNotice.textLabel')} htmlFor="weekend-text" ayuda={t('settings.weekendNotice.textHelp')} ayudaId="weekend-text-help">
+                                <div className="flex w-full max-w-[560px] flex-col gap-2">
+                                    <textarea
+                                        id="weekend-text"
+                                        name="weekend-text"
+                                        rows={6}
+                                        value={weekendText}
+                                        maxLength={weekendNotice.max_length}
+                                        onChange={(event) => setWeekendText(event.target.value)}
+                                        aria-describedby={describir('weekend-text-help', !weekendTextValid && weekendEnabled && 'weekend-text-error')}
+                                        aria-invalid={(!weekendTextValid && weekendEnabled) || undefined}
+                                        className={cn(
+                                            'w-full resize-y rounded-[9px] bg-white px-3 py-2.5 text-[13px] leading-[19px] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none',
+                                            'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)]',
+                                            'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)] dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]',
+                                            !weekendTextValid && weekendEnabled && 'shadow-[inset_0_0_0_1px_var(--color-red-600)] dark:shadow-[inset_0_0_0_1px_var(--color-red-400)]'
+                                        )}
+                                    />
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setWeekendText(weekendNotice.default_text)}
+                                            disabled={weekendText === weekendNotice.default_text}
+                                            className={BOTON_SECUNDARIO}
+                                        >
+                                            {t('settings.weekendNotice.restoreDefault')}
+                                        </button>
+                                        <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>
+                                            {t('settings.weekendNotice.charCount', { count: weekendText.length, max: weekendNotice.max_length })}
+                                        </span>
+                                    </div>
+                                    {!weekendTextValid && weekendEnabled && (
+                                        <p id="weekend-text-error" className={ERROR_CAMPO}>
+                                            {t('settings.weekendNotice.textRequired')}
+                                        </p>
+                                    )}
+                                </div>
+                            </Fila>
+
+                            <Fila etiqueta={t('settings.weekendNotice.previewLabel')} ayuda={t('settings.weekendNotice.previewHelp')}>
+                                <div className="w-full max-w-[420px] rounded-[12px] bg-[#efeae2] p-3 dark:bg-white/[0.04]">
+                                    <p className="max-w-[92%] rounded-[10px] rounded-tl-[3px] bg-white px-3 py-2 text-[13px] leading-[19px] whitespace-pre-wrap text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] [overflow-wrap:anywhere] dark:bg-[#202c33] dark:text-neutral-100">
+                                        {weekendTextTrim ? <TextoWhatsApp texto={weekendText} /> : <span className={TEXTO_SUAVE}>—</span>}
+                                    </p>
+                                </div>
+                            </Fila>
+
+                            <Pie nota={t('settings.weekendNotice.saveNote')}>
+                                <Button
+                                    type="button"
+                                    onClick={saveWeekendNotice}
+                                    disabled={savingWeekend || !weekendCanSave}
+                                    className={cn(BOTON_PRIMARIO, weekendCanSave ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
+                                >
+                                    {botonGuardar(savingWeekend, t('common.saveChanges'))}
+                                </Button>
+                            </Pie>
+                        </section>
+
+                        {/* ── 5. Asesores de turno ── */}
                         <section aria-labelledby="settings-duty">
                             <Banda
                                 id="settings-duty"

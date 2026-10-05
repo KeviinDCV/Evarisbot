@@ -2926,6 +2926,8 @@ export default function ConversationsIndex({ conversations: initialConversations
             }
             case 'created':
                 return t('conversations.activity.created', { name });
+            case 'weekend_notice':
+                return t('conversations.activity.weekendNotice');
             default:
                 return `${name}: ${activity.type}`;
         }
@@ -2940,6 +2942,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             case 'reopened': return 'bg-amber-400';
             case 'status_changed': return 'bg-purple-400';
             case 'created': return 'bg-sky-400';
+            case 'weekend_notice': return 'bg-teal-400';
             default: return 'bg-gray-400';
         }
     };

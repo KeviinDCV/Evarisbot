@@ -126,37 +126,52 @@ class ConversationController extends Controller
 
         // "300 432 9862" o "+57 300-432-9862": el teléfono se guarda sin espacios ni guiones.
         $digitos = preg_match('/^[\d\s+().-]+$/', $termino) ? preg_replace('/\D/', '', $termino) : '';
+        // Chats con el texto en algún mensaje: lista de ids si son pocos, null si son demasiados.
+        $porMensaje = $this->conversacionesConMensaje($termino);
+        $like = '%' . addcslashes($termino, '%_\\') . '%';
 
-        // Un número que ya coincide con algún teléfono es una búsqueda por teléfono (la gran
-        // mayoría): no hace falta recorrer los mensajes. Un número sin teléfono (p. ej. una
-        // cédula que el paciente escribió) sí se busca en los mensajes.
-        $esTelefono = $digitos !== '' && Conversation::where('phone_number', 'like', "%{$digitos}%")->exists();
-        $porMensaje = $esTelefono ? [] : $this->conversacionesConMensaje($termino);
-
-        $query->where(function ($q) use ($termino, $digitos, $porMensaje) {
+        $query->where(function ($q) use ($termino, $digitos, $porMensaje, $like) {
             $q->where('contact_name', 'like', "%{$termino}%")
               ->orWhere('phone_number', 'like', "%{$termino}%");
             if ($digitos !== '' && $digitos !== $termino) {
                 $q->orWhere('phone_number', 'like', "%{$digitos}%");
             }
-            if ($porMensaje !== []) {
-                $q->orWhereIn('conversations.id', $porMensaje);
+            if ($porMensaje === null) {
+                // Término muy común (más de BUSQUEDA_MAX_IDS chats): EXISTS por conversación, como
+                // antes. Con un término así coincide enseguida, así que es rápido; una lista con
+                // decenas de miles de ids no (y MariaDB no admite más de 65.535 parámetros).
+                $q->orWhereExists(fn ($m) => $m->selectRaw('1')->from('messages')
+                    ->whereColumn('messages.conversation_id', 'conversations.id')
+                    ->where('messages.content', 'like', $like)
+                    ->whereRaw(self::BUSQUEDA_SIN_AUTOMATICOS));
+            } elseif ($porMensaje !== []) {
+                // Enteros incrustados en el SQL, sin un parámetro por id.
+                $q->orWhereIntegerInRaw('conversations.id', $porMensaje);
             }
         });
     }
 
+    /** Máximo de chats por mensaje que se cruzan por id; por encima se usa EXISTS. */
+    private const BUSQUEDA_MAX_IDS = 5000;
+
+    /**
+     * Los avisos automáticos ocultos (respuestas de cita, mensaje de fin de semana) no cuentan:
+     * si no, buscar "horario" o "cita" traería todos los chats que los recibieron.
+     */
+    private const BUSQUEDA_SIN_AUTOMATICOS = 'NOT (messages.is_from_user = 0 AND messages.sent_by IS NULL AND messages.is_hidden = 1)';
+
     /**
      * Conversaciones con algún mensaje que contenga el término, en una sola pasada por la
-     * tabla de mensajes (1,5–4 s según el término y la carga; antes se pagaba eso en cada
-     * consulta). Se guarda 60 s: la lista, los contadores y el sondeo de la misma búsqueda la
-     * reutilizan. Sin límite de filas, para encontrar lo mismo que la búsqueda anterior. Con
-     * menos de 3 caracteres no se busca en mensajes (escribir "30" no debe recorrer toda la
-     * tabla), y si la pasada supera 5 s se corta y la búsqueda sigue por nombre y teléfono:
-     * más vale un resultado rápido que ninguno.
+     * tabla de mensajes (antes se pagaba una subconsulta por conversación en cada consulta,
+     * 3-8 s). Se guarda 60 s: la lista, los contadores y el sondeo de la misma búsqueda la
+     * reutilizan. Devuelve null si son más de BUSQUEDA_MAX_IDS (término común: ver
+     * aplicarBusqueda). Con menos de 3 caracteres no se busca en mensajes (escribir "30" no
+     * debe recorrer toda la tabla), y si la pasada supera 8 s se corta y la búsqueda sigue por
+     * nombre y teléfono: más vale un resultado rápido que ninguno.
      *
-     * @return array<int, int>
+     * @return array<int, int>|null
      */
-    private function conversacionesConMensaje(string $termino): array
+    private function conversacionesConMensaje(string $termino): ?array
     {
         if (mb_strlen($termino) < 3) {
             return [];
@@ -165,32 +180,64 @@ class ConversationController extends Controller
         $clave = 'busqueda-mensajes:' . md5(mb_strtolower($termino));
         $guardado = \Illuminate\Support\Facades\Cache::get($clave);
         if (is_array($guardado)) {
-            return $guardado;
+            return ($guardado['muchos'] ?? false) ? null : ($guardado['ids'] ?? []);
         }
 
         $like = '%' . addcslashes($termino, '%_\\') . '%';
         try {
-            // Tope de 8 s: lo que tardaba antes en el peor caso, pero ahora solo la primera vez.
+            // Tope de 8 s; el LIMIT corta enseguida con los términos comunes.
             $filas = \Illuminate\Support\Facades\DB::select(
                 'SET STATEMENT max_statement_time=8 FOR '
-                . 'SELECT DISTINCT conversation_id FROM messages WHERE content LIKE ?',
+                . 'SELECT DISTINCT conversation_id FROM messages WHERE content LIKE ? AND '
+                . self::BUSQUEDA_SIN_AUTOMATICOS . ' LIMIT ' . (self::BUSQUEDA_MAX_IDS + 1),
                 [$like]
             );
         } catch (\Illuminate\Database\QueryException $e) {
-            \Illuminate\Support\Facades\Log::warning('Búsqueda en mensajes cortada por tiempo; se busca solo por nombre y teléfono', [
+            // Solo el código: el mensaje de la excepción lleva el SQL con el término buscado
+            // (un nombre o una cédula) y no debe quedar en el registro.
+            \Illuminate\Support\Facades\Log::warning('Búsqueda en mensajes no completada; se busca solo por nombre y teléfono', [
+                'codigo' => $e->errorInfo[1] ?? $e->getCode(),
                 'largo_termino' => mb_strlen($termino),
-                'error' => $e->getMessage(),
             ]);
             // Se reintenta pronto (15 s), no al minuto: el corte suele ser por carga puntual.
-            \Illuminate\Support\Facades\Cache::put($clave, [], 15);
+            \Illuminate\Support\Facades\Cache::put($clave, ['ids' => []], 15);
 
             return [];
         }
 
+        $this->purgarBusquedasCaducadas();
+
+        if (count($filas) > self::BUSQUEDA_MAX_IDS) {
+            \Illuminate\Support\Facades\Cache::put($clave, ['muchos' => true], 60);
+
+            return null;
+        }
+
         $ids = array_values(array_unique(array_map(fn ($f) => (int) $f->conversation_id, $filas)));
-        \Illuminate\Support\Facades\Cache::put($clave, $ids, 60);
+        \Illuminate\Support\Facades\Cache::put($clave, ['ids' => $ids], 60);
 
         return $ids;
+    }
+
+    /**
+     * La caché en base de datos solo borra una clave caducada cuando se vuelve a pedir, y cada
+     * término (y cada prefijo mientras se escribe) crea la suya: de vez en cuando se barren las
+     * caducadas de la búsqueda. time() de PHP, no NOW() de SQL (la sesión está en hora local).
+     */
+    private function purgarBusquedasCaducadas(): void
+    {
+        if (random_int(1, 20) !== 1) {
+            return;
+        }
+
+        try {
+            \Illuminate\Support\Facades\DB::table(config('cache.stores.database.table', 'cache'))
+                ->where('key', 'like', '%busqueda-mensajes:%')
+                ->where('expiration', '<', time())
+                ->delete();
+        } catch (\Throwable $e) {
+            // Limpieza oportunista: si falla, ya habrá otra.
+        }
     }
 
     /**
