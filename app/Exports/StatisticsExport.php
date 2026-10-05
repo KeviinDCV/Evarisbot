@@ -40,6 +40,7 @@ class StatisticsExport
         $this->createAppointmentsSheet($spreadsheet);
         $this->createConversationsSheet($spreadsheet);
         $this->createTemplatesSheet($spreadsheet);
+        $this->createCostsSheet($spreadsheet);
         $this->createUsersSheet($spreadsheet);
         $this->createAdvisorsSheet($spreadsheet);
 
@@ -157,6 +158,20 @@ class StatisticsExport
             ['Total de envíos', $this->statistics['templates']['total_sends']],
         ], self::COLOR_WARNING);
         $row += 7;
+
+        // Resumen de Costos (estimación del API de WhatsApp)
+        $costs = $this->statistics['costs'] ?? null;
+        if ($costs) {
+            $cur = $costs['currency'] ?? 'USD';
+            $this->addSection($sheet, $row, 'COSTO ESTIMADO WHATSAPP', [
+                ['Costo total estimado', $this->money($costs['total_cost'] ?? 0, $cur)],
+                ['Mensajes facturables', $costs['billable_total'] ?? 0],
+                ['Mensajes gratis (servicio/ventana 24h)', $costs['free_total'] ?? 0],
+                ['Sin datos de facturación', $costs['without_pricing'] ?? 0],
+                ['Cobertura de la medición', ($costs['coverage_percent'] ?? 0) . '%'],
+            ], self::COLOR_DANGER);
+            $row += 8;
+        }
 
         // Resumen de Usuarios
         $this->addSection($sheet, $row, 'USUARIOS', [
@@ -326,7 +341,14 @@ class StatisticsExport
         $this->styleSubtitle($sheet, $row);
         $row++;
 
-        foreach ($this->statistics['conversations']['by_status'] as $status => $count) {
+        // getConversationStatistics() no devuelve 'by_status' (eso es de citas): los estados
+        // vienen como claves sueltas. Antes se recorría una clave inexistente y la sección
+        // "Por Estado" del Excel salía siempre vacía.
+        // Se excluyen 'total' (no es un estado) y 'unread' (contador transversal).
+        $conversaciones = $this->statistics['conversations'] ?? [];
+        $estados = array_diff_key($conversaciones, array_flip(['total', 'unread']));
+
+        foreach ($estados as $status => $count) {
             $this->styleDataRow($sheet, $row, $dataRow % 2 == 0);
             $sheet->setCellValue('A' . $row, ucfirst($status));
             $sheet->setCellValue('B' . $row, $count);
@@ -376,6 +398,108 @@ class StatisticsExport
         $sheet->getColumnDimension('B')->setWidth(25);
     }
 
+    private function createCostsSheet(Spreadsheet $spreadsheet): void
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle('Costos');
+
+        $costs = $this->statistics['costs'] ?? [
+            'currency' => 'USD', 'by_category' => [], 'total_cost' => 0,
+            'billable_total' => 0, 'free_total' => 0, 'without_pricing' => 0,
+            'with_pricing' => 0, 'outbound_total' => 0, 'coverage_percent' => 0,
+        ];
+        $cur = $costs['currency'] ?? 'USD';
+
+        $row = 1;
+        $sheet->setCellValue('A' . $row, 'COSTO ESTIMADO DEL API DE WHATSAPP');
+        $sheet->mergeCells('A' . $row . ':D' . $row);
+        $this->styleSheetTitle($sheet, $row, self::COLOR_DANGER);
+        $row += 2;
+
+        // Encabezados de la tabla por categoría
+        $headers = ['Categoría', 'Facturables', 'Tarifa/mensaje', 'Costo estimado'];
+        $col = 'A';
+        foreach ($headers as $header) {
+            $sheet->setCellValue($col . $row, $header);
+            $col++;
+        }
+        $this->styleAdvisorHeader($sheet, $row, 'A', 'D');
+        $row++;
+
+        $labels = [
+            'marketing' => 'Marketing',
+            'utility' => 'Utility (recordatorios/citas)',
+            'authentication' => 'Autenticación (OTP)',
+            'service' => 'Servicio (respuestas 24h)',
+        ];
+
+        $dataRow = 0;
+        foreach (($costs['by_category'] ?? []) as $cat => $data) {
+            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0, 'A', 'D');
+            $sheet->setCellValue('A' . $row, $labels[$cat] ?? ucfirst($cat));
+            $sheet->setCellValue('B' . $row, $data['billable'] ?? 0);
+            $sheet->setCellValue('C' . $row, ($data['rate'] ?? 0) == 0 ? 'Gratis' : $this->money($data['rate'] ?? 0, $cur, 4));
+            $sheet->setCellValue('D' . $row, $this->money($data['cost'] ?? 0, $cur));
+            $sheet->getStyle('B' . $row . ':D' . $row)->applyFromArray([
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
+            $row++;
+            $dataRow++;
+        }
+
+        // Fila de total
+        $sheet->setCellValue('A' . $row, 'TOTAL ESTIMADO');
+        $sheet->setCellValue('D' . $row, $this->money($costs['total_cost'] ?? 0, $cur));
+        $sheet->mergeCells('A' . $row . ':C' . $row);
+        $this->styleAdvisorHeader($sheet, $row, 'A', 'D');
+        $row += 2;
+
+        // Cobertura y contexto de la medición
+        $sheet->setCellValue('A' . $row, 'Cobertura de la medición:');
+        $sheet->mergeCells('A' . $row . ':D' . $row);
+        $this->styleSubtitle($sheet, $row);
+        $row++;
+
+        $context = [
+            ['Mensajes salientes del período', $costs['outbound_total'] ?? 0],
+            ['Con datos de facturación', $costs['with_pricing'] ?? 0],
+            ['Sin datos (anteriores a la medición)', $costs['without_pricing'] ?? 0],
+            ['Cobertura', ($costs['coverage_percent'] ?? 0) . '%'],
+            ['Mensajes facturables', $costs['billable_total'] ?? 0],
+            ['Mensajes gratis', $costs['free_total'] ?? 0],
+        ];
+        $dataRow = 0;
+        foreach ($context as $item) {
+            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0);
+            $sheet->setCellValue('A' . $row, $item[0]);
+            $sheet->setCellValue('B' . $row, $item[1]);
+            $row++;
+            $dataRow++;
+        }
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Estimación con tarifas de Colombia (Meta, modelo por mensaje). Cifra referencial: el cobro real y las facturas están en Meta Business Manager › Facturación y pagos.');
+        $sheet->mergeCells('A' . $row . ':D' . $row);
+        $sheet->getStyle('A' . $row)->applyFromArray([
+            'font' => ['size' => 9, 'italic' => true, 'color' => ['rgb' => '6B7280']],
+            'alignment' => ['wrapText' => true, 'vertical' => Alignment::VERTICAL_CENTER],
+        ]);
+        $sheet->getRowDimension($row)->setRowHeight(45);
+
+        $sheet->getColumnDimension('A')->setWidth(38);
+        $sheet->getColumnDimension('B')->setWidth(18);
+        $sheet->getColumnDimension('C')->setWidth(18);
+        $sheet->getColumnDimension('D')->setWidth(18);
+    }
+
+    /**
+     * Formatea un monto con su moneda para el Excel (ej: "US$ 125.00").
+     */
+    private function money($value, string $currency = 'USD', int $decimals = 2): string
+    {
+        return $currency . ' ' . number_format((float) $value, $decimals, '.', ',');
+    }
+
     private function createUsersSheet(Spreadsheet $spreadsheet): void
     {
         $sheet = $spreadsheet->createSheet();
@@ -422,55 +546,61 @@ class StatisticsExport
         
         // Título de la hoja
         $sheet->setCellValue('A' . $row, 'RENDIMIENTO DE ASESORES');
-        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $sheet->mergeCells('A' . $row . ':H' . $row);
         $this->styleSheetTitle($sheet, $row, self::COLOR_PRIMARY);
         $row += 2;
 
         // Resumen general
         $sheet->setCellValue('A' . $row, 'RESUMEN GENERAL');
-        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $sheet->mergeCells('A' . $row . ':H' . $row);
         $this->styleSubtitle($sheet, $row);
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total de Asesores');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_advisors']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total Conversaciones');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_conversations']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total Resueltas');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_resolved']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total Activas');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_active']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Conversaciones Sin Leer');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_with_unread']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Total Mensajes Enviados');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_messages_sent']);
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
         $sheet->setCellValue('A' . $row, 'Tasa Resolución Promedio');
         $sheet->setCellValue('B' . $row, $this->statistics['advisors']['avg_resolution_rate'] . '%');
-        $sheet->mergeCells('B' . $row . ':G' . $row);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
+        $this->styleInfoRow($sheet, $row, 'A');
+        $row++;
+
+        $sheet->setCellValue('A' . $row, 'Liberadas por Inactividad');
+        $sheet->setCellValue('B' . $row, $this->statistics['advisors']['total_released_inactive'] ?? 0);
+        $sheet->mergeCells('B' . $row . ':H' . $row);
         $this->styleInfoRow($sheet, $row, 'A');
         $row++;
 
@@ -478,26 +608,26 @@ class StatisticsExport
         if ($this->statistics['advisors']['top_performer']) {
             $row++;
             $sheet->setCellValue('A' . $row, 'MEJOR ASESOR');
-            $sheet->mergeCells('A' . $row . ':G' . $row);
+            $sheet->mergeCells('A' . $row . ':H' . $row);
             $this->styleSubtitle($sheet, $row);
             $row++;
 
             $top = $this->statistics['advisors']['top_performer'];
             $sheet->setCellValue('A' . $row, 'Nombre');
             $sheet->setCellValue('B' . $row, $top['name']);
-            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $sheet->mergeCells('B' . $row . ':H' . $row);
             $this->styleInfoRow($sheet, $row, 'A');
             $row++;
 
             $sheet->setCellValue('A' . $row, 'Conversaciones Resueltas');
             $sheet->setCellValue('B' . $row, $top['resolved_conversations']);
-            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $sheet->mergeCells('B' . $row . ':H' . $row);
             $this->styleInfoRow($sheet, $row, 'A');
             $row++;
 
             $sheet->setCellValue('A' . $row, 'Tasa de Resolución');
             $sheet->setCellValue('B' . $row, $top['resolution_rate'] . '%');
-            $sheet->mergeCells('B' . $row . ':G' . $row);
+            $sheet->mergeCells('B' . $row . ':H' . $row);
             $this->styleInfoRow($sheet, $row, 'A');
             $row++;
         }
@@ -505,24 +635,24 @@ class StatisticsExport
         // Detalle por asesor
         $row++;
         $sheet->setCellValue('A' . $row, 'DETALLE POR ASESOR');
-        $sheet->mergeCells('A' . $row . ':G' . $row);
+        $sheet->mergeCells('A' . $row . ':H' . $row);
         $this->styleSubtitle($sheet, $row);
         $row += 2;
 
         // Encabezados de la tabla
-        $headers = ['Asesor', 'Total Conversaciones', 'Resueltas', 'Activas', 'Con Sin Leer', 'Mensajes Enviados', 'Tasa de Resolución'];
+        $headers = ['Asesor', 'Total Conversaciones', 'Resueltas', 'Activas', 'Con Sin Leer', 'Mensajes Enviados', 'Tasa de Resolución', 'Liberadas por Inactividad'];
         $col = 'A';
         foreach ($headers as $header) {
             $sheet->setCellValue($col . $row, $header);
             $col++;
         }
-        $this->styleAdvisorHeader($sheet, $row, 'A', 'G');
+        $this->styleAdvisorHeader($sheet, $row, 'A', 'H');
         $row++;
 
         // Datos de cada asesor
         $dataRow = 0;
         foreach ($this->statistics['advisors']['advisors'] as $advisor) {
-            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0, 'A', 'G');
+            $this->styleDataRow($sheet, $row, $dataRow % 2 == 0, 'A', 'H');
             
             $sheet->setCellValue('A' . $row, $advisor['name']);
             $sheet->setCellValue('B' . $row, $advisor['total_conversations']);
@@ -530,10 +660,19 @@ class StatisticsExport
             $sheet->setCellValue('D' . $row, $advisor['active_conversations']);
             $sheet->setCellValue('E' . $row, $advisor['conversations_with_unread']);
             $sheet->setCellValue('F' . $row, $advisor['messages_sent']);
-            $sheet->setCellValue('G' . $row, $advisor['resolution_rate'] . '%');
+            // resolution_rate es null si el asesor no tiene conversaciones asignadas.
+            // Sin esto la celda saldría como un "%" suelto.
+            $sheet->setCellValue('G' . $row, $advisor['resolution_rate'] === null
+                ? 'Sin datos'
+                : $advisor['resolution_rate'] . '%');
+            $sheet->setCellValue('H' . $row, $advisor['released_inactive'] ?? 0);
+            // styleDataRow pone en negrita la última columna del rango: la cifra principal sigue
+            // siendo la tasa de resolución (G), no la columna nueva.
+            $sheet->getStyle('G' . $row)->getFont()->setBold(true);
+            $sheet->getStyle('H' . $row)->getFont()->setBold(false);
             
             // Centrar valores numéricos
-            $sheet->getStyle('B' . $row . ':G' . $row)->applyFromArray([
+            $sheet->getStyle('B' . $row . ':H' . $row)->applyFromArray([
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_CENTER,
                 ],
@@ -551,6 +690,7 @@ class StatisticsExport
         $sheet->getColumnDimension('E')->setWidth(15);
         $sheet->getColumnDimension('F')->setWidth(20);
         $sheet->getColumnDimension('G')->setWidth(18);
+        $sheet->getColumnDimension('H')->setWidth(24);
     }
 
     private function addSection($sheet, int $startRow, string $title, array $data, string $color): void

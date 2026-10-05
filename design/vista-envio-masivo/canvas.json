@@ -1,0 +1,20 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",       "title": "Al entrar, preparando un envío", "x": 0,    "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Detalle.dc.html",    "title": "Detalle de un envío",            "x": 0,    "y": 1260, "w": 1440, "h": 900 },
+    { "file": "Plantillas.dc.html", "title": "Pestaña Plantillas",             "x": 0,    "y": 2520, "w": 1440, "h": 900 },
+    { "file": "Completa.dc.html",   "title": "Pestaña Enviar completa",        "x": 1560, "y": 0,    "w": 1190, "h": 2420 },
+    { "file": "Dialogos.dc.html",   "title": "Crear y eliminar plantilla",     "x": 1560, "y": 2780, "w": 1190, "h": 1116 },
+    { "file": "Estados.dc.html",    "title": "Estados del envío",              "x": 2870, "y": 0,    "w": 1190, "h": 2898 }
+  ],
+  "annotations": [
+    { "id": "resumen", "x": 0, "y": -290, "w": 4060, "text": "Paso 6: la pantalla de Envío masivo, en el mismo estilo que Usuarios, Configuración, Estadísticas y Citas.\nPreparar un envío se hace en cuatro pasos numerados: 1 la plantilla, 2 a quién va, 3 de dónde sale cada dato del mensaje y 4, siempre a la vista a la derecha, cómo le llega el mensaje al paciente y el botón de enviar.\nTodos los pacientes, teléfonos, archivos, plantillas, textos y cifras son inventados.\nUna sola pregunta: ¿seguimos con esta pantalla?" },
+    { "id": "nota-main", "x": 0, "y": 940, "w": 1440, "text": "Qué cambia:\n• Enviar y Plantillas quedan junto al título. Las cuatro tarjetas pasan a ser una franja de cifras.\n• Primero se elige la plantilla y ahí mismo se ve cómo tiene que ser el Excel. Después se cargan los destinatarios. Después se revisa de qué columna sale cada dato.\n• A la derecha, fijo, el mensaje como le llegará al primer paciente, con los datos resaltados, y una lista de comprobaciones. El botón de enviar abre la confirmación de siempre." },
+    { "id": "nota-detalle", "x": 0, "y": 2200, "w": 1440, "text": "El detalle de un envío: el nombre y su estado arriba, cinco cifras, el texto que se mandó y la lista de destinatarios con sus datos. El estado y el motivo del error van juntos en la última columna. Arriba a la derecha, los filtros y el buscador." },
+    { "id": "nota-plantillas", "x": 0, "y": 3460, "w": 1440, "text": "Plantillas: sus cuatro cifras, Sincronizar con Meta y Crear plantilla en la barra, y la tabla con el estado de cada una en Meta. La papelera de cada fila pregunta antes de borrar." },
+    { "id": "nota-completa", "x": 1560, "y": 2460, "w": 1190, "text": "La pestaña Enviar de arriba abajo: los cuatro pasos y debajo el historial de envíos, con filtros por estado y el buscador. Al bajar, la columna de la derecha se queda quieta." },
+    { "id": "nota-dialogos", "x": 1560, "y": 3936, "w": 1190, "text": "Crear plantilla: los mismos campos de hoy, con la vista previa al lado mientras se escribe. Eliminar: pregunta y la opción segura queda a la izquierda." },
+    { "id": "nota-estados", "x": 2870, "y": 2938, "w": 1190, "text": "1. Mientras sale un envío se ve su avance y no se puede preparar otro.\n2. Detener pregunta antes (hoy se cancela con un solo clic).\n3. La confirmación de enviar sigue igual: resumen, mensaje, avisos y la casilla.\n4. Si falta un dato o hay una fecha donde va una hora, sale en rojo y el botón de enviar se apaga.\n5 a 7. Avisos de plantilla, búsqueda y pantallas vacías." }
+  ],
+  "launch": { "view": "canvas" }
+}

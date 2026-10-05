@@ -3,22 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Templates\SendTemplateRequest;
 use App\Http\Requests\Templates\StoreTemplateRequest;
 use App\Http\Requests\Templates\UpdateTemplateRequest;
 use App\Models\Template;
 use App\Models\User;
-use App\Services\TemplateSendService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Inertia\Inertia;
 
 class TemplateController extends Controller
 {
-    public function __construct(
-        private TemplateSendService $templateSendService
-    ) {}
-
     /**
      * Procesa un archivo de imagen, convirtiendo WebP a PNG si es necesario.
      * WhatsApp Cloud API no soporta WebP, solo PNG y JPEG.
@@ -97,7 +91,26 @@ class TemplateController extends Controller
      */
     public function index(Request $request)
     {
+        // Catálogo institucional, más lo que haya creado uno mismo.
+        //
+        // Sin este filtro el listado devolvía TODAS las plantillas del sistema. Y como
+        // GET /admin/templates queda fuera de role:admin —la declaración suelta de
+        // routes/web.php gana a la del Route::resource por orden de registro—, cualquier
+        // asesor autenticado podía leer el contenido íntegro de las plantillas privadas
+        // de los demás. Hoy no se nota, porque las 27 existentes son globales; en cuanto
+        // haya personales sería una fuga directa.
+        //
+        // Se deja pasar 'created_by' además de 'is_global' para no romper la asignación a
+        // usuarios que ya existe en el panel de admin: si sólo se filtrara por globales,
+        // el admin crearía una plantilla asignada y desaparecería del listado.
         $query = Template::with(['creator', 'updater', 'assignedUsers'])
+            ->where(function ($q) {
+                $q->where('is_global', true)
+                    ->orWhere('created_by', auth()->id())
+                    // Las asignadas a uno mismo: el «/» del chat ya las ofrece (scopeAvailableForUser),
+                    // así que aquí también tienen que verse, o el asesor usaría plantillas que no encuentra.
+                    ->orWhereHas('assignedUsers', fn ($u) => $u->where('user_id', auth()->id()));
+            })
             ->orderBy('created_at', 'desc');
 
         // Filtrar por estado activo/inactivo
@@ -130,6 +143,8 @@ class TemplateController extends Controller
                 'media_filename' => $template->media_filename,
                 'media_files' => $template->getMediaFilesArray(),
                 'created_by' => $template->creator->name ?? 'N/A',
+                // El id además del nombre: con él la pantalla separa «Tuyas» sin depender de nombres repetidos.
+                'created_by_id' => $template->created_by,
                 'updated_by' => $template->updater->name ?? null,
                 'created_at' => $template->created_at->format('Y-m-d H:i'),
                 'updated_at' => $template->updated_at->format('Y-m-d H:i'),
@@ -236,42 +251,6 @@ class TemplateController extends Controller
 
         return redirect()->route('admin.templates.index')
             ->with('success', 'Plantilla creada exitosamente.');
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(Template $template)
-    {
-        $template->load(['creator', 'updater', 'sends.sender']);
-
-        return Inertia::render('admin/templates/show', [
-            'template' => [
-                'id' => $template->id,
-                'name' => $template->name,
-                'subject' => $template->subject,
-                'content' => $template->content,
-                'is_active' => $template->is_active,
-                'message_type' => $template->message_type,
-                'media_url' => $template->media_url,
-                'media_filename' => $template->media_filename,
-                'created_by' => $template->creator->name,
-                'updated_by' => $template->updater->name ?? null,
-                'created_at' => $template->created_at->format('Y-m-d H:i'),
-                'updated_at' => $template->updated_at->format('Y-m-d H:i'),
-                'usage_stats' => $template->getUsageStats(),
-                'sends' => $template->sends->map(fn($send) => [
-                    'id' => $send->id,
-                    'sent_by' => $send->sender->name,
-                    'total_recipients' => $send->total_recipients,
-                    'successful_sends' => $send->successful_sends,
-                    'failed_sends' => $send->failed_sends,
-                    'status' => $send->status,
-                    'sent_to_all' => $send->sent_to_all,
-                    'created_at' => $send->created_at->format('Y-m-d H:i'),
-                ]),
-            ],
-        ]);
     }
 
     /**
@@ -420,48 +399,5 @@ class TemplateController extends Controller
             : 'Plantilla desactivada exitosamente.';
 
         return back()->with('success', $message);
-    }
-
-    /**
-     * Show send massive form.
-     */
-    public function sendForm(Template $template)
-    {
-        if (!$template->canBeUsed()) {
-            return back()->with('error', 'La plantilla no está activa o no tiene contenido.');
-        }
-
-        $recipients = $this->templateSendService->getAvailableRecipients();
-
-        return Inertia::render('admin/templates/send', [
-            'template' => [
-                'id' => $template->id,
-                'name' => $template->name,
-                'subject' => $template->subject,
-                'content' => $template->content,
-                'message_type' => $template->message_type,
-            ],
-            'recipients' => $recipients,
-        ]);
-    }
-
-    /**
-     * Send massive messages.
-     */
-    public function sendMassive(SendTemplateRequest $request, Template $template)
-    {
-        try {
-            $templateSend = $this->templateSendService->initiateSend(
-                $template,
-                $request->input('recipient_ids', []),
-                $request->boolean('send_to_all')
-            );
-
-            return redirect()->route('admin.templates.show', $template)
-                ->with('success', 'Envío masivo iniciado. Se está procesando en segundo plano.');
-
-        } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
-        }
     }
 }

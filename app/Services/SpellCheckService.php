@@ -10,7 +10,11 @@ class SpellCheckService
 {
     protected ?string $apiKey;
     protected string $baseUrl = 'https://api.groq.com/openai/v1';
-    protected string $model = 'llama-3.3-70b-versatile';
+    // OJO al cambiar de modelo: Groq retira los suyos sin avisar. 'llama-3.3-70b-versatile'
+    // estuvo devolviendo 404 model_not_found sin que nadie lo notara, porque el fallo se
+    // registraba en nivel debug y el LOG_LEVEL efectivo es info. Para ver cuáles siguen
+    // vivos: GET https://api.groq.com/openai/v1/models
+    protected string $model = 'openai/gpt-oss-120b';
 
     public function __construct()
     {
@@ -118,9 +122,15 @@ class SpellCheckService
                 }
             }
 
-            // Si la API respondió con error (rate limit, etc.), usar texto original
-            Log::debug('SpellCheck: API no exitosa, usando texto original', [
+            // Si la API respondió con error (rate limit, modelo retirado…), texto original.
+            //
+            // Va en warning y no en debug a propósito: con LOG_LEVEL=info los debug no se
+            // escriben, y así fue como un modelo retirado dejó el corrector muerto sin dejar
+            // rastro. Se adjunta el cuerpo del error porque ahí es donde Groq da el motivo.
+            Log::warning('SpellCheck: la API respondió con error, se envía el texto sin corregir', [
                 'status' => $response->status(),
+                'modelo' => $this->model,
+                'respuesta' => mb_substr((string) $response->body(), 0, 300),
             ]);
             return $text;
 

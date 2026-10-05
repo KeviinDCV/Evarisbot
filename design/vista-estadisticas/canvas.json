@@ -1,0 +1,14 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",     "title": "Al entrar",               "x": 0,    "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Detalle.dc.html",  "title": "Detalle de un asesor",    "x": 0,    "y": 1260, "w": 1440, "h": 900 },
+    { "file": "Completa.dc.html", "title": "Página completa",         "x": 1560, "y": 0,    "w": 1190, "h": 3838 }
+  ],
+  "annotations": [
+    { "id": "resumen", "x": 0, "y": -290, "w": 2750, "text": "Paso 4: la pantalla de Estadísticas, en el mismo estilo que Usuarios y Configuración.\nArriba a la izquierda, cómo se ve al entrar. Debajo, el detalle de un asesor. A la derecha, la página entera de arriba abajo.\nTodas las cifras, nombres y EPS son inventados.\nUna sola pregunta: ¿seguimos con esta pantalla?" },
+    { "id": "nota-main", "x": 0, "y": 940, "w": 1440, "text": "Qué cambia arriba:\n• El periodo (Hoy, Esta semana, Este mes…), el rango de fechas y «Exportar a Excel» suben a la cabecera. Se aplican al pulsarlos, sin el botón «Aplicar filtros».\n• Las cinco tarjetas pasan a ser una franja de seis cifras; la sexta es el costo estimado. Al pulsar una cifra, la página baja a su tema en lugar de abrir una ventana.\n• Ya no hay que elegir entre «Tabla» y «Gráficos»: cada gráfico va junto a sus cifras." },
+    { "id": "nota-detalle", "x": 0, "y": 2200, "w": 1440, "text": "El detalle de un asesor ya no se despliega debajo de su fila: se abre un panel a la derecha, con su propio periodo, sus cifras, la actividad por día y por hora, y los tipos de mensaje." },
+    { "id": "nota-completa", "x": 2810, "y": 0, "w": 560, "text": "De arriba abajo, por temas:\n• Costo de WhatsApp: la evolución por día o por mes, la tabla por categoría y cuánto de lo enviado tiene tarifa de Meta.\n• Mensajes: quién escribe y el estado de entrega.\n• Citas y recordatorios: los recordatorios y la respuesta de los pacientes.\n• Conversaciones por estado, envíos de plantillas y composición del equipo.\n• Menú de bienvenida: recorridos, autoservicio, servicios, régimen, EPS y subservicios. Los subservicios la app ya los calculaba pero no se mostraban.\n• Rendimiento de asesores: una tabla con la resolución, las conversaciones, las resueltas, las activas, las agendadas y los mensajes de cada uno.\n\nSe quita el gráfico «Estadísticas generales», que mezclaba cifras que no se pueden comparar entre sí. Sus seis cifras siguen en la franja de arriba." }
+  ],
+  "launch": { "view": "canvas" }
+}

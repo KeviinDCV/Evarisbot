@@ -1,0 +1,345 @@
+<template>
+  <style>
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-400-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-500-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-600-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 700;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-700-normal.woff2') format('woff2');
+    }
+
+    
+    
+    
+    
+
+    /* ── 08-cierre — Cierre de marca ────────────────────────────────────────
+       Fondo azul institucional que inunda desde el centro y se resuelve en el
+       lockup: Evarisbot · línea · Hospital Universitario del Valle · lema.
+       El root NUNCA lleva el fondo a sangre: va en capas class="clip".      */
+
+    #root {
+      position: absolute;
+      inset: 0;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+      font-family: 'Instrument Sans', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    /* ── Capas de fondo (full-bleed, siempre en .clip) ───────────────────── */
+
+    .f08cierre-ground-white {
+      position: absolute;
+      inset: 0;
+      background: #ffffff;
+    }
+
+    .f08cierre-ground-blue {
+      position: absolute;
+      inset: 0;
+      background: #2e3f84;
+      opacity: 0;
+    }
+
+    /* Inundación azul desde el centro hacia fuera (center-outward-expansion) */
+    .f08cierre-flood {
+      position: absolute;
+      inset: 0;
+    }
+
+    .f08cierre-disc {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 2600px;
+      height: 2600px;
+      /* centrado por margen: nunca CSS transform sobre algo que GSAP transforma */
+      margin-top: -1300px;
+      margin-left: -1300px;
+      border-radius: 50%;
+      background: #2e3f84;
+      will-change: transform;
+    }
+
+    /* Anillos concéntricos de cierre (atmósfera sancionada por frame.md) */
+    .f08cierre-rings {
+      position: absolute;
+      inset: 0;
+    }
+
+    .f08cierre-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 1);
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .f08cierre-ring-1 {
+      width: 660px;
+      height: 660px;
+      margin-top: -330px;
+      margin-left: -330px;
+    }
+
+    .f08cierre-ring-2 {
+      width: 1240px;
+      height: 1240px;
+      margin-top: -620px;
+      margin-left: -620px;
+    }
+
+    .f08cierre-ring-3 {
+      width: 1820px;
+      height: 1820px;
+      margin-top: -910px;
+      margin-left: -910px;
+    }
+
+    /* ── Lockup tipográfico ──────────────────────────────────────────────── */
+
+    .f08cierre-lockup {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      /* sube el centro óptico a ~y485: muy por encima del corte de keep-out (900) */
+      padding-bottom: 110px;
+      will-change: transform;
+    }
+
+    .f08cierre-wordmark {
+      font-size: 9.3cqw;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: #ffffff;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .f08cierre-rule {
+      width: 13.5cqw;
+      height: 2px;
+      margin-top: 46px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.4);
+      transform-origin: 50% 50%;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    .f08cierre-hospital {
+      margin-top: 30px;
+      font-size: 1.45cqw;
+      font-weight: 500;
+      line-height: 1.2;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.82);
+      display: flex;
+      gap: 0.42em;
+    }
+
+    .f08cierre-hospital span {
+      display: inline-block;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+
+    /* gradient-text-sweep — Forma A "one-pass sheen inside type":
+       el degradado vive DENTRO de las letras; los glifos no se mueven. */
+    .f08cierre-lema {
+      margin-top: 84px;
+      font-size: 2.8cqw;
+      font-weight: 400;
+      line-height: 1.25;
+      letter-spacing: 0.005em;
+      background-image: linear-gradient(
+        100deg,
+        rgba(255, 255, 255, 0.88) 0%,
+        rgba(255, 255, 255, 0.88) 38%,
+        rgba(255, 255, 255, 1) 47%,
+        rgba(255, 255, 255, 1) 53%,
+        rgba(255, 255, 255, 0.88) 62%,
+        rgba(255, 255, 255, 0.88) 100%
+      );
+      background-repeat: no-repeat;
+      /* DEBE superar el 100% o el tween de backgroundPosition es un no-op */
+      background-size: 300% 100%;
+      background-position: 100% 50%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      opacity: 0;
+      will-change: transform, opacity;
+    }
+  </style>
+
+  <div data-hf-id="hf-in48" id="root" data-composition-id="08-cierre" data-duration="5" data-width="1920" data-height="1080">
+    <!-- Track 0 — el blanco heredado de la escena anterior -->
+    <div data-hf-id="hf-lsev" class="clip f08cierre-ground-white" data-start="0" data-duration="5" data-track-index="0"></div>
+
+    <!-- Track 1 — suelo azul definitivo (aparece ya oculto tras el disco) -->
+    <div data-hf-id="hf-iyb3" class="clip f08cierre-ground-blue" data-start="0" data-duration="5" data-track-index="1"></div>
+
+    <!-- Track 2 — Escena 1: la inundación azul desde el centro -->
+    <div data-hf-id="hf-6eka" class="clip f08cierre-flood" data-start="0" data-duration="5" data-track-index="2">
+      <div data-hf-id="hf-d9rq" class="f08cierre-disc"></div>
+    </div>
+
+    <!-- Track 3 — anillos concéntricos, mismo centro, mismo driver -->
+    <div data-hf-id="hf-hw6m" class="clip f08cierre-rings" data-start="0" data-duration="5" data-track-index="3">
+      <div data-hf-id="hf-4m94" class="f08cierre-ring f08cierre-ring-1"></div>
+      <div data-hf-id="hf-da4z" class="f08cierre-ring f08cierre-ring-2"></div>
+      <div data-hf-id="hf-9c0y" class="f08cierre-ring f08cierre-ring-3"></div>
+    </div>
+
+    <!-- Track 4 — Escenas 2-4: el lockup -->
+    <div data-hf-id="hf-5azs" class="clip f08cierre-lockup" data-start="0" data-duration="5" data-track-index="4">
+      <div data-hf-id="hf-15l3" class="f08cierre-wordmark">Evarisbot</div>
+      <div data-hf-id="hf-a00v" class="f08cierre-rule"></div>
+      <div data-hf-id="hf-858r" class="f08cierre-hospital">
+        <span data-hf-id="hf-bcrb">Hospital</span><span data-hf-id="hf-kbld">Universitario</span><span data-hf-id="hf-y2fa">del</span><span data-hf-id="hf-sqkj">Valle</span>
+      </div>
+      <div data-hf-id="hf-e2a6" class="f08cierre-lema">70 años latiendo juntos.</div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.querySelector('[data-composition-id="08-cierre"]') || document;
+      var one = function (sel) {
+        return root.querySelector(sel);
+      };
+      var all = function (sel) {
+        return Array.prototype.slice.call(root.querySelectorAll(sel));
+      };
+
+      var groundBlue = one(".f08cierre-ground-blue");
+      var disc = one(".f08cierre-disc");
+      var rings = all(".f08cierre-ring");
+      var lockup = one(".f08cierre-lockup");
+      var wordmark = one(".f08cierre-wordmark");
+      var rule = one(".f08cierre-rule");
+      var hospital = all(".f08cierre-hospital span");
+      var lema = one(".f08cierre-lema");
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* ── Escena 1 (0.0–1.2s) — center-outward-expansion ──────────────────
+         Disco y anillos comparten centro, duración y ease exactos: un solo
+         acorde. Al compartir el driver, los anillos van siempre por dentro
+         del borde azul, así que nunca se ven sobre el blanco.               */
+      var FLOOD_DUR = 1.05;
+      var FLOOD_EASE = "power3.out";
+
+      tl.fromTo(
+        disc,
+        { scale: 0.02 },
+        { scale: 1, duration: FLOOD_DUR, ease: FLOOD_EASE },
+        0,
+      );
+
+      rings.forEach(function (ring) {
+        tl.fromTo(
+          ring,
+          { scale: 0.02, opacity: 0.09 },
+          { scale: 1, opacity: 0.09, duration: FLOOD_DUR, ease: FLOOD_EASE },
+          0,
+        );
+      });
+
+      // el suelo azul se arma bajo el disco ya cerrado (cambio imperceptible)
+      tl.fromTo(
+        groundBlue,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.2, ease: "none" },
+        1.0,
+      );
+
+      // los anillos se retiran a un susurro y sostienen detrás del lockup
+      tl.to(rings, { opacity: 0.05, duration: 1.1, ease: "power1.inOut" }, 1.3);
+
+      /* ── Escena 2 (1.2–2.4s) — "Evarisbot" ───────────────────────────── */
+      tl.fromTo(
+        wordmark,
+        { opacity: 0, y: 38, scale: 0.982 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.9, ease: "power3.out" },
+        1.1,
+      );
+
+      /* ── Escena 3 (2.4–3.6s) — línea fina + hospital ─────────────────── */
+      tl.fromTo(
+        rule,
+        { scaleX: 0, opacity: 0 },
+        { scaleX: 1, opacity: 1, duration: 0.62, ease: "power2.out" },
+        2.35,
+      );
+
+      tl.fromTo(
+        hospital,
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power2.out", stagger: 0.07 },
+        2.72,
+      );
+
+      /* ── Escena 4 (3.6–5.0s) — el lema + gradient-text-sweep ─────────── */
+      tl.fromTo(
+        lema,
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" },
+        3.55,
+      );
+
+      // 100% → 0% recorre de izquierda a derecha (el eje porcentual va al revés);
+      // ease "none": debe leerse como luz, no como un objeto que acelera.
+      tl.fromTo(
+        lema,
+        { backgroundPosition: "100% 50%" },
+        { backgroundPosition: "0% 50%", duration: 1.25, ease: "none" },
+        3.6,
+      );
+
+      // vida imperceptible en la retención; termina antes del silencio final
+      tl.fromTo(
+        lockup,
+        { scale: 1 },
+        { scale: 1.007, duration: 2.6, ease: "none" },
+        2.0,
+      );
+
+      window.__timelines["08-cierre"] = tl;
+    })();
+  </script>
+</template>

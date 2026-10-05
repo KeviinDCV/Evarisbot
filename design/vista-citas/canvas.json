@@ -1,0 +1,15 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",    "title": "Al entrar, con un envío en curso", "x": 0,    "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Lista.dc.html",   "title": "Todas las citas",                  "x": 0,    "y": 1260, "w": 1440, "h": 900 },
+    { "file": "Estados.dc.html", "title": "Estados del envío",                "x": 0,    "y": 2520, "w": 1190, "h": 1034 },
+    { "file": "Panel.dc.html",   "title": "Panel completo",                   "x": 1560, "y": 0,    "w": 1190, "h": 3783 }
+  ],
+  "annotations": [
+    { "id": "resumen", "x": 0, "y": -290, "w": 2750, "text": "Paso 5: la pantalla de Citas, en el mismo estilo que Usuarios, Configuración y Estadísticas.\nArriba a la izquierda, el panel al entrar mientras salen recordatorios. Debajo, la lista de todas las citas y los estados del envío. A la derecha, el panel entero de arriba abajo.\nTodos los pacientes, documentos, teléfonos, médicos y el archivo son inventados.\nUna sola pregunta: ¿seguimos con esta pantalla?" },
+    { "id": "nota-main", "x": 0, "y": 940, "w": 1440, "text": "Qué cambia en el panel:\n• General y Oncología quedan junto al título.\n• Las cuatro tarjetas pasan a ser una franja de cifras.\n• El envío de recordatorios va primero: su estado, el porcentaje y la barra, y Pausar y Detener a la derecha. Debajo, por fecha, cuántas citas faltan y el botón de cada una. Mientras hay un envío en curso esos botones se ven apagados y se explica por qué.\n• La carga del Excel enseña siempre las columnas que debe tener." },
+    { "id": "nota-lista", "x": 0, "y": 2200, "w": 1440, "text": "Todas las citas: las cuatro cifras de arriba son los filtros (pulsar la activa la quita). El buscador y las fechas van en una sola barra. El estado del recordatorio se parte en dos columnas: si salió y qué respondió el paciente. El paso de página queda fijo al pie." },
+    { "id": "nota-estados", "x": 0, "y": 3594, "w": 1190, "text": "1. Sin envío en curso: al pulsar un botón de enviar se pregunta antes cuántos y a quién (hoy sale sin preguntar).\n2. En pausa: Reanudar o Detener.\n3. Detener siempre pregunta; la opción que no hace nada es la de la izquierda." }
+  ],
+  "launch": { "view": "canvas" }
+}

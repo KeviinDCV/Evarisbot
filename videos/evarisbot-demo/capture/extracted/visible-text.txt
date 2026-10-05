@@ -1,0 +1,39 @@
+Evarisbot — Hospital Universitario del Valle "Evaristo García"
+
+Plataforma de atención al paciente por WhatsApp, en producción, operada a diario
+por 27 asesores del hospital.
+
+QUÉ HACE
+
+1. CONVERSACIONES
+   Centraliza en una sola pantalla todos los WhatsApp de los pacientes. Los asesores
+   ven la lista completa, filtran por no leídos o pendientes, y responden con
+   plantillas rápidas. Cada conversación queda registrada.
+
+2. RECORDATORIOS AUTOMÁTICOS DE CITA
+   Se sube el Excel de la agenda y el sistema envía solo el recordatorio a cada
+   paciente, con fecha, hora, médico, especialidad y consultorio. El paciente
+   responde "Confirmar" o "Cancelar" desde su WhatsApp y la agenda se actualiza sola.
+
+3. ESTADÍSTICAS Y CONTROL
+   Panel con el rendimiento del equipo: conversaciones atendidas, tasa de
+   resolución, tiempo de respuesta y coste real del canal.
+
+4. ENVÍOS MASIVOS
+   Comunicar a cientos de pacientes a la vez — una cancelación por festivo, un
+   cambio de sede — con plantillas aprobadas y seguimiento de entrega.
+
+5. CHAT INTERNO
+   Los asesores se coordinan entre ellos sin salir de la plataforma.
+
+CIFRAS REALES (medidas el 29-jul-2026, 253 días de operación)
+
+   53.694 pacientes atendidos
+   168.629 mensajes intercambiados (666 al día)
+   106.408 citas gestionadas
+   79.026 recordatorios enviados
+   50.023 citas confirmadas por el propio paciente
+    3.606 canceladas a tiempo, liberando el hueco para otro paciente
+    91,98% de conversaciones resueltas
+    23,6 minutos de respuesta típica
+       27 asesores

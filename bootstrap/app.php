@@ -4,6 +4,7 @@ use App\Http\Middleware\CheckBulkSendAccess;
 use App\Http\Middleware\CheckRole;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\UpdateLastActivity;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -23,11 +24,18 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
-        // Excluir webhook de WhatsApp y envío de mensajes de chat de la protección CSRF
-        // El envío de mensajes ya está protegido por middleware 'auth'
+        // Excluir webhook de WhatsApp y endpoints de chat de la protección CSRF.
+        // Todos protegidos por el middleware 'auth'. Los heartbeats de presencia
+        // (viewing/typing) corren en setInterval y fallaban con 419 cuando el token
+        // del <meta> quedaba stale tras rotar la sesión — no mutan estado sensible.
         $middleware->validateCsrfTokens(except: [
             'webhook/*',
             'admin/chat/*/send',
+            'admin/chat/*/viewing',
+            'admin/chat/*/typing',
+            // Marcar-como-leído del chat interno: corre en polling frecuente y daba 419
+            // cuando el token quedaba stale. No muta estado sensible (solo lee/marca leído).
+            'admin/internal-chat/*/read',
         ]);
 
         $middleware->web(append: [
@@ -35,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             UpdateLastActivity::class,
+            SecurityHeaders::class,
         ]);
 
         // Registrar middleware de roles

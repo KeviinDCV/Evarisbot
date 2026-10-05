@@ -93,7 +93,7 @@ class AppointmentReminderService
      */
     protected function getAppointmentsNeedingReminder(int $daysInAdvance, int $limit): \Illuminate\Database\Eloquent\Collection
     {
-        $targetDate = now()->addDays($daysInAdvance)->startOfDay();
+        $targetDate = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay();
 
         return Appointment::query()
             ->whereDate('citfc', $targetDate)
@@ -122,8 +122,16 @@ class AppointmentReminderService
             'patient' => $appointment->nom_paciente
         ]);
 
-        $templateName = Setting::get('reminder_template_name', 'appointment_reminder');
-        
+        // Sede: las citas de Cartago se identifican porque su código citcon empieza por "W".
+        // Usan su propia plantilla (con la dirección de Cartago); el resto, la de Cali.
+        $templateName = $this->isCartago($appointment)
+            ? Setting::get('reminder_template_name_cartago', 'appointment_reminder_cartago')
+            : Setting::get('reminder_template_name', 'appointment_reminder');
+
+        // Todas las plantillas de recordatorio incluyen la línea "Ubicación" (parámetro {{6}}
+        // = "connom - Consultorio citcon"), por lo que siempre se envían 6 parámetros.
+        $includeConsultorio = true;
+
         // Formatear número de teléfono (eliminar caracteres no numéricos)
         $phoneNumber = preg_replace('/[^0-9]/', '', $appointment->pactel);
         
@@ -165,7 +173,7 @@ class AppointmentReminderService
         }
         
         // Preparar parámetros del template
-        $parameters = $this->prepareTemplateParameters($appointment);
+        $parameters = $this->prepareTemplateParameters($appointment, $includeConsultorio);
         
         Log::info('Parámetros del template preparados', [
             'template_name' => $templateName,
@@ -201,7 +209,9 @@ class AppointmentReminderService
                     ['phone_number' => '+' . $phoneNumber],
                     [
                         'contact_name' => $appointment->nom_paciente,
-                        'status' => 'active',
+                        // Recordatorio saliente: la conversación nace "agendada" (oculta de "Todos").
+                        // Si el paciente responde, la reactivación automática la pasa a "active" y aparece.
+                        'status' => 'scheduled',
                         'last_message_at' => now()
                     ]
                 );
@@ -214,7 +224,7 @@ class AppointmentReminderService
                 // Crear mensaje en la conversación
                 $message = Message::create([
                     'conversation_id' => $conversation->id,
-                    'content' => $this->generateReminderText($appointment),
+                    'content' => $this->generateReminderText($appointment, $includeConsultorio),
                     'message_type' => 'text',
                     'is_from_user' => false,
                     'whatsapp_message_id' => $messageId,
@@ -284,47 +294,101 @@ class AppointmentReminderService
         return $text;
     }
 
+    /** Dirección de cada sede (la del mensaje real proviene de la plantilla de Meta). */
+    private const DIRECCION_CALI = 'Calle 5 #36-08, barrio San Fernando.';
+    private const DIRECCION_CARTAGO = 'Carrera 3b # 1a - 163, barrio Collarejo, Cartago.';
+
+    /**
+     * Una cita es de la sede CARTAGO si su código `citcon` empieza por "W".
+     * Todas las demás son de Cali.
+     */
+    protected function isCartago(Appointment $appointment): bool
+    {
+        return str_starts_with(strtoupper(ltrim((string) ($appointment->citcon ?? ''))), 'W');
+    }
+
+    /** Dirección de la sede según el código citcon. */
+    protected function sedeAddress(Appointment $appointment): string
+    {
+        return $this->isCartago($appointment) ? self::DIRECCION_CARTAGO : self::DIRECCION_CALI;
+    }
+
     /**
      * Prepara parámetros para el template
      */
-    protected function prepareTemplateParameters(Appointment $appointment): array
+    protected function prepareTemplateParameters(Appointment $appointment, bool $includeConsultorio = false): array
     {
         // Formatear fecha
         $fecha = $appointment->citfc ? $appointment->citfc->locale('es')->isoFormat('dddd D [de] MMMM [de] YYYY') : 'No especificada';
-        
+
         // Formatear hora usando el método centralizado
         $hora = $this->formatHora($appointment->cithor);
-        
+
         // Limpiar todos los textos para cumplir requisitos de Meta
         $paciente = $this->cleanTextForWhatsApp($appointment->nom_paciente ?? 'Paciente');
         $medico = $this->cleanTextForWhatsApp($appointment->mednom ?? 'No especificado');
         $especialidad = $this->cleanTextForWhatsApp($appointment->espnom ?? 'No especificada');
-        
+
+        $parameters = [
+            ['type' => 'text', 'text' => $paciente],
+            ['type' => 'text', 'text' => $fecha],
+            ['type' => 'text', 'text' => $hora],
+            ['type' => 'text', 'text' => $medico],
+            ['type' => 'text', 'text' => $especialidad],
+        ];
+
+        // Plantillas v2: parámetro {{6}} = consultorio ("citcon - connom").
+        if ($includeConsultorio) {
+            $parameters[] = ['type' => 'text', 'text' => $this->consultorioLabel($appointment)];
+        }
+
         return [
             [
                 'type' => 'body',
-                'parameters' => [
-                    ['type' => 'text', 'text' => $paciente],
-                    ['type' => 'text', 'text' => $fecha],
-                    ['type' => 'text', 'text' => $hora],
-                    ['type' => 'text', 'text' => $medico],
-                    ['type' => 'text', 'text' => $especialidad],
-                ]
+                'parameters' => $parameters,
             ]
         ];
+    }
+
+    /**
+     * Etiqueta de ubicación para el recordatorio: "connom - Consultorio citcon"
+     * (ej. "UROLOGIA GENERAL - Consultorio U01").
+     * Nunca devuelve vacío (Meta rechaza parámetros vacíos): usa respaldos.
+     */
+    protected function consultorioLabel(Appointment $appointment): string
+    {
+        $citcon = trim((string) ($appointment->citcon ?? ''));
+        $connom = trim((string) ($appointment->connom ?? ''));
+
+        if ($citcon !== '' && $connom !== '') {
+            $label = $connom . ' - Consultorio ' . $citcon;
+        } elseif ($connom !== '') {
+            $label = $connom;
+        } elseif ($citcon !== '') {
+            $label = 'Consultorio ' . $citcon;
+        } else {
+            $label = 'No especificado';
+        }
+
+        return $this->cleanTextForWhatsApp($label);
     }
 
     /**
      * Genera texto del recordatorio para guardar en BD
      * Este texto debe coincidir con la plantilla aprobada por Meta
      */
-    protected function generateReminderText(Appointment $appointment): string
+    protected function generateReminderText(Appointment $appointment, bool $includeConsultorio = false): string
     {
         $fecha = $appointment->citfc ? $appointment->citfc->locale('es')->isoFormat('dddd D [de] MMMM [de] YYYY') : 'No especificada';
-        
+
         // Formatear hora usando el mismo método
         $hora = $this->formatHora($appointment->cithor);
-        
+
+        // Línea de ubicación (idéntica a la de la plantilla de Meta).
+        $consultorioLinea = $includeConsultorio
+            ? "Ubicación: " . $this->consultorioLabel($appointment) . "\n"
+            : "";
+
         return "Hospital Universitario del Valle\n\n" .
                "Estimado(a) {$appointment->nom_paciente}\n" .
                "Reciba un cordial saludo.\n\n" .
@@ -332,12 +396,15 @@ class AppointmentReminderService
                "Fecha: {$fecha}\n" .
                "Hora: {$hora}\n" .
                "Médico: {$appointment->mednom}\n" .
-               "Especialidad: {$appointment->espnom}\n\n" .
-               "Dirección: Calle 5 #36-08, barrio San Fernando.\n\n" .
+               "Especialidad: {$appointment->espnom}\n" .
+               $consultorioLinea . "\n" .
+               "Dirección: " . $this->sedeAddress($appointment) . "\n\n" .
                "Le solicitamos presentarse con 40 minutos de anticipación y portar su documento de identificación, autorización de la eps, orden médica e historia clínica.\n\n" .
                "Para cualquier inquietud o si necesita reprogramar su cita, por favor comuníquese con nosotros.\n\n" .
+               "Recomendación: Si tiene alguna duda al ingresar a nuestras instalaciones, por favor consulte con nuestro personal de orientación. Con gusto le guiaremos hasta su consultorio\n\n" .
                "Atentamente,\n" .
-               "Hospital Universitario del Valle";
+               "Hospital Universitario del Valle\n" .
+               "70 años latiendo juntos.";
     }
     
     /**

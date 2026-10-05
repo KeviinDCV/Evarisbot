@@ -1,0 +1,18 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",     "title": "Lo que ve un administrador",        "x": 0,    "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Asesor.dc.html",   "title": "Lo que ve un asesor",               "x": 0,    "y": 1260, "w": 1440, "h": 900 },
+    { "file": "Enviar.dc.html",   "title": "Enviar a varios contactos",         "x": 0,    "y": 2520, "w": 1440, "h": 900 },
+    { "file": "Completa.dc.html", "title": "Página completa con el menú de bienvenida", "x": 1560, "y": 0, "w": 1190, "h": 2885 },
+    { "file": "Dialogos.dc.html", "title": "Editar, eliminar y confirmar",      "x": 2870, "y": 0,    "w": 1190, "h": 2572 }
+  ],
+  "annotations": [
+    { "id": "resumen", "x": 0, "y": -290, "w": 4060, "text": "Paso 7: la pantalla de Plantillas, en el mismo estilo que Usuarios, Configuración, Estadísticas, Citas y Envío masivo.\nSon las respuestas rápidas que el equipo mete en el chat escribiendo «/». A la izquierda, la lista; a la derecha, la plantilla elegida tal como queda en el chat, quién la ve y los botones para cambiarla. Debajo, en la misma página, el menú de bienvenida del bot, dibujado paso a paso como lo vive el paciente.\nTodas las plantillas, textos, archivos, contactos, teléfonos y cifras son inventados.\nUna sola pregunta: ¿seguimos con esta pantalla?" },
+    { "id": "nota-main", "x": 0, "y": 940, "w": 1440, "text": "Lo que ve un administrador:\n• Las tarjetas en cuadrícula pasan a ser una lista: primero las de todo el equipo (las más usadas arriba) y luego las que son solo para algunas personas.\n• Al pulsar una, a la derecha se ve cómo queda en el chat (con su imagen o documento), qué escribir para usarla, quién la ve, cuántas veces se ha usado y quién la cambió.\n• Arriba del todo, sus botones: Editar, Enviar a contactos, Desactivar y Eliminar. Eliminar siempre pregunta." },
+    { "id": "nota-asesor", "x": 0, "y": 2200, "w": 1440, "text": "Lo que ve un asesor: arriba las suyas (las que guardó desde el chat) y debajo las del hospital. No ve el botón de nueva plantilla, ni el menú de bienvenida, ni el de enviar a contactos.\nEn las suyas puede editar el nombre y el texto, o eliminarla. En las del hospital solo ve un aviso: las gestiona un administrador." },
+    { "id": "nota-enviar", "x": 0, "y": 3460, "w": 1440, "text": "Enviar una plantilla a varios contactos: a la izquierda se marcan los contactos (o todos a la vez); a la derecha, el mensaje tal como le llega al paciente, cuántos van y los avisos. El botón abre una confirmación: hoy sale al primer clic." },
+    { "id": "nota-completa", "x": 1560, "y": 2925, "w": 1190, "text": "La página del administrador de arriba abajo. Al final, el menú de bienvenida: cada flujo con su interruptor de encendido. El encendido se abre y muestra sus pasos como burbujas de WhatsApp; cada botón dice a qué paso lleva. Solo puede haber uno encendido: encender otro apaga el anterior." },
+    { "id": "nota-dialogos", "x": 2870, "y": 2612, "w": 1190, "text": "1. Editar plantilla con la vista previa al lado; crear es el mismo formulario vacío. Eliminar dice qué se borra y cuánto se usa.\n2. El formulario del menú de bienvenida con el mensaje como lo recibe el paciente, y eliminar un flujo con su propia pregunta (hoy es la ventanita del navegador).\n3. La confirmación nueva antes de enviar a varios contactos y lo que edita un asesor en una plantilla suya." }
+  ],
+  "launch": { "view": "canvas" }
+}

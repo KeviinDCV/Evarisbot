@@ -1,0 +1,614 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;display=swap">
+  <style>
+    body { margin: 0; background: #f0f2f8; font-family: 'Instrument Sans', ui-sans-serif, system-ui, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    p, h1, h2, h3 { margin: 0; }
+    a { color: #2e3f84; } a:hover { color: #26356f; }
+    
+  </style>
+</helmet>
+
+<div style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: #f0f2f8; font-family: 'Instrument Sans', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;">
+  <div style="position: absolute; left: 0; top: 0; width: 1440px; height: 900px; display: flex; background: radial-gradient(560px 420px at 0px 0px, rgba(78,95,164,.35), rgba(78,95,164,0) 72%), linear-gradient(180deg, #2e3f84 0%, #2e3a75 60%, #26356f 100%);">
+    <div style="position: absolute; inset: 0; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E&quot;); pointer-events: none;"></div>
+    <div style="position: relative; width: 240px; flex-shrink: 0; padding: 24px 10px 10px 12px; display: flex; flex-direction: column;">
+
+      <div style="padding: 0 10px 0 12px; display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="width: 64px; height: 64px; border-radius: 14px; background: #ffffff; box-shadow: 0 1px 1px rgba(0,0,0,.18), 0 10px 22px -10px rgba(0,0,0,.55), inset 0 -1px 0 rgba(46,63,132,.08); display: flex; align-items: center; justify-content: center;">
+            <img src="logo-huv.png" alt="Hospital Universitario del Valle" style="width: 60px; height: 48px; object-fit: contain; display: block; filter: drop-shadow(0 0 0 #2e3f84);">
+          </div>
+          <div title="Contraer menú" style="width: 30px; height: 30px; border-radius: 10px; background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); color: rgba(255,255,255,.72); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-size: 18px; line-height: 24px; font-weight: 600; letter-spacing: -.018em; color: #ffffff;">Evarisbot</span>
+          <span style="font-size: 11.84px; line-height: 16px; font-weight: 500; color: rgba(255,255,255,.7); white-space: nowrap;">Hospital Universitario del Valle</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 28px; display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="height: 28px; padding: 0 12px; display: flex; align-items: center;">
+            <span style="font-size: 11px; line-height: 1; font-weight: 600; text-transform: uppercase; letter-spacing: .09em; color: rgba(255,255,255,.66); white-space: nowrap;">TRABAJO</span>
+          </div>
+          <div style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px;">
+            <span style="display: flex; color: rgba(255,255,255,.72);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+            <span style="min-width: 0; flex: 1; font-size: 13.04px; line-height: 20px; font-weight: 500; letter-spacing: -.003em; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Conversaciones</span>
+            <span style="height: 20px; min-width: 20px; padding: 0 6px; border-radius: 9999px; font-size: 11px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .01em; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: oklch(57.7% 0.245 27.325); color: #ffffff; box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 1px 2px rgba(0,0,0,.3);">24</span>
+          </div>
+          <div style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px;">
+            <span style="display: flex; color: rgba(255,255,255,.72);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"></path><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"></path></svg></span>
+            <span style="min-width: 0; flex: 1; font-size: 13.04px; line-height: 20px; font-weight: 500; letter-spacing: -.003em; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Chat Interno</span>
+            <span style="height: 20px; min-width: 20px; padding: 0 6px; border-radius: 9999px; font-size: 11px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .01em; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: rgba(255,255,255,.14); color: oklch(92.9% 0.013 255.508); box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);">2</span>
+          </div>
+          <div style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px;">
+            <span style="display: flex; color: rgba(255,255,255,.72);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg></span>
+            <span style="min-width: 0; flex: 1; font-size: 13.04px; line-height: 20px; font-weight: 500; letter-spacing: -.003em; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Plantillas</span>
+            
+          </div>
+          <div style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px;">
+            <span style="display: flex; color: rgba(255,255,255,.72);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"></path><path d="m21.854 2.147-10.94 10.939"></path></svg></span>
+            <span style="min-width: 0; flex: 1; font-size: 13.04px; line-height: 20px; font-weight: 500; letter-spacing: -.003em; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Envío Masivo</span>
+            
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <div style="height: 28px; padding: 0 12px; display: flex; align-items: center;">
+            <span style="font-size: 11px; line-height: 1; font-weight: 600; text-transform: uppercase; letter-spacing: .09em; color: rgba(255,255,255,.66); white-space: nowrap;">GESTIÓN</span>
+          </div>
+          <div style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; background: #ffffff; box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 8px 18px -10px rgba(0,0,0,.45);">
+            <span style="display: flex; color: #2e3f84;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg></span>
+            <span style="min-width: 0; flex: 1; font-size: 13.04px; line-height: 20px; font-weight: 600; letter-spacing: -.003em; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Citas</span>
+            
+          </div>
+          <div style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px;">
+            <span style="display: flex; color: rgba(255,255,255,.72);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg></span>
+            <span style="min-width: 0; flex: 1; font-size: 13.04px; line-height: 20px; font-weight: 500; letter-spacing: -.003em; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Estadísticas</span>
+            
+          </div>
+          <div style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px;">
+            <span style="display: flex; color: rgba(255,255,255,.72);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+            <span style="min-width: 0; flex: 1; font-size: 13.04px; line-height: 20px; font-weight: 500; letter-spacing: -.003em; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Usuarios</span>
+            
+          </div>
+          <div style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px;">
+            <span style="display: flex; color: rgba(255,255,255,.72);"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg></span>
+            <span style="min-width: 0; flex: 1; font-size: 13.04px; line-height: 20px; font-weight: 500; letter-spacing: -.003em; color: rgba(255,255,255,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Configuración</span>
+            
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto; border-radius: 14px; padding: 10px 10px 10px 12px; background: rgba(255,255,255,.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), inset 0 1px 0 rgba(255,255,255,.05); display: flex; align-items: center; gap: 12px;">
+        <div style="width: 34px; height: 34px; flex-shrink: 0; border-radius: 9999px; background: linear-gradient(to bottom right, #4e5fa4, #3e4f94); box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 1px 2px rgba(0,0,0,.25); color: #ffffff; font-size: 11.84px; font-weight: 700; letter-spacing: .02em; display: flex; align-items: center; justify-content: center;">SQ</div>
+        <div style="min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px;">
+          <span style="font-size: 13.04px; line-height: 18px; font-weight: 600; color: #ffffff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Sofía Quintero Ramos</span>
+          <span style="font-size: 11.84px; line-height: 16px; font-weight: 500; color: rgba(255,255,255,.7); white-space: nowrap;">Administrador</span>
+        </div>
+      </div>
+    </div>
+    <div style="position: relative; flex: 1; min-width: 0; margin: 10px 10px 10px 0; border-radius: 22px; background: #f0f2f8; overflow: hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 0 0 1px rgba(0,0,0,.14), 0 20px 44px -22px rgba(0,0,0,.6);">
+      <div style="position: absolute; inset: 0; padding: 28px 28px 0; display: flex; flex-direction: column; gap: 24px;">
+        
+        <div style="height: 58px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;">
+          <div style="min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <h1 style="font-size: 28px; line-height: 34px; font-weight: 600; color: #2e3f84; letter-spacing: -.025em; white-space: nowrap;">Todas las citas</h1>
+              <span title="Ámbito: se cambia en el panel de Citas" style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 7px; background: rgba(46,63,132,0.07); font-size: 12px; line-height: 16px; font-weight: 600; color: #2e3f84; white-space: nowrap;">General</span>
+            </div>
+            <p style="font-size: 14px; line-height: 20px; font-weight: 400; color: #5c6485; white-space: nowrap;">Visualiza, filtra y exporta las citas con sus estados de recordatorio.</p>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-top: 1px;">
+            <div style="height: 36px; flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px 0 14px; border-radius: 10px; font-size: 13px; line-height: 18px; font-weight: 600; white-space: nowrap; background: #ffffff; box-shadow: inset 0 0 0 1px rgba(46,63,132,0.2), 0 1px 2px rgba(46,63,132,0.08); color: #2e3f84;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg>Volver a Citas</div>
+            <div title="Exporta lo que ves: estado, búsqueda y fechas" style="height: 36px; flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px 0 14px; border-radius: 10px; font-size: 13px; line-height: 18px; font-weight: 600; white-space: nowrap; background: linear-gradient(to bottom,#3e4f94,#2e3f84); box-shadow: 0 1px 2px rgba(46,63,132,0.3), 0 6px 16px -6px rgba(46,63,132,0.55), inset 0 1px 0 rgba(255,255,255,.14); color: #ffffff;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>Exportar a Excel</div>
+          </div>
+        </div>
+        
+        <div style="height: 76px; flex-shrink: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr) 1px) minmax(0, 1fr); column-gap: 24px;">
+          
+          <div title="Filtro activo" style="position: relative; min-width: 0; display: flex; flex-direction: column;">
+            <div style="height: 16px; display: flex; align-items: center; gap: 8px;"><span style="display: flex; color: #2e3f84;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg></span><span style="font-size: 12px; line-height: 16px; font-weight: 600; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Todas</span></div>
+            <span style="margin-top: 7px; font-size: 28px; line-height: 32px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;letter-spacing: -.03em; white-space: nowrap;">12.640</span>
+            <span style="margin-top: 5px; height: 16px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M20 6 9 17l-5-5"></path></svg>Filtro activo</span>
+            <span style="position: absolute; left: 0; right: 0; bottom: -12px; height: 3px; border-radius: 3px; background: #2e3f84;"></span>
+          </div><div style="width: 1px; align-self: stretch; background: rgba(46,63,132,0.12);"></div>
+          
+          <div title="Aplicar filtro" style="position: relative; min-width: 0; display: flex; flex-direction: column;">
+            <div style="height: 16px; display: flex; align-items: center; gap: 8px;"><span style="display: flex; color: #d97706;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span><span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pendientes</span></div>
+            <span style="margin-top: 7px; font-size: 28px; line-height: 32px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;letter-spacing: -.03em; white-space: nowrap;">1.658</span>
+            <span style="margin-top: 5px; height: 16px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pulsa para filtrar</span>
+            
+          </div><div style="width: 1px; align-self: stretch; background: rgba(46,63,132,0.12);"></div>
+          
+          <div title="Aplicar filtro" style="position: relative; min-width: 0; display: flex; flex-direction: column;">
+            <div style="height: 16px; display: flex; align-items: center; gap: 8px;"><span style="display: flex; color: #059669;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg></span><span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Confirmadas</span></div>
+            <span style="margin-top: 7px; font-size: 28px; line-height: 32px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;letter-spacing: -.03em; white-space: nowrap;">6.814</span>
+            <span style="margin-top: 5px; height: 16px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pulsa para filtrar</span>
+            
+          </div><div style="width: 1px; align-self: stretch; background: rgba(46,63,132,0.12);"></div>
+          
+          <div title="Aplicar filtro" style="position: relative; min-width: 0; display: flex; flex-direction: column;">
+            <div style="height: 16px; display: flex; align-items: center; gap: 8px;"><span style="display: flex; color: #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path><path d="m14 14-4 4"></path><path d="m10 14 4 4"></path></svg></span><span style="font-size: 12px; line-height: 16px; font-weight: 500; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Canceladas</span></div>
+            <span style="margin-top: 7px; font-size: 28px; line-height: 32px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;letter-spacing: -.03em; white-space: nowrap;">1.207</span>
+            <span style="margin-top: 5px; height: 16px; display: flex; align-items: center; gap: 6px; font-size: 12.5px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Pulsa para filtrar</span>
+            
+          </div>
+        </div>
+        <div style="position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; border-radius: 16px 16px 0 0; background: #ffffff; box-shadow: 0 0 0 1px rgba(46,63,132,0.07), 0 1px 2px rgba(46,63,132,0.05), 0 14px 32px -18px rgba(46,63,132,0.22); overflow: hidden;">
+          
+            <div style="height: 64px; flex-shrink: 0; padding: 0 20px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              
+              <div style="position: relative; width: 410px; flex-shrink: 0;">
+                <span style="position: absolute; left: 12px; top: 10px; color: #5c6485;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg></span>
+                <div style="height: 36px; border-radius: 10px; padding: 0 12px 0 38px; background: rgba(46,63,132,0.035); box-shadow: inset 0 0 0 1px rgba(46,63,132,0.1); font-size: 13px; line-height: 18px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center;">Buscar por paciente, cédula, teléfono, médico, especialidad...</div>
+              </div>
+              <div style="width: 1px; height: 28px; background: rgba(46,63,132,0.12); margin: 0 4px;"></div>
+              <span style="display: flex; align-items: center; gap: 7px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: #2e3f84; white-space: nowrap;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M16 2v4"></path><path d="M3 10h18"></path><path d="M8 2v4"></path><path d="M17 14h-6"></path><path d="M13 18H7"></path><path d="M7 14h.01"></path><path d="M17 18h.01"></path></svg>Fecha de la cita</span>
+              
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; white-space: nowrap;">Desde</span>
+                  <div style="width: 138px; height: 36px; border-radius: 10px; background: #ffffff; box-shadow: inset 0 0 0 1px rgba(46,63,132,0.58); display: flex; align-items: center; gap: 9px; padding: 0 11px; color: #5c6485;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg><span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;">14/09/2026</span>
+                  </div>
+                </div>
+              
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; white-space: nowrap;">Hasta</span>
+                  <div style="width: 138px; height: 36px; border-radius: 10px; background: #ffffff; box-shadow: inset 0 0 0 1px rgba(46,63,132,0.58); display: flex; align-items: center; gap: 9px; padding: 0 11px; color: #5c6485;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg><span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;">18/09/2026</span>
+                  </div>
+                </div>
+              <span title="Limpiar fechas" style="display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 8px; border-radius: 8px; font-size: 12.5px; line-height: 16px; font-weight: 600; color: #2e3f84; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>Limpiar fechas</span>
+            </div>
+          
+            <div style="height: 36px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; background: rgba(46,63,132,0.028); border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="display: flex; align-items: center; gap: 6px; justify-content: flex-end;" title="Ordenar por #"><span style="font-size: 11px; line-height: 16px; font-weight: 600; color: #5c6485; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;">#</span><span style="display: flex; color: rgba(46,63,132,0.45);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></svg></span></span><span style="display: flex; align-items: center; gap: 6px;" title="Ordenar por paciente"><span style="font-size: 11px; line-height: 16px; font-weight: 600; color: #5c6485; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;">Paciente</span><span style="display: flex; color: rgba(46,63,132,0.45);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></svg></span></span><span style="display: flex; align-items: center; gap: 6px;" title="Ordenar por cita"><span style="font-size: 11px; line-height: 16px; font-weight: 600; color: #2e3f84; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;">Cita</span><span style="display: flex; color: #2e3f84;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg></span></span><span style="display: flex; align-items: center; gap: 6px;" title="Ordenar por profesional"><span style="font-size: 11px; line-height: 16px; font-weight: 600; color: #5c6485; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;">Profesional</span><span style="display: flex; color: rgba(46,63,132,0.45);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></svg></span></span><span style="display: flex; align-items: center; gap: 6px;" title="Ordenar por recordatorio"><span style="font-size: 11px; line-height: 16px; font-weight: 600; color: #5c6485; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;">Recordatorio</span><span style="display: flex; color: rgba(46,63,132,0.45);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></svg></span></span><span style="display: flex; align-items: center; gap: 6px;"><span style="font-size: 11px; line-height: 16px; font-weight: 600; color: #5c6485; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap;">Respuesta</span></span>
+            </div>
+          
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">1</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Jorge Eliécer Cuero Benítez</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.114.847.515<span aria-hidden="true">·</span>304 770 7969</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>06:30</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ricardo León Burbano</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cardiología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:02</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; font-size: 12px; line-height: 16px; font-weight: 600; color: #047857; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg>Confirmada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">2</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Jorge Eliécer Obando Trujillo</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 29.672.549<span aria-hidden="true">·</span>304 352 2914</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>07:00</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ricardo León Burbano</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cardiología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; color: #0369a1; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M20 6 9 17l-5-5"></path></svg>Recibido</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">3</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Blanca Nubia Carabalí Londoño</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.143.601.152<span aria-hidden="true">·</span>317 167 6105</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>07:20</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Germán Alonso Rivas</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cirugía general</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:02</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #fef2f2; box-shadow: inset 0 0 0 1px #fecaca; font-size: 12px; line-height: 16px; font-weight: 600; color: #b91c1c; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path><path d="m14 14-4 4"></path><path d="m10 14 4 4"></path></svg>Cancelada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">4</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Olga Lucía Trujillo Solís</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 94.468.534<span aria-hidden="true">·</span>320 895 2846</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>07:40</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Julián Andrés Pardo</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Medicina interna</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; font-size: 12px; line-height: 16px; font-weight: 600; color: #047857; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg>Confirmada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">5</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Wilson Hernán Castillo Cuero</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.144.692.483<span aria-hidden="true">·</span>320 896 0865</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>08:00</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mónica Liliana Erazo</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ginecología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 9:10</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; color: #0369a1; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M20 6 9 17l-5-5"></path></svg>Recibido</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">6</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ana Lucía Castillo Solís</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 38.270.256<span aria-hidden="true">·</span>313 695 2650</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>08:20</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mónica Liliana Erazo</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ginecología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 400; color: #475569; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Sin respuesta</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">7</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Martha Cecilia Lozano Solís</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.144.382.916<span aria-hidden="true">·</span>304 335 2689</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>08:40</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Germán Alonso Rivas</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cirugía general</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:02</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; font-size: 12px; line-height: 16px; font-weight: 600; color: #047857; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg>Confirmada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">8</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Héctor Fabio Valencia Benítez</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.113.662.477<span aria-hidden="true">·</span>312 426 0178</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>09:00</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mónica Liliana Erazo</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ginecología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #b91c1c; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #dc2626;"></span>Error</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:02</span>
+                </div>
+              <div><span style="font-size: 13px; line-height: 18px; font-weight: 400; color: #5c6485; ">—</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">9</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Carlos Andrés Rengifo Quiñónez</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 29.393.930<span aria-hidden="true">·</span>320 110 9913</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>09:30</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mauricio Tello Ibarra</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neurología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; font-size: 12px; line-height: 16px; font-weight: 600; color: #047857; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg>Confirmada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">10</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Freddy Antonio Vidal Sinisterra</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 94.611.105<span aria-hidden="true">·</span>301 893 0752</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>10:00</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Lorena Isabel Chaves</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Dermatología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; color: #0369a1; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M20 6 9 17l-5-5"></path></svg>Recibido</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">11</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ana Lucía Quiñónez Castillo</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.107.880.911<span aria-hidden="true">·</span>320 421 1362</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>10:20</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ricardo León Burbano</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cardiología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:02</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #fef2f2; box-shadow: inset 0 0 0 1px #fecaca; font-size: 12px; line-height: 16px; font-weight: 600; color: #b91c1c; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path><path d="m14 14-4 4"></path><path d="m10 14 4 4"></path></svg>Cancelada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">12</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Olga Lucía Valencia Mosquera</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.151.721.703<span aria-hidden="true">·</span>317 186 9475</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>10:40</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mauricio Tello Ibarra</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neurología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:02</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; font-size: 12px; line-height: 16px; font-weight: 600; color: #047857; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg>Confirmada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">13</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Martha Cecilia Perlaza Carabalí</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.113.419.749<span aria-hidden="true">·</span>311 671 0234</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>11:00</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Paula Andrea Guzmán</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Urología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; color: #0369a1; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M20 6 9 17l-5-5"></path></svg>Recibido</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">14</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Leidy Johana Perlaza Mosquera</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 94.569.819<span aria-hidden="true">·</span>318 849 7422</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>13:30</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ricardo León Burbano</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cardiología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:02</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; font-size: 12px; line-height: 16px; font-weight: 600; color: #047857; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg>Confirmada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">15</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Yolanda Sinisterra Quiñónez</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.130.136.884<span aria-hidden="true">·</span>316 808 8261</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>14:00</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Felipe Castaño Ruiz</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ortopedia</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 400; color: #475569; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Sin respuesta</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">16</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Freddy Antonio Trujillo Cuero</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.114.725.438<span aria-hidden="true">·</span>320 713 2528</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>14:20</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Germán Alonso Rivas</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cirugía general</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; color: #0369a1; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M20 6 9 17l-5-5"></path></svg>Recibido</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">17</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">José Alirio Obando Perlaza</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 94.639.487<span aria-hidden="true">·</span>313 641 7740</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>14:40</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Paula Andrea Guzmán</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Urología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:27</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; font-size: 12px; line-height: 16px; font-weight: 600; color: #047857; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg>Confirmada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">18</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Leidy Johana Cuero Sinisterra</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 38.507.618<span aria-hidden="true">·</span>310 745 0772</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>15:00</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Germán Alonso Rivas</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Cirugía general</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 7:48</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; color: #0369a1; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M20 6 9 17l-5-5"></path></svg>Recibido</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">19</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Gloria Inés Mina Trujillo</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 29.953.021<span aria-hidden="true">·</span>314 610 5190</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>15:30</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mauricio Tello Ibarra</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neurología</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 9:10</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 7px; border-radius: 7px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; font-size: 12px; line-height: 16px; font-weight: 600; color: #047857; white-space: nowrap;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M8 2v4"></path><path d="M16 2v4"></path><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"></path><path d="M3 10h18"></path><path d="m16 20 2 2 4-4"></path></svg>Confirmada</span></div>
+            </div>
+            <div style="height: 54px; flex-shrink: 0; padding: 0 20px; display: grid; grid-template-columns: 40px minmax(0, 1.25fr) 132px minmax(0, 1.2fr) 150px 140px; column-gap: 20px; align-items: center; border-bottom: 1px solid rgba(46,63,132,0.08);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;text-align: right; padding-right: 4px;">20</span>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13.5px; line-height: 18px; font-weight: 600; color: #2e3f84; letter-spacing: -.003em;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Blanca Nubia Lozano Benítez</span>
+                <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">CC 1.107.504.782<span aria-hidden="true">·</span>313 474 9867</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; font-variant-numeric: tabular-nums;white-space: nowrap;">lun 14 sept</span>
+                <span style="display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>16:00</span>
+              </div>
+              <div style="min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <span style="font-size: 13px; line-height: 18px; font-weight: 500; color: #2e3f84; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Julián Andrés Pardo</span>
+                <span style="font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Medicina interna</span>
+              </div>
+              
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <span style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; line-height: 18px; font-weight: 500; color: #047857; "><span style="width: 7px; height: 7px; flex-shrink: 0; border-radius: 9999px; background: #059669;"></span>Enviado</span>
+                  <span style="padding-left: 14px; font-size: 12px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">12 sept, 8:02</span>
+                </div>
+              <div><span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; font-weight: 500; color: #0369a1; "><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="M20 6 9 17l-5-5"></path></svg>Recibido</span></div>
+            </div>
+          
+            <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 56px; z-index: 6; padding: 0 20px 0 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: rgba(255,255,255,.96); border-top: 1px solid rgba(46,63,132,0.12); box-shadow: 0 -10px 20px -14px rgba(46,63,132,0.25);">
+              <span style="font-size: 12.5px; line-height: 16px; font-weight: 400; color: #5c6485; font-variant-numeric: tabular-nums;">Mostrando <span style="font-weight: 600; color: #2e3f84;">1 – 20</span> de 3.412 citas</span>
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <span style="font-size: 12.5px; line-height: 16px; font-weight: 500; color: #5c6485; font-variant-numeric: tabular-nums;">Página <span style="font-weight: 600; color: #2e3f84;">1</span> de 171</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                <div title="No hay página anterior" style="height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 9px; border-radius: 9px; background: #ffffff; box-shadow: inset 0 0 0 1px rgba(46,63,132,0.1); font-size: 13px; line-height: 18px; font-weight: 600; color: rgba(46,63,132,0.4); white-space: nowrap;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="m15 18-6-6 6-6"></path></svg>Anterior</div>
+                <div style="height: 34px; display: flex; align-items: center; gap: 6px; padding: 0 9px 0 12px; border-radius: 9px; background: #ffffff; box-shadow: inset 0 0 0 1px rgba(46,63,132,0.2); font-size: 13px; line-height: 18px; font-weight: 600; color: #2e3f84; white-space: nowrap;">Siguiente<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; display: block;"><path d="m9 18 6-6-6-6"></path></svg></div></div>
+              </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
