@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\InactiveConversationReleaser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -39,9 +40,50 @@ class SettingsController extends Controller
             ->orderBy('name')
             ->get();
 
+        $autoRelease = InactiveConversationReleaser::settings();
+
         return Inertia::render('admin/settings/index', [
             'settings' => $settings,
             'advisors' => $advisors,
+            'autoRelease' => [
+                'enabled' => $autoRelease['enabled'],
+                'minutes' => $autoRelease['minutes'],
+                'min' => InactiveConversationReleaser::MIN_MINUTES,
+                'max' => InactiveConversationReleaser::MAX_MINUTES,
+            ],
+        ]);
+    }
+
+    /**
+     * Liberación automática: activar/desactivar y tiempo de espera sin respuesta del asesor.
+     */
+    public function updateAutoRelease(Request $request)
+    {
+        $validated = $request->validate([
+            'enabled' => 'required|boolean',
+            'minutes' => 'required|integer|min:' . InactiveConversationReleaser::MIN_MINUTES . '|max:' . InactiveConversationReleaser::MAX_MINUTES,
+        ], [
+            'minutes.min' => 'El tiempo mínimo es de ' . InactiveConversationReleaser::MIN_MINUTES . ' minutos.',
+            'minutes.max' => 'El tiempo máximo es de 30 días.',
+        ]);
+
+        Setting::set(InactiveConversationReleaser::KEY_MINUTES, (string) $validated['minutes'], 'Minutos sin respuesta del asesor antes de liberar la conversación');
+        Setting::set(InactiveConversationReleaser::KEY_ENABLED, $validated['enabled'] ? 'true' : 'false', 'Liberación automática de conversaciones sin respuesta del asesor');
+
+        return redirect()->back()->with('success', 'Liberación automática actualizada.');
+    }
+
+    /**
+     * Cuántas conversaciones se liberarían ahora mismo con ese tiempo (solo consulta, no toca nada).
+     */
+    public function previewAutoRelease(Request $request, InactiveConversationReleaser $releaser)
+    {
+        $validated = $request->validate([
+            'minutes' => 'required|integer|min:' . InactiveConversationReleaser::MIN_MINUTES . '|max:' . InactiveConversationReleaser::MAX_MINUTES,
+        ]);
+
+        return response()->json([
+            'count' => $releaser->candidates((int) $validated['minutes'])->count(),
         ]);
     }
 

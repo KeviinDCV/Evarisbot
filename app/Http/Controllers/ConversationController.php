@@ -848,6 +848,7 @@ class ConversationController extends Controller
                 ->whereNull('assigned_to')
                 ->update([
                     'assigned_to' => auth()->id(),
+                    'assigned_at' => now(),
                     'status' => 'active',
                     'last_message_at' => now(),
                 ]);
@@ -1213,7 +1214,8 @@ class ConversationController extends Controller
         ]);
 
         $userId = $validated['user_id'];
-        $updateData = ['assigned_to' => $userId];
+        // update() directo no pasa por el modelo: la fecha de asignación se pone a mano.
+        $updateData = ['assigned_to' => $userId, 'assigned_at' => $userId ? now() : null];
         
         // Si se asigna a un usuario, reactivar la conversación
         if ($userId) {
@@ -1346,7 +1348,7 @@ class ConversationController extends Controller
                     'reason' => 'Limpieza manual desde el filtro de asesores',
                 ]);
             }
-            Conversation::whereIn('id', $ids)->update(['assigned_to' => null]);
+            Conversation::whereIn('id', $ids)->update(['assigned_to' => null, 'assigned_at' => null]);
         });
 
         \Illuminate\Support\Facades\Log::info('Limpieza manual de asesor (filtro)', [

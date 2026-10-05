@@ -10,6 +10,7 @@ import {
     Check,
     CircleAlert,
     CircleCheck,
+    Hourglass,
     KeyRound,
     Loader2,
     Lock,
@@ -23,9 +24,10 @@ import {
     X,
     type LucideIcon,
 } from 'lucide-react';
-import { useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { toast } from '@/lib/toast';
+import { duracionLegible, MINUTOS_POR_UNIDAD, unidadExacta, type UnidadDuracion } from '@/lib/duracion';
 import axios from 'axios';
 
 interface Settings {
@@ -50,10 +52,21 @@ interface Advisor {
     is_on_duty: boolean;
 }
 
+interface AutoReleaseConfig {
+    enabled: boolean;
+    minutes: number;
+    min: number;
+    max: number;
+}
+
 interface SettingsIndexProps {
     settings: Settings;
     advisors: Advisor[];
+    autoRelease: AutoReleaseConfig;
 }
+
+// Tiempos frecuentes de la liberación automática (minutos).
+const TIEMPOS_FRECUENTES = [5, 15, 30, 60, 120, 180, 300, 1440, 2880];
 
 interface BusinessProfile {
     business_name: string;
@@ -376,7 +389,7 @@ const BOTON_SECUNDARIO = cn(
 // Avatares de "de turno" en la franja, tocándose. Si hay más gente que huecos, el último es "+N".
 const HUECOS_PILA = 7;
 
-export default function SettingsIndex({ settings, advisors }: SettingsIndexProps) {
+export default function SettingsIndex({ settings, advisors, autoRelease }: SettingsIndexProps) {
     const { t } = useTranslation();
     const [testingConnection, setTestingConnection] = useState(false);
     const [loadingProfile, setLoadingProfile] = useState(false);
@@ -402,6 +415,66 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
     const groqForm = useForm({
         groq_api_key: '',
     });
+
+    // ── Liberación automática: el tiempo se edita como cantidad + unidad y se guarda en minutos ──
+    const [releaseEnabled, setReleaseEnabled] = useState(autoRelease.enabled);
+    const [releaseUnit, setReleaseUnit] = useState<UnidadDuracion>(() => unidadExacta(autoRelease.minutes));
+    const [releaseAmount, setReleaseAmount] = useState(() => String(autoRelease.minutes / MINUTOS_POR_UNIDAD[unidadExacta(autoRelease.minutes)]));
+    const [savingRelease, setSavingRelease] = useState(false);
+    const [releasePreview, setReleasePreview] = useState<{ minutes: number; count: number | null; error: boolean } | null>(null);
+
+    const releaseAmountNumber = Number(releaseAmount);
+    const releaseMinutes = Number.isInteger(releaseAmountNumber) ? releaseAmountNumber * MINUTOS_POR_UNIDAD[releaseUnit] : NaN;
+    const releaseValid = Number.isInteger(releaseMinutes) && releaseMinutes >= autoRelease.min && releaseMinutes <= autoRelease.max;
+    const releaseChanged = releaseEnabled !== autoRelease.enabled || (releaseValid && releaseMinutes !== autoRelease.minutes);
+
+    const elegirTiempo = (minutos: number) => {
+        const unidad = unidadExacta(minutos);
+        setReleaseUnit(unidad);
+        setReleaseAmount(String(minutos / MINUTOS_POR_UNIDAD[unidad]));
+    };
+
+    // Cuántas conversaciones se liberarían ahora con el tiempo elegido (solo consulta). Espera a
+    // que se deje de escribir para no lanzar una petición por tecla.
+    useEffect(() => {
+        if (!releaseValid) {
+            setReleasePreview(null);
+            return;
+        }
+
+        let vigente = true;
+        setReleasePreview({ minutes: releaseMinutes, count: null, error: false });
+        const espera = window.setTimeout(() => {
+            axios
+                .get('/admin/settings/auto-release/preview', { params: { minutes: releaseMinutes } })
+                .then((response) => {
+                    if (vigente) setReleasePreview({ minutes: releaseMinutes, count: Number(response.data?.count ?? 0), error: false });
+                })
+                .catch(() => {
+                    if (vigente) setReleasePreview({ minutes: releaseMinutes, count: null, error: true });
+                });
+        }, 400);
+
+        return () => {
+            vigente = false;
+            window.clearTimeout(espera);
+        };
+    }, [releaseMinutes, releaseValid]);
+
+    const saveAutoRelease = () => {
+        if (!releaseValid) return;
+        setSavingRelease(true);
+        router.post(
+            '/admin/settings/auto-release',
+            { enabled: releaseEnabled, minutes: releaseMinutes },
+            {
+                preserveScroll: true,
+                onFinish: () => setSavingRelease(false),
+                onSuccess: () => toast.success(t('settings.autoRelease.savedSuccess')),
+                onError: () => toast.error(t('settings.autoRelease.saveError')),
+            }
+        );
+    };
 
     const filteredAdvisors = useMemo(() => {
         const searchTerm = advisorSearch.trim().toLowerCase();
@@ -876,7 +949,164 @@ export default function SettingsIndex({ settings, advisors }: SettingsIndexProps
                             </Pie>
                         </form>
 
-                        {/* ── 3. Asesores de turno ── */}
+                        {/* ── 3. Liberación automática de conversaciones sin respuesta ── */}
+                        <section aria-labelledby="settings-auto-release">
+                            <Banda
+                                id="settings-auto-release"
+                                icon={Hourglass}
+                                titulo={t('settings.autoRelease.title')}
+                                estado={
+                                    <Estado
+                                        ok={autoRelease.enabled}
+                                        si={t('settings.autoRelease.activeState', { time: duracionLegible(autoRelease.minutes, t) })}
+                                        no={t('settings.autoRelease.inactiveState')}
+                                    />
+                                }
+                                texto={t('settings.autoRelease.bandText')}
+                            />
+
+                            <Fila etiqueta={t('settings.autoRelease.toggleLabel')} ayuda={t('settings.autoRelease.toggleHelp')} ayudaId="auto-release-toggle-help">
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={releaseEnabled}
+                                    aria-describedby="auto-release-toggle-help"
+                                    onClick={() => setReleaseEnabled((actual) => !actual)}
+                                    className={cn('inline-flex cursor-pointer items-center gap-2.5 rounded-full py-1 pr-1', FOCO)}
+                                >
+                                    <span
+                                        className={cn(
+                                            'relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors',
+                                            releaseEnabled ? 'bg-[#2e3f84] dark:bg-[#596bcf]' : 'bg-slate-300 dark:bg-neutral-600'
+                                        )}
+                                        aria-hidden="true"
+                                    >
+                                        <span
+                                            className={cn(
+                                                'absolute left-[3px] size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-transform',
+                                                releaseEnabled && 'translate-x-4'
+                                            )}
+                                        />
+                                    </span>
+                                    <span className={cn('text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>
+                                        {releaseEnabled ? t('settings.autoRelease.on') : t('settings.autoRelease.off')}
+                                    </span>
+                                </button>
+                            </Fila>
+
+                            <Fila etiqueta={t('settings.autoRelease.timeLabel')} htmlFor="auto-release-amount" ayuda={t('settings.autoRelease.timeHelp')} ayudaId="auto-release-time-help">
+                                <div className="flex flex-col gap-3">
+                                    <div role="group" aria-label={t('settings.autoRelease.presetsLabel')} className="flex flex-wrap gap-1.5">
+                                        {TIEMPOS_FRECUENTES.map((minutos) => {
+                                            const elegido = releaseValid && releaseMinutes === minutos;
+                                            return (
+                                                <button
+                                                    key={minutos}
+                                                    type="button"
+                                                    aria-pressed={elegido}
+                                                    onClick={() => elegirTiempo(minutos)}
+                                                    className={cn(
+                                                        'h-8 cursor-pointer rounded-full px-3 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors',
+                                                        elegido
+                                                            ? 'bg-[#2e3f84] text-white dark:bg-[#596bcf]'
+                                                            : 'bg-[#2e3f84]/[0.06] text-[#2e3f84] hover:bg-[#2e3f84]/[0.1] dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/10',
+                                                        FOCO
+                                                    )}
+                                                >
+                                                    {duracionLegible(minutos, t)}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <label htmlFor="auto-release-amount" className="sr-only">
+                                            {t('settings.autoRelease.amountLabel')}
+                                        </label>
+                                        <input
+                                            id="auto-release-amount"
+                                            name="auto-release-amount"
+                                            type="number"
+                                            inputMode="numeric"
+                                            min={1}
+                                            step={1}
+                                            value={releaseAmount}
+                                            onChange={(event) => setReleaseAmount(event.target.value)}
+                                            aria-describedby={describir('auto-release-time-help', !releaseValid && 'auto-release-time-error')}
+                                            aria-invalid={!releaseValid || undefined}
+                                            className={cn(
+                                                'h-[38px] w-[96px] rounded-[9px] bg-white px-3 text-[13px] leading-[18px] text-[#2e3f84] tabular-nums shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none',
+                                                'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)]',
+                                                'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)] dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]',
+                                                !releaseValid && 'shadow-[inset_0_0_0_1px_var(--color-red-600)] dark:shadow-[inset_0_0_0_1px_var(--color-red-400)]'
+                                            )}
+                                        />
+                                        <label htmlFor="auto-release-unit" className="sr-only">
+                                            {t('settings.autoRelease.unitLabel')}
+                                        </label>
+                                        <select
+                                            id="auto-release-unit"
+                                            name="auto-release-unit"
+                                            value={releaseUnit}
+                                            onChange={(event) => setReleaseUnit(event.target.value as UnidadDuracion)}
+                                            className={cn(
+                                                'h-[38px] cursor-pointer rounded-[9px] bg-white pr-8 pl-3 text-[13px] leading-[18px] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] outline-none',
+                                                'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)]',
+                                                'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)]'
+                                            )}
+                                        >
+                                            <option value="minutes">{t('settings.autoRelease.unitMinutes')}</option>
+                                            <option value="hours">{t('settings.autoRelease.unitHours')}</option>
+                                            <option value="days">{t('settings.autoRelease.unitDays')}</option>
+                                        </select>
+                                    </div>
+                                    {!releaseValid && (
+                                        <p id="auto-release-time-error" className={ERROR_CAMPO}>
+                                            {t('settings.autoRelease.outOfRange')}
+                                        </p>
+                                    )}
+                                </div>
+                            </Fila>
+
+                            <Fila etiqueta={t('settings.autoRelease.previewLabel')} ayuda={t('settings.autoRelease.previewHelp')}>
+                                <p aria-live="polite" className={cn('flex items-start gap-2 text-[13px] leading-[18px]', TEXTO_NAVY)}>
+                                    {!releasePreview ? (
+                                        <span className={TEXTO_SUAVE}>—</span>
+                                    ) : releasePreview.error ? (
+                                        <span className="text-red-700 dark:text-red-400">{t('settings.autoRelease.previewError')}</span>
+                                    ) : releasePreview.count === null ? (
+                                        <span className={cn('inline-flex items-center gap-2', TEXTO_SUAVE)}>
+                                            <Loader2 className="size-[14px] animate-spin" aria-hidden="true" />
+                                            {t('settings.autoRelease.previewLoading')}
+                                        </span>
+                                    ) : (
+                                        <span className="min-w-0">
+                                            <span className="font-semibold">
+                                                {releasePreview.count === 0
+                                                    ? t('settings.autoRelease.previewNone', { time: duracionLegible(releasePreview.minutes, t) })
+                                                    : t('settings.autoRelease.previewCount', { count: releasePreview.count, time: duracionLegible(releasePreview.minutes, t) })}
+                                            </span>
+                                            {releaseEnabled && releasePreview.count > 0 && (
+                                                <span className={cn('mt-0.5 block text-[12px] leading-4', TEXTO_SUAVE)}>{t('settings.autoRelease.previewWillRelease')}</span>
+                                            )}
+                                        </span>
+                                    )}
+                                </p>
+                            </Fila>
+
+                            <Pie nota={t('settings.autoRelease.saveNote')}>
+                                <Button
+                                    type="button"
+                                    onClick={saveAutoRelease}
+                                    disabled={savingRelease || !releaseValid || !releaseChanged}
+                                    className={cn(BOTON_PRIMARIO, releaseChanged && releaseValid ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
+                                >
+                                    {botonGuardar(savingRelease, t('common.saveChanges'))}
+                                </Button>
+                            </Pie>
+                        </section>
+
+                        {/* ── 4. Asesores de turno ── */}
                         <section aria-labelledby="settings-duty">
                             <Banda
                                 id="settings-duty"

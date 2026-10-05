@@ -106,6 +106,8 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/settings/business-profile', 'getBusinessProfile')->name('settings.business-profile');
         Route::post('/settings/on-duty-advisors', 'updateOnDutyAdvisors')->name('settings.on-duty-advisors');
         Route::post('/settings/groq', 'updateGroq')->name('settings.groq');
+        Route::post('/settings/auto-release', 'updateAutoRelease')->name('settings.auto-release');
+        Route::get('/settings/auto-release/preview', 'previewAutoRelease')->name('settings.auto-release.preview');
     });
     
     // Estadísticas

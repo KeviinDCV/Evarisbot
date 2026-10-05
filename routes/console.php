@@ -78,6 +78,15 @@ Schedule::command('ai:check-timeouts')
     ->withoutOverlapping()
     ->runInBackground();
 
+// Liberar conversaciones en las que el asesor no respondió a tiempo (Configuración →
+// Liberación automática). OJO: en este servidor el programador NO corre; la revisión real la
+// lanza AppServiceProvider al final de las peticiones web. Se deja aquí por si algún día se
+// activa schedule:run (el bloqueo de caché evita que las dos vías choquen).
+Schedule::call(fn () => \App\Services\InactiveConversationReleaser::runIfDue())
+    ->name('conversations:release-inactive')
+    ->everyMinute()
+    ->withoutOverlapping();
+
 // Marcar como leídas las confirmaciones/cortesías de recordatorios cada noche.
 // Mantiene bajo el contador de "no leídos" sin tocar mensajes reales de pacientes.
 Schedule::command('conversations:mark-confirmations-read')

@@ -92,6 +92,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useTranslation, Trans } from 'react-i18next';
 import { toast } from '@/lib/toast';
+import { duracionLegible } from '@/lib/duracion';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
 
 // CSRF: las mutaciones van por axios para usar el token VIVO de la cookie XSRF-TOKEN
@@ -2899,6 +2900,13 @@ export default function ConversationsIndex({ conversations: initialConversations
             case 'assigned':
                 return t('conversations.activity.assigned', { name, target: meta.assigned_to_name || t('conversations.activity.anAgent') });
             case 'unassigned':
+                // Liberación automática por inactividad (la hace el sistema, sin autor).
+                if (meta.reason === 'auto_release') {
+                    return t('conversations.activity.autoReleased', {
+                        advisor: meta.released_from_name || t('conversations.activity.anAgent'),
+                        time: duracionLegible(Number(meta.threshold_minutes) || 0, t),
+                    });
+                }
                 return t('conversations.activity.unassigned', { name });
             case 'auto_assigned':
                 return t('conversations.activity.autoAssigned', { name: meta.assigned_to_name || name });
@@ -2923,7 +2931,8 @@ export default function ConversationsIndex({ conversations: initialConversations
         }
     };
 
-    const getActivityColor = (type: string): string => {
+    const getActivityColor = (type: string, meta?: Record<string, any> | null): string => {
+        if (type === 'unassigned' && meta?.reason === 'auto_release') return 'bg-amber-400';
         switch (type) {
             case 'assigned': case 'auto_assigned': return 'bg-blue-400';
             case 'unassigned': return 'bg-gray-400';
@@ -5500,7 +5509,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-slate-200 dark:bg-slate-700" />
                                                     {activities.map((act) => (
                                                         <div key={act.id} className="relative flex items-start gap-3 pb-3 last:pb-0">
-                                                            <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${getActivityColor(act.type)} ring-2 ring-white dark:ring-slate-900`} />
+                                                            <div className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${getActivityColor(act.type, act.metadata)} ring-2 ring-white dark:ring-slate-900`} />
                                                             <div className="min-w-0">
                                                                 <p className="text-xs text-foreground leading-snug">{getActivityLabel(act)}</p>
                                                                 <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(act.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>

@@ -15,6 +15,7 @@ class Conversation extends Model
         'profile_picture_url',
         'status',
         'assigned_to',
+        'assigned_at',
         'resolved_by',
         'resolved_at',
         'last_message_at',
@@ -33,6 +34,7 @@ class Conversation extends Model
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'assigned_at' => 'datetime',
         'resolved_at' => 'datetime',
         'pinned_at' => 'datetime',
         'is_pinned' => 'boolean',
@@ -41,6 +43,21 @@ class Conversation extends Model
         'welcome_flow_completed' => 'boolean',
         'welcome_flow_data' => 'array',
     ];
+
+    /**
+     * Cada vez que cambia el asesor se anota cuándo (lo usa la liberación automática por
+     * inactividad: el reloj no arranca antes de la asignación). Cubre todas las rutas que
+     * asignan con Eloquent; las que usan update() directo sobre la consulta ponen assigned_at
+     * a mano (ConversationController: respuesta del asesor, asignación y limpieza masivas).
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Conversation $conversation) {
+            if ($conversation->isDirty('assigned_to')) {
+                $conversation->assigned_at = $conversation->assigned_to ? now() : null;
+            }
+        });
+    }
 
     /**
      * Relación con los mensajes
