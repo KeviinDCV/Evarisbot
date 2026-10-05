@@ -59,15 +59,19 @@ class SettingsController extends Controller
      */
     public function updateAutoRelease(Request $request)
     {
+        // Apagar nunca depende del tiempo: si el campo quedó mal, se conserva el guardado.
         $validated = $request->validate([
             'enabled' => 'required|boolean',
-            'minutes' => 'required|integer|min:' . InactiveConversationReleaser::MIN_MINUTES . '|max:' . InactiveConversationReleaser::MAX_MINUTES,
+            'minutes' => 'required_if:enabled,true,1|nullable|integer|min:' . InactiveConversationReleaser::MIN_MINUTES . '|max:' . InactiveConversationReleaser::MAX_MINUTES,
         ], [
+            'minutes.required_if' => 'Indica el tiempo sin respuesta.',
             'minutes.min' => 'El tiempo mínimo es de ' . InactiveConversationReleaser::MIN_MINUTES . ' minutos.',
             'minutes.max' => 'El tiempo máximo es de 30 días.',
         ]);
 
-        Setting::set(InactiveConversationReleaser::KEY_MINUTES, (string) $validated['minutes'], 'Minutos sin respuesta del asesor antes de liberar la conversación');
+        if (isset($validated['minutes'])) {
+            Setting::set(InactiveConversationReleaser::KEY_MINUTES, (string) $validated['minutes'], 'Minutos sin respuesta del asesor antes de liberar la conversación');
+        }
         Setting::set(InactiveConversationReleaser::KEY_ENABLED, $validated['enabled'] ? 'true' : 'false', 'Liberación automática de conversaciones sin respuesta del asesor');
 
         return redirect()->back()->with('success', 'Liberación automática actualizada.');

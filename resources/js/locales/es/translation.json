@@ -1004,7 +1004,7 @@
         },
         "autoRelease": {
             "title": "Liberación automática",
-            "bandText": "Si el paciente escribe y su asesor no responde a tiempo, la conversación vuelve a la bandeja sin asignar para que otro asesor la atienda.",
+            "bandText": "Si el asesor no responde a tiempo, el chat vuelve a la bandeja sin asignar.",
             "activeState": "Activa · {{time}}",
             "inactiveState": "Desactivada",
             "toggleLabel": "Liberar conversaciones sin respuesta",
@@ -1026,6 +1026,7 @@
             "previewCount_other": "{{count}} conversaciones llevan más de {{time}} sin respuesta del asesor.",
             "previewNone": "Ninguna conversación lleva más de {{time}} sin respuesta del asesor.",
             "previewWillRelease": "Si guardas con la liberación activada, volverán a la bandeja sin asignar en el próximo minuto.",
+            "previewReleasingSoon": "Volverán a la bandeja sin asignar en el próximo minuto.",
             "previewLoading": "Calculando…",
             "previewError": "No se pudo calcular en este momento.",
             "saveNote": "Se aplica en el próximo minuto. Cada liberación queda en el historial de la conversación.",

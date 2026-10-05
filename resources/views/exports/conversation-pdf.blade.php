@@ -98,7 +98,13 @@
             {{ $activity->user?->name ?? 'Sistema' }}:
             @switch($activity->type)
                 @case('assigned') asignó el chat a {{ $activity->metadata['assigned_to_name'] ?? 'alguien' }} @break
-                @case('unassigned') removió la asignación @break
+                @case('unassigned')
+                    @if(($activity->metadata['reason'] ?? null) === 'auto_release')
+                        liberó automáticamente el chat de {{ $activity->metadata['released_from_name'] ?? 'un asesor' }} (sin respuesta en {{ $activity->metadata['threshold_minutes'] ?? '?' }} min)
+                    @else
+                        removió la asignación
+                    @endif
+                    @break
                 @case('auto_assigned') tomó el chat automáticamente @break
                 @case('resolved') marcó como resuelto @break
                 @case('reopened') reabrió la conversación @break

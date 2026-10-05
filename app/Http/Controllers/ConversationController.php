@@ -102,18 +102,95 @@ class ConversationController extends Controller
             $query->where('specialty', $request->input('specialty'));
         }
 
-        if ($request->has('search') && !empty($request->search)) {
-            $search = trim($request->search);
-            $query->where(function ($q) use ($search) {
-                $q->where('contact_name', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%")
-                  ->orWhereHas('messages', function ($messageQuery) use ($search) {
-                      $messageQuery->where('content', 'like', "%{$search}%");
-                  });
-            });
-        }
+        $this->aplicarBusqueda($query, $request->input('search'));
 
         return $query;
+    }
+
+    /**
+     * Búsqueda de la bandeja: nombre, teléfono o texto de algún mensaje.
+     *
+     * Antes cada búsqueda era «nombre OR teléfono OR EXISTS(mensaje LIKE …)», es decir, una
+     * subconsulta sobre los mensajes por cada conversación: unos 3 s con la base en reposo y
+     * hasta 8 s con carga (414 mil mensajes, oct-2026). Y se repetía en la lista, en cada
+     * contador de filtros y en el sondeo de la lista cada 10 s mientras el término seguía
+     * escrito. Los asesores veían que «no buscaba». Ahora el texto de los mensajes se recorre
+     * una sola vez por término (ver conversacionesConMensaje) y aquí solo se cruza por id.
+     */
+    private function aplicarBusqueda($query, $termino): void
+    {
+        $termino = trim((string) $termino);
+        if ($termino === '') {
+            return;
+        }
+
+        // "300 432 9862" o "+57 300-432-9862": el teléfono se guarda sin espacios ni guiones.
+        $digitos = preg_match('/^[\d\s+().-]+$/', $termino) ? preg_replace('/\D/', '', $termino) : '';
+
+        // Un número que ya coincide con algún teléfono es una búsqueda por teléfono (la gran
+        // mayoría): no hace falta recorrer los mensajes. Un número sin teléfono (p. ej. una
+        // cédula que el paciente escribió) sí se busca en los mensajes.
+        $esTelefono = $digitos !== '' && Conversation::where('phone_number', 'like', "%{$digitos}%")->exists();
+        $porMensaje = $esTelefono ? [] : $this->conversacionesConMensaje($termino);
+
+        $query->where(function ($q) use ($termino, $digitos, $porMensaje) {
+            $q->where('contact_name', 'like', "%{$termino}%")
+              ->orWhere('phone_number', 'like', "%{$termino}%");
+            if ($digitos !== '' && $digitos !== $termino) {
+                $q->orWhere('phone_number', 'like', "%{$digitos}%");
+            }
+            if ($porMensaje !== []) {
+                $q->orWhereIn('conversations.id', $porMensaje);
+            }
+        });
+    }
+
+    /**
+     * Conversaciones con algún mensaje que contenga el término, en una sola pasada por la
+     * tabla de mensajes (1,5–4 s según el término y la carga; antes se pagaba eso en cada
+     * consulta). Se guarda 60 s: la lista, los contadores y el sondeo de la misma búsqueda la
+     * reutilizan. Sin límite de filas, para encontrar lo mismo que la búsqueda anterior. Con
+     * menos de 3 caracteres no se busca en mensajes (escribir "30" no debe recorrer toda la
+     * tabla), y si la pasada supera 5 s se corta y la búsqueda sigue por nombre y teléfono:
+     * más vale un resultado rápido que ninguno.
+     *
+     * @return array<int, int>
+     */
+    private function conversacionesConMensaje(string $termino): array
+    {
+        if (mb_strlen($termino) < 3) {
+            return [];
+        }
+
+        $clave = 'busqueda-mensajes:' . md5(mb_strtolower($termino));
+        $guardado = \Illuminate\Support\Facades\Cache::get($clave);
+        if (is_array($guardado)) {
+            return $guardado;
+        }
+
+        $like = '%' . addcslashes($termino, '%_\\') . '%';
+        try {
+            // Tope de 8 s: lo que tardaba antes en el peor caso, pero ahora solo la primera vez.
+            $filas = \Illuminate\Support\Facades\DB::select(
+                'SET STATEMENT max_statement_time=8 FOR '
+                . 'SELECT DISTINCT conversation_id FROM messages WHERE content LIKE ?',
+                [$like]
+            );
+        } catch (\Illuminate\Database\QueryException $e) {
+            \Illuminate\Support\Facades\Log::warning('Búsqueda en mensajes cortada por tiempo; se busca solo por nombre y teléfono', [
+                'largo_termino' => mb_strlen($termino),
+                'error' => $e->getMessage(),
+            ]);
+            // Se reintenta pronto (15 s), no al minuto: el corte suele ser por carga puntual.
+            \Illuminate\Support\Facades\Cache::put($clave, [], 15);
+
+            return [];
+        }
+
+        $ids = array_values(array_unique(array_map(fn ($f) => (int) $f->conversation_id, $filas)));
+        \Illuminate\Support\Facades\Cache::put($clave, $ids, 60);
+
+        return $ids;
     }
 
     /**
@@ -334,19 +411,7 @@ class ConversationController extends Controller
         }
 
         // Buscar por nombre, teléfono o contenido de mensajes
-        if ($request->has('search') && !empty($request->search)) {
-            $search = trim($request->search);
-            $query->where(function ($q) use ($search) {
-                // Buscar en nombre de contacto
-                $q->where('contact_name', 'like', "%{$search}%")
-                  // Buscar en número de teléfono
-                  ->orWhere('phone_number', 'like', "%{$search}%")
-                  // Buscar en el contenido de los mensajes
-                  ->orWhereHas('messages', function ($messageQuery) use ($search) {
-                      $messageQuery->where('content', 'like', "%{$search}%");
-                  });
-            });
-        }
+        $this->aplicarBusqueda($query, $request->input('search'));
 
         // Paginación: cargar solo 50 conversaciones a la vez para mejor rendimiento
         // Usamos paginación basada en cursor (last_message_at) para evitar duplicados
@@ -592,16 +657,7 @@ class ConversationController extends Controller
         }
 
         // Buscar por nombre, teléfono o contenido de mensajes
-        if ($request->has('search') && !empty($request->search)) {
-            $search = trim($request->search);
-            $query->where(function ($q) use ($search) {
-                $q->where('contact_name', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%")
-                  ->orWhereHas('messages', function ($messageQuery) use ($search) {
-                      $messageQuery->where('content', 'like', "%{$search}%");
-                  });
-            });
-        }
+        $this->aplicarBusqueda($query, $request->input('search'));
 
         // Paginación: cargar solo 50 conversaciones
         $perPage = 50;
@@ -841,8 +897,11 @@ class ConversationController extends Controller
         ]);
 
         // Auto-asignar al asesor que responde si el chat no tiene asignación
-        // Usar update atómico para evitar race condition entre dos asesores
-        $wasUnassigned = is_null($conversation->assigned_to);
+        // Usar update atómico para evitar race condition entre dos asesores.
+        // Se mira la asignación ACTUAL en la base, no la del modelo cargado al principio: entre
+        // medias pudo liberarse por inactividad (la liberación ya no ocurre una vez guardado el
+        // mensaje), y en ese caso quien responde recupera el chat aquí.
+        $wasUnassigned = is_null(Conversation::whereKey($conversation->id)->value('assigned_to'));
         if ($wasUnassigned) {
             $affected = Conversation::where('id', $conversation->id)
                 ->whereNull('assigned_to')
@@ -1182,7 +1241,9 @@ class ConversationController extends Controller
 
         // Actualizar conversación
         $conversation->update(['last_message_at' => now()]);
-        if (is_null($conversation->assigned_to)) {
+        // Asignación actual en la base (pudo liberarse por inactividad mientras se enviaba).
+        if (is_null(Conversation::whereKey($conversation->id)->value('assigned_to'))) {
+            $conversation->refresh(); // el modelo en memoria podía traer el asesor anterior
             $conversation->update([
                 'assigned_to' => auth()->id(),
                 'status' => 'active',
@@ -1248,6 +1309,15 @@ class ConversationController extends Controller
         } else {
             $updateData['resolved_by'] = null;
             $updateData['resolved_at'] = null;
+        }
+
+        // Reabrir (resuelta/agendada → activa/pendiente) con asesor reinicia el reloj de la
+        // liberación automática: sin esto, el chat se le quitaría al minuto al que lo reabrió.
+        if (in_array($status, \App\Services\InactiveConversationReleaser::OPEN_STATUSES, true)) {
+            Conversation::whereIn('id', $validated['ids'])
+                ->whereNotNull('assigned_to')
+                ->whereNotIn('status', \App\Services\InactiveConversationReleaser::OPEN_STATUSES)
+                ->update(['assigned_at' => now()]);
         }
 
         Conversation::whereIn('id', $validated['ids'])->update($updateData);
@@ -1650,7 +1720,9 @@ class ConversationController extends Controller
 
         // Auto-asignar al asesor si no está asignado
         $updateData = ['last_message_at' => now()];
-        if (is_null($conversation->assigned_to)) {
+        // Asignación actual en la base (pudo liberarse por inactividad mientras se enviaba).
+        if (is_null(Conversation::whereKey($conversation->id)->value('assigned_to'))) {
+            $conversation->refresh(); // el modelo en memoria podía traer el asesor anterior
             $updateData['assigned_to'] = $user->id;
             $updateData['status'] = 'active';
         }
@@ -2181,14 +2253,7 @@ class ConversationController extends Controller
             $query->where('specialty', $request->input('specialty'));
         }
 
-        if ($request->has('search') && !empty($request->search)) {
-            $search = trim($request->search);
-            $query->where(function ($q) use ($search) {
-                $q->where('contact_name', 'like', "%{$search}%")
-                  ->orWhere('phone_number', 'like', "%{$search}%")
-                  ->orWhereHas('messages', fn ($mq) => $mq->where('content', 'like', "%{$search}%"));
-            });
-        }
+        $this->aplicarBusqueda($query, $request->input('search'));
 
         $conversations = $query
             ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])

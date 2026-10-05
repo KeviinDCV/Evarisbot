@@ -46,15 +46,26 @@ class Conversation extends Model
 
     /**
      * Cada vez que cambia el asesor se anota cuándo (lo usa la liberación automática por
-     * inactividad: el reloj no arranca antes de la asignación). Cubre todas las rutas que
-     * asignan con Eloquent; las que usan update() directo sobre la consulta ponen assigned_at
-     * a mano (ConversationController: respuesta del asesor, asignación y limpieza masivas).
+     * inactividad: el reloj no arranca antes de la asignación). Reabrir un chat cerrado que
+     * conserva su asesor cuenta como asignación nueva por la misma razón. Cubre todas las
+     * rutas que usan Eloquent; las que hacen update() directo sobre la consulta ponen
+     * assigned_at a mano (ConversationController: respuesta del asesor, asignación, cambio
+     * de estado y limpieza masivas).
      */
     protected static function booted(): void
     {
         static::saving(function (Conversation $conversation) {
+            $abiertos = \App\Services\InactiveConversationReleaser::OPEN_STATUSES;
+
             if ($conversation->isDirty('assigned_to')) {
                 $conversation->assigned_at = $conversation->assigned_to ? now() : null;
+            } elseif (
+                $conversation->assigned_to
+                && $conversation->isDirty('status')
+                && in_array($conversation->status, $abiertos, true)
+                && ! in_array($conversation->getOriginal('status'), $abiertos, true)
+            ) {
+                $conversation->assigned_at = now();
             }
         });
     }

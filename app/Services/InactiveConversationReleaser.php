@@ -52,8 +52,12 @@ class InactiveConversationReleaser
     /** Estados en los que una conversación sigue abierta y alguien debería responder. */
     public const OPEN_STATUSES = ['active', 'pending', 'in_progress'];
 
-    /** Marca de "ya se revisó hace poco" (un stat por petición, sin tocar la base). */
-    private const STAMP = 'framework/auto-release.stamp';
+    /**
+     * Marca de "ya se revisó hace poco" (un stat por petición, sin tocar la base). Va dentro de
+     * framework/cache/, que git ignora; la caché de la app vive en la base, así que cache:clear
+     * no la borra (y si la borrara, solo se adelantaría una revisión).
+     */
+    private const STAMP = 'framework/cache/auto-release.stamp';
     private const EVERY_SECONDS = 60;
 
     /** @return array{enabled: bool, minutes: int} */
@@ -128,6 +132,8 @@ class InactiveConversationReleaser
         $rows = DB::table('conversations')
             ->whereNotNull('assigned_to')
             ->whereIn('status', self::OPEN_STATUSES)
+            // Bloqueados: sus mensajes se ignoran a propósito; no hay a quién atender.
+            ->where('is_blocked', false)
             ->where(fn (Builder $q) => $q->whereNull('assigned_at')->orWhere('assigned_at', '<=', $cutoff))
             ->select('id', 'assigned_to', 'assigned_at')
             ->selectSub($lastPatientMessage, 'last_patient_at')
@@ -171,13 +177,23 @@ class InactiveConversationReleaser
                 ->where('id', $c->id)
                 ->where('assigned_to', $c->assigned_to)
                 ->whereIn('status', self::OPEN_STATUSES)
+                ->where('is_blocked', false)
                 ->where(fn ($q) => $q->whereNull('assigned_at')->orWhere('assigned_at', '<=', $cutoff))
                 ->whereNotExists(fn (Builder $q) => $q->from('messages')
                     ->whereColumn('messages.conversation_id', 'conversations.id')
                     ->where('messages.created_at', '>=', $c->waiting_since)
                     ->where(fn (Builder $r) => self::advisorReply($r)))
                 ->toBase()
-                ->update(['assigned_to' => null, 'assigned_at' => null, 'updated_at' => now()]);
+                ->update([
+                    'assigned_to' => null,
+                    'assigned_at' => null,
+                    // Queda como pendiente de leer aunque el asesor lo hubiera abierto: así sale
+                    // en «Sin contestar» para el resto del equipo, y la auto-resolución de
+                    // confirmaciones de cita (exige unread_count = 0) no lo cierra con la
+                    // pregunta del paciente sin responder.
+                    'unread_count' => DB::raw('GREATEST(unread_count, 1)'),
+                    'updated_at' => now(),
+                ]);
 
             if ($affected !== 1) {
                 continue;

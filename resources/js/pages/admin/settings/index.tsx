@@ -427,6 +427,8 @@ export default function SettingsIndex({ settings, advisors, autoRelease }: Setti
     const releaseMinutes = Number.isInteger(releaseAmountNumber) ? releaseAmountNumber * MINUTOS_POR_UNIDAD[releaseUnit] : NaN;
     const releaseValid = Number.isInteger(releaseMinutes) && releaseMinutes >= autoRelease.min && releaseMinutes <= autoRelease.max;
     const releaseChanged = releaseEnabled !== autoRelease.enabled || (releaseValid && releaseMinutes !== autoRelease.minutes);
+    // Apagar nunca depende del campo de tiempo: si quedó vacío o mal, se conserva el guardado.
+    const releaseCanSave = releaseChanged && (releaseValid || !releaseEnabled);
 
     const elegirTiempo = (minutos: number) => {
         const unidad = unidadExacta(minutos);
@@ -462,11 +464,11 @@ export default function SettingsIndex({ settings, advisors, autoRelease }: Setti
     }, [releaseMinutes, releaseValid]);
 
     const saveAutoRelease = () => {
-        if (!releaseValid) return;
+        if (!releaseCanSave) return;
         setSavingRelease(true);
         router.post(
             '/admin/settings/auto-release',
-            { enabled: releaseEnabled, minutes: releaseMinutes },
+            { enabled: releaseEnabled, minutes: releaseValid ? releaseMinutes : null },
             {
                 preserveScroll: true,
                 onFinish: () => setSavingRelease(false),
@@ -965,8 +967,14 @@ export default function SettingsIndex({ settings, advisors, autoRelease }: Setti
                                 texto={t('settings.autoRelease.bandText')}
                             />
 
-                            <Fila etiqueta={t('settings.autoRelease.toggleLabel')} ayuda={t('settings.autoRelease.toggleHelp')} ayudaId="auto-release-toggle-help">
+                            <Fila
+                                etiqueta={t('settings.autoRelease.toggleLabel')}
+                                htmlFor="auto-release-toggle"
+                                ayuda={t('settings.autoRelease.toggleHelp')}
+                                ayudaId="auto-release-toggle-help"
+                            >
                                 <button
+                                    id="auto-release-toggle"
                                     type="button"
                                     role="switch"
                                     aria-checked={releaseEnabled}
@@ -1086,8 +1094,10 @@ export default function SettingsIndex({ settings, advisors, autoRelease }: Setti
                                                     ? t('settings.autoRelease.previewNone', { time: duracionLegible(releasePreview.minutes, t) })
                                                     : t('settings.autoRelease.previewCount', { count: releasePreview.count, time: duracionLegible(releasePreview.minutes, t) })}
                                             </span>
-                                            {releaseEnabled && releasePreview.count > 0 && (
-                                                <span className={cn('mt-0.5 block text-[12px] leading-4', TEXTO_SUAVE)}>{t('settings.autoRelease.previewWillRelease')}</span>
+                                            {releasePreview.count > 0 && releaseEnabled && (releaseChanged || autoRelease.enabled) && (
+                                                <span className={cn('mt-0.5 block text-[12px] leading-4', TEXTO_SUAVE)}>
+                                                    {releaseChanged ? t('settings.autoRelease.previewWillRelease') : t('settings.autoRelease.previewReleasingSoon')}
+                                                </span>
                                             )}
                                         </span>
                                     )}
@@ -1098,8 +1108,8 @@ export default function SettingsIndex({ settings, advisors, autoRelease }: Setti
                                 <Button
                                     type="button"
                                     onClick={saveAutoRelease}
-                                    disabled={savingRelease || !releaseValid || !releaseChanged}
-                                    className={cn(BOTON_PRIMARIO, releaseChanged && releaseValid ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
+                                    disabled={savingRelease || !releaseCanSave}
+                                    className={cn(BOTON_PRIMARIO, releaseCanSave ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
                                 >
                                     {botonGuardar(savingRelease, t('common.saveChanges'))}
                                 </Button>
