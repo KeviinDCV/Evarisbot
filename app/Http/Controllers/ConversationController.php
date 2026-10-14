@@ -1660,6 +1660,10 @@ class ConversationController extends Controller
      */
     public function exportPdf(Conversation $conversation)
     {
+        // El botón solo se muestra a administradores, pero hay que comprobarlo aquí: sin esto,
+        // cualquier asesor descargaba la conversación de cualquier paciente cambiando el número en la URL.
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
         $conversation->load(['assignedUser', 'resolvedByUser']);
         $messages = $conversation->messages()->with('sender')->orderBy('created_at', 'asc')->get();
         $activities = $conversation->activities()->with('user:id,name')->orderBy('created_at', 'desc')->limit(50)->get();

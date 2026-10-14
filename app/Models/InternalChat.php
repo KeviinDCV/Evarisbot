@@ -38,14 +38,27 @@ class InternalChat extends Model
         return $this->hasMany(InternalChatParticipant::class);
     }
 
+    /**
+     * Historial oculto: si existe en settings la clave «internal_chat_historial_desde_{id}» (fecha UTC),
+     * el chat solo muestra los mensajes posteriores a esa fecha. Los anteriores NO se borran: siguen en
+     * la base y vuelven a verse al quitar la clave. Se aplica a la lista, la vista previa, los no leídos
+     * y el sondeo, porque todos leen por estas dos relaciones.
+     */
+    public const CLAVE_HISTORIAL_DESDE = 'internal_chat_historial_desde_';
+
+    private static function soloVisibles($query): void
+    {
+        $query->whereRaw("internal_messages.created_at > COALESCE((SELECT s.value FROM settings s WHERE s.`key` = CONCAT('" . self::CLAVE_HISTORIAL_DESDE . "', internal_messages.internal_chat_id) LIMIT 1), '1970-01-01 00:00:00')");
+    }
+
     public function messages(): HasMany
     {
-        return $this->hasMany(InternalMessage::class);
+        return $this->hasMany(InternalMessage::class)->where(fn ($q) => self::soloVisibles($q));
     }
 
     public function latestMessage(): HasOne
     {
-        return $this->hasOne(InternalMessage::class)->latestOfMany();
+        return $this->hasOne(InternalMessage::class)->ofMany(['id' => 'max'], fn ($q) => self::soloVisibles($q));
     }
 
     /**

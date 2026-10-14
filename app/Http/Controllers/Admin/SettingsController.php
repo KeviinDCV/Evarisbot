@@ -134,6 +134,16 @@ class SettingsController extends Controller
             'whatsapp_verify_token' => 'nullable|string|min:8',
         ]);
 
+        // Seguridad (incidente oct 2026): las credenciales e identificadores de Meta ya no se cambian
+        // desde la web; solo desde la consola del servidor (php artisan whatsapp:guardar-token).
+        foreach (['whatsapp_token', 'whatsapp_phone_id', 'whatsapp_business_account_id', 'whatsapp_verify_token'] as $campo) {
+            if (!empty($validated[$campo])) {
+                throw ValidationException::withMessages([
+                    $campo => 'Por seguridad, esto ya no se cambia desde la web. Se hace en el servidor con: php artisan whatsapp:guardar-token',
+                ]);
+            }
+        }
+
         // Si se proporciona un token, verificar que sea válido
         if (!empty($validated['whatsapp_token'])) {
             $isValid = $this->verifyWhatsAppToken($validated['whatsapp_token']);
@@ -281,6 +291,13 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'groq_api_key' => 'nullable|string|min:20',
         ]);
+
+        // Seguridad (incidente oct 2026): la clave de Groq ya no se cambia desde la web.
+        if (!empty($validated['groq_api_key'])) {
+            throw ValidationException::withMessages([
+                'groq_api_key' => 'Por seguridad, la clave de Groq ya no se cambia desde la web; se cambia en el servidor.',
+            ]);
+        }
 
         if (!empty($validated['groq_api_key'])) {
             // Verificar que la API key sea válida
