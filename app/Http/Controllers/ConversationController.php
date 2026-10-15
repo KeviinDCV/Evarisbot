@@ -1313,8 +1313,30 @@ class ConversationController extends Controller
     /**
      * Asignación masiva de conversaciones
      */
+    /**
+     * Misma regla que show(): un asesor solo actúa sobre sus conversaciones y, si está de turno,
+     * también sobre las que no tienen asesor. Antes solo se comprobaba al abrir el chat; las demás
+     * acciones (cambiar estado, bloquear, notas, historial, plantillas…) aceptaban cualquier id.
+     */
+    private function ensureCanAccess(Conversation $conversation): void
+    {
+        $user = auth()->user();
+
+        if (!$user || !$user->isAdvisor()) {
+            return;
+        }
+
+        $mine = !is_null($conversation->assigned_to) && (int) $conversation->assigned_to === (int) $user->id;
+        $freeOnDuty = is_null($conversation->assigned_to) && $user->isOnDuty();
+
+        abort_unless($mine || $freeOnDuty, 403, 'No tienes permiso para esta conversación.');
+    }
+
     public function bulkAssign(Request $request)
     {
+        // Las acciones en bloque solo aparecen a los administradores; aquí también.
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
         $validated = $request->validate([
             'ids' => 'required|array',
             'ids.*' => 'exists:conversations,id',
@@ -1340,6 +1362,8 @@ class ConversationController extends Controller
      */
     public function bulkUpdateStatus(Request $request)
     {
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
         $validated = $request->validate([
             'ids' => 'required|array',
             'ids.*' => 'exists:conversations,id',
@@ -1397,6 +1421,13 @@ class ConversationController extends Controller
         // Si user_id está presente en la petición (incluso si es null), usarlo
         // Si no está presente, usar el usuario actual
         $userId = $request->has('user_id') ? $validated['user_id'] : auth()->id();
+
+        // Un asesor solo puede tomar o soltar SUS chats; reasignar a otros es de administradores
+        // (la pantalla ya solo les muestra esa opción a ellos).
+        $this->ensureCanAccess($conversation);
+        if (auth()->user()->isAdvisor() && !is_null($userId) && (int) $userId !== (int) auth()->id()) {
+            abort(403, 'Solo un administrador puede asignar conversaciones a otros asesores.');
+        }
         
         $previousAssignedTo = $conversation->assigned_to;
 
@@ -1487,6 +1518,8 @@ class ConversationController extends Controller
      */
     public function updateStatus(Request $request, Conversation $conversation)
     {
+        $this->ensureCanAccess($conversation);
+
         $validated = $request->validate([
             'status' => 'required|in:active,pending,resolved,scheduled',
         ]);
@@ -1544,6 +1577,8 @@ class ConversationController extends Controller
      */
     public function hide(Conversation $conversation)
     {
+        abort_unless(auth()->user()?->isAdmin(), 403);
+
         // Enviar mensaje de despedida automático por WhatsApp
         // $this->sendFarewellMessage($conversation);
 
@@ -1569,6 +1604,8 @@ class ConversationController extends Controller
      */
     public function updateNotes(Request $request, Conversation $conversation)
     {
+        $this->ensureCanAccess($conversation);
+
         $request->validate([
             'notes' => 'nullable|string|max:5000',
         ]);
@@ -1585,6 +1622,8 @@ class ConversationController extends Controller
      */
     public function updateSpecialty(Request $request, Conversation $conversation)
     {
+        $this->ensureCanAccess($conversation);
+
         $request->validate([
             'specialty' => 'nullable|string|max:255',
         ]);
@@ -1606,6 +1645,8 @@ class ConversationController extends Controller
      */
     public function toggleBlock(Conversation $conversation, WhatsAppService $whatsappService)
     {
+        $this->ensureCanAccess($conversation);
+
         $wasBlocked = $conversation->is_blocked;
         $willBlock = !$wasBlocked;
 
@@ -1646,6 +1687,8 @@ class ConversationController extends Controller
      */
     public function activities(Conversation $conversation)
     {
+        $this->ensureCanAccess($conversation);
+
         $activities = $conversation->activities()
             ->with('user:id,name')
             ->orderBy('created_at', 'desc')
@@ -1825,6 +1868,8 @@ class ConversationController extends Controller
      */
     public function sendWhatsappTemplate(Request $request, Conversation $conversation, WhatsAppService $whatsappService)
     {
+        $this->ensureCanAccess($conversation);
+
         $validated = $request->validate([
             'whatsapp_template_id' => 'required|exists:whatsapp_templates,id',
             'template_params' => 'nullable|array',

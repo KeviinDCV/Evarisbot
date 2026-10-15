@@ -657,7 +657,8 @@ class WhatsAppService
         'image/png' => 'png',
         'image/gif' => 'gif',
         'image/webp' => 'webp',
-        'image/svg+xml' => 'svg',
+        'image/heic' => 'heic',
+        'image/heif' => 'heic',
         // Audio
         'audio/ogg' => 'ogg',
         'audio/mpeg' => 'mp3',
@@ -667,17 +668,39 @@ class WhatsAppService
         // Video
         'video/mp4' => 'mp4',
         'video/3gpp' => '3gp',
+        'video/quicktime' => 'mov',
         // Texto
         'text/plain' => 'txt',
         'text/csv' => 'csv',
         // Comprimidos
         'application/zip' => 'zip',
         'application/x-rar-compressed' => 'rar',
+        'application/vnd.rar' => 'rar',
         'application/x-7z-compressed' => '7z',
     ];
 
     /**
-     * Obtener extensión a partir del MIME type
+     * Extensiones con las que se puede guardar un adjunto en la carpeta pública.
+     * La extensión la elige quien envía el archivo: sin esta lista, un documento "algo.php"
+     * o "algo.html" quedaba en /storage con esa extensión y Apache lo ejecutaba o lo abría
+     * como página al hacer clic. Lo que no esté aquí se guarda como .bin (se descarga, nunca se abre).
+     */
+    private const SAFE_EXTENSIONS = [
+        'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp', 'tif', 'tiff',
+        'ogg', 'opus', 'mp3', 'm4a', 'amr', 'aac', 'wav', 'mp4', '3gp', 'mov',
+        'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf',
+        'txt', 'csv', 'zip', 'rar', '7z',
+    ];
+
+    /**
+     * Hosts desde los que Meta entrega los archivos. La descarga lleva el token en la cabecera,
+     * así que nunca se pide a otro sitio: un webhook falso podía apuntar el media_id a un objeto
+     * de Graph cuyo campo "url" fuera un servidor ajeno y llevarse el token.
+     */
+    private const MEDIA_HOST_SUFFIXES = ['.fbsbx.com', '.facebook.com', '.fbcdn.net', '.whatsapp.net', '.whatsapp.com'];
+
+    /**
+     * Obtener extensión a partir del MIME type (solo extensiones de SAFE_EXTENSIONS; si no, 'bin')
      */
     private function getExtensionFromMime(?string $mimeType): string
     {
@@ -692,21 +715,57 @@ class WhatsAppService
             return self::MIME_EXTENSIONS[$cleanMime];
         }
 
-        // Fallback: usar la parte después del / si es simple (ej: image/png → png)
+        // Fallback: usar la parte después del / si es una extensión permitida (ej: image/bmp → bmp)
         $parts = explode('/', $cleanMime);
         $sub = $parts[1] ?? 'bin';
 
-        // Si la sub-parte es corta (5 chars o menos), probablemente es una extensión válida
-        if (strlen($sub) <= 5 && preg_match('/^[a-z0-9]+$/', $sub)) {
-            return $sub;
+        return in_array($sub, self::SAFE_EXTENSIONS, true) ? $sub : 'bin';
+    }
+
+    /**
+     * Extensión segura para guardar el adjunto: manda el tipo que informa Meta; la extensión del
+     * nombre original solo se usa si Meta no dice nada útil y está en la lista permitida.
+     */
+    private function safeExtension(?string $mimeType, ?string $originalFilename): string
+    {
+        $fromMime = $this->getExtensionFromMime($mimeType);
+        if ($fromMime !== 'bin') {
+            return $fromMime;
         }
 
-        return 'bin';
+        $fromName = strtolower((string) pathinfo((string) $originalFilename, PATHINFO_EXTENSION));
+
+        return in_array($fromName, self::SAFE_EXTENSIONS, true) ? $fromName : 'bin';
+    }
+
+    private function isMetaMediaUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+        $host = strtolower($parts['host'] ?? '');
+
+        if (($parts['scheme'] ?? '') !== 'https' || $host === '') {
+            return false;
+        }
+
+        foreach (self::MEDIA_HOST_SUFFIXES as $suffix) {
+            if (str_ends_with('.' . $host, $suffix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function downloadMedia(string $mediaId, ?string $originalFilename = null): ?string
     {
         try {
+            // El media_id viene en el webhook: solo dígitos, para que no se pueda usar como
+            // ruta arbitraria de Graph (la petición lleva el token del hospital).
+            if (!preg_match('/^\d{1,40}$/', $mediaId)) {
+                Log::warning('Media ID inválido en webhook, no se descarga', ['length' => strlen($mediaId)]);
+                return null;
+            }
+
             // Paso 1: Obtener URL del media
             $response = $this->httpClient()
                 ->get("{$this->apiUrl}/{$mediaId}");
@@ -721,9 +780,17 @@ class WhatsAppService
 
             $mediaUrl = $response->json()['url'] ?? null;
             $apiMimeType = $response->json()['mime_type'] ?? null;
-            
-            if (!$mediaUrl) {
-                Log::error('Media URL not found in response', ['response' => $response->json()]);
+
+            if (!is_string($mediaUrl) || $mediaUrl === '') {
+                Log::error('Media URL not found in response', ['media_id' => $mediaId]);
+                return null;
+            }
+
+            if (!$this->isMetaMediaUrl($mediaUrl)) {
+                Log::critical('Media URL fuera de Meta: no se descarga (posible webhook falso)', [
+                    'media_id' => $mediaId,
+                    'host' => parse_url($mediaUrl, PHP_URL_HOST),
+                ]);
                 return null;
             }
 
@@ -733,39 +800,34 @@ class WhatsAppService
                 ->get($mediaUrl);
 
             if (!$fileResponse->successful()) {
-                Log::error('Failed to download media file', ['url' => $mediaUrl]);
+                Log::error('Failed to download media file', ['media_id' => $mediaId, 'status' => $fileResponse->status()]);
                 return null;
             }
 
-            // Paso 3: Determinar extensión correcta
+            // Paso 3: Determinar extensión segura
             $mimeType = $apiMimeType ?? $fileResponse->header('Content-Type');
-            
-            // Si tenemos un archivo original con extensión, usarla
-            if ($originalFilename && pathinfo($originalFilename, PATHINFO_EXTENSION)) {
-                $extension = pathinfo($originalFilename, PATHINFO_EXTENSION);
+            $extension = $this->safeExtension($mimeType, $originalFilename);
+
+            // Paso 4: Generar nombre de archivo preservando el nombre original si es posible.
+            // Prefijo aleatorio (no uniqid, que sale de la hora y se puede adivinar).
+            $prefix = \Illuminate\Support\Str::random(24);
+            if ($originalFilename) {
+                // Sanitizar nombre: quitar caracteres especiales (también los puntos), mantener legible
+                $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', pathinfo($originalFilename, PATHINFO_FILENAME));
+                $safeName = substr($safeName, 0, 100); // limitar longitud
+                $storageName = 'whatsapp_media/' . $prefix . '_' . $safeName . '.' . $extension;
             } else {
-                $extension = $this->getExtensionFromMime($mimeType);
+                $storageName = 'whatsapp_media/' . $prefix . '.' . $extension;
             }
 
-            // Paso 4: Generar nombre de archivo preservando el nombre original si es posible
-            if ($originalFilename) {
-                // Sanitizar nombre: quitar caracteres especiales, mantener legible
-                $safeName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', pathinfo($originalFilename, PATHINFO_FILENAME));
-                $safeName = substr($safeName, 0, 100); // limitar longitud
-                $storageName = 'whatsapp_media/' . uniqid() . '_' . $safeName . '.' . $extension;
-            } else {
-                $storageName = 'whatsapp_media/' . uniqid() . '.' . $extension;
-            }
-            
             \Storage::disk('public')->put($storageName, $fileResponse->body());
 
             // Usar ruta relativa para compatibilidad con IP local y ngrok
             $localUrl = '/storage/' . $storageName;
-            
+
+            // Sin nombre original ni ruta: suelen llevar el nombre del paciente.
             Log::info('Media downloaded successfully', [
                 'media_id' => $mediaId,
-                'local_url' => $localUrl,
-                'original_filename' => $originalFilename,
                 'mime_type' => $mimeType,
                 'extension' => $extension,
             ]);

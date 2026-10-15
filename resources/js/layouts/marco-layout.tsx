@@ -677,7 +677,46 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                 </main>
             </div>
 
+            <AlertaSeguridad />
             <Avisos />
+        </div>
+    );
+}
+
+/**
+ * Franja roja con las alertas de la vigilancia del webhook (app/Services/WebhookWatchdog.php):
+ * desvío del webhook en Meta, token rechazado, plantillas desconocidas, silencio de mensajes, cola
+ * detenida o disco lleno. Solo llega a los administradores. Es fija (no empuja el contenido de la
+ * página) y se puede cerrar; vuelve a salir en la siguiente navegación mientras la alerta siga viva.
+ */
+function AlertaSeguridad() {
+    const { alertasSeguridad } = usePage<PageProps>().props;
+    const [cerrada, setCerrada] = useState(false);
+    const lista = alertasSeguridad && !Array.isArray(alertasSeguridad) ? Object.values(alertasSeguridad).map(String) : [];
+
+    if (cerrada || lista.length === 0) return null;
+
+    return (
+        <div
+            role="alert"
+            className="fixed bottom-4 left-1/2 z-[70] w-[min(640px,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-lg dark:border-red-800 dark:bg-red-950 dark:text-red-100"
+        >
+            <div className="flex items-start justify-between gap-3">
+                <p className="font-semibold">Alerta de seguridad de WhatsApp</p>
+                <button
+                    type="button"
+                    onClick={() => setCerrada(true)}
+                    className="shrink-0 rounded px-1.5 text-red-700 hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900"
+                    aria-label="Cerrar alerta"
+                >
+                    ×
+                </button>
+            </div>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+                {lista.map((texto, i) => (
+                    <li key={i}>{texto}</li>
+                ))}
+            </ul>
         </div>
     );
 }

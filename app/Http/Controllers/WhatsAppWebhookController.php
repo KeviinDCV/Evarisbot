@@ -64,29 +64,44 @@ class WhatsAppWebhookController extends Controller
         try {
             $data = $request->all();
 
-            Log::info('Webhook received', ['payload' => $data]);
-
             // Verificar que sea un mensaje de WhatsApp
-            if (!isset($data['entry'])) {
+            if (!isset($data['entry']) || !is_array($data['entry'])) {
                 return response()->json(['status' => 'ignored']);
             }
 
+            // Solo un resumen: el contenido completo llevaba teléfonos, nombres y textos de pacientes al log.
+            Log::info('Webhook received', self::summary($data['entry']));
+
+            $ourPhoneId = (string) Setting::get('whatsapp_phone_id');
+
             foreach ($data['entry'] as $entry) {
-                if (!isset($entry['changes'])) {
+                if (!isset($entry['changes']) || !is_array($entry['changes'])) {
                     continue;
                 }
 
                 foreach ($entry['changes'] as $change) {
-                    if ($change['field'] !== 'messages') {
+                    if (($change['field'] ?? null) !== 'messages' || !is_array($change['value'] ?? null)) {
                         continue;
                     }
 
                     $value = $change['value'];
 
+                    // Avisos de otro número: no son de esta bandeja.
+                    $phoneId = (string) ($value['metadata']['phone_number_id'] ?? '');
+                    if ($phoneId !== '' && $ourPhoneId !== '' && $phoneId !== $ourPhoneId) {
+                        Log::warning('Webhook de otro phone_number_id ignorado', ['phone_number_id' => $phoneId]);
+                        continue;
+                    }
+
                     // Procesar mensajes entrantes
-                    if (isset($value['messages'])) {
-                        $contacts = $value['contacts'] ?? [];
+                    if (isset($value['messages']) && is_array($value['messages'])) {
+                        $contacts = is_array($value['contacts'] ?? null) ? $value['contacts'] : [];
                         foreach ($value['messages'] as $message) {
+                            // El remitente siempre es un número de 8 a 15 dígitos (formato de Meta).
+                            if (!is_array($message) || !preg_match('/^\d{8,15}$/', (string) ($message['from'] ?? ''))) {
+                                Log::warning('Mensaje entrante con remitente inválido, se ignora');
+                                continue;
+                            }
                             $this->whatsappService->processIncomingMessage($message, $contacts);
                         }
                     }
@@ -110,6 +125,34 @@ class WhatsAppWebhookController extends Controller
 
             return response()->json(['status' => 'error'], 500);
         }
+    }
+
+    /**
+     * Resumen del aviso para el log: cuántos mensajes y estados, de qué tipo y para qué número.
+     */
+    private static function summary(array $entries): array
+    {
+        $types = [];
+        $statuses = [];
+        $phoneIds = [];
+        foreach ($entries as $entry) {
+            foreach ((array) ($entry['changes'] ?? []) as $change) {
+                $value = (array) ($change['value'] ?? []);
+                if (isset($value['metadata']['phone_number_id'])) {
+                    $phoneIds[(string) $value['metadata']['phone_number_id']] = true;
+                }
+                foreach ((array) ($value['messages'] ?? []) as $m) {
+                    $t = (string) ($m['type'] ?? '?');
+                    $types[$t] = ($types[$t] ?? 0) + 1;
+                }
+                foreach ((array) ($value['statuses'] ?? []) as $st) {
+                    $t = (string) ($st['status'] ?? '?');
+                    $statuses[$t] = ($statuses[$t] ?? 0) + 1;
+                }
+            }
+        }
+
+        return ['mensajes' => $types, 'estados' => $statuses, 'phone_number_id' => array_keys($phoneIds)];
     }
 
     /**

@@ -53,7 +53,8 @@ class GuardarTokenWhatsApp extends Command
         Setting::set('whatsapp_token', $token, 'Token de acceso de WhatsApp Business API');
 
         $this->info('Token guardado (cifrado) para: ' . ($numero->json('verified_name') ?? 'número verificado') . '.');
-        $this->line('Huella del token: ' . substr(hash('sha256', $token), 0, 16) . '  ·  ' . substr($token, 0, 6) . '…' . substr($token, -4));
+        // Solo la huella: ni el inicio ni el final del token salen en pantalla.
+        $this->line('Huella del token: ' . substr(hash('sha256', $token), 0, 16));
 
         if (! $suscripcion->successful()) {
             $this->warn('Aviso: el token no puede leer la suscripción de la cuenta (' . ($suscripcion->json('error.message') ?? 'HTTP ' . $suscripcion->status())

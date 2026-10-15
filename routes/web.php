@@ -208,11 +208,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         });
 });
 
-// Webhook de WhatsApp (sin autenticación)
-Route::controller(\App\Http\Controllers\WhatsAppWebhookController::class)->prefix('webhook')->group(function () {
-    Route::get('/whatsapp', 'verify')->name('webhook.whatsapp.verify');
-    Route::post('/whatsapp', 'handle')->name('webhook.whatsapp.handle');
-});
+// Webhook de WhatsApp: está en routes/webhook.php (fuera del grupo 'web'; ver bootstrap/app.php).
 
 // Descarga segura de archivos de media (requiere autenticación)
 Route::get('/media/download', function (\Illuminate\Http\Request $request) {
@@ -236,15 +232,26 @@ Route::get('/media/download', function (\Illuminate\Http\Request $request) {
         abort(404);
     }
 
+    // Un asesor solo descarga archivos de conversaciones a las que tiene acceso (misma regla que la bandeja).
+    $user = $request->user();
+    if ($user->isAdvisor()) {
+        $conversationId = \App\Models\Message::where('media_url', '/storage/' . $path)->value('conversation_id');
+        $conversation = $conversationId ? \App\Models\Conversation::find($conversationId) : null;
+        $allowed = $conversation && (
+            ((int) $conversation->assigned_to === (int) $user->id && !is_null($conversation->assigned_to))
+            || (is_null($conversation->assigned_to) && $user->isOnDuty())
+        );
+        abort_unless($allowed, 403);
+    }
+
     $fullPath = \Storage::disk('public')->path($path);
-    $mimeType = mime_content_type($fullPath) ?: 'application/octet-stream';
 
-    // Usar el nombre original si se proporcionó, si no usar el nombre del archivo
-    $downloadName = $name ?: basename($path);
+    // Usar el nombre original si se proporcionó, si no usar el nombre del archivo.
+    // Sin comillas, barras ni saltos de línea: iba tal cual dentro de la cabecera Content-Disposition.
+    $downloadName = preg_replace('/[\x00-\x1f\x7f]/', '_', str_replace(['\\', '/', '%', '"'], '_', (string) ($name ?: basename($path))));
 
-    return response()->file($fullPath, [
-        'Content-Type' => $mimeType,
-        'Content-Disposition' => 'attachment; filename="' . $downloadName . '"',
+    return response()->download($fullPath, $downloadName, [
+        'X-Content-Type-Options' => 'nosniff',
     ]);
 })->middleware(['auth', 'verified'])->name('media.download');
 
@@ -255,4 +262,6 @@ Route::get('/media/download', function (\Illuminate\Http\Request $request) {
 // });
 
 require __DIR__.'/settings.php';
+// Recuperación de contraseña por correo: las rutas siguen registradas (la parte visual las importa
+// al compilar) pero los controladores responden 404. Ver PasswordResetLinkController.
 require __DIR__.'/auth.php';
