@@ -26,18 +26,26 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { AvisoCampo, useAvisosCampo } from '@/components/avisos-campo';
 import InputError from '@/components/input-error';
 import { cn } from '@/lib/utils';
+import { iniciales, nombrePropio } from '@/lib/nombres';
+import { plano } from '@/lib/texto';
 import {
     Check,
+    Clock,
+    Copy,
     Edit3,
     Ellipsis,
+    Eye,
+    EyeOff,
     Headphones,
     KeyRound,
     Mail,
     Search,
     Send,
     ShieldCheck,
+    Sparkles,
     Trash2,
     UserCircle,
     UserPlus,
@@ -54,6 +62,7 @@ interface User {
     email: string;
     role: 'admin' | 'advisor';
     can_bulk_send: boolean;
+    is_on_duty?: boolean;
     created_at: string;
     is_online: boolean;
     online_status: 'online' | 'offline' | 'never';
@@ -74,31 +83,74 @@ interface UserFormData {
 
 type RoleFilter = 'all' | User['role'];
 
-function getInitials(name: string) {
-    return name
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part.charAt(0).toUpperCase())
-        .join('');
+/**
+ * Contraseña aleatoria que cumple Password::defaults() (10+ caracteres, letras y números): 12
+ * caracteres sin los que se confunden al dictarla (0/O, 1/l/I).
+ */
+function generarClave(largo = 12) {
+    const letras = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+    const numeros = '23456789';
+    const todos = letras + numeros;
+    const azar = (n: number) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+    const caracteres = [letras[azar(letras.length)], numeros[azar(numeros.length)]];
+    while (caracteres.length < largo) caracteres.push(todos[azar(todos.length)]);
+    for (let i = caracteres.length - 1; i > 0; i--) {
+        const j = azar(i + 1);
+        [caracteres[i], caracteres[j]] = [caracteres[j], caracteres[i]];
+    }
+    return caracteres.join('');
 }
 
-/**
- * Nombre propio SOLO para pintar (el dato guardado no cambia): conviven "ANDREA CAROLINA MUÑOZ PAZ"
- * y "Sofía Quintero Ramos", y la lista en mayúsculas sostenidas se lee gritada. Las partículas
- * (de, del, la…) van en minúscula salvo al principio; los compuestos con guion se respetan.
- */
-const PARTICULAS = new Set(['de', 'del', 'la', 'las', 'los', 'y']);
+/** Copiar al portapapeles también por http (la red interna no tiene https: navigator.clipboard no existe). */
+async function copiarTexto(texto: string): Promise<boolean> {
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(texto);
+            return true;
+        }
+    } catch {
+        // se intenta a la antigua
+    }
+    const area = document.createElement('textarea');
+    area.value = texto;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    let ok = false;
+    try {
+        ok = document.execCommand('copy');
+    } catch {
+        ok = false;
+    }
+    area.remove();
+    return ok;
+}
 
-function nombrePropio(nombre: string) {
-    const mayuscula = (parte: string) => parte.charAt(0).toLocaleUpperCase('es') + parte.slice(1);
+/** Requisitos de la contraseña, marcándose mientras se escribe (y si las dos coinciden). */
+function ReglasClave({ clave, confirmacion, textos }: { clave: string; confirmacion: string; textos: { largo: string; letras: string; numeros: string; coinciden: string } }) {
+    const reglas: [boolean, string][] = [
+        [clave.length >= 10, textos.largo],
+        [/\p{L}/u.test(clave), textos.letras],
+        [/\d/.test(clave), textos.numeros],
+        [clave !== '' && clave === confirmacion, textos.coinciden],
+    ];
 
-    return nombre
-        .toLocaleLowerCase('es')
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((palabra, i) => (i > 0 && PARTICULAS.has(palabra) ? palabra : palabra.split('-').map(mayuscula).join('-')))
-        .join(' ');
+    return (
+        <ul className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1.5 p-0 text-[12.5px]">
+            {reglas.map(([cumple, texto]) => (
+                <li key={texto} className={cn('flex items-center gap-1.5', cumple ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground')}>
+                    {cumple ? (
+                        <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
+                    ) : (
+                        <span aria-hidden="true" className="size-3.5 rounded-full border-[1.5px] border-[#c3c7da] dark:border-white/25" />
+                    )}
+                    {texto}
+                </li>
+            ))}
+        </ul>
+    );
 }
 
 /* ── Tintas de la vista (design/vista-usuarios/gen_vista.mjs) ──────────────────────────────────────
@@ -114,7 +166,7 @@ const FOCO = 'outline-none focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 
 // Por debajo de 768 px de hoja, cada persona es una tarjeta apilada (otra plantilla).
 // Solo la plantilla: quien la usa decide cuándo es grid (desde @3xl/hoja).
 const COLUMNAS =
-    'grid-cols-[minmax(0,1fr)_120px_136px_96px_88px_64px] items-center gap-x-4 @3xl/hoja:px-5 @5xl/hoja:grid-cols-[minmax(0,1fr)_160px_180px_124px_116px_68px] @5xl/hoja:gap-x-6';
+    'grid-cols-[minmax(0,1fr)_120px_136px_96px_88px_64px] items-center gap-x-4 @3xl/hoja:px-5 @5xl/hoja:grid-cols-[minmax(0,1fr)_184px_172px_120px_116px_68px] @5xl/hoja:gap-x-6';
 
 // Fondo de fila en una variable: el aro del punto de presencia lleva el MISMO color que su fila
 // (en reposo, al pasar el ratón o con el menú "…" abierto), así nunca asoma un anillo blanco.
@@ -139,7 +191,7 @@ function Avatar({ user, size = 32, className }: { user: User; size?: 28 | 32; cl
             )}
             aria-hidden="true"
         >
-            {getInitials(user.name)}
+            {iniciales(user.name)}
         </span>
     );
 }
@@ -166,6 +218,21 @@ function PuntoEstado({ online }: { online: boolean }) {
 }
 
 /** Rol: etiqueta tintada, sin borde duro. */
+/** El rol y, si es un asesor de turno, la etiqueta «De turno» (antes no se veía en ningún lado). */
+function RolYTurno({ user, etiqueta, turno }: { user: User; etiqueta: string; turno: string }) {
+    return (
+        <span className="flex flex-wrap items-center gap-1.5">
+            <RolePill role={user.role} label={etiqueta} />
+            {user.role === 'advisor' && user.is_on_duty && (
+                <span className="inline-flex h-6 items-center gap-1 rounded-[7px] bg-emerald-50 pr-2 pl-1.5 text-[12px] leading-4 font-semibold whitespace-nowrap text-emerald-800 shadow-[inset_0_0_0_1px_var(--color-emerald-200)] dark:bg-emerald-500/10 dark:text-emerald-300 dark:shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25)]">
+                    <Clock className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                    {turno}
+                </span>
+            )}
+        </span>
+    );
+}
+
 function RolePill({ role, label }: { role: User['role']; label: string }) {
     const admin = role === 'admin';
     const Icono = admin ? ShieldCheck : Headphones;
@@ -227,14 +294,16 @@ const BOTON_FANTASMA = cn(
     FOCO
 );
 
-/** Lápiz (Editar) + menú "…" con Editar y Eliminar. */
+/** Lápiz (Editar) + menú "…" con Editar, Restablecer contraseña y Eliminar. */
 function Acciones({
     etiquetas,
     onEdit,
+    onResetPassword,
     onDelete,
 }: {
-    etiquetas: { edit: string; delete: string; more: string };
+    etiquetas: { edit: string; delete: string; more: string; reset: string };
     onEdit: () => void;
+    onResetPassword: () => void;
     onDelete: () => void;
 }) {
     return (
@@ -261,6 +330,13 @@ function Acciones({
                     >
                         <Edit3 className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
                         {etiquetas.edit}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onSelect={onResetPassword}
+                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100"
+                    >
+                        <KeyRound className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+                        {etiquetas.reset}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="mx-1.5 my-0 bg-[#2e3f84]/8 dark:bg-white/8" />
                     <DropdownMenuItem
@@ -398,6 +474,29 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         role: 'advisor',
     });
 
+    // Contraseña visible (al generarla se muestra para poder copiarla) y avisos flotantes propios.
+    const [verClaveCrear, setVerClaveCrear] = useState(false);
+    const [verClaveEditar, setVerClaveEditar] = useState(false);
+    const [generadaCrear, setGeneradaCrear] = useState(false);
+    const [generadaEditar, setGeneradaEditar] = useState(false);
+    const textosCampos = {
+        name: { vacio: t('users.errorName') },
+        email: { vacio: t('users.errorEmail'), formato: t('users.errorEmailFormat') },
+        password: { vacio: t('users.errorPassword') },
+        password_confirmation: { vacio: t('users.errorConfirm') },
+    };
+    const avisosCrear = useAvisosCampo(textosCampos);
+    const avisosEditar = useAvisosCampo(textosCampos);
+    const textosReglas = {
+        largo: t('perfilCarnet.ruleLength'),
+        letras: t('perfilCarnet.ruleLetters'),
+        numeros: t('perfilCarnet.ruleNumbers'),
+        coinciden: t('users.ruleMatch'),
+    };
+    const copiarClave = async (clave: string) => {
+        if (await copiarTexto(clave)) toast.success(t('users.passwordCopied'));
+    };
+
     const stats = useMemo(() => {
         const admins = users.filter((user) => user.role === 'admin').length;
         const advisors = users.filter((user) => user.role === 'advisor').length;
@@ -411,10 +510,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     const onlineUsers = useMemo(() => users.filter((user) => user.is_online), [users]);
 
     const filteredUsers = useMemo(() => {
-        const searchTerm = search.trim().toLowerCase();
+        const searchTerm = plano(search.trim());
 
         const visibles = users.filter((user) => {
-            const matchesSearch = !searchTerm || `${user.name} ${user.email}`.toLowerCase().includes(searchTerm);
+            const matchesSearch = !searchTerm || plano(`${user.name} ${user.email}`).includes(searchTerm);
             const matchesRole = roleFilter === 'all' || user.role === roleFilter;
 
             return matchesSearch && matchesRole;
@@ -494,6 +593,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
     const handleCreate = (event: FormEvent) => {
         event.preventDefault();
+        avisosCrear.alEnviar();
         createForm.post('/admin/users', {
             onSuccess: () => {
                 setShowCreateModal(false);
@@ -506,6 +606,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     const handleEdit = (event: FormEvent) => {
         event.preventDefault();
         if (!userToEdit) return;
+        avisosEditar.alEnviar();
 
         editForm.put(`/admin/users/${userToEdit.id}`, {
             onSuccess: () => {
@@ -516,23 +617,49 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         });
     };
 
-    const openEditModal = (user: User) => {
+    // generar = true: "Restablecer contraseña" (abre la edición con una contraseña nueva ya puesta y visible).
+    const openEditModal = (user: User, generar = false) => {
+        const clave = generar ? generarClave() : '';
         setUserToEdit(user);
         editForm.setData({
             name: user.name,
             email: user.email,
-            password: '',
-            password_confirmation: '',
+            password: clave,
+            password_confirmation: clave,
             role: user.role,
         });
         editForm.clearErrors();
+        setVerClaveEditar(generar);
+        setGeneradaEditar(generar);
         setShowEditModal(true);
     };
 
     const openCreateModal = () => {
         createForm.reset();
         createForm.clearErrors();
+        setVerClaveCrear(false);
+        setGeneradaCrear(false);
         setShowCreateModal(true);
+    };
+
+    const generarParaCrear = () => {
+        const clave = generarClave();
+        createForm.setData((datos) => ({ ...datos, password: clave, password_confirmation: clave }));
+        setVerClaveCrear(true);
+        setGeneradaCrear(true);
+        // Los campos ya están llenos: fuera los avisos de "vacío" que hubiera.
+        avisosCrear.alEscribir('password')();
+        avisosCrear.alEscribir('password_confirmation')();
+    };
+
+    const generarParaEditar = () => {
+        const clave = generarClave();
+        editForm.setData((datos) => ({ ...datos, password: clave, password_confirmation: clave }));
+        setVerClaveEditar(true);
+        setGeneradaEditar(true);
+        // Los campos ya están llenos: fuera los avisos de "vacío" que hubiera.
+        avisosEditar.alEscribir('password')();
+        avisosEditar.alEscribir('password_confirmation')();
     };
 
     const toggleBulkSend = (user: User) => {
@@ -546,7 +673,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         });
     };
 
-    const actionLabels = { edit: t('common.edit'), delete: t('common.delete'), more: t('users.moreActions') };
+    const actionLabels = { edit: t('common.edit'), delete: t('common.delete'), more: t('users.moreActions'), reset: t('users.resetPassword') };
 
     /* ── Piezas que dependen de t() ───────────────────────────────────────────────────────────── */
 
@@ -827,7 +954,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                             {nameBlock(user)}
                                                         </div>
                                                         <div className="flex min-w-0">
-                                                            <RolePill role={user.role} label={getRoleLabel(user.role)} />
+                                                            <RolYTurno user={user} etiqueta={getRoleLabel(user.role)} turno={t('users.onDuty')} />
                                                         </div>
                                                         <div className="flex min-w-0 flex-col gap-0.5">
                                                             {statusWord(user)}
@@ -839,7 +966,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                         <span className="truncate text-[12.5px] leading-[18px] whitespace-nowrap text-muted-foreground tabular-nums">
                                                             {formatCreatedAt(user.created_at)}
                                                         </span>
-                                                        <Acciones etiquetas={actionLabels} onEdit={() => openEditModal(user)} onDelete={() => setUserToDelete(user)} />
+                                                        <Acciones etiquetas={actionLabels} onEdit={() => openEditModal(user)} onResetPassword={() => openEditModal(user, true)} onDelete={() => setUserToDelete(user)} />
                                                     </div>
 
                                                     {/* Tarjeta apilada (hoja < 768 px): las mismas piezas y acciones */}
@@ -851,11 +978,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                             <div className="flex items-start gap-2">
                                                                 <div className="min-w-0 flex-1 pt-0.5">{nameBlock(user)}</div>
                                                                 <div className="-mt-0.5 -mr-1.5">
-                                                                    <Acciones etiquetas={actionLabels} onEdit={() => openEditModal(user)} onDelete={() => setUserToDelete(user)} />
+                                                                    <Acciones etiquetas={actionLabels} onEdit={() => openEditModal(user)} onResetPassword={() => openEditModal(user, true)} onDelete={() => setUserToDelete(user)} />
                                                                 </div>
                                                             </div>
                                                             <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-                                                                <RolePill role={user.role} label={getRoleLabel(user.role)} />
+                                                                <RolYTurno user={user} etiqueta={getRoleLabel(user.role)} turno={t('users.onDuty')} />
                                                                 <span className="flex min-w-0 items-baseline gap-1.5">
                                                                     {statusWord(user)}
                                                                     <span className="text-[12px] leading-4 text-muted-foreground" aria-hidden="true">
@@ -931,83 +1058,153 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </DialogDescription>
                         </DialogHeader>
 
-                        <form onSubmit={handleCreate} className="space-y-4 px-5 py-4">
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <form onSubmit={handleCreate} className="space-y-4 px-5 py-5">
+                            <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
                                 <div className="space-y-1.5">
                                     <Label htmlFor="create-name" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <UserCircle className="h-3.5 w-3.5" />
                                         {t('users.fullName')}
                                     </Label>
-                                    <Input
-                                        id="create-name"
-                                        type="text"
-                                        value={createForm.data.name}
-                                        onChange={(event) => createForm.setData('name', event.target.value)}
-                                        placeholder={t('users.fullNamePlaceholder')}
-                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        required
-                                    />
-                                    <InputError message={createForm.errors.name} />
+                                    <div className="relative">
+                                        <Input
+                                            id="create-name"
+                                            type="text"
+                                            value={createForm.data.name}
+                                            onChange={(event) => createForm.setData('name', event.target.value)}
+                                            placeholder={t('users.fullNamePlaceholder')}
+                                            autoComplete="off"
+                                            required
+                                            aria-invalid={avisosCrear.invalido('name', createForm.errors.name) || undefined}
+                                            onInvalid={avisosCrear.alInvalidar('name')}
+                                            onInput={avisosCrear.alEscribir('name')}
+                                            className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                        />
+                                        <AvisoCampo id="create-name-error" texto={avisosCrear.error('name', createForm.errors.name)} />
+                                    </div>
                                 </div>
-
                                 <div className="space-y-1.5">
                                     <Label htmlFor="create-email" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <Mail className="h-3.5 w-3.5" />
                                         {t('auth.email')}
                                     </Label>
-                                    <Input
-                                        id="create-email"
-                                        type="email"
-                                        value={createForm.data.email}
-                                        onChange={(event) => createForm.setData('email', event.target.value)}
-                                        placeholder={t('users.emailPlaceholder')}
-                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        required
-                                    />
-                                    <InputError message={createForm.errors.email} />
+                                    <div className="relative">
+                                        <Input
+                                            id="create-email"
+                                            type="email"
+                                            value={createForm.data.email}
+                                            onChange={(event) => createForm.setData('email', event.target.value)}
+                                            placeholder={t('users.emailPlaceholder')}
+                                            autoComplete="off"
+                                            required
+                                            aria-invalid={avisosCrear.invalido('email', createForm.errors.email) || undefined}
+                                            onInvalid={avisosCrear.alInvalidar('email')}
+                                            onInput={avisosCrear.alEscribir('email')}
+                                            className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                        />
+                                        <AvisoCampo id="create-email-error" texto={avisosCrear.error('email', createForm.errors.email)} />
+                                    </div>
                                 </div>
-
-                                <div className="space-y-1.5">
+                                <div className={cn('space-y-1.5')}>
                                     <Label htmlFor="create-password" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
                                         {t('auth.password')}
                                     </Label>
-                                    <Input
-                                        id="create-password"
-                                        type="password"
-                                        value={createForm.data.password}
-                                        onChange={(event) => createForm.setData('password', event.target.value)}
-                                        placeholder={t('users.passwordPlaceholder')}
-                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        required
-                                    />
-                                    <InputError message={createForm.errors.password} />
+                                    <div className="relative">
+                                        <Input
+                                            id="create-password"
+                                            type={verClaveCrear ? 'text' : 'password'}
+                                            value={createForm.data.password}
+                                            onChange={(event) => createForm.setData('password', event.target.value)}
+                                            placeholder={t('users.passwordPlaceholder')}
+                                            autoComplete="new-password"
+                                            required={true}
+                                            aria-invalid={avisosCrear.invalido('password', createForm.errors.password) || undefined}
+                                            onInvalid={avisosCrear.alInvalidar('password')}
+                                            onInput={avisosCrear.alEscribir('password')}
+                                            className="rounded-xl pr-[72px] text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                        />
+                                        <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
+                                            {createForm.data.password && (
+                                                <button type="button" onClick={() => copiarClave(createForm.data.password)} className={BOTON_FANTASMA} title={t('users.copyPassword')} aria-label={t('users.copyPassword')}>
+                                                    <Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setVerClaveCrear((v) => !v)}
+                                                className={BOTON_FANTASMA}
+                                                aria-pressed={verClaveCrear}
+                                                aria-label={verClaveCrear ? t('auth.hidePassword') : t('auth.showPassword')}
+                                                title={verClaveCrear ? t('auth.hidePassword') : t('auth.showPassword')}
+                                            >
+                                                {verClaveCrear ? <EyeOff className="size-4" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+                                            </button>
+                                        </div>
+                                        <AvisoCampo id="create-password-error" texto={avisosCrear.error('password', createForm.errors.password)} />
+                                    </div>
                                 </div>
-
-                                <div className="space-y-1.5">
+                                <div className={cn('space-y-1.5')}>
                                     <Label htmlFor="create-password-confirm" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
                                         {t('users.confirmPassword')}
                                     </Label>
-                                    <Input
-                                        id="create-password-confirm"
-                                        type="password"
-                                        value={createForm.data.password_confirmation}
-                                        onChange={(event) => createForm.setData('password_confirmation', event.target.value)}
-                                        placeholder={t('users.confirmPasswordPlaceholder')}
-                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        required
-                                    />
-                                    <InputError message={createForm.errors.password_confirmation} />
+                                    <div className="relative">
+                                        <Input
+                                            id="create-password-confirm"
+                                            type={verClaveCrear ? 'text' : 'password'}
+                                            value={createForm.data.password_confirmation}
+                                            onChange={(event) => createForm.setData('password_confirmation', event.target.value)}
+                                            placeholder={t('users.confirmPasswordPlaceholder')}
+                                            autoComplete="new-password"
+                                            required={true}
+                                            aria-invalid={avisosCrear.invalido('password_confirmation', createForm.errors.password_confirmation) || undefined}
+                                            onInvalid={avisosCrear.alInvalidar('password_confirmation')}
+                                            onInput={avisosCrear.alEscribir('password_confirmation')}
+                                            className="rounded-xl pr-[72px] text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                        />
+                                        <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
+                                            {createForm.data.password_confirmation && (
+                                                <button type="button" onClick={() => copiarClave(createForm.data.password_confirmation)} className={BOTON_FANTASMA} title={t('users.copyPassword')} aria-label={t('users.copyPassword')}>
+                                                    <Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setVerClaveCrear((v) => !v)}
+                                                className={BOTON_FANTASMA}
+                                                aria-pressed={verClaveCrear}
+                                                aria-label={verClaveCrear ? t('auth.hidePassword') : t('auth.showPassword')}
+                                                title={verClaveCrear ? t('auth.hidePassword') : t('auth.showPassword')}
+                                            >
+                                                {verClaveCrear ? <EyeOff className="size-4" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+                                            </button>
+                                        </div>
+                                        <AvisoCampo id="create-password-confirm-error" texto={avisosCrear.error('password_confirmation', createForm.errors.password_confirmation)} />
+                                    </div>
                                 </div>
-
+                                <div className="flex flex-wrap items-center justify-between gap-3 md:col-span-2">
+                                    <ReglasClave clave={createForm.data.password} confirmacion={createForm.data.password_confirmation} textos={textosReglas} />
+                                    <button
+                                        type="button"
+                                        onClick={generarParaCrear}
+                                        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8"
+                                    >
+                                        <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                        {t('users.generatePassword')}
+                                    </button>
+                                </div>
+                                {generadaCrear && (
+                                    <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] leading-snug text-emerald-900 md:col-span-2 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                        {t('users.generatedHint')}
+                                    </p>
+                                )}
                                 <div className="space-y-1.5 md:col-span-2">
                                     <Label htmlFor="create-role" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <ShieldCheck className="h-3.5 w-3.5" />
                                         {t('users.role')}
                                     </Label>
                                     <Select value={createForm.data.role} onValueChange={(value) => createForm.setData('role', value as User['role'])}>
-                                        <SelectTrigger className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
+                                        <SelectTrigger id="create-role" className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
                                         <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
@@ -1039,86 +1236,157 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 {t('users.editTitle')}
                             </DialogTitle>
                             <DialogDescription className="text-xs settings-subtitle">
-                                {t('users.editSubtitleFor', { name: userToEdit?.name })}
+                                {t('users.editSubtitleFor', { name: userToEdit ? nombrePropio(userToEdit.name) : '' })}
                             </DialogDescription>
                         </DialogHeader>
 
-                        <form onSubmit={handleEdit} className="space-y-4 px-5 py-4">
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <form onSubmit={handleEdit} className="space-y-4 px-5 py-5">
+                            <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
                                 <div className="space-y-1.5">
                                     <Label htmlFor="edit-name" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <UserCircle className="h-3.5 w-3.5" />
                                         {t('users.fullName')}
                                     </Label>
-                                    <Input
-                                        id="edit-name"
-                                        type="text"
-                                        value={editForm.data.name}
-                                        onChange={(event) => editForm.setData('name', event.target.value)}
-                                        placeholder={t('users.fullNamePlaceholder')}
-                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        required
-                                    />
-                                    <InputError message={editForm.errors.name} />
+                                    <div className="relative">
+                                        <Input
+                                            id="edit-name"
+                                            type="text"
+                                            value={editForm.data.name}
+                                            onChange={(event) => editForm.setData('name', event.target.value)}
+                                            placeholder={t('users.fullNamePlaceholder')}
+                                            autoComplete="off"
+                                            required
+                                            aria-invalid={avisosEditar.invalido('name', editForm.errors.name) || undefined}
+                                            onInvalid={avisosEditar.alInvalidar('name')}
+                                            onInput={avisosEditar.alEscribir('name')}
+                                            className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                        />
+                                        <AvisoCampo id="edit-name-error" texto={avisosEditar.error('name', editForm.errors.name)} />
+                                    </div>
                                 </div>
-
                                 <div className="space-y-1.5">
                                     <Label htmlFor="edit-email" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <Mail className="h-3.5 w-3.5" />
                                         {t('auth.email')}
                                     </Label>
-                                    <Input
-                                        id="edit-email"
-                                        type="email"
-                                        value={editForm.data.email}
-                                        onChange={(event) => editForm.setData('email', event.target.value)}
-                                        placeholder={t('users.emailPlaceholder')}
-                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        required
-                                    />
-                                    <InputError message={editForm.errors.email} />
+                                    <div className="relative">
+                                        <Input
+                                            id="edit-email"
+                                            type="email"
+                                            value={editForm.data.email}
+                                            onChange={(event) => editForm.setData('email', event.target.value)}
+                                            placeholder={t('users.emailPlaceholder')}
+                                            autoComplete="off"
+                                            required
+                                            aria-invalid={avisosEditar.invalido('email', editForm.errors.email) || undefined}
+                                            onInvalid={avisosEditar.alInvalidar('email')}
+                                            onInput={avisosEditar.alEscribir('email')}
+                                            className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                        />
+                                        <AvisoCampo id="edit-email-error" texto={avisosEditar.error('email', editForm.errors.email)} />
+                                    </div>
                                 </div>
-
-                                <div className="space-y-1.5">
+                                <div className={cn('space-y-1.5')}>
                                     <Label htmlFor="edit-password" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
-                                        {t('users.newPassword')} <span className="text-[10px] opacity-60">{t('users.optional')}</span>
+                                        {t('users.newPassword')}
                                     </Label>
-                                    <Input
-                                        id="edit-password"
-                                        type="password"
-                                        value={editForm.data.password}
-                                        onChange={(event) => editForm.setData('password', event.target.value)}
-                                        placeholder={t('users.newPasswordPlaceholder')}
-                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                    />
-                                    <InputError message={editForm.errors.password} />
+                                    <div className="relative">
+                                        <Input
+                                            id="edit-password"
+                                            type={verClaveEditar ? 'text' : 'password'}
+                                            value={editForm.data.password}
+                                            onChange={(event) => editForm.setData('password', event.target.value)}
+                                            placeholder={t('users.newPasswordPlaceholder')}
+                                            autoComplete="new-password"
+                                            required={false}
+                                            aria-invalid={avisosEditar.invalido('password', editForm.errors.password) || undefined}
+                                            onInvalid={avisosEditar.alInvalidar('password')}
+                                            onInput={avisosEditar.alEscribir('password')}
+                                            className="rounded-xl pr-[72px] text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                        />
+                                        <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
+                                            {editForm.data.password && (
+                                                <button type="button" onClick={() => copiarClave(editForm.data.password)} className={BOTON_FANTASMA} title={t('users.copyPassword')} aria-label={t('users.copyPassword')}>
+                                                    <Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setVerClaveEditar((v) => !v)}
+                                                className={BOTON_FANTASMA}
+                                                aria-pressed={verClaveEditar}
+                                                aria-label={verClaveEditar ? t('auth.hidePassword') : t('auth.showPassword')}
+                                                title={verClaveEditar ? t('auth.hidePassword') : t('auth.showPassword')}
+                                            >
+                                                {verClaveEditar ? <EyeOff className="size-4" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+                                            </button>
+                                        </div>
+                                        <AvisoCampo id="edit-password-error" texto={avisosEditar.error('password', editForm.errors.password)} />
+                                    </div>
                                 </div>
-
-                                <div className={cn('space-y-1.5 transition-opacity', !editForm.data.password && 'pointer-events-none opacity-35')}>
+                                <div className={cn('space-y-1.5', 'transition-opacity', !editForm.data.password && 'pointer-events-none opacity-35')}>
                                     <Label htmlFor="edit-password-confirm" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
                                         {t('users.confirmNewPassword')}
                                     </Label>
-                                    <Input
-                                        id="edit-password-confirm"
-                                        type="password"
-                                        value={editForm.data.password_confirmation}
-                                        onChange={(event) => editForm.setData('password_confirmation', event.target.value)}
-                                        placeholder={t('users.confirmNewPasswordPlaceholder')}
-                                        className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30"
-                                        required={!!editForm.data.password}
-                                    />
-                                    <InputError message={editForm.errors.password_confirmation} />
+                                    <div className="relative">
+                                        <Input
+                                            id="edit-password-confirm"
+                                            type={verClaveEditar ? 'text' : 'password'}
+                                            value={editForm.data.password_confirmation}
+                                            onChange={(event) => editForm.setData('password_confirmation', event.target.value)}
+                                            placeholder={t('users.confirmNewPasswordPlaceholder')}
+                                            autoComplete="new-password"
+                                            required={!!editForm.data.password}
+                                            aria-invalid={avisosEditar.invalido('password_confirmation', editForm.errors.password_confirmation) || undefined}
+                                            onInvalid={avisosEditar.alInvalidar('password_confirmation')}
+                                            onInput={avisosEditar.alEscribir('password_confirmation')}
+                                            className="rounded-xl pr-[72px] text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                        />
+                                        <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
+                                            {editForm.data.password_confirmation && (
+                                                <button type="button" onClick={() => copiarClave(editForm.data.password_confirmation)} className={BOTON_FANTASMA} title={t('users.copyPassword')} aria-label={t('users.copyPassword')}>
+                                                    <Copy className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => setVerClaveEditar((v) => !v)}
+                                                className={BOTON_FANTASMA}
+                                                aria-pressed={verClaveEditar}
+                                                aria-label={verClaveEditar ? t('auth.hidePassword') : t('auth.showPassword')}
+                                                title={verClaveEditar ? t('auth.hidePassword') : t('auth.showPassword')}
+                                            >
+                                                {verClaveEditar ? <EyeOff className="size-4" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+                                            </button>
+                                        </div>
+                                        <AvisoCampo id="edit-password-confirm-error" texto={avisosEditar.error('password_confirmation', editForm.errors.password_confirmation)} />
+                                    </div>
                                 </div>
-
+                                <div className="flex flex-wrap items-center justify-between gap-3 md:col-span-2">
+                                    {editForm.data.password ? <ReglasClave clave={editForm.data.password} confirmacion={editForm.data.password_confirmation} textos={textosReglas} /> : <span />}
+                                    <button
+                                        type="button"
+                                        onClick={generarParaEditar}
+                                        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8"
+                                    >
+                                        <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                        {t('users.generatePassword')}
+                                    </button>
+                                </div>
+                                {generadaEditar && (
+                                    <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] leading-snug text-emerald-900 md:col-span-2 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                        {t('users.generatedHint')}
+                                    </p>
+                                )}
                                 <div className="space-y-1.5 md:col-span-2">
                                     <Label htmlFor="edit-role" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <ShieldCheck className="h-3.5 w-3.5" />
                                         {t('users.role')}
                                     </Label>
                                     <Select value={editForm.data.role} onValueChange={(value) => editForm.setData('role', value as User['role'])}>
-                                        <SelectTrigger className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
+                                        <SelectTrigger id="edit-role" className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
                                         <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">

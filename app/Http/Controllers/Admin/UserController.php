@@ -23,6 +23,7 @@ class UserController extends Controller
                 'email' => $user->email,
                 'role' => $user->role,
                 'can_bulk_send' => (bool) $user->can_bulk_send,
+                'is_on_duty' => (bool) $user->is_on_duty,
                 'created_at' => $user->created_at,
                 'is_online' => $user->isOnline(),
                 'online_status' => $user->getOnlineStatus(),

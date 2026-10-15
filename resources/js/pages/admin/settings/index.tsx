@@ -1,8 +1,11 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
-import InputError from '@/components/input-error';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AvisoCampo } from '@/components/avisos-campo';
 import { cn } from '@/lib/utils';
+import { iniciales, nombrePropio } from '@/lib/nombres';
+import { plano } from '@/lib/texto';
 import {
     AudioLines,
     BadgeCheck,
@@ -25,24 +28,43 @@ import {
     X,
     type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { toast } from '@/lib/toast';
 import { duracionLegible, MINUTOS_POR_UNIDAD, unidadExacta, type UnidadDuracion } from '@/lib/duracion';
 import axios from 'axios';
 
+/** Lo que llega de un secreto: solo si está guardado y cuándo cambió (nunca ni un carácter). */
+interface ClaveGuardada {
+    guardada: boolean;
+    cambiada_en: string | null;
+}
+
+interface PerfilWhatsApp {
+    nombre: string | null;
+    numero: string | null;
+    calidad: string | null;
+    limite: string | null;
+    consultado_en: string;
+}
+
 interface Settings {
     whatsapp: {
-        token: string | null;
+        configurada: boolean;
+        clave_acceso: ClaveGuardada;
+        clave_verificacion: ClaveGuardada;
+        firma: 'sin_activar' | 'observar' | 'exigida';
         phone_id: string | null;
+        phone_number_id: string | null;
         business_account_id: string | null;
-        verify_token: string | null;
-        webhook_url: string | null;
-        is_configured: boolean;
+        webhook_url: string;
+        perfil: PerfilWhatsApp | null;
     };
     groq: {
-        api_key: string | null;
-        is_configured: boolean;
+        clave: ClaveGuardada;
+    };
+    vigilancia: {
+        revisado_en: string | null;
     };
 }
 
@@ -74,6 +96,17 @@ interface SettingsIndexProps {
     weekendNotice: WeekendNoticeConfig;
 }
 
+type ResultadoMeta = 'ok' | 'sin_config' | 'rechazada' | 'desviado' | 'sin_respuesta';
+type ResultadoGroq = 'ok' | 'rechazada' | 'sin_clave' | 'sin_respuesta';
+
+/** Respuesta de «Comprobar ahora»: alertas como código => texto (o [] si no hay). */
+interface ComprobacionWhatsApp {
+    meta: ResultadoMeta;
+    alertas: Record<string, string> | [];
+    perfil: PerfilWhatsApp | null;
+    revisado_en: string | null;
+}
+
 /**
  * Vista previa al estilo WhatsApp: *negrita*, _cursiva_ y ~tachado~, sin interpretar HTML.
  * Como en WhatsApp, la marca no aplica si hay un espacio justo después de abrir o antes de cerrar.
@@ -98,14 +131,13 @@ function TextoWhatsApp({ texto }: { texto: string }) {
 // Tiempos frecuentes de la liberación automática (minutos).
 const TIEMPOS_FRECUENTES = [5, 15, 30, 60, 120, 180, 300, 1440, 2880];
 
-interface BusinessProfile {
-    business_name: string;
-    phone_number: string;
-    phone_number_id: string;
-    verified: boolean;
-    quality_rating: string;
-    messaging_limit: string;
-}
+// Alertas de la vigilancia que ya resume el estado de WhatsApp (clave, configuración, desvío).
+const esAlertaDeConexion = (codigo: string) =>
+    codigo === 'meta_config' || codigo === 'meta_token' || codigo === 'meta_override' || codigo.startsWith('meta_webhook_');
+const esDesvio = (codigo: string) => codigo === 'meta_override' || codigo.startsWith('meta_webhook_');
+
+// La vigilancia corre cada 10 minutos mientras se usa la app; sus alertas caducan a los 30.
+const REVISION_RECIENTE_MS = 30 * 60 * 1000;
 
 /* ── Tintas de la vista (design/vista-configuracion/gen_config.mjs) ────────────────────────────────
    Mismo lenguaje que Usuarios: navy #2e3f84 con alfa sobre la hoja blanca; en oscuro, blanco con alfa
@@ -115,7 +147,8 @@ const TEXTO_NAVY = 'text-[#2e3f84] dark:text-neutral-100';
 // Ayudas y notas: en oscuro el muted-foreground no llega a 4,5:1 sobre la banda tintada (4,45:1),
 // así que sube a neutral-400 (5,85:1). En claro, #5c6485 da 5,7:1 sobre la banda y 5,9:1 sobre la hoja.
 const TEXTO_SUAVE = 'text-muted-foreground dark:text-neutral-400';
-const FOCO = 'outline-none focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 dark:focus-visible:ring-[#8b9ae0]/60';
+// outline-hidden (no outline-none): con el contraste alto de Windows el contorno sí se ve.
+const FOCO = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 dark:focus-visible:ring-[#8b9ae0]/60';
 // Monoespaciada del diseño (Cascadia Mono en Windows 11; Consolas si no está).
 const MONO = "[font-family:ui-monospace,'Cascadia_Mono','SF_Mono',Consolas,monospace]";
 const BANDA = 'bg-[#2e3f84]/[0.028] dark:bg-white/[0.03]';
@@ -126,47 +159,62 @@ const BANDA = 'bg-[#2e3f84]/[0.028] dark:bg-white/[0.03]';
 const REJILLA = '@3xl/hoja:grid-cols-[220px_minmax(0,1fr)] @3xl/hoja:gap-x-8 @5xl/hoja:grid-cols-[300px_minmax(0,1fr)]';
 const SANGRIA = 'px-4 @3xl/hoja:pr-5 @3xl/hoja:pl-16';
 
-// Los secretos llegan del servidor como 8 caracteres + asteriscos. Se pintan con puntos y NUNCA más
-// de 8 caracteres de lo recibido (si alguna vez llegara el valor entero, se sigue viendo solo el inicio).
-const PUNTOS = '•'.repeat(12);
-const inicioVisible = (preview: string) => preview.replace(/\*+$/, '').slice(0, 8);
+/* ── Fechas ─────────────────────────────────────────────────────────────────────────────────────── */
 
-function getInitials(name: string) {
-    return name
-        .split(' ')
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((part) => part.charAt(0).toUpperCase())
-        .join('');
+const localeDe = (idioma: string) => (idioma.startsWith('en') ? 'en-US' : 'es-CO');
+
+/** "15/10/2026, 9:05 a. m." en hora de Colombia (el servidor guarda en UTC). */
+function fechaCorta(iso: string, idioma: string) {
+    return new Intl.DateTimeFormat(localeDe(idioma), {
+        timeZone: 'America/Bogota',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    }).format(new Date(iso));
 }
 
-/** Nombre propio SOLO para pintar (el dato no cambia): "ANDREA CAROLINA MUÑOZ PAZ" → "Andrea Carolina Muñoz Paz". */
-const PARTICULAS = new Set(['de', 'del', 'la', 'las', 'los', 'y']);
-
-function nombrePropio(nombre: string) {
-    const mayuscula = (parte: string) => parte.charAt(0).toLocaleUpperCase('es') + parte.slice(1);
-
-    return nombre
-        .toLocaleLowerCase('es')
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((palabra, i) => (i > 0 && PARTICULAS.has(palabra) ? palabra : palabra.split('-').map(mayuscula).join('-')))
-        .join(' ');
+/** "hace 5 minutos", "hace 2 horas", "ayer"… */
+function haceCuanto(iso: string, idioma: string, ahora: number) {
+    const rtf = new Intl.RelativeTimeFormat(localeDe(idioma), { numeric: 'auto' });
+    const segundos = Math.round((new Date(iso).getTime() - ahora) / 1000);
+    const abs = Math.abs(segundos);
+    if (abs < 45) return rtf.format(0, 'second');
+    if (abs < 3600) return rtf.format(Math.round(segundos / 60), 'minute');
+    if (abs < 86400) return rtf.format(Math.round(segundos / 3600), 'hour');
+    return rtf.format(Math.round(segundos / 86400), 'day');
 }
 
 /* ── Piezas ─────────────────────────────────────────────────────────────────────────────────────── */
 
-/** Estado en línea: punto + palabra. Esmeralda 700 (5,0:1 sobre la banda) o ámbar 700 (4,8:1). */
-function Estado({ ok, si, no }: { ok: boolean; si: string; no: string }) {
+/**
+ * Semáforo de estados. ok: esmeralda 700 (5,0:1 sobre la banda). aviso (falta algo para funcionar):
+ * ámbar 700 (4,8:1). neutro (apagado a propósito): pizarra 600, como «Desconectado» en Usuarios.
+ * error (algo está mal ahora): rojo 700.
+ */
+type Tono = 'ok' | 'aviso' | 'neutro' | 'error';
+
+const TONO_TEXTO: Record<Tono, string> = {
+    ok: 'text-emerald-700 dark:text-emerald-400',
+    aviso: 'text-amber-700 dark:text-amber-400',
+    neutro: 'text-slate-600 dark:text-neutral-300',
+    error: 'text-red-700 dark:text-red-400',
+};
+
+const TONO_PUNTO: Record<Tono, string> = {
+    ok: 'bg-emerald-600 dark:bg-emerald-500',
+    aviso: 'bg-amber-700 dark:bg-amber-400',
+    neutro: 'bg-slate-500 dark:bg-neutral-500',
+    error: 'bg-red-600 dark:bg-red-400',
+};
+
+/** Estado en línea: punto + palabra. */
+function Estado({ tono, children }: { tono: Tono; children: ReactNode }) {
     return (
-        <span
-            className={cn(
-                'inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-medium whitespace-nowrap',
-                ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'
-            )}
-        >
-            <span className={cn('size-[7px] shrink-0 rounded-full', ok ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-amber-700 dark:bg-amber-400')} aria-hidden="true" />
-            {ok ? si : no}
+        <span className={cn('inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-medium whitespace-nowrap', TONO_TEXTO[tono])}>
+            <span className={cn('size-[7px] shrink-0 rounded-full', TONO_PUNTO[tono])} aria-hidden="true" />
+            {children}
         </span>
     );
 }
@@ -181,13 +229,13 @@ function Iniciales({ name, className }: { name: string; className?: string }) {
             )}
             aria-hidden="true"
         >
-            {getInitials(name)}
+            {iniciales(name)}
         </span>
     );
 }
 
 /** Un estado de la franja: marca + etiqueta arriba; punto, valor grande y detalle debajo. */
-function EstadoFranja({ icon: Icon, etiqueta, ok, children }: { icon: LucideIcon; etiqueta: string; ok: boolean; children: ReactNode }) {
+function EstadoFranja({ icon: Icon, etiqueta, tono, children }: { icon: LucideIcon; etiqueta: string; tono: Tono; children: ReactNode }) {
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
             <div className="flex h-4 items-center gap-2">
@@ -195,7 +243,7 @@ function EstadoFranja({ icon: Icon, etiqueta, ok, children }: { icon: LucideIcon
                 <span className="truncate text-[12px] leading-4 font-medium text-muted-foreground">{etiqueta}</span>
             </div>
             <div className="flex h-[34px] min-w-0 items-center gap-2.5">
-                <span className={cn('size-[9px] shrink-0 rounded-full', ok ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-slate-500 dark:bg-neutral-500')} aria-hidden="true" />
+                <span className={cn('size-[9px] shrink-0 rounded-full', TONO_PUNTO[tono])} aria-hidden="true" />
                 {children}
             </div>
         </div>
@@ -246,14 +294,18 @@ function Banda({
                     </h2>
                     {estado}
                 </div>
-                <p className={cn('text-[12.5px] leading-4 @3xl/hoja:truncate', TEXTO_SUAVE)}>{texto}</p>
+                {/* Hasta dos líneas; si aún no cabe, el texto completo queda en el title. */}
+                <p title={texto} className={cn('text-[12.5px] leading-4 @3xl/hoja:line-clamp-2', TEXTO_SUAVE)}>
+                    {texto}
+                </p>
             </div>
-            {acciones && <div className="flex flex-wrap items-center gap-2 @3xl/hoja:shrink-0">{acciones}</div>}
+            {/* En el teléfono las acciones bajan a su propia línea, alineadas con el título. */}
+            {acciones && <div className="flex flex-wrap items-center gap-2 @max-3xl/hoja:basis-full @max-3xl/hoja:pl-11 @3xl/hoja:shrink-0">{acciones}</div>}
         </div>
     );
 }
 
-/** Subtítulo de grupo dentro de una sección ("Credenciales" / "Identificadores"). */
+/** Subtítulo de grupo dentro de una sección ("Claves" / "Identificadores"). */
 function Subgrupo({ titulo, texto }: { titulo: string; texto: string }) {
     return (
         <div className={cn('flex min-h-10 flex-wrap items-end gap-x-2.5 gap-y-0.5 pt-4 pb-2', SANGRIA)}>
@@ -300,89 +352,121 @@ function Fila({
     );
 }
 
-/** Campo editable. Borde navy al 58 % (#868fb7): 3,1:1 contra la hoja (WCAG 1.4.11). */
-function Campo({
-    id,
-    icon: Icon,
-    value,
-    onChange,
-    placeholder,
-    type = 'text',
-    mono = false,
-    corto = false,
-    invalido = false,
-    describedBy,
-}: {
-    id: string;
-    icon: LucideIcon;
-    value: string;
-    onChange: (value: string) => void;
-    placeholder: string;
-    type?: 'text' | 'password';
-    mono?: boolean;
-    corto?: boolean;
-    invalido?: boolean;
-    describedBy?: string;
-}) {
+/**
+ * Dato de solo lectura: caja tintada con su icono, el valor y un candado. Las claves y los
+ * identificadores de WhatsApp y Groq ya no se cambian desde la web (incidente oct 2026).
+ */
+function CajaSoloLectura({ icon: Icon, children, corto = false, etiquetaCandado }: { icon: LucideIcon; children: ReactNode; corto?: boolean; etiquetaCandado: string }) {
     return (
-        <div className={cn('relative w-full', corto ? 'max-w-[280px]' : 'max-w-[440px]')}>
-            <Icon
-                className="pointer-events-none absolute top-1/2 left-3 size-[15px] -translate-y-1/2 text-muted-foreground dark:text-neutral-400"
-                strokeWidth={1.75}
-                aria-hidden="true"
-            />
-            <input
-                id={id}
-                name={id}
-                type={type}
-                // Los secretos nunca se autocompletan: un gestor de contraseñas podría meter la clave de
-                // inicio de sesión en el campo del token y reemplazarlo al pulsar Guardar.
-                autoComplete={type === 'password' ? 'new-password' : undefined}
-                value={value}
-                onChange={(event) => onChange(event.target.value)}
-                placeholder={placeholder}
-                aria-describedby={describedBy}
-                aria-invalid={invalido || undefined}
-                className={cn(
-                    'h-[38px] w-full rounded-[9px] bg-white pr-3 pl-[37px] text-[13px] leading-[18px] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none placeholder:text-muted-foreground',
-                    'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)]',
-                    'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)] dark:placeholder:text-neutral-400 dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]',
-                    mono && MONO + ' text-[12.5px] tracking-[0.02em] placeholder:font-sans',
-                    invalido && 'shadow-[inset_0_0_0_1px_var(--color-red-600)] dark:shadow-[inset_0_0_0_1px_var(--color-red-400)]'
-                )}
-            />
+        <div
+            className={cn(
+                'flex min-h-[38px] w-full items-center gap-2.5 rounded-[9px] bg-[#2e3f84]/[0.035] px-3 py-2.5 dark:bg-white/5',
+                corto ? 'max-w-[300px]' : 'max-w-[440px]'
+            )}
+        >
+            <Icon className="size-[15px] shrink-0 text-muted-foreground dark:text-neutral-400" strokeWidth={1.75} aria-hidden="true" />
+            <span className="min-w-0 flex-1 text-[13px] leading-[18px] [overflow-wrap:anywhere]">{children}</span>
+            <span title={etiquetaCandado} className="flex shrink-0 text-muted-foreground dark:text-neutral-400">
+                <Lock className="size-[13px]" strokeWidth={2} aria-hidden="true" />
+                <span className="sr-only">{etiquetaCandado}</span>
+            </span>
         </div>
     );
 }
 
-/** Lo que hay guardado, enmascarado, y cómo se conserva. */
-function Guardado({ id, etiqueta, preview, conserva }: { id: string; etiqueta: string; preview: string; conserva: string }) {
-    const inicio = inicioVisible(preview);
+/** Una línea de resultado (comprobaciones): icono + texto, en el color de su tono. */
+function Mensaje({ tono, children }: { tono: Tono; children: ReactNode }) {
+    const Icono = tono === 'ok' ? CircleCheck : CircleAlert;
 
     return (
-        <p id={id} className={cn('mt-[7px] flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] leading-4', TEXTO_SUAVE)}>
-            <Lock className="size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-            <span>{etiqueta}</span>
-            <span className={cn(MONO + ' text-[12px] tracking-[0.02em]', TEXTO_NAVY)} aria-hidden="true">
-                {inicio}
-                {PUNTOS}
-            </span>
-            <span className="sr-only">{inicio}…</span>
-            {/* En hojas estrechas "vacío, se conserva" baja a su propia línea, alineado tras el candado. */}
-            <span className="inline-flex basis-full items-center gap-1.5 pl-[18px] whitespace-nowrap @3xl/hoja:basis-auto @3xl/hoja:pl-0">
-                <span className="hidden @3xl/hoja:inline" aria-hidden="true">·</span>
-                <span>{conserva}</span>
-            </span>
+        <p className={cn('flex items-start gap-2 text-[13px] leading-[18px] font-medium', TONO_TEXTO[tono])}>
+            <Icono className="mt-px size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+            <span className="min-w-0 [overflow-wrap:anywhere]">{children}</span>
         </p>
     );
 }
 
-const ERROR_CAMPO = 'mt-1.5 text-[12.5px] leading-[18px] text-red-700 dark:text-red-400';
+/**
+ * Pista del interruptor, igual que el de envío masivo en Usuarios. Encendido: pista navy y bolita
+ * blanca con la marca. Apagado: contorno y bolita pizarra 500 (4,76:1): se distingue sin color.
+ */
+function PistaInterruptor({ activo }: { activo: boolean }) {
+    return (
+        <span
+            className={cn(
+                'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 forced-colors:border forced-colors:border-[CanvasText]',
+                activo
+                    ? 'bg-[#2e3f84] shadow-[inset_0_1px_1px_rgba(0,0,0,0.2)] dark:bg-[#596bcf]'
+                    : 'bg-card shadow-[inset_0_0_0_1.5px_var(--color-slate-500)] dark:shadow-[inset_0_0_0_1.5px_var(--color-neutral-400)]'
+            )}
+            aria-hidden="true"
+        >
+            <span
+                className={cn(
+                    'absolute flex items-center justify-center rounded-full transition-all duration-200',
+                    activo
+                        ? 'top-0.5 left-[18px] size-4 bg-white text-[#2e3f84] shadow-[0_1px_2px_rgba(0,0,0,0.28)]'
+                        : 'top-[5px] left-[5px] size-2.5 bg-slate-500 dark:bg-neutral-400'
+                )}
+            >
+                {activo && <Check className="size-2.5" strokeWidth={3.5} />}
+            </span>
+        </span>
+    );
+}
+
+function Interruptor({
+    id,
+    activo,
+    onToggle,
+    describedBy,
+    si,
+    no,
+}: {
+    id: string;
+    activo: boolean;
+    onToggle: () => void;
+    describedBy: string;
+    si: string;
+    no: string;
+}) {
+    return (
+        <button
+            id={id}
+            type="button"
+            role="switch"
+            aria-checked={activo}
+            aria-describedby={describedBy}
+            onClick={onToggle}
+            className={cn('inline-flex cursor-pointer items-center gap-2.5 rounded-full py-1 pr-1', FOCO)}
+        >
+            <PistaInterruptor activo={activo} />
+            <span className={cn('text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>{activo ? si : no}</span>
+        </button>
+    );
+}
 
 const describir = (...ids: (string | false | null | undefined)[]) => ids.filter(Boolean).join(' ') || undefined;
 
-/** Pie de sección: botón + nota. En secciones de campos se alinea con la columna de los campos. */
-function Pie({ children, nota, columna = true, final = false }: { children: ReactNode; nota?: string; columna?: boolean; final?: boolean }) {
+/**
+ * Pie de sección: botón + nota. En secciones de campos se alinea con la columna de los campos.
+ * `pendiente` avisa, en ámbar, de que hay cambios sin guardar; `aviso` reemplaza la nota.
+ */
+function Pie({
+    children,
+    nota,
+    aviso,
+    pendiente,
+    columna = true,
+    final = false,
+}: {
+    children?: ReactNode;
+    nota?: string;
+    aviso?: string;
+    pendiente?: string | false;
+    columna?: boolean;
+    final?: boolean;
+}) {
     return (
         <div
             className={cn(
@@ -395,18 +479,27 @@ function Pie({ children, nota, columna = true, final = false }: { children: Reac
             {columna && <span className="hidden @3xl/hoja:block" aria-hidden="true" />}
             <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
                 {children}
-                {nota && <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{nota}</span>}
+                {pendiente && (
+                    <span className={cn('inline-flex items-center gap-1.5 text-[12px] leading-4 font-medium', TONO_TEXTO.aviso)}>
+                        <span className={cn('size-[7px] shrink-0 rounded-full', TONO_PUNTO.aviso)} aria-hidden="true" />
+                        {pendiente}
+                    </span>
+                )}
+                {aviso ? (
+                    <span className={cn('text-[12px] leading-4 font-medium', TONO_TEXTO.aviso)}>{aviso}</span>
+                ) : (
+                    nota && <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{nota}</span>
+                )}
             </div>
         </div>
     );
 }
 
-const BOTON_PRIMARIO = cn(
-    'h-9 gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold has-[>svg]:pr-4 has-[>svg]:pl-3.5 focus-visible:ring-offset-2 focus-visible:ring-offset-card',
-    FOCO
-);
+// Sin FOCO: así vale el contorno global de foco (app.css). El anillo de FOCO es una sombra y
+// .settings-btn-primary, sin capa, la pisaba: tabulando hasta «Guardar» no se veía nada.
+const BOTON_PRIMARIO = 'h-9 gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold has-[>svg]:pr-4 has-[>svg]:pl-3.5';
 
-// Desactivado "de verdad" (hoy: Groq sin API key escrita): tinta navy, sin relleno sólido.
+// Desactivado "de verdad" (sin cambios que guardar): tinta navy, sin relleno sólido.
 const BOTON_APAGADO =
     'bg-[#2e3f84]/6 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] hover:bg-[#2e3f84]/6 disabled:opacity-100 dark:bg-white/5 dark:text-neutral-400 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]';
 
@@ -419,46 +512,113 @@ const BOTON_SECUNDARIO = cn(
 // Avatares de "de turno" en la franja, tocándose. Si hay más gente que huecos, el último es "+N".
 const HUECOS_PILA = 7;
 
+// Orden alfabético con acentos bien ordenados ("Álvaro" junto a "Alvaro").
+const ordenAlfabetico = (a: Advisor, b: Advisor) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+
 export default function SettingsIndex({ settings, advisors, autoRelease, weekendNotice }: SettingsIndexProps) {
-    const { t } = useTranslation();
-    const [testingConnection, setTestingConnection] = useState(false);
-    const [loadingProfile, setLoadingProfile] = useState(false);
-    const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
-    const [advisorSearch, setAdvisorSearch] = useState('');
-    const [connectionStatus, setConnectionStatus] = useState<{
-        type: 'success' | 'error' | null;
-        message: string;
-    }>({ type: null, message: '' });
-
-    const [selectedAdvisors, setSelectedAdvisors] = useState<number[]>(
-        advisors.filter((advisor) => advisor.is_on_duty).map((advisor) => advisor.id)
+    const { t, i18n } = useTranslation();
+    const idioma = i18n.language;
+    const { alertasSeguridad } = usePage<{ alertasSeguridad?: Record<string, string> | string[] }>().props;
+    const alertas = useMemo<Record<string, string>>(
+        () => (alertasSeguridad && !Array.isArray(alertasSeguridad) ? alertasSeguridad : {}),
+        [alertasSeguridad]
     );
-    const [savingAdvisors, setSavingAdvisors] = useState(false);
+    const codigosAlerta = Object.keys(alertas);
 
-    const whatsappForm = useForm({
-        whatsapp_token: '',
-        whatsapp_phone_id: settings.whatsapp.phone_id || '',
-        whatsapp_business_account_id: settings.whatsapp.business_account_id || '',
-        whatsapp_verify_token: '',
-    });
+    // Reloj para los "hace N minutos" (se refresca cada minuto).
+    const [ahora, setAhora] = useState(() => Date.now());
+    useEffect(() => {
+        const reloj = window.setInterval(() => setAhora(Date.now()), 60_000);
+        return () => window.clearInterval(reloj);
+    }, []);
 
-    const groqForm = useForm({
-        groq_api_key: '',
-    });
+    /* ── WhatsApp: solo lectura + «Comprobar ahora» ── */
+    const [revisadoEn, setRevisadoEn] = useState(settings.vigilancia.revisado_en);
+    const [perfil, setPerfil] = useState(settings.whatsapp.perfil);
+    const [comprobandoMeta, setComprobandoMeta] = useState(false);
+    const [comprobacion, setComprobacion] = useState<{ datos: ComprobacionWhatsApp } | { error: string } | null>(null);
 
-    // ── Liberación automática: el tiempo se edita como cantidad + unidad y se guarda en minutos ──
+    const comprobarWhatsApp = async () => {
+        setComprobandoMeta(true);
+        try {
+            const { data } = await axios.post<ComprobacionWhatsApp>('/admin/settings/whatsapp/check');
+            setComprobacion({ datos: data });
+            if (data.perfil) setPerfil(data.perfil);
+            if (data.revisado_en) setRevisadoEn(data.revisado_en);
+            setAhora(Date.now());
+            // La franja roja y el estado de arriba se ponen al día con lo que se acaba de revisar.
+            router.reload({ only: ['alertasSeguridad'] });
+        } catch (error) {
+            const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+            setComprobacion({ error: status === 429 ? t('settings.checkTooMany') : t('settings.checkError') });
+        } finally {
+            setComprobandoMeta(false);
+        }
+    };
+
+    const revisionReciente = !!revisadoEn && ahora - new Date(revisadoEn).getTime() < REVISION_RECIENTE_MS;
+    const desviado = codigosAlerta.some(esDesvio);
+
+    // Estado de WhatsApp: lo guardado y lo que vio la vigilancia, con ese orden de prioridad.
+    const estadoWhatsApp: { texto: string; tono: Tono } =
+        !settings.whatsapp.configurada || 'meta_config' in alertas
+            ? { texto: t('settings.strip.state.notSetUp'), tono: 'aviso' }
+            : 'meta_token' in alertas
+              ? { texto: t('settings.strip.state.rejected'), tono: 'error' }
+              : desviado
+                ? { texto: t('settings.strip.state.diverted'), tono: 'error' }
+                : 'meta_plantillas' in alertas || 'silencio' in alertas
+                  ? { texto: t('settings.strip.state.alerts'), tono: 'aviso' }
+                  : revisionReciente
+                    ? { texto: t('settings.strip.state.working'), tono: 'ok' }
+                    : { texto: t('settings.strip.state.configured'), tono: 'neutro' };
+
+    const otrasAlertas = Object.entries(alertas).filter(([codigo]) => !esAlertaDeConexion(codigo));
+
+    /* ── Groq: solo lectura + «Comprobar clave» ── */
+    const [comprobandoGroq, setComprobandoGroq] = useState(false);
+    const [resultadoGroq, setResultadoGroq] = useState<{ estado: ResultadoGroq } | { error: string } | null>(null);
+
+    const comprobarGroq = async () => {
+        setComprobandoGroq(true);
+        try {
+            const { data } = await axios.post<{ estado: ResultadoGroq }>('/admin/settings/groq/check');
+            setResultadoGroq({ estado: data.estado });
+        } catch (error) {
+            const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+            setResultadoGroq({ error: status === 429 ? t('settings.checkTooMany') : t('settings.checkError') });
+        } finally {
+            setComprobandoGroq(false);
+        }
+    };
+
+    const groqRechazada = !!resultadoGroq && 'estado' in resultadoGroq && resultadoGroq.estado === 'rechazada';
+    const estadoGroq: { texto: string; tono: Tono } = !settings.groq.clave.guardada
+        ? { texto: t('settings.notSetUp'), tono: 'aviso' }
+        : groqRechazada
+          ? { texto: t('settings.strip.state.rejected'), tono: 'error' }
+          : { texto: t('settings.active'), tono: 'ok' };
+
+    /* ── Liberación automática: el tiempo se edita como cantidad + unidad y se guarda en minutos ── */
+    const unidadGuardada = unidadExacta(autoRelease.minutes);
+    const cantidadGuardada = String(autoRelease.minutes / MINUTOS_POR_UNIDAD[unidadGuardada]);
     const [releaseEnabled, setReleaseEnabled] = useState(autoRelease.enabled);
-    const [releaseUnit, setReleaseUnit] = useState<UnidadDuracion>(() => unidadExacta(autoRelease.minutes));
-    const [releaseAmount, setReleaseAmount] = useState(() => String(autoRelease.minutes / MINUTOS_POR_UNIDAD[unidadExacta(autoRelease.minutes)]));
+    const [releaseUnit, setReleaseUnit] = useState<UnidadDuracion>(unidadGuardada);
+    const [releaseAmount, setReleaseAmount] = useState(cantidadGuardada);
+    const [tiempoTocado, setTiempoTocado] = useState(false);
     const [savingRelease, setSavingRelease] = useState(false);
+    const [confirmarLiberacion, setConfirmarLiberacion] = useState(false);
     const [releasePreview, setReleasePreview] = useState<{ minutes: number; count: number | null; error: boolean } | null>(null);
+    const campoTiempo = useRef<HTMLInputElement>(null);
 
-    const releaseAmountNumber = Number(releaseAmount);
+    const releaseAmountNumber = releaseAmount === '' ? NaN : Number(releaseAmount);
     const releaseMinutes = Number.isInteger(releaseAmountNumber) ? releaseAmountNumber * MINUTOS_POR_UNIDAD[releaseUnit] : NaN;
     const releaseValid = Number.isInteger(releaseMinutes) && releaseMinutes >= autoRelease.min && releaseMinutes <= autoRelease.max;
-    const releaseChanged = releaseEnabled !== autoRelease.enabled || (releaseValid && releaseMinutes !== autoRelease.minutes);
     // Apagar nunca depende del campo de tiempo: si quedó vacío o mal, se conserva el guardado.
-    const releaseCanSave = releaseChanged && (releaseValid || !releaseEnabled);
+    const releaseError = releaseEnabled && !releaseValid;
+    const releaseTocado = releaseEnabled !== autoRelease.enabled || releaseAmount !== cantidadGuardada || releaseUnit !== unidadGuardada;
+    // ¿Cambia de verdad lo que hace el servidor? (para el aviso «Cambios sin guardar»)
+    const releaseChanged = releaseEnabled !== autoRelease.enabled || (releaseValid && releaseMinutes !== autoRelease.minutes);
 
     const elegirTiempo = (minutos: number) => {
         const unidad = unidadExacta(minutos);
@@ -493,33 +653,14 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
         };
     }, [releaseMinutes, releaseValid]);
 
-    // ── Mensaje de fin de semana ──
-    const [weekendEnabled, setWeekendEnabled] = useState(weekendNotice.enabled);
-    const [weekendText, setWeekendText] = useState(weekendNotice.text);
-    const [savingWeekend, setSavingWeekend] = useState(false);
-    const weekendTextTrim = weekendText.trim();
-    const weekendTextValid = weekendTextTrim.length > 0 && weekendText.length <= weekendNotice.max_length;
-    const weekendChanged = weekendEnabled !== weekendNotice.enabled || weekendTextTrim !== weekendNotice.text.trim();
-    // Apagar nunca depende del texto: si quedó vacío, se conserva el guardado.
-    const weekendCanSave = weekendChanged && (weekendTextValid || !weekendEnabled);
+    const vistaPreviaVigente = releasePreview && releasePreview.minutes === releaseMinutes ? releasePreview : null;
+    // Activar (o acortar el tiempo con la liberación activa) puede desasignar muchas conversaciones
+    // de golpe en el próximo minuto: se confirma salvo que la vista previa diga que no hay ninguna.
+    const liberacionAmplia = releaseEnabled && releaseValid && (!autoRelease.enabled || releaseMinutes < autoRelease.minutes);
+    const necesitaConfirmar = liberacionAmplia && !(vistaPreviaVigente && !vistaPreviaVigente.error && vistaPreviaVigente.count === 0);
 
-    const saveWeekendNotice = () => {
-        if (!weekendCanSave) return;
-        setSavingWeekend(true);
-        router.post(
-            '/admin/settings/weekend-notice',
-            { enabled: weekendEnabled, text: weekendTextValid ? weekendText : null },
-            {
-                preserveScroll: true,
-                onFinish: () => setSavingWeekend(false),
-                onSuccess: () => toast.success(t('settings.weekendNotice.savedSuccess')),
-                onError: () => toast.error(t('settings.weekendNotice.saveError')),
-            }
-        );
-    };
-
-    const saveAutoRelease = () => {
-        if (!releaseCanSave) return;
+    const enviarLiberacion = () => {
+        setConfirmarLiberacion(false);
         setSavingRelease(true);
         router.post(
             '/admin/settings/auto-release',
@@ -527,88 +668,103 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
             {
                 preserveScroll: true,
                 onFinish: () => setSavingRelease(false),
-                onSuccess: () => toast.success(t('settings.autoRelease.savedSuccess')),
+                onSuccess: (page) => {
+                    // El campo vuelve a mostrar lo que de verdad quedó guardado.
+                    const guardado = page.props.autoRelease as AutoReleaseConfig;
+                    setReleaseEnabled(guardado.enabled);
+                    elegirTiempo(guardado.minutes);
+                    setTiempoTocado(false);
+                    toast.success(t('settings.autoRelease.savedSuccess'));
+                },
                 onError: () => toast.error(t('settings.autoRelease.saveError')),
             }
         );
     };
 
-    const filteredAdvisors = useMemo(() => {
-        const searchTerm = advisorSearch.trim().toLowerCase();
-
-        if (!searchTerm) {
-            return advisors;
+    const saveAutoRelease = () => {
+        if (!releaseTocado || savingRelease) return;
+        if (releaseError) {
+            setTiempoTocado(true);
+            campoTiempo.current?.focus();
+            return;
         }
+        if (necesitaConfirmar) {
+            setConfirmarLiberacion(true);
+            return;
+        }
+        enviarLiberacion();
+    };
 
-        return advisors.filter((advisor) => `${advisor.name} ${advisor.email}`.toLowerCase().includes(searchTerm));
+    /* ── Mensaje de fin de semana ── */
+    const [weekendEnabled, setWeekendEnabled] = useState(weekendNotice.enabled);
+    const [weekendText, setWeekendText] = useState(weekendNotice.text);
+    const [textoTocado, setTextoTocado] = useState(false);
+    const [savingWeekend, setSavingWeekend] = useState(false);
+    const campoTexto = useRef<HTMLTextAreaElement>(null);
+    const weekendTextTrim = weekendText.trim();
+    const weekendSobran = weekendText.length - weekendNotice.max_length;
+    const weekendTextValid = weekendTextTrim.length > 0 && weekendSobran <= 0;
+    const weekendChanged = weekendEnabled !== weekendNotice.enabled || weekendTextTrim !== weekendNotice.text.trim();
+    // Apagar nunca depende del texto: si quedó vacío, se conserva el guardado. Pasarse de largo, en
+    // cambio, se avisa siempre (el texto no se puede guardar así).
+    const errorTexto =
+        weekendSobran > 0
+            ? t('settings.weekendNotice.tooLong', { n: weekendSobran, max: weekendNotice.max_length })
+            : weekendEnabled && !weekendTextTrim
+              ? t('settings.weekendNotice.textRequired')
+              : undefined;
+    const mostrarErrorTexto = !!errorTexto && (textoTocado || weekendSobran > 0);
+
+    const saveWeekendNotice = () => {
+        if (!weekendChanged || savingWeekend) return;
+        if (weekendEnabled ? !weekendTextValid : weekendSobran > 0) {
+            setTextoTocado(true);
+            campoTexto.current?.focus();
+            return;
+        }
+        setSavingWeekend(true);
+        router.post(
+            '/admin/settings/weekend-notice',
+            { enabled: weekendEnabled, text: weekendTextValid ? weekendText : null },
+            {
+                preserveScroll: true,
+                onFinish: () => setSavingWeekend(false),
+                onSuccess: (page) => {
+                    // Si se apagó con el texto vacío, el servidor conservó el anterior: se vuelve a mostrar.
+                    const guardado = page.props.weekendNotice as WeekendNoticeConfig;
+                    setWeekendEnabled(guardado.enabled);
+                    setWeekendText(guardado.text);
+                    setTextoTocado(false);
+                    toast.success(t('settings.weekendNotice.savedSuccess'));
+                },
+                onError: () => toast.error(t('settings.weekendNotice.saveError')),
+            }
+        );
+    };
+
+    /* ── Asesores de turno ── */
+    const [advisorSearch, setAdvisorSearch] = useState('');
+    const [selectedAdvisors, setSelectedAdvisors] = useState<number[]>(() =>
+        advisors.filter((advisor) => advisor.is_on_duty).map((advisor) => advisor.id)
+    );
+    const [savingAdvisors, setSavingAdvisors] = useState(false);
+
+    // Lo guardado (la franja y la banda dicen lo que rige de verdad, no lo marcado sin guardar).
+    const deTurnoGuardados = useMemo(() => [...advisors].sort(ordenAlfabetico).filter((advisor) => advisor.is_on_duty), [advisors]);
+    // Lo marcado, sin IDs de asesores que ya no existen (p. ej. borrados con la página abierta).
+    const marcados = useMemo(() => selectedAdvisors.filter((id) => advisors.some((advisor) => advisor.id === id)), [selectedAdvisors, advisors]);
+    const advisorsChanged =
+        marcados.length !== deTurnoGuardados.length || marcados.some((id) => !deTurnoGuardados.some((advisor) => advisor.id === id));
+
+    const filteredAdvisors = useMemo(() => {
+        const searchTerm = plano(advisorSearch.trim());
+        if (!searchTerm) return advisors;
+
+        return advisors.filter((advisor) => plano(`${advisor.name} ${advisor.email}`).includes(searchTerm));
     }, [advisorSearch, advisors]);
 
     // Solo para pintar: orden alfabético (con acentos bien ordenados). Marcar a alguien no lo mueve.
-    const advisorsInOrder = useMemo(
-        () => [...filteredAdvisors].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
-        [filteredAdvisors]
-    );
-
-    // Los de turno (según lo marcado), en el mismo orden de la lista, para la franja.
-    const onDutyInOrder = useMemo(
-        () =>
-            [...advisors]
-                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
-                .filter((advisor) => selectedAdvisors.includes(advisor.id)),
-        [advisors, selectedAdvisors]
-    );
-
-    const handleWhatsAppSubmit = (event: FormEvent) => {
-        event.preventDefault();
-        whatsappForm.post('/admin/settings/whatsapp', {
-            preserveScroll: true,
-            onSuccess: () => {
-                whatsappForm.reset('whatsapp_token', 'whatsapp_verify_token');
-                toast.success(t('settings.whatsapp.savedSuccess'));
-            },
-            onError: () => toast.error(t('settings.saveError')),
-        });
-    };
-
-    const handleGroqSubmit = (event: FormEvent) => {
-        event.preventDefault();
-        groqForm.post('/admin/settings/groq', {
-            preserveScroll: true,
-            onSuccess: () => {
-                groqForm.reset('groq_api_key');
-                toast.success(t('settings.groq.savedSuccess'));
-            },
-            onError: () => toast.error(t('settings.saveError')),
-        });
-    };
-
-    const testConnection = async () => {
-        setTestingConnection(true);
-        setConnectionStatus({ type: null, message: '' });
-
-        try {
-            // axios usa el token CSRF VIVO de la cookie (el <meta> queda obsoleto tras login por
-            // Inertia) y el interceptor global reintenta ante 419. validateStatus deja pasar 4xx/5xx
-            // sin lanzar para conservar el manejo del JSON de negocio ({ success, message }).
-            const response = await axios.post('/admin/settings/test-whatsapp', null, {
-                validateStatus: (status) => status !== 419,
-            });
-
-            const data = response.data;
-
-            setConnectionStatus({
-                type: data.success ? 'success' : 'error',
-                message: data.message,
-            });
-        } catch {
-            setConnectionStatus({
-                type: 'error',
-                message: t('settings.whatsapp.connectionError'),
-            });
-        } finally {
-            setTestingConnection(false);
-        }
-    };
+    const advisorsInOrder = useMemo(() => [...filteredAdvisors].sort(ordenAlfabetico), [filteredAdvisors]);
 
     const toggleAdvisor = (advisorId: number) => {
         setSelectedAdvisors((currentAdvisors) =>
@@ -619,52 +775,49 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
     };
 
     const saveOnDutyAdvisors = () => {
+        if (!advisorsChanged || savingAdvisors) return;
         setSavingAdvisors(true);
-        router.post('/admin/settings/on-duty-advisors', {
-            advisor_ids: selectedAdvisors,
-        }, {
-            preserveScroll: true,
-            onFinish: () => setSavingAdvisors(false),
-            onSuccess: () => toast.success(t('settings.onDutyAdvisors.savedSuccess')),
-            onError: () => toast.error(t('settings.onDutyAdvisors.saveError')),
-        });
-    };
-
-    const getBusinessProfile = async () => {
-        setLoadingProfile(true);
-
-        try {
-            const response = await fetch('/admin/settings/business-profile', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                setBusinessProfile(data.profile);
-            } else {
-                setConnectionStatus({
-                    type: 'error',
-                    message: data.message || t('settings.whatsapp.profileFetchFailed'),
-                });
+        router.post(
+            '/admin/settings/on-duty-advisors',
+            { advisor_ids: marcados },
+            {
+                preserveScroll: true,
+                onFinish: () => setSavingAdvisors(false),
+                onSuccess: () => toast.success(t('settings.onDutyAdvisors.savedSuccess')),
+                onError: () => toast.error(t('settings.onDutyAdvisors.saveError')),
             }
-        } catch {
-            setConnectionStatus({
-                type: 'error',
-                message: t('settings.whatsapp.profileFetchError'),
-            });
-        } finally {
-            setLoadingProfile(false);
-        }
+        );
     };
+
+    /* ── Cambios sin guardar: aviso al salir de la página ── */
+    const hayCambios = releaseChanged || weekendChanged || advisorsChanged;
+
+    useEffect(() => {
+        if (!hayCambios) return;
+
+        const alCerrar = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload', alCerrar);
+
+        const quitar = router.on('before', (event) => {
+            const visita = event.detail.visit;
+            // Solo las salidas de verdad: ni el prefetch al pasar por el menú, ni los guardados (POST),
+            // ni las recargas parciales de esta misma página.
+            if (visita.method !== 'get' || visita.prefetch || visita.url.pathname === window.location.pathname) return;
+            if (!window.confirm(t('settings.unsavedLeave'))) event.preventDefault();
+        });
+
+        return () => {
+            window.removeEventListener('beforeunload', alCerrar);
+            quitar();
+        };
+    }, [hayCambios, t]);
 
     /* ── Piezas que dependen de t() ───────────────────────────────────────────────────────────── */
 
-    const conserva = t('settings.keepWhenEmpty');
-    const errors = whatsappForm.errors;
+    const soloLectura = t('settings.readOnly');
 
     const botonGuardar = (processing: boolean, texto: string) =>
         processing ? (
@@ -679,15 +832,66 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
             </>
         );
 
-    const dato = (etiqueta: string, valor: ReactNode, className?: string) => (
+    const botonComprobar = (comprobando: boolean, texto: string, onClick: () => void) => (
+        <button type="button" onClick={onClick} disabled={comprobando} aria-busy={comprobando} className={BOTON_SECUNDARIO}>
+            {comprobando ? (
+                <Loader2 className="size-[15px] animate-spin" aria-hidden="true" />
+            ) : (
+                <PlugZap className="size-[15px]" strokeWidth={1.75} aria-hidden="true" />
+            )}
+            {comprobando ? t('settings.checking') : texto}
+        </button>
+    );
+
+    const valorClave = (clave: ClaveGuardada) =>
+        clave.guardada ? (
+            <span className={TEXTO_NAVY}>
+                {clave.cambiada_en ? t('settings.savedOn', { date: fechaCorta(clave.cambiada_en, idioma) }) : t('settings.saved')}
+            </span>
+        ) : (
+            <span className={cn('font-medium', TONO_TEXTO.aviso)}>{t('settings.notSaved')}</span>
+        );
+
+    const valorId = (id: string | null) =>
+        id ? (
+            <span className={cn(MONO, 'text-[12.5px] tracking-[0.02em] select-all', TEXTO_NAVY)}>{id}</span>
+        ) : (
+            <span className={cn('font-medium', TONO_TEXTO.aviso)}>{t('settings.notSet')}</span>
+        );
+
+    const dato = (etiqueta: string, valor: ReactNode, titulo?: string) => (
         <div className="flex min-w-0 flex-col gap-0.5">
             <dt className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{etiqueta}</dt>
-            <dd className={cn('text-[13.5px] leading-5 font-medium [overflow-wrap:anywhere] @3xl/hoja:truncate', TEXTO_NAVY, className)}>{valor}</dd>
+            <dd title={titulo} className={cn('text-[13.5px] leading-5 font-medium [overflow-wrap:anywhere] @3xl/hoja:truncate', TEXTO_NAVY)}>
+                {valor}
+            </dd>
         </div>
     );
 
-    const conPila = onDutyInOrder.length > HUECOS_PILA ? HUECOS_PILA - 1 : onDutyInOrder.length;
-    const restoPila = onDutyInOrder.length - conPila;
+    // Códigos de Meta en palabras: GREEN → «Alta»; TIER_1K → «Hasta 1.000 personas distintas cada 24 h».
+    const calidad = (codigo: string | null) => {
+        const conocida = codigo === 'GREEN' || codigo === 'YELLOW' || codigo === 'RED';
+        const tono: Tono = codigo === 'GREEN' ? 'ok' : codigo === 'YELLOW' ? 'aviso' : codigo === 'RED' ? 'error' : 'neutro';
+        return (
+            <span className="inline-flex items-center gap-1.5">
+                <span className={cn('size-[7px] shrink-0 rounded-full', TONO_PUNTO[tono])} aria-hidden="true" />
+                {t(`settings.whatsapp.quality.${conocida ? codigo : 'unknown'}`)}
+            </span>
+        );
+    };
+
+    const limite = (codigo: string | null) => {
+        if (codigo === 'TIER_UNLIMITED') return t('settings.whatsapp.limitUnlimited');
+        const m = codigo?.match(/^TIER_(\d+)(K?)$/);
+        if (!m) return t('settings.whatsapp.limitUnknown');
+        const n = Number(m[1]) * (m[2] ? 1000 : 1);
+        return t('settings.whatsapp.limitN', { n: n.toLocaleString(localeDe(idioma)) });
+    };
+
+    const resultadoMetaTono = (meta: ResultadoMeta): Tono => (meta === 'ok' ? 'ok' : meta === 'sin_respuesta' ? 'aviso' : 'error');
+
+    const conPila = deTurnoGuardados.length > HUECOS_PILA ? HUECOS_PILA - 1 : deTurnoGuardados.length;
+    const restoPila = deTurnoGuardados.length - conPila;
 
     const advisorCount = advisors.length;
     const filas = {
@@ -696,13 +900,17 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
         '--f3': Math.ceil(advisorsInOrder.length / 3),
     } as CSSProperties;
 
-    const groqKeyEmpty = !groqForm.data.groq_api_key;
+    const lineaDistinta =
+        !!settings.whatsapp.phone_id && !!settings.whatsapp.phone_number_id && String(settings.whatsapp.phone_id) !== String(settings.whatsapp.phone_number_id);
+
+    const tonoFirma: Tono = settings.whatsapp.firma === 'exigida' ? 'ok' : 'neutro';
 
     return (
         <AdminLayout>
             <Head title={t('settings.whatsapp.title')} />
 
-            <div className="min-h-screen bg-background px-4 pt-5 pb-8 md:px-7 md:pt-7">
+            {/* Con alertas, la franja roja flota abajo: el relleno evita que tape el último «Guardar». */}
+            <div className={cn('min-h-screen bg-background px-4 pt-5 md:px-7 md:pt-7', codigosAlerta.length > 0 ? 'pb-48' : 'pb-8')}>
                 <div className="@container/pagina mx-auto flex max-w-7xl flex-col gap-6">
                     {/* ── Cabecera ── */}
                     <header className="flex flex-col gap-1">
@@ -710,37 +918,34 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                         <p className="text-[14px] leading-5 text-muted-foreground">{t('settings.whatsapp.subtitle')}</p>
                     </header>
 
-                    {/* ── Franja de estados (sin cajas: filetes entre estados). La primera columna no baja de 345 px:
-                        así "Configurado · Phone ID …" cabe entero también a 1366 con el menú fijado. ── */}
+                    {/* ── Franja de estados (sin cajas: filetes entre estados). La primera columna no baja de 345 px. ── */}
                     <section
                         aria-label={t('settings.strip.label')}
                         className="grid grid-cols-1 gap-y-5 @2xl/pagina:grid-cols-2 @2xl/pagina:gap-x-6 @5xl/pagina:grid-cols-[minmax(345px,1.25fr)_1px_minmax(0,1fr)_1px_minmax(0,1.35fr)] @5xl/pagina:gap-y-0"
                     >
-                        <EstadoFranja icon={MessageCircle} etiqueta={t('settings.strip.whatsapp')} ok={settings.whatsapp.is_configured}>
-                            <ValorFranja>{settings.whatsapp.is_configured ? t('settings.configured') : t('settings.pending')}</ValorFranja>
+                        <EstadoFranja icon={MessageCircle} etiqueta={t('settings.strip.whatsapp')} tono={estadoWhatsApp.tono}>
+                            <ValorFranja>{estadoWhatsApp.texto}</ValorFranja>
                             <DetalleFranja>
-                                {settings.whatsapp.phone_id
-                                    ? t('settings.strip.phoneId', { id: settings.whatsapp.phone_id })
-                                    : t('settings.whatsapp.noPhoneId')}
+                                {revisadoEn ? t('settings.strip.checkedAgo', { time: haceCuanto(revisadoEn, idioma, ahora) }) : t('settings.strip.notChecked')}
                             </DetalleFranja>
                         </EstadoFranja>
                         <Divisor />
-                        <EstadoFranja icon={AudioLines} etiqueta={t('settings.strip.speech')} ok={settings.groq.is_configured}>
-                            <ValorFranja>{settings.groq.is_configured ? t('settings.active') : t('settings.pending')}</ValorFranja>
-                            <DetalleFranja>Groq</DetalleFranja>
+                        <EstadoFranja icon={AudioLines} etiqueta={t('settings.strip.speech')} tono={estadoGroq.tono}>
+                            <ValorFranja>{estadoGroq.texto}</ValorFranja>
+                            <DetalleFranja>{t('settings.strip.speechDetail')}</DetalleFranja>
                         </EstadoFranja>
                         <Divisor />
                         <div className="min-w-0 @2xl/pagina:col-span-2 @5xl/pagina:col-span-1">
-                            <EstadoFranja icon={Users} etiqueta={t('settings.onDutyAdvisors.title')} ok={selectedAdvisors.length > 0}>
+                            <EstadoFranja icon={Users} etiqueta={t('settings.onDutyAdvisors.title')} tono={deTurnoGuardados.length > 0 ? 'ok' : 'aviso'}>
                                 <span className="flex shrink-0 items-baseline gap-[7px]">
-                                    <ValorFranja>{selectedAdvisors.length}</ValorFranja>
+                                    <ValorFranja>{deTurnoGuardados.length}</ValorFranja>
                                     <span className="text-[13px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums">
                                         {t('settings.strip.ofTotal', { total: advisorCount })}
                                     </span>
                                 </span>
                                 {conPila > 0 && (
                                     <ul aria-label={t('settings.strip.whoIsOnDuty')} className="ml-1 flex min-w-0 items-center overflow-hidden">
-                                        {onDutyInOrder.slice(0, conPila).map((advisor) => (
+                                        {deTurnoGuardados.slice(0, conPila).map((advisor) => (
                                             <li key={advisor.id} title={nombrePropio(advisor.name)} className="flex shrink-0 rounded-full">
                                                 <Iniciales name={advisor.name} className="size-7 ring-2 ring-background" />
                                                 <span className="sr-only">{nombrePropio(advisor.name)}</span>
@@ -761,250 +966,171 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                         </div>
                     </section>
 
-                    {/* ── La hoja: WhatsApp, Groq y turno, una sección tras otra ── */}
+                    {/* ── La hoja: WhatsApp, Groq, liberación, fin de semana y turno, una sección tras otra ── */}
                     <div className="@container/hoja overflow-hidden rounded-2xl bg-card shadow-[0_0_0_1px_rgba(46,63,132,0.07),0_1px_2px_rgba(46,63,132,0.05),0_14px_32px_-18px_rgba(46,63,132,0.22)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.07),0_14px_32px_-18px_rgba(0,0,0,0.6)]">
-                        {/* ── 1. WhatsApp Business API ── */}
-                        <form onSubmit={handleWhatsAppSubmit} aria-labelledby="settings-whatsapp">
+                        {/* ── 1. Conexión con WhatsApp (solo lectura) ── */}
+                        <section aria-labelledby="settings-whatsapp">
                             <Banda
                                 id="settings-whatsapp"
                                 icon={MessageCircle}
                                 titulo={t('settings.whatsapp.apiTitle')}
-                                estado={<Estado ok={settings.whatsapp.is_configured} si={t('settings.configured')} no={t('settings.whatsapp.requiresData')} />}
+                                estado={<Estado tono={estadoWhatsApp.tono}>{estadoWhatsApp.texto}</Estado>}
                                 texto={t('settings.whatsapp.bandText')}
-                                acciones={
-                                    settings.whatsapp.is_configured && (
-                                        <>
-                                            <button type="button" onClick={testConnection} disabled={testingConnection} className={BOTON_SECUNDARIO}>
-                                                {testingConnection ? (
-                                                    <Loader2 className="size-[15px] animate-spin" aria-hidden="true" />
-                                                ) : (
-                                                    <PlugZap className="size-[15px]" strokeWidth={1.75} aria-hidden="true" />
-                                                )}
-                                                {testingConnection ? t('settings.whatsapp.testing') : t('settings.whatsapp.testConnection')}
-                                            </button>
-                                            <button type="button" onClick={getBusinessProfile} disabled={loadingProfile} className={BOTON_SECUNDARIO}>
-                                                {loadingProfile ? (
-                                                    <Loader2 className="size-[15px] animate-spin" aria-hidden="true" />
-                                                ) : (
-                                                    <Building2 className="size-[15px]" strokeWidth={1.75} aria-hidden="true" />
-                                                )}
-                                                {t('settings.whatsapp.businessProfile')}
-                                            </button>
-                                        </>
-                                    )
-                                }
+                                acciones={botonComprobar(comprobandoMeta, t('settings.whatsapp.checkNow'), comprobarWhatsApp)}
                             />
 
-                            {/* Resultado de "Probar conexión" (o del perfil, si falla): región viva siempre presente. */}
+                            {/* Resultado de «Comprobar ahora»: región viva siempre presente. */}
                             <div aria-live="polite">
-                                {connectionStatus.type && (
-                                    <Fila etiqueta={t('settings.whatsapp.testRowLabel')} ayuda={t('settings.whatsapp.testRowHelp')} abajo="pb-4 @3xl/hoja:pb-1.5">
-                                        <p
-                                            className={cn(
-                                                'flex items-start gap-2 text-[13px] leading-[18px] font-medium',
-                                                connectionStatus.type === 'success' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'
-                                            )}
-                                        >
-                                            {connectionStatus.type === 'success' ? (
-                                                <CircleCheck className="mt-px size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
-                                            ) : (
-                                                <CircleAlert className="mt-px size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
-                                            )}
-                                            <span className="min-w-0 [overflow-wrap:anywhere]">{connectionStatus.message}</span>
-                                        </p>
+                                {comprobacion && (
+                                    <Fila
+                                        etiqueta={t('settings.whatsapp.checkRowLabel')}
+                                        ayuda={t('settings.whatsapp.checkRowHelp', { time: revisadoEn ? haceCuanto(revisadoEn, idioma, ahora) : '—' })}
+                                    >
+                                        {'error' in comprobacion ? (
+                                            <Mensaje tono="error">{comprobacion.error}</Mensaje>
+                                        ) : (
+                                            <div className="flex flex-col gap-2.5">
+                                                <Mensaje tono={resultadoMetaTono(comprobacion.datos.meta)}>
+                                                    {t(`settings.whatsapp.result.${comprobacion.datos.meta}`)}
+                                                </Mensaje>
+                                                {(() => {
+                                                    const otras = Object.entries(comprobacion.datos.alertas ?? {}).filter(([codigo]) => !esAlertaDeConexion(codigo));
+                                                    return (
+                                                        otras.length > 0 && (
+                                                            <div className="flex flex-col gap-1.5">
+                                                                <p className={cn('text-[12.5px] leading-4 font-medium', TONO_TEXTO.aviso)}>{t('settings.whatsapp.otherAlerts')}</p>
+                                                                <ul className={cn('list-disc space-y-1 pl-5 text-[13px] leading-[18px]', TEXTO_NAVY)}>
+                                                                    {otras.map(([codigo, texto]) => (
+                                                                        <li key={codigo}>{texto}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            </div>
+                                                        )
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
                                     </Fila>
                                 )}
                             </div>
 
-                            {businessProfile && (
-                                <Fila etiqueta={t('settings.whatsapp.businessProfile')} ayuda={t('settings.whatsapp.profileRowHelp')} abajo="pb-4 @3xl/hoja:pb-[17px]">
-                                    <dl className="grid grid-cols-2 gap-x-7 gap-y-3.5 @5xl/hoja:grid-cols-[1.5fr_1fr_1fr]">
-                                        {dato(t('settings.whatsapp.profileName'), businessProfile.business_name)}
-                                        {dato(t('settings.whatsapp.profilePhone'), businessProfile.phone_number, 'tabular-nums')}
-                                        {dato(
-                                            t('settings.whatsapp.profileVerification'),
-                                            <span
-                                                className={cn(
-                                                    'flex h-5 items-center gap-1.5',
-                                                    businessProfile.verified ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-neutral-300'
-                                                )}
-                                            >
-                                                {businessProfile.verified ? (
-                                                    <BadgeCheck className="size-[15px] shrink-0" strokeWidth={2} aria-hidden="true" />
-                                                ) : (
-                                                    <CircleAlert className="size-[15px] shrink-0" strokeWidth={2} aria-hidden="true" />
-                                                )}
-                                                {businessProfile.verified ? t('settings.whatsapp.verified') : t('settings.whatsapp.notVerified')}
-                                            </span>
-                                        )}
-                                        {dato(t('settings.whatsapp.phoneId'), businessProfile.phone_number_id, MONO + ' text-[12.5px]')}
-                                        {dato(t('settings.whatsapp.profileQuality'), businessProfile.quality_rating, MONO + ' text-[12.5px]')}
-                                        {dato(t('settings.whatsapp.profileMessagingLimit'), businessProfile.messaging_limit, MONO + ' text-[12.5px]')}
+                            {/* Alertas vigentes que no son de la conexión (cola, disco, respaldo…), mientras no haya
+                                una comprobación recién hecha que ya las muestre. Esta no se cierra. */}
+                            {!comprobacion && otrasAlertas.length > 0 && (
+                                <Fila etiqueta={t('settings.whatsapp.alertsRowLabel')} ayuda={t('settings.whatsapp.alertsRowHelp')}>
+                                    <ul className={cn('list-disc space-y-1 pl-5 text-[13px] leading-[18px] font-medium', TONO_TEXTO.aviso)}>
+                                        {otrasAlertas.map(([codigo, texto]) => (
+                                            <li key={codigo}>{texto}</li>
+                                        ))}
+                                    </ul>
+                                </Fila>
+                            )}
+
+                            {perfil && (
+                                <Fila
+                                    etiqueta={t('settings.whatsapp.profileRowLabel')}
+                                    ayuda={t('settings.whatsapp.profileRowHelp', { time: haceCuanto(perfil.consultado_en, idioma, ahora) })}
+                                    abajo="pb-4 @3xl/hoja:pb-[17px]"
+                                >
+                                    <dl className="grid grid-cols-2 gap-x-7 gap-y-3.5 @5xl/hoja:grid-cols-[1.4fr_1fr_0.8fr_1.6fr]">
+                                        {dato(t('settings.whatsapp.profileName'), perfil.nombre || '—', perfil.nombre ?? undefined)}
+                                        {dato(t('settings.whatsapp.profilePhone'), <span className="tabular-nums">{perfil.numero || '—'}</span>, perfil.numero ?? undefined)}
+                                        {dato(t('settings.whatsapp.profileQuality'), calidad(perfil.calidad))}
+                                        {dato(t('settings.whatsapp.profileMessagingLimit'), limite(perfil.limite), limite(perfil.limite))}
                                     </dl>
                                 </Fila>
                             )}
 
                             <Subgrupo titulo={t('settings.whatsapp.credentialsTitle')} texto={t('settings.whatsapp.credentialsSubtitle')} />
 
-                            <Fila
-                                etiqueta={t('settings.whatsapp.accessToken')}
-                                htmlFor="whatsapp_token"
-                                ayuda={t('settings.whatsapp.accessTokenHelp')}
-                                ayudaId="whatsapp_token-help"
-                                abajo={settings.whatsapp.token ? 'pb-3.5 @3xl/hoja:pb-1.5' : undefined}
-                            >
-                                <Campo
-                                    id="whatsapp_token"
-                                    icon={KeyRound}
-                                    type="password"
-                                    value={whatsappForm.data.whatsapp_token}
-                                    onChange={(value) => whatsappForm.setData('whatsapp_token', value)}
-                                    placeholder={settings.whatsapp.token ? t('settings.whatsapp.replaceTokenPlaceholder') : t('settings.whatsapp.accessTokenPlaceholder')}
-                                    invalido={!!errors.whatsapp_token}
-                                    describedBy={describir('whatsapp_token-help', errors.whatsapp_token && 'whatsapp_token-error', settings.whatsapp.token && 'whatsapp_token-saved')}
-                                />
-                                <InputError id="whatsapp_token-error" message={errors.whatsapp_token} className={ERROR_CAMPO} />
-                                {settings.whatsapp.token && (
-                                    <Guardado id="whatsapp_token-saved" etiqueta={t('settings.whatsapp.savedLabel')} preview={settings.whatsapp.token} conserva={conserva} />
-                                )}
+                            <Fila etiqueta={t('settings.whatsapp.accessToken')} ayuda={t('settings.whatsapp.accessTokenHelp')}>
+                                <CajaSoloLectura icon={KeyRound} etiquetaCandado={soloLectura}>
+                                    {valorClave(settings.whatsapp.clave_acceso)}
+                                </CajaSoloLectura>
                             </Fila>
 
-                            <Fila
-                                etiqueta={t('settings.whatsapp.verifyToken')}
-                                htmlFor="whatsapp_verify_token"
-                                ayuda={t('settings.whatsapp.verifyTokenHelp')}
-                                ayudaId="whatsapp_verify_token-help"
-                                abajo={settings.whatsapp.verify_token ? 'pb-3.5 @3xl/hoja:pb-1.5' : undefined}
-                            >
-                                <Campo
-                                    id="whatsapp_verify_token"
-                                    icon={ShieldCheck}
-                                    type="password"
-                                    value={whatsappForm.data.whatsapp_verify_token}
-                                    onChange={(value) => whatsappForm.setData('whatsapp_verify_token', value)}
-                                    placeholder={
-                                        settings.whatsapp.verify_token ? t('settings.whatsapp.replaceVerifyTokenPlaceholder') : t('settings.whatsapp.verifyTokenPlaceholder')
-                                    }
-                                    invalido={!!errors.whatsapp_verify_token}
-                                    describedBy={describir(
-                                        'whatsapp_verify_token-help',
-                                        errors.whatsapp_verify_token && 'whatsapp_verify_token-error',
-                                        settings.whatsapp.verify_token && 'whatsapp_verify_token-saved'
-                                    )}
-                                />
-                                <InputError id="whatsapp_verify_token-error" message={errors.whatsapp_verify_token} className={ERROR_CAMPO} />
-                                {settings.whatsapp.verify_token && (
-                                    <Guardado
-                                        id="whatsapp_verify_token-saved"
-                                        etiqueta={t('settings.whatsapp.savedLabel')}
-                                        preview={settings.whatsapp.verify_token}
-                                        conserva={conserva}
-                                    />
-                                )}
+                            <Fila etiqueta={t('settings.whatsapp.verifyToken')} ayuda={t('settings.whatsapp.verifyTokenHelp')}>
+                                <CajaSoloLectura icon={ShieldCheck} etiquetaCandado={soloLectura}>
+                                    {valorClave(settings.whatsapp.clave_verificacion)}
+                                </CajaSoloLectura>
+                            </Fila>
+
+                            <Fila etiqueta={t('settings.whatsapp.signature')} ayuda={t('settings.whatsapp.signatureHelp')}>
+                                <CajaSoloLectura icon={BadgeCheck} etiquetaCandado={soloLectura}>
+                                    <Estado tono={tonoFirma}>{t(`settings.whatsapp.signatureState.${settings.whatsapp.firma}`)}</Estado>
+                                </CajaSoloLectura>
                             </Fila>
 
                             <Subgrupo titulo={t('settings.whatsapp.identifiersTitle')} texto={t('settings.whatsapp.identifiersSubtitle')} />
 
-                            <Fila etiqueta={t('settings.whatsapp.phoneId')} htmlFor="whatsapp_phone_id" ayuda={t('settings.whatsapp.idHelp')} ayudaId="whatsapp_phone_id-help">
-                                <Campo
-                                    id="whatsapp_phone_id"
-                                    icon={Phone}
-                                    mono
-                                    corto
-                                    value={whatsappForm.data.whatsapp_phone_id}
-                                    onChange={(value) => whatsappForm.setData('whatsapp_phone_id', value)}
-                                    placeholder={t('settings.whatsapp.phoneIdPlaceholder')}
-                                    invalido={!!errors.whatsapp_phone_id}
-                                    describedBy={describir('whatsapp_phone_id-help', errors.whatsapp_phone_id && 'whatsapp_phone_id-error')}
-                                />
-                                <InputError id="whatsapp_phone_id-error" message={errors.whatsapp_phone_id} className={ERROR_CAMPO} />
+                            <Fila etiqueta={t('settings.whatsapp.phoneId')} ayuda={t('settings.whatsapp.idHelp')}>
+                                <CajaSoloLectura icon={Phone} corto etiquetaCandado={soloLectura}>
+                                    {valorId(settings.whatsapp.phone_id)}
+                                </CajaSoloLectura>
+                                {lineaDistinta && (
+                                    <p className={cn('mt-2 flex items-start gap-1.5 text-[12.5px] leading-[18px] font-medium', TONO_TEXTO.aviso)}>
+                                        <CircleAlert className="mt-px size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                        {t('settings.whatsapp.lineMismatch', { id: settings.whatsapp.phone_number_id })}
+                                    </p>
+                                )}
                             </Fila>
 
-                            <Fila
-                                etiqueta={t('settings.whatsapp.businessAccountId')}
-                                htmlFor="whatsapp_business_account_id"
-                                ayuda={t('settings.whatsapp.idHelp')}
-                                ayudaId="whatsapp_business_account_id-help"
-                            >
-                                <Campo
-                                    id="whatsapp_business_account_id"
-                                    icon={Building2}
-                                    mono
-                                    corto
-                                    value={whatsappForm.data.whatsapp_business_account_id}
-                                    onChange={(value) => whatsappForm.setData('whatsapp_business_account_id', value)}
-                                    placeholder={t('settings.whatsapp.businessAccountIdPlaceholder')}
-                                    invalido={!!errors.whatsapp_business_account_id}
-                                    describedBy={describir('whatsapp_business_account_id-help', errors.whatsapp_business_account_id && 'whatsapp_business_account_id-error')}
-                                />
-                                <InputError id="whatsapp_business_account_id-error" message={errors.whatsapp_business_account_id} className={ERROR_CAMPO} />
+                            <Fila etiqueta={t('settings.whatsapp.businessAccountId')} ayuda={t('settings.whatsapp.idHelp')}>
+                                <CajaSoloLectura icon={Building2} corto etiquetaCandado={soloLectura}>
+                                    {valorId(settings.whatsapp.business_account_id)}
+                                </CajaSoloLectura>
                             </Fila>
 
-                            {settings.whatsapp.webhook_url && (
-                                <Fila etiqueta={t('settings.whatsapp.webhookUrl')} ayuda={t('settings.whatsapp.webhookHelp')}>
-                                    <div className="flex min-h-[38px] w-full max-w-[440px] items-center gap-2.5 rounded-[9px] bg-[#2e3f84]/[0.035] px-3 py-2.5 dark:bg-white/5">
-                                        <Webhook className="size-[15px] shrink-0 text-muted-foreground dark:text-neutral-400" strokeWidth={1.75} aria-hidden="true" />
-                                        <span className={cn(MONO, 'min-w-0 flex-1 text-[12.5px] leading-[18px] select-all [overflow-wrap:anywhere]', TEXTO_NAVY)}>
-                                            {settings.whatsapp.webhook_url}
-                                        </span>
-                                        <span title={t('settings.readOnly')} className="flex shrink-0 text-muted-foreground dark:text-neutral-400">
-                                            <Lock className="size-[13px]" strokeWidth={2} aria-hidden="true" />
-                                            <span className="sr-only">{t('settings.readOnly')}</span>
-                                        </span>
-                                    </div>
-                                </Fila>
-                            )}
+                            <Fila etiqueta={t('settings.whatsapp.webhookUrl')} ayuda={t('settings.whatsapp.webhookHelp')}>
+                                <CajaSoloLectura icon={Webhook} etiquetaCandado={soloLectura}>
+                                    <span className={cn(MONO, 'text-[12.5px] select-all', TEXTO_NAVY)}>{settings.whatsapp.webhook_url}</span>
+                                </CajaSoloLectura>
+                                {desviado && (
+                                    <p className={cn('mt-2 flex items-start gap-1.5 text-[12.5px] leading-[18px] font-medium', TONO_TEXTO.error)}>
+                                        <CircleAlert className="mt-px size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                        {t('settings.whatsapp.webhookDiverted')}
+                                    </p>
+                                )}
+                            </Fila>
 
-                            <Pie nota={t('settings.whatsapp.saveNote')}>
-                                <Button type="submit" disabled={whatsappForm.processing} className={cn(BOTON_PRIMARIO, 'settings-btn-primary disabled:opacity-50')}>
-                                    {botonGuardar(whatsappForm.processing, t('common.save'))}
-                                </Button>
-                            </Pie>
-                        </form>
+                            <Pie nota={t('settings.whatsapp.serverNote')} />
+                        </section>
 
-                        {/* ── 2. Transcripción y corrector (Groq) ── */}
-                        <form onSubmit={handleGroqSubmit} aria-labelledby="settings-groq">
+                        {/* ── 2. Transcripción y corrector (Groq, solo lectura) ── */}
+                        <section aria-labelledby="settings-groq">
                             <Banda
                                 id="settings-groq"
                                 icon={AudioLines}
                                 titulo={t('settings.groq.sectionTitle')}
-                                estado={<Estado ok={settings.groq.is_configured} si={t('settings.active')} no={t('settings.pending')} />}
+                                estado={<Estado tono={estadoGroq.tono}>{estadoGroq.texto}</Estado>}
                                 texto={t('settings.groq.sectionText')}
+                                acciones={botonComprobar(comprobandoGroq, t('settings.groq.checkKey'), comprobarGroq)}
                             />
 
-                            <Fila
-                                etiqueta={t('settings.groq.apiKeyLabel')}
-                                htmlFor="groq_api_key"
-                                ayuda={t('settings.groq.apiKeyHelp')}
-                                ayudaId="groq_api_key-help"
-                                abajo={settings.groq.api_key ? 'pb-3.5 @3xl/hoja:pb-1.5' : undefined}
-                            >
-                                <Campo
-                                    id="groq_api_key"
-                                    icon={KeyRound}
-                                    type="password"
-                                    value={groqForm.data.groq_api_key}
-                                    onChange={(value) => groqForm.setData('groq_api_key', value)}
-                                    placeholder={settings.groq.api_key ? t('settings.groq.replaceApiKeyPlaceholder') : 'gsk_xxxxx...'}
-                                    invalido={!!groqForm.errors.groq_api_key}
-                                    describedBy={describir('groq_api_key-help', groqForm.errors.groq_api_key && 'groq_api_key-error', settings.groq.api_key && 'groq_api_key-saved')}
-                                />
-                                <InputError id="groq_api_key-error" message={groqForm.errors.groq_api_key} className={ERROR_CAMPO} />
-                                {settings.groq.api_key && (
-                                    <Guardado id="groq_api_key-saved" etiqueta={t('settings.groq.savedLabel')} preview={settings.groq.api_key} conserva={conserva} />
+                            <div aria-live="polite">
+                                {resultadoGroq && (
+                                    <Fila etiqueta={t('settings.whatsapp.checkRowLabel')} ayuda={t('settings.groq.checkRowHelp')}>
+                                        {'error' in resultadoGroq ? (
+                                            <Mensaje tono="error">{resultadoGroq.error}</Mensaje>
+                                        ) : (
+                                            <Mensaje
+                                                tono={resultadoGroq.estado === 'ok' ? 'ok' : resultadoGroq.estado === 'sin_respuesta' ? 'aviso' : 'error'}
+                                            >
+                                                {t(`settings.groq.result.${resultadoGroq.estado}`)}
+                                            </Mensaje>
+                                        )}
+                                    </Fila>
                                 )}
+                            </div>
+
+                            <Fila etiqueta={t('settings.groq.apiKeyLabel')} ayuda={t('settings.groq.apiKeyHelp')}>
+                                <CajaSoloLectura icon={KeyRound} etiquetaCandado={soloLectura}>
+                                    {valorClave(settings.groq.clave)}
+                                </CajaSoloLectura>
                             </Fila>
 
-                            <Pie nota={groqKeyEmpty ? t('settings.groq.enableNote') : undefined}>
-                                <Button
-                                    type="submit"
-                                    disabled={groqForm.processing || !groqForm.data.groq_api_key}
-                                    className={cn(BOTON_PRIMARIO, groqKeyEmpty ? BOTON_APAGADO : 'settings-btn-primary disabled:opacity-50')}
-                                >
-                                    {botonGuardar(groqForm.processing, t('settings.saveConfiguration'))}
-                                </Button>
-                            </Pie>
-                        </form>
+                            <Pie nota={t('settings.groq.serverNote')} />
+                        </section>
 
                         {/* ── 3. Liberación automática de conversaciones sin respuesta ── */}
                         <section aria-labelledby="settings-auto-release">
@@ -1013,11 +1139,11 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                 icon={Hourglass}
                                 titulo={t('settings.autoRelease.title')}
                                 estado={
-                                    <Estado
-                                        ok={autoRelease.enabled}
-                                        si={t('settings.autoRelease.activeState', { time: duracionLegible(autoRelease.minutes, t) })}
-                                        no={t('settings.autoRelease.inactiveState')}
-                                    />
+                                    <Estado tono={autoRelease.enabled ? 'ok' : 'neutro'}>
+                                        {autoRelease.enabled
+                                            ? t('settings.autoRelease.activeState', { time: duracionLegible(autoRelease.minutes, t) })
+                                            : t('settings.autoRelease.inactiveState')}
+                                    </Estado>
                                 }
                                 texto={t('settings.autoRelease.bandText')}
                             />
@@ -1028,33 +1154,14 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                 ayuda={t('settings.autoRelease.toggleHelp')}
                                 ayudaId="auto-release-toggle-help"
                             >
-                                <button
+                                <Interruptor
                                     id="auto-release-toggle"
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={releaseEnabled}
-                                    aria-describedby="auto-release-toggle-help"
-                                    onClick={() => setReleaseEnabled((actual) => !actual)}
-                                    className={cn('inline-flex cursor-pointer items-center gap-2.5 rounded-full py-1 pr-1', FOCO)}
-                                >
-                                    <span
-                                        className={cn(
-                                            'relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors',
-                                            releaseEnabled ? 'bg-[#2e3f84] dark:bg-[#596bcf]' : 'bg-slate-300 dark:bg-neutral-600'
-                                        )}
-                                        aria-hidden="true"
-                                    >
-                                        <span
-                                            className={cn(
-                                                'absolute left-[3px] size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-transform',
-                                                releaseEnabled && 'translate-x-4'
-                                            )}
-                                        />
-                                    </span>
-                                    <span className={cn('text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>
-                                        {releaseEnabled ? t('settings.autoRelease.on') : t('settings.autoRelease.off')}
-                                    </span>
-                                </button>
+                                    activo={releaseEnabled}
+                                    onToggle={() => setReleaseEnabled((actual) => !actual)}
+                                    describedBy="auto-release-toggle-help"
+                                    si={t('settings.autoRelease.on')}
+                                    no={t('settings.autoRelease.off')}
+                                />
                             </Fila>
 
                             <Fila etiqueta={t('settings.autoRelease.timeLabel')} htmlFor="auto-release-amount" ayuda={t('settings.autoRelease.timeHelp')} ayudaId="auto-release-time-help">
@@ -1067,7 +1174,10 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                                     key={minutos}
                                                     type="button"
                                                     aria-pressed={elegido}
-                                                    onClick={() => elegirTiempo(minutos)}
+                                                    onClick={() => {
+                                                        elegirTiempo(minutos);
+                                                        setTiempoTocado(false);
+                                                    }}
                                                     className={cn(
                                                         'h-8 cursor-pointer rounded-full px-3 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors',
                                                         elegido
@@ -1082,27 +1192,27 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                         })}
                                     </div>
 
-                                    <div className="flex flex-wrap items-center gap-2">
+                                    {/* El aviso flota bajo la cantidad (no empuja la fila de abajo). */}
+                                    <div className="relative flex flex-wrap items-center gap-2">
                                         <label htmlFor="auto-release-amount" className="sr-only">
                                             {t('settings.autoRelease.amountLabel')}
                                         </label>
+                                        {/* Texto con teclado numérico (no type=number): ni la rueda del ratón ni las
+                                            flechas cambian el tiempo sin querer, y solo admite cifras. */}
                                         <input
+                                            ref={campoTiempo}
                                             id="auto-release-amount"
                                             name="auto-release-amount"
-                                            type="number"
+                                            type="text"
                                             inputMode="numeric"
-                                            min={1}
-                                            step={1}
+                                            autoComplete="off"
+                                            maxLength={5}
                                             value={releaseAmount}
-                                            onChange={(event) => setReleaseAmount(event.target.value)}
-                                            aria-describedby={describir('auto-release-time-help', !releaseValid && 'auto-release-time-error')}
-                                            aria-invalid={!releaseValid || undefined}
-                                            className={cn(
-                                                'h-[38px] w-[96px] rounded-[9px] bg-white px-3 text-[13px] leading-[18px] text-[#2e3f84] tabular-nums shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none',
-                                                'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)]',
-                                                'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)] dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]',
-                                                !releaseValid && 'shadow-[inset_0_0_0_1px_var(--color-red-600)] dark:shadow-[inset_0_0_0_1px_var(--color-red-400)]'
-                                            )}
+                                            onChange={(event) => setReleaseAmount(event.target.value.replace(/\D/g, ''))}
+                                            onBlur={() => setTiempoTocado(true)}
+                                            aria-describedby={describir('auto-release-time-help', releaseError && tiempoTocado && 'auto-release-time-error')}
+                                            aria-invalid={(releaseError && tiempoTocado) || undefined}
+                                            className="caja-ajuste h-[38px] w-[96px] rounded-[9px] px-3 text-[13px] leading-[18px] tabular-nums outline-hidden"
                                         />
                                         <label htmlFor="auto-release-unit" className="sr-only">
                                             {t('settings.autoRelease.unitLabel')}
@@ -1112,59 +1222,74 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                             name="auto-release-unit"
                                             value={releaseUnit}
                                             onChange={(event) => setReleaseUnit(event.target.value as UnidadDuracion)}
-                                            className={cn(
-                                                'h-[38px] cursor-pointer rounded-[9px] bg-white pr-8 pl-3 text-[13px] leading-[18px] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] outline-none',
-                                                'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)]',
-                                                'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)]'
-                                            )}
+                                            onBlur={() => setTiempoTocado(true)}
+                                            className="caja-ajuste h-[38px] cursor-pointer rounded-[9px] pr-8 pl-3 text-[13px] leading-[18px] outline-hidden"
                                         >
                                             <option value="minutes">{t('settings.autoRelease.unitMinutes')}</option>
                                             <option value="hours">{t('settings.autoRelease.unitHours')}</option>
                                             <option value="days">{t('settings.autoRelease.unitDays')}</option>
                                         </select>
+                                        <AvisoCampo id="auto-release-time-error" texto={releaseError && tiempoTocado ? t('settings.autoRelease.outOfRange') : undefined} />
                                     </div>
-                                    {!releaseValid && (
-                                        <p id="auto-release-time-error" className={ERROR_CAMPO}>
-                                            {t('settings.autoRelease.outOfRange')}
-                                        </p>
-                                    )}
                                 </div>
                             </Fila>
 
                             <Fila etiqueta={t('settings.autoRelease.previewLabel')} ayuda={t('settings.autoRelease.previewHelp')}>
-                                <p aria-live="polite" className={cn('flex items-start gap-2 text-[13px] leading-[18px]', TEXTO_NAVY)}>
-                                    {!releasePreview ? (
-                                        <span className={TEXTO_SUAVE}>—</span>
-                                    ) : releasePreview.error ? (
-                                        <span className="text-red-700 dark:text-red-400">{t('settings.autoRelease.previewError')}</span>
-                                    ) : releasePreview.count === null ? (
-                                        <span className={cn('inline-flex items-center gap-2', TEXTO_SUAVE)}>
-                                            <Loader2 className="size-[14px] animate-spin" aria-hidden="true" />
-                                            {t('settings.autoRelease.previewLoading')}
-                                        </span>
-                                    ) : (
-                                        <span className="min-w-0">
-                                            <span className="font-semibold">
-                                                {releasePreview.count === 0
-                                                    ? t('settings.autoRelease.previewNone', { time: duracionLegible(releasePreview.minutes, t) })
-                                                    : t('settings.autoRelease.previewCount', { count: releasePreview.count, time: duracionLegible(releasePreview.minutes, t) })}
+                                {(() => {
+                                    const frase = !releasePreview
+                                        ? null
+                                        : releasePreview.error
+                                          ? t('settings.autoRelease.previewError')
+                                          : releasePreview.count === null
+                                            ? null
+                                            : releasePreview.count === 0
+                                              ? t('settings.autoRelease.previewNone', { time: duracionLegible(releasePreview.minutes, t) })
+                                              : t('settings.autoRelease.previewCount', { count: releasePreview.count, time: duracionLegible(releasePreview.minutes, t) });
+                                    const nota =
+                                        releasePreview && !releasePreview.error && releasePreview.count !== null && releasePreview.count > 0 && releaseEnabled && (releaseChanged || autoRelease.enabled)
+                                            ? releaseChanged
+                                                ? t('settings.autoRelease.previewWillRelease')
+                                                : t('settings.autoRelease.previewReleasingSoon')
+                                            : null;
+
+                                    return (
+                                        <>
+                                            {/* Lo visible no se anuncia (diría «Calculando…» a cada cambio); el lector oye
+                                                solo la frase final, por la región de abajo. */}
+                                            <p
+                                                aria-busy={releasePreview?.count === null && !releasePreview?.error}
+                                                className={cn('flex items-start gap-2 text-[13px] leading-[18px]', TEXTO_NAVY)}
+                                            >
+                                                {!releasePreview ? (
+                                                    <span className={TEXTO_SUAVE}>—</span>
+                                                ) : releasePreview.error ? (
+                                                    <span className={TONO_TEXTO.error}>{frase}</span>
+                                                ) : releasePreview.count === null ? (
+                                                    <span className={cn('inline-flex items-center gap-2', TEXTO_SUAVE)}>
+                                                        <Loader2 className="size-[14px] animate-spin" aria-hidden="true" />
+                                                        {t('settings.autoRelease.previewLoading')}
+                                                    </span>
+                                                ) : (
+                                                    <span className="min-w-0">
+                                                        <span className="font-semibold">{frase}</span>
+                                                        {nota && <span className={cn('mt-0.5 block text-[12px] leading-4', TEXTO_SUAVE)}>{nota}</span>}
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <span className="sr-only" aria-live="polite">
+                                                {frase ? `${frase}${nota ? ` ${nota}` : ''}` : ''}
                                             </span>
-                                            {releasePreview.count > 0 && releaseEnabled && (releaseChanged || autoRelease.enabled) && (
-                                                <span className={cn('mt-0.5 block text-[12px] leading-4', TEXTO_SUAVE)}>
-                                                    {releaseChanged ? t('settings.autoRelease.previewWillRelease') : t('settings.autoRelease.previewReleasingSoon')}
-                                                </span>
-                                            )}
-                                        </span>
-                                    )}
-                                </p>
+                                        </>
+                                    );
+                                })()}
                             </Fila>
 
-                            <Pie nota={t('settings.autoRelease.saveNote')}>
+                            <Pie nota={t('settings.autoRelease.saveNote')} pendiente={releaseChanged && t('settings.unsaved')}>
                                 <Button
                                     type="button"
                                     onClick={saveAutoRelease}
-                                    disabled={savingRelease || !releaseCanSave}
-                                    className={cn(BOTON_PRIMARIO, releaseCanSave ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
+                                    disabled={savingRelease || !releaseTocado}
+                                    className={cn(BOTON_PRIMARIO, releaseTocado ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
                                 >
                                     {botonGuardar(savingRelease, t('common.saveChanges'))}
                                 </Button>
@@ -1177,7 +1302,11 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                 id="settings-weekend"
                                 icon={CalendarDays}
                                 titulo={t('settings.weekendNotice.title')}
-                                estado={<Estado ok={weekendNotice.enabled} si={t('settings.weekendNotice.activeState')} no={t('settings.weekendNotice.inactiveState')} />}
+                                estado={
+                                    <Estado tono={weekendNotice.enabled ? 'ok' : 'neutro'}>
+                                        {weekendNotice.enabled ? t('settings.weekendNotice.activeState') : t('settings.weekendNotice.inactiveState')}
+                                    </Estado>
+                                }
                                 texto={t('settings.weekendNotice.bandText')}
                             />
 
@@ -1187,53 +1316,35 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                 ayuda={t('settings.weekendNotice.toggleHelp')}
                                 ayudaId="weekend-toggle-help"
                             >
-                                <button
+                                <Interruptor
                                     id="weekend-toggle"
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={weekendEnabled}
-                                    aria-describedby="weekend-toggle-help"
-                                    onClick={() => setWeekendEnabled((actual) => !actual)}
-                                    className={cn('inline-flex cursor-pointer items-center gap-2.5 rounded-full py-1 pr-1', FOCO)}
-                                >
-                                    <span
-                                        className={cn(
-                                            'relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors',
-                                            weekendEnabled ? 'bg-[#2e3f84] dark:bg-[#596bcf]' : 'bg-slate-300 dark:bg-neutral-600'
-                                        )}
-                                        aria-hidden="true"
-                                    >
-                                        <span
-                                            className={cn(
-                                                'absolute left-[3px] size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.25)] transition-transform',
-                                                weekendEnabled && 'translate-x-4'
-                                            )}
-                                        />
-                                    </span>
-                                    <span className={cn('text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>
-                                        {weekendEnabled ? t('settings.weekendNotice.on') : t('settings.weekendNotice.off')}
-                                    </span>
-                                </button>
+                                    activo={weekendEnabled}
+                                    onToggle={() => setWeekendEnabled((actual) => !actual)}
+                                    describedBy="weekend-toggle-help"
+                                    si={t('settings.weekendNotice.on')}
+                                    no={t('settings.weekendNotice.off')}
+                                />
                             </Fila>
 
                             <Fila etiqueta={t('settings.weekendNotice.textLabel')} htmlFor="weekend-text" ayuda={t('settings.weekendNotice.textHelp')} ayudaId="weekend-text-help">
                                 <div className="flex w-full max-w-[560px] flex-col gap-2">
-                                    <textarea
-                                        id="weekend-text"
-                                        name="weekend-text"
-                                        rows={6}
-                                        value={weekendText}
-                                        maxLength={weekendNotice.max_length}
-                                        onChange={(event) => setWeekendText(event.target.value)}
-                                        aria-describedby={describir('weekend-text-help', !weekendTextValid && weekendEnabled && 'weekend-text-error')}
-                                        aria-invalid={(!weekendTextValid && weekendEnabled) || undefined}
-                                        className={cn(
-                                            'w-full resize-y rounded-[9px] bg-white px-3 py-2.5 text-[13px] leading-[19px] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none',
-                                            'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)]',
-                                            'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)] dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]',
-                                            !weekendTextValid && weekendEnabled && 'shadow-[inset_0_0_0_1px_var(--color-red-600)] dark:shadow-[inset_0_0_0_1px_var(--color-red-400)]'
-                                        )}
-                                    />
+                                    <div className="relative">
+                                        {/* Sin maxLength: el navegador recortaría en silencio lo pegado de más; el
+                                            contador y el aviso dicen cuánto sobra. */}
+                                        <textarea
+                                            ref={campoTexto}
+                                            id="weekend-text"
+                                            name="weekend-text"
+                                            rows={6}
+                                            value={weekendText}
+                                            onChange={(event) => setWeekendText(event.target.value)}
+                                            onBlur={() => setTextoTocado(true)}
+                                            aria-describedby={describir('weekend-text-help', mostrarErrorTexto && 'weekend-text-error')}
+                                            aria-invalid={mostrarErrorTexto || undefined}
+                                            className="caja-ajuste block w-full resize-y rounded-[9px] px-3 py-2.5 text-[13px] leading-[19px] outline-hidden"
+                                        />
+                                        <AvisoCampo id="weekend-text-error" texto={mostrarErrorTexto ? errorTexto : undefined} />
+                                    </div>
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <button
                                             type="button"
@@ -1243,32 +1354,33 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                         >
                                             {t('settings.weekendNotice.restoreDefault')}
                                         </button>
-                                        <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>
+                                        <span
+                                            className={cn(
+                                                'text-[12px] leading-4 tabular-nums',
+                                                weekendSobran > 0 ? cn('font-semibold', TONO_TEXTO.error) : TEXTO_SUAVE
+                                            )}
+                                        >
                                             {t('settings.weekendNotice.charCount', { count: weekendText.length, max: weekendNotice.max_length })}
                                         </span>
                                     </div>
-                                    {!weekendTextValid && weekendEnabled && (
-                                        <p id="weekend-text-error" className={ERROR_CAMPO}>
-                                            {t('settings.weekendNotice.textRequired')}
-                                        </p>
-                                    )}
                                 </div>
                             </Fila>
 
                             <Fila etiqueta={t('settings.weekendNotice.previewLabel')} ayuda={t('settings.weekendNotice.previewHelp')}>
                                 <div className="w-full max-w-[420px] rounded-[12px] bg-[#efeae2] p-3 dark:bg-white/[0.04]">
                                     <p className="max-w-[92%] rounded-[10px] rounded-tl-[3px] bg-white px-3 py-2 text-[13px] leading-[19px] whitespace-pre-wrap text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] [overflow-wrap:anywhere] dark:bg-[#202c33] dark:text-neutral-100">
-                                        {weekendTextTrim ? <TextoWhatsApp texto={weekendText} /> : <span className={TEXTO_SUAVE}>—</span>}
+                                        {/* Como se guarda: sin líneas en blanco al principio ni al final. */}
+                                        {weekendTextTrim ? <TextoWhatsApp texto={weekendTextTrim} /> : <span className={TEXTO_SUAVE}>—</span>}
                                     </p>
                                 </div>
                             </Fila>
 
-                            <Pie nota={t('settings.weekendNotice.saveNote')}>
+                            <Pie nota={t('settings.weekendNotice.saveNote')} pendiente={weekendChanged && t('settings.unsaved')}>
                                 <Button
                                     type="button"
                                     onClick={saveWeekendNotice}
-                                    disabled={savingWeekend || !weekendCanSave}
-                                    className={cn(BOTON_PRIMARIO, weekendCanSave ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
+                                    disabled={savingWeekend || !weekendChanged}
+                                    className={cn(BOTON_PRIMARIO, weekendChanged ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
                                 >
                                     {botonGuardar(savingWeekend, t('common.saveChanges'))}
                                 </Button>
@@ -1282,11 +1394,11 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                 icon={Users}
                                 titulo={t('settings.onDutyAdvisors.title')}
                                 estado={
-                                    <Estado
-                                        ok={selectedAdvisors.length > 0}
-                                        si={t('settings.onDutyAdvisors.onDutyCount', { count: selectedAdvisors.length })}
-                                        no={t('settings.onDutyAdvisors.noneSelected')}
-                                    />
+                                    <Estado tono={deTurnoGuardados.length > 0 ? 'ok' : 'aviso'}>
+                                        {deTurnoGuardados.length > 0
+                                            ? t('settings.onDutyAdvisors.onDutyCount', { count: deTurnoGuardados.length })
+                                            : t('settings.onDutyAdvisors.noneSelected')}
+                                    </Estado>
                                 }
                                 texto={t('settings.onDutyAdvisors.bandText')}
                             />
@@ -1309,7 +1421,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                         onChange={(event) => setAdvisorSearch(event.target.value)}
                                         placeholder={t('settings.onDutyAdvisors.searchPlaceholder')}
                                         className={cn(
-                                            'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                                            'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground forced-colors:border dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
                                             FOCO
                                         )}
                                     />
@@ -1333,7 +1445,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                     <span className="ml-auto text-[12.5px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums" aria-live="polite">
                                         <Trans
                                             i18nKey="settings.onDutyAdvisors.selectedOfTotal"
-                                            values={{ selected: selectedAdvisors.length, total: advisorCount }}
+                                            values={{ selected: marcados.length, total: advisorCount }}
                                             components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
                                         />
                                     </span>
@@ -1371,12 +1483,14 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                         >
                                             {advisorsInOrder.map((advisor) => {
                                                 const selected = selectedAdvisors.includes(advisor.id);
+                                                const nombre = nombrePropio(advisor.name);
 
                                                 return (
                                                     <li key={advisor.id} className="min-w-0">
                                                         <label
+                                                            title={`${nombre} · ${advisor.email}`}
                                                             className={cn(
-                                                                'relative flex h-full min-h-[52px] min-w-0 cursor-pointer items-center gap-3 rounded-[10px] px-3 transition-colors',
+                                                                'relative flex h-full min-h-[52px] min-w-0 cursor-pointer items-center gap-3 rounded-[10px] px-3 py-1.5 transition-colors',
                                                                 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#2e3f84]/40 dark:has-[:focus-visible]:ring-[#8b9ae0]/60',
                                                                 selected
                                                                     ? 'bg-[#2e3f84]/[0.045] dark:bg-white/[0.06]'
@@ -1392,7 +1506,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                                             {/* Casilla: marcada navy con visto blanco; vacía con contorno pizarra 500 (4,76:1). */}
                                                             <span
                                                                 className={cn(
-                                                                    'flex size-[18px] shrink-0 items-center justify-center rounded-[5px]',
+                                                                    'flex size-[18px] shrink-0 items-center justify-center rounded-[5px] forced-colors:border forced-colors:border-[CanvasText]',
                                                                     selected
                                                                         ? 'bg-[#2e3f84] text-white dark:bg-[#596bcf]'
                                                                         : 'bg-white shadow-[inset_0_0_0_1.5px_var(--color-slate-500)] dark:bg-transparent dark:shadow-[inset_0_0_0_1.5px_var(--color-neutral-400)]'
@@ -1403,9 +1517,8 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                                             </span>
                                                             <Iniciales name={advisor.name} className="size-[30px]" />
                                                             <span className="flex min-w-0 flex-col gap-px">
-                                                                <span className={cn('truncate text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>
-                                                                    {nombrePropio(advisor.name)}
-                                                                </span>
+                                                                {/* Hasta dos líneas: los apellidos largos no se cortan a media palabra. */}
+                                                                <span className={cn('line-clamp-2 text-[13px] leading-[18px] font-semibold break-words', TEXTO_NAVY)}>{nombre}</span>
                                                                 <span className={cn('truncate text-[12px] leading-4', TEXTO_SUAVE)}>{advisor.email}</span>
                                                             </span>
                                                         </label>
@@ -1415,12 +1528,18 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                         </ul>
                                     )}
 
-                                    <Pie columna={false} final nota={t('settings.onDutyAdvisors.saveNote')}>
+                                    <Pie
+                                        columna={false}
+                                        final
+                                        nota={t('settings.onDutyAdvisors.saveNote')}
+                                        aviso={advisorsChanged && marcados.length === 0 ? t('settings.onDutyAdvisors.noneWarning') : undefined}
+                                        pendiente={advisorsChanged && t('settings.unsaved')}
+                                    >
                                         <Button
                                             type="button"
                                             onClick={saveOnDutyAdvisors}
-                                            disabled={savingAdvisors}
-                                            className={cn(BOTON_PRIMARIO, 'settings-btn-primary disabled:opacity-50')}
+                                            disabled={savingAdvisors || !advisorsChanged}
+                                            className={cn(BOTON_PRIMARIO, advisorsChanged ? 'settings-btn-primary disabled:opacity-50' : BOTON_APAGADO)}
                                         >
                                             {botonGuardar(savingAdvisors, t('common.saveChanges'))}
                                         </Button>
@@ -1431,6 +1550,28 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                     </div>
                 </div>
             </div>
+
+            {/* Confirmación al activar la liberación (o acortar su tiempo): puede desasignar muchas de golpe. */}
+            <Dialog open={confirmarLiberacion} onOpenChange={setConfirmarLiberacion}>
+                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="settings-title">{t('settings.autoRelease.confirmTitle')}</DialogTitle>
+                        <DialogDescription className="settings-subtitle">
+                            {vistaPreviaVigente && !vistaPreviaVigente.error && vistaPreviaVigente.count !== null
+                                ? t('settings.autoRelease.confirmText', { count: vistaPreviaVigente.count })
+                                : t('settings.autoRelease.confirmUnknown')}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setConfirmarLiberacion(false)} className="rounded-xl">
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="button" onClick={enviarLiberacion} className="settings-btn-primary rounded-xl">
+                            {t('settings.autoRelease.confirmButton')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AdminLayout>
     );
 }

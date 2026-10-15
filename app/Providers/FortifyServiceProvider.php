@@ -38,6 +38,9 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::loginView(fn (Request $request) => Inertia::render('auth/login', [
             'canResetPassword' => Features::enabled(Features::resetPasswords()),
             'status' => $request->session()->get('status'),
+            // Diseño "Tarjeta sobre el hospital" (design/login): para todos cuando el ajuste
+            // login_diseno = 'hospital'; mientras tanto se ve en /login?nuevo=1 (ver pages/auth/login.tsx).
+            'disenoNuevo' => \App\Models\Setting::get('login_diseno') === 'hospital',
         ]));
 
         Fortify::verifyEmailView(fn (Request $request) => Inertia::render('auth/verify-email', [

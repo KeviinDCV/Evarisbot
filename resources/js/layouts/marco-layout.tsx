@@ -328,11 +328,11 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
             </a>
 
             {/* Móvil: con el cajón abierto el botón sale a la capa oscura, a la derecha del
-                cajón, para no tapar la baldosa del logo. */}
+                cajón, para no tapar la baldosa del logo. Cerrado va bajo las ventanas (z-50). */}
             <button
                 onClick={() => setIsMobileOpen((v) => !v)}
-                className={`fixed top-4 z-[60] rounded-xl bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] p-3 text-white shadow-lg transition-[left] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] lg:hidden ${
-                    isMobileOpen ? 'left-[min(252px,calc(100vw-60px))]' : 'left-4'
+                className={`fixed top-4 rounded-xl bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] p-3 text-white shadow-lg transition-[left] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] lg:hidden ${
+                    isMobileOpen ? 'z-[60] left-[min(252px,calc(100vw-60px))]' : 'z-[45] left-4'
                 }`}
                 aria-label={isMobileOpen ? t('common.closeMenu') : t('common.menu')}
                 aria-expanded={isMobileOpen}
@@ -690,6 +690,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
  * página) y se puede cerrar; vuelve a salir en la siguiente navegación mientras la alerta siga viva.
  */
 function AlertaSeguridad() {
+    const { t } = useTranslation();
     const { alertasSeguridad } = usePage<PageProps>().props;
     const [cerrada, setCerrada] = useState(false);
     const lista = alertasSeguridad && !Array.isArray(alertasSeguridad) ? Object.values(alertasSeguridad).map(String) : [];
@@ -702,12 +703,13 @@ function AlertaSeguridad() {
             className="fixed bottom-4 left-1/2 z-[70] w-[min(640px,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-lg dark:border-red-800 dark:bg-red-950 dark:text-red-100"
         >
             <div className="flex items-start justify-between gap-3">
-                <p className="font-semibold">Alerta de seguridad de WhatsApp</p>
+                {/* No todas son de WhatsApp: también avisa de la cola, el disco o el respaldo. */}
+                <p className="font-semibold">{t('common.systemAlert')}</p>
                 <button
                     type="button"
                     onClick={() => setCerrada(true)}
                     className="shrink-0 rounded px-1.5 text-red-700 hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900"
-                    aria-label="Cerrar alerta"
+                    aria-label={t('common.closeAlert')}
                 >
                     ×
                 </button>

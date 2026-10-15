@@ -1,5 +1,6 @@
 import CapsLockWarning, { useCapsLock } from '@/components/caps-lock-warning';
 import InputError from '@/components/input-error';
+import LoginHospital from '@/components/login/login-hospital';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/routes/login';
@@ -8,12 +9,47 @@ import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Eye, EyeOff, Infinity as InfinityIcon, Lock, Mail } from 'lucide-react';
-import type { FocusEvent, KeyboardEvent } from 'react';
+import type { FocusEvent } from 'react';
 
 interface LoginProps {
     status?: string;
     // Provista por el backend; el flujo de reset aún no se expone en la UI.
     canResetPassword?: boolean;
+    /** Diseño nuevo para todos (ajuste login_diseno = 'hospital'). */
+    disenoNuevo?: boolean;
+}
+
+const CLAVE_DISENO = 'evarisbot.login-nuevo';
+
+/**
+ * ¿Mostrar el login "Tarjeta sobre el hospital"? Mientras se prueba, cada navegador decide:
+ * /login?nuevo=1 lo activa y /login?nuevo=0 vuelve al de siempre (queda guardado en ese navegador,
+ * también tras un error de contraseña). Sin preferencia guardada manda el ajuste del servidor.
+ */
+function usarDisenoNuevo(porDefecto: boolean): boolean {
+    if (typeof window === 'undefined') return porDefecto;
+    try {
+        const pedido = new URLSearchParams(window.location.search).get('nuevo');
+        if (pedido === '1' || pedido === '0') window.localStorage.setItem(CLAVE_DISENO, pedido);
+        const guardado = window.localStorage.getItem(CLAVE_DISENO);
+        if (guardado === '1') return true;
+        if (guardado === '0') return false;
+    } catch {
+        // Sin acceso a localStorage (modo privado estricto): se usa el ajuste del servidor.
+    }
+    return porDefecto;
+}
+
+export default function Login({ status, disenoNuevo }: LoginProps) {
+    const [nuevo] = useState(() => usarDisenoNuevo(Boolean(disenoNuevo)));
+
+    // Refresca la cookie XSRF-TOKEN al montar para que el primer envío del login use un token
+    // vivo y no choque con uno caducado/rotado (evita el 419 + reintento que ensucia la consola).
+    useEffect(() => {
+        axios.get('/csrf-refresh').catch(() => {});
+    }, []);
+
+    return nuevo ? <LoginHospital status={status} /> : <LoginActual status={status} />;
 }
 
 // Estilo base de los inputs translúcidos (paleta institucional navy #2e3f84).
@@ -40,17 +76,12 @@ const handleFieldBlur = (e: FocusEvent<HTMLInputElement>) => {
     e.currentTarget.style.boxShadow = 'none';
 };
 
-export default function Login({ status }: LoginProps) {
+/** El login de siempre (el que ven todos mientras no se active el nuevo). */
+function LoginActual({ status }: Pick<LoginProps, 'status'>) {
     const { t } = useTranslation();
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
     const mayus = useCapsLock();
-
-    // Refresca la cookie XSRF-TOKEN al montar para que el primer envío del login use un token
-    // vivo y no choque con uno caducado/rotado (evita el 419 + reintento que ensucia la consola).
-    useEffect(() => {
-        axios.get('/csrf-refresh').catch(() => {});
-    }, []);
 
     return (
         <AuthLayout title={t('auth.loginTitle')} description="">

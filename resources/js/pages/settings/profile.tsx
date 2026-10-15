@@ -4,22 +4,36 @@ import { send } from '@/routes/verification';
 import { type SharedData } from '@/types';
 import { Transition } from '@headlessui/react';
 import { Form, Head, Link, usePage } from '@inertiajs/react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 import InputError from '@/components/input-error';
+import PerfilCarnet from '@/components/perfil/perfil-carnet';
+import { usarDisenoNuevo } from '@/lib/diseno-nuevo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AdminLayout from '@/layouts/admin-layout';
 import { useTranslation } from 'react-i18next';
 
-export default function Profile({
-    mustVerifyEmail,
-    status,
-}: {
+interface ProfileProps {
     mustVerifyEmail: boolean;
     status?: string;
-}) {
+    /** Diseño "Carnet y ajustes" para todos (ajuste perfil_diseno = 'carnet'). */
+    disenoNuevo?: boolean;
+}
+
+export default function Profile({ mustVerifyEmail, status, disenoNuevo }: ProfileProps) {
+    const [nuevo] = useState(() => usarDisenoNuevo('evarisbot.perfil-nuevo', Boolean(disenoNuevo)));
+
+    return nuevo ? (
+        <PerfilCarnet mustVerifyEmail={mustVerifyEmail} status={status} />
+    ) : (
+        <PerfilActual mustVerifyEmail={mustVerifyEmail} status={status} />
+    );
+}
+
+/** El perfil de siempre (el que ven todos mientras no se active el nuevo). */
+function PerfilActual({ mustVerifyEmail, status }: Pick<ProfileProps, 'mustVerifyEmail' | 'status'>) {
     const { t } = useTranslation();
     const { auth } = usePage<SharedData>().props;
     const passwordInput = useRef<HTMLInputElement>(null);

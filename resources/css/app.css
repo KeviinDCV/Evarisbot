@@ -924,6 +924,65 @@ html.dark::-webkit-scrollbar-thumb:hover,
     color: hsl(30, 5%, 50%);
 }
 
+/* Campo que falta o con error: aro rojo (estas cajas no tienen borde, solo sombra). */
+.settings-input[aria-invalid='true'],
+.settings-input[aria-invalid='true']:hover,
+.settings-input[aria-invalid='true']:focus {
+    box-shadow:
+        inset 0 0 0 1.5px #dc2626,
+        0 1px 2px rgba(220, 38, 38, 0.08);
+}
+
+.dark .settings-input[aria-invalid='true'],
+.dark .settings-input[aria-invalid='true']:hover,
+.dark .settings-input[aria-invalid='true']:focus {
+    box-shadow: inset 0 0 0 1.5px #f87171;
+}
+
+/* Cajas de Configuración (tiempo, unidad, mensaje): borde navy al 58 % (3,1:1 contra la hoja). Sin
+   capa, como .settings-input, para que el aro rojo no lo pise el del foco. */
+.caja-ajuste {
+    background: #fff;
+    color: #2e3f84;
+    box-shadow: inset 0 0 0 1px rgba(46, 63, 132, 0.58);
+    transition: box-shadow 0.15s;
+}
+
+.caja-ajuste:focus {
+    box-shadow: inset 0 0 0 1px #2e3f84, 0 0 0 3px rgba(46, 63, 132, 0.2);
+}
+
+.dark .caja-ajuste {
+    background: rgb(255 255 255 / 0.04);
+    color: var(--color-neutral-100);
+    box-shadow: inset 0 0 0 1px var(--color-neutral-500);
+}
+
+.dark .caja-ajuste:focus {
+    box-shadow: inset 0 0 0 1px #8b9ae0, 0 0 0 3px rgba(139, 154, 224, 0.3);
+}
+
+.dark .caja-ajuste::placeholder {
+    color: var(--color-neutral-400);
+}
+
+.caja-ajuste[aria-invalid='true'],
+.caja-ajuste[aria-invalid='true']:focus {
+    box-shadow: inset 0 0 0 1.5px #dc2626, 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.dark .caja-ajuste[aria-invalid='true'],
+.dark .caja-ajuste[aria-invalid='true']:focus {
+    box-shadow: inset 0 0 0 1.5px #f87171;
+}
+
+/* Contraste alto de Windows: las sombras desaparecen, así que el borde pasa a ser real. */
+@media (forced-colors: active) {
+    .caja-ajuste {
+        border: 1px solid CanvasText;
+    }
+}
+
 /* Botón primario de settings */
 .settings-btn-primary {
     background: linear-gradient(to bottom, #3e4f94, #2e3f84);
@@ -1758,6 +1817,196 @@ tr.table-row-hover:hover {
 /* El logo es line-art azul sobre transparente: en oscuro se aclara para que contraste. */
 .dark .auth-logo {
     filter: brightness(1.7) saturate(1.05);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LOGIN "Tarjeta sobre el hospital" (components/login/login-hospital.tsx).
+   Fondo navy con el edificio del HUV en grande y la tarjeta blanca al centro.
+   Diseño aprobado: design/login (artboard Tarjeta).
+   ══════════════════════════════════════════════════════════════════════════ */
+.lh-raiz {
+    --lh-fondo: #2b3a7d;
+    --lh-luz: #4e5fa4;
+    --lh-tarjeta: #ffffff;
+    --lh-texto: #1f2447;
+    --lh-sub: #5b6088;
+    --lh-label: #3a3f63;
+    --lh-input-bg: #f7f8fc;
+    --lh-input-borde: #dfe2ef;
+    --lh-input-borde-foco: #2e3f84;
+    --lh-anillo: rgba(46, 63, 132, 0.12);
+    --lh-icono: #7c82a6;
+    --lh-placeholder: #6b7192;
+    --lh-acento: #2e3f84;
+    --lh-acento-hover: #26356f;
+    --lh-separador: #eceef6;
+    --lh-escudo: #4e5fa4;
+    --lh-sombra: 0 40px 80px -30px rgba(8, 14, 46, 0.7);
+    --lh-estado-bg: rgba(46, 63, 132, 0.07);
+    --lh-error: #c62828;
+    --lh-error-anillo: rgba(198, 40, 40, 0.12);
+    --lh-error-borde: #f3c6c6;
+    background:
+        radial-gradient(ellipse 70% 55% at 50% 0%, var(--lh-luz) 0%, transparent 70%),
+        var(--lh-fondo);
+}
+.dark .lh-raiz {
+    --lh-fondo: #161c40;
+    --lh-luz: #2e3a75;
+    --lh-tarjeta: hsl(30, 4%, 12%);
+    --lh-texto: hsl(30, 5%, 92%);
+    --lh-sub: hsl(30, 5%, 66%);
+    --lh-label: hsl(30, 5%, 85%);
+    --lh-input-bg: hsl(30, 4%, 15%);
+    --lh-input-borde: hsl(30, 4%, 24%);
+    --lh-input-borde-foco: hsl(231, 55%, 62%);
+    --lh-anillo: hsla(231, 55%, 58%, 0.18);
+    --lh-icono: hsl(30, 5%, 58%);
+    --lh-placeholder: hsl(30, 5%, 55%);
+    --lh-acento: hsl(231, 55%, 58%);
+    --lh-acento-hover: hsl(231, 55%, 64%);
+    --lh-separador: hsl(30, 4%, 20%);
+    --lh-escudo: hsl(231, 60%, 72%);
+    --lh-sombra: 0 40px 80px -30px rgba(0, 0, 0, 0.8);
+    --lh-estado-bg: hsla(231, 55%, 58%, 0.14);
+    --lh-error: #f87171;
+    --lh-error-anillo: rgba(248, 113, 113, 0.18);
+    --lh-error-borde: rgba(248, 113, 113, 0.45);
+}
+/* El fondo usa overflow: clip (no hidden): el edificio sobresale por abajo y, con hidden, el navegador
+   desplazaba el fondo 90 px al enfocar un campo con error y toda la página "saltaba" hacia arriba. */
+
+/* Pantallas bajas (portátiles de 768 px de alto): todo el login cabe sin scroll. */
+@media (max-height: 860px) {
+    .lh-raiz { padding-top: 80px; padding-bottom: 24px; gap: 12px; }
+    .lh-barra { padding-top: 16px; padding-bottom: 16px; }
+    .lh-tarjeta { padding-top: 24px; padding-bottom: 24px; gap: 14px; }
+    .lh-logo { height: 64px; }
+}
+
+/* Globo de error flotante bajo el campo (no empuja la tarjeta). La flechita apunta al campo. */
+.lh-burbuja {
+    background: var(--lh-tarjeta);
+    color: var(--lh-error);
+    border: 1px solid var(--lh-error-borde);
+    box-shadow: 0 14px 30px -12px rgba(15, 20, 60, 0.38), 0 2px 6px -2px rgba(15, 20, 60, 0.12);
+}
+.lh-burbuja::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 18px;
+    width: 10px;
+    height: 10px;
+    background: var(--lh-tarjeta);
+    border-left: 1px solid var(--lh-error-borde);
+    border-top: 1px solid var(--lh-error-borde);
+    transform: rotate(45deg);
+}
+.lh-flotante-sombra {
+    box-shadow: 0 10px 24px -12px rgba(15, 20, 60, 0.35);
+}
+@keyframes lh-aparecer {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* Globo de aviso flotante para cualquier formulario (components/avisos-campo.tsx): el mismo del
+   login, con modo oscuro de la app. Flota bajo el campo sin empujar el contenido. */
+.aviso-flotante {
+    --af-fondo: #ffffff;
+    --af-texto: #c62828;
+    --af-borde: #f3c6c6;
+    background: var(--af-fondo);
+    color: var(--af-texto);
+    border: 1px solid var(--af-borde);
+    box-shadow: 0 14px 30px -12px rgba(15, 20, 60, 0.38), 0 2px 6px -2px rgba(15, 20, 60, 0.12);
+}
+.dark .aviso-flotante {
+    --af-fondo: hsl(30, 4%, 16%);
+    --af-texto: #f87171;
+    --af-borde: rgba(248, 113, 113, 0.45);
+    box-shadow: 0 14px 30px -12px rgba(0, 0, 0, 0.7);
+}
+.aviso-flotante::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 18px;
+    width: 10px;
+    height: 10px;
+    background: var(--af-fondo);
+    border-left: 1px solid var(--af-borde);
+    border-top: 1px solid var(--af-borde);
+    transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .aviso-flotante { animation: lh-aparecer 0.16s ease-out both; }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .lh-burbuja,
+    .lh-flotante-sombra { animation: lh-aparecer 0.16s ease-out both; }
+}
+.lh-input[aria-invalid='true'],
+.lh-input[aria-invalid='true']:focus {
+    border-color: var(--lh-error);
+}
+.lh-input[aria-invalid='true']:focus {
+    box-shadow: 0 0 0 4px var(--lh-error-anillo);
+}
+.lh-input {
+    background: var(--lh-input-bg);
+    border: 1.5px solid var(--lh-input-borde);
+    color: var(--lh-texto);
+    transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+.lh-input::placeholder {
+    color: var(--lh-placeholder);
+}
+.lh-input:focus {
+    outline: none;
+    background: var(--lh-tarjeta);
+    border-color: var(--lh-input-borde-foco);
+    box-shadow: 0 0 0 4px var(--lh-anillo);
+}
+.lh-boton {
+    background: var(--lh-acento);
+    box-shadow: 0 14px 28px -14px rgba(46, 63, 132, 0.7);
+    transition: background-color 0.15s, transform 0.15s;
+}
+.lh-boton:hover:not(:disabled) {
+    background: var(--lh-acento-hover);
+}
+.lh-boton:active:not(:disabled) {
+    transform: translateY(1px);
+}
+.lh-boton:focus-visible,
+.lh-control:focus-visible,
+.lh-ojo:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+}
+.lh-boton:focus-visible,
+.lh-ojo:focus-visible {
+    outline-color: var(--lh-input-borde-foco);
+}
+
+/* Movimiento: la tarjeta entra una vez y los avisos de fondo flotan despacio. Nada se mueve
+   si el sistema pide menos movimiento. */
+@keyframes lh-entrar {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes lh-flotar {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-9px); }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .lh-tarjeta { animation: lh-entrar 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    .lh-chip { animation: lh-flotar 9s ease-in-out infinite; }
+    .lh-chip-2 { animation-delay: -2.5s; animation-duration: 10s; }
+    .lh-chip-3 { animation-delay: -5s; animation-duration: 8.5s; }
+    .lh-chip-4 { animation-delay: -7s; animation-duration: 11s; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
