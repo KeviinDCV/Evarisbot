@@ -1,5 +1,8 @@
 import { LanguageSelector } from '@/components/language-selector';
+import { useAppearance } from '@/hooks/use-appearance';
+import { Moon, Sun } from 'lucide-react';
 import { type PropsWithChildren } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface AuthLayoutProps {
     name?: string;
@@ -12,113 +15,87 @@ export default function AuthSimpleLayout({
     title,
     description,
 }: PropsWithChildren<AuthLayoutProps>) {
+    const { appearance, updateAppearance } = useAppearance();
+    const { t } = useTranslation();
+    const isDark =
+        appearance === 'dark' ||
+        (appearance === 'system' &&
+            typeof window !== 'undefined' &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches);
+
     return (
         <div
-            className="flex min-h-svh flex-col items-center justify-center relative"
-            style={{
-                backgroundColor: 'var(--layer-deepest)',
-                padding: 'var(--space-lg)', // Mobile: 24px
-            }}
+            className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-6 py-10"
+            style={{ background: 'var(--auth-bg)' }}
         >
-            {/* Selector de idioma en la esquina superior derecha */}
+            {/* Glows decorativos */}
             <div
-                className="absolute top-4 right-4 z-10"
-                style={{
-                    width: 'auto',
-                }}
-            >
-                <LanguageSelector />
-            </div>
-            {/* Sistema de cajas flexible: contenedor principal */}
+                className="pointer-events-none absolute -right-[120px] -top-[160px] h-[480px] w-[480px] rounded-full"
+                style={{ background: 'radial-gradient(circle at 30% 30%, var(--auth-glow-1), transparent 70%)' }}
+            />
             <div
-                className="w-full"
-                style={{
-                    maxWidth: 'var(--container-sm)', // 384px default
-                }}
-            >
-                {/* Caja de contenido con espaciado fluido */}
-                <div
-                    className="flex flex-col"
-                    style={{
-                        gap: 'var(--space-xl)' // 32px entre logo y card
-                    }}
+                className="pointer-events-none absolute -bottom-[200px] -left-[140px] h-[520px] w-[520px] rounded-full"
+                style={{ background: 'radial-gradient(circle at 50% 50%, var(--auth-glow-2), transparent 70%)' }}
+            />
+
+            {/* Selector de idioma + cambio de tema (claro/oscuro) */}
+            <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => updateAppearance(isDark ? 'light' : 'dark')}
+                    className="flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-105 active:scale-95"
+                    style={{ background: 'var(--auth-badge-bg)', color: 'var(--auth-badge-text)' }}
+                    title={isDark ? t('common.switchToLight') : t('common.switchToDark')}
+                    aria-label={isDark ? t('common.switchToLight') : t('common.switchToDark')}
                 >
-                    {/* Logo panorámico para Login */}
-                    <div
-                        className="flex flex-col items-center"
-                        style={{
-                            marginBottom: 'var(--space-base)'
-                        }}
-                    >
-                        <img
-                            src="/images/logopano.png"
-                            alt="Logo"
-                            className="object-contain drop-shadow-lg transition-all duration-300 mb-4"
-                            style={{
-                                height: 'clamp(6rem, 6rem + 2vw, 8rem)',
-                                width: 'auto',
-                                maxWidth: '100%'
-                            }}
-                        />
-                        <h1
-                            className="text-center font-bold text-sm tracking-widest uppercase opacity-80"
-                            style={{
-                                color: 'var(--primary-base)',
-                            }}
-                        >
-                            Evarisbot
-                        </h1>
-                    </div>
+                    {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+                </button>
+                {/* Envuelto para aislar el ancho del selector (su Button usa w-full). */}
+                <div>
+                    <LanguageSelector />
+                </div>
+            </div>
 
-                    {/* Caja del Card - Padding y spacing responsivos */}
+            {/* Contenido */}
+            <div className="relative w-full" style={{ maxWidth: '400px' }}>
+                {/* Logo real del HUV + marca */}
+                <div className="flex flex-col items-center text-center">
+                    <img
+                        src="/images/logopano.png"
+                        alt="Hospital Universitario del Valle"
+                        className="auth-logo object-contain drop-shadow-sm"
+                        style={{ height: 'clamp(4.5rem, 4.5rem + 1.5vw, 6.5rem)', width: 'auto', maxWidth: '100%' }}
+                    />
                     <div
-                        className="rounded-3xl relative transition-all duration-300 overflow-hidden"
-                        style={{
-                            backgroundColor: 'var(--layer-deep)',
-                            boxShadow: 'var(--shadow-xl)',
-                            backgroundImage: 'var(--gradient-subtle)',
-                            padding: 'clamp(1.5rem, 1.5rem + 1vw, 2.5rem)', // 24px-40px fluido
-                        }}
+                        className="mt-4 inline-flex items-center rounded-full px-[14px] py-[5px]"
+                        style={{ background: 'var(--auth-badge-bg)', color: 'var(--auth-badge-text)', fontSize: '11px', fontWeight: 700, letterSpacing: '.18em' }}
                     >
-                        {/* Caja de contenido interno */}
-                        <div style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 'var(--space-lg)' // 24px entre título y contenido
-                        }}>
-                            <h2
-                                className="font-bold text-center transition-all duration-300"
-                                style={{
-                                    color: 'var(--primary-base)',
-                                    fontSize: 'var(--text-2xl)',
-                                    lineHeight: '1.2',
-                                    marginBottom: 'var(--space-xs)'
-                                }}
-                            >
-                                {title}
-                            </h2>
-                            {description && (
-                                <p
-                                    className="text-center text-sm"
-                                    style={{
-                                        color: 'var(--text-subtle)',
-                                        marginBottom: 'var(--space-md)'
-                                    }}
-                                >
-                                    {description}
-                                </p>
-                            )}
-                            {children}
-                        </div>
+                        EVARISBOT
                     </div>
                 </div>
 
-                {/* Footer: Innovación y Desarrollo */}
-                <div className="mt-8 text-center" style={{ color: 'var(--primary-base)', opacity: 0.7 }}>
-                    <p className="text-sm font-medium tracking-wide">
-                        Innovación y Desarrollo
+                {/* Título */}
+                <h2
+                    className="text-center font-bold"
+                    style={{ margin: '30px 0 26px', fontSize: '25px', color: 'var(--auth-title)', letterSpacing: '-.01em', lineHeight: 1.2 }}
+                >
+                    {title}
+                </h2>
+                {description && (
+                    <p className="text-center text-sm" style={{ color: 'var(--auth-subtle)', marginTop: '-14px', marginBottom: '18px' }}>
+                        {description}
                     </p>
-                </div>
+                )}
+
+                {children}
+
+                {/* Footer */}
+                <p
+                    className="text-center"
+                    style={{ margin: '30px 0 0', fontSize: '12px', fontWeight: 600, letterSpacing: '.04em', color: 'var(--auth-subtle)' }}
+                >
+                    {t('auth.footerTagline')}
+                </p>
             </div>
         </div>
     );

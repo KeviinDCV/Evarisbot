@@ -1,0 +1,20 @@
+{
+  "artboards": [
+    { "file": "Actual.dc.html",       "title": "Actual",               "x": 0,    "y": 0,    "w": 1440, "h": 900 },
+    { "file": "Main.dc.html",         "title": "Directorio compacto",  "x": 1560, "y": 0,    "w": 1440, "h": 900 },
+    { "file": "ListaYFicha.dc.html",  "title": "Lista y ficha",        "x": 3120, "y": 0,    "w": 1440, "h": 900 },
+    { "file": "QuienEsta.dc.html",    "title": "Quién está",           "x": 4680, "y": 0,    "w": 1440, "h": 900 },
+    { "file": "RielClaro.dc.html",    "title": "Riel claro",           "x": 0,    "y": 1380, "w": 1440, "h": 900 },
+    { "file": "BarraNombres.dc.html", "title": "Barra con nombres",    "x": 1560, "y": 1380, "w": 1440, "h": 900 }
+  ],
+  "annotations": [
+    { "id": "resumen", "x": 0, "y": -260, "w": 1440, "text": "Rediseño de la pantalla de Usuarios.\nFila de arriba: cuatro formas de organizar la página (el riel no cambia).\nFila de abajo: dos alternativas para el riel (la página no cambia).\nSe pueden combinar: cualquier página con cualquier riel.\n\nPersonas y correos son de muestra. Las cifras tienen la forma de los datos reales: 33 usuarios, 5 administradores, 27 asesores, 9 con envío masivo." },
+    { "id": "nota-actual", "x": 0, "y": 940, "w": 700, "text": "Así se ve hoy.\nAntes de la primera persona hay tres bloques: cifras, filtros y la cabecera del directorio. Caben 5 personas completas en pantalla." },
+    { "id": "nota-compacto", "x": 1560, "y": 940, "w": 700, "text": "Misma tabla, sin los bloques de arriba. Las cifras van dentro del filtro de rol y en la barra de la tabla; la búsqueda sube junto a «Nuevo usuario»; cada fila cabe en una línea. Caben 13 personas en vez de 5.\n«Eliminar» pasa a un menú (…): hoy hay una papelera roja en cada fila.\n\nCoste: se pierden las cuatro tarjetas grandes de cifras, que quedan como contadores." },
+    { "id": "nota-lista", "x": 3120, "y": 940, "w": 700, "text": "Lista a la izquierda, ficha de la persona elegida a la derecha. Todos sus datos y permisos en un solo sitio, y «Eliminar usuario» lejos de «Editar».\n\nCoste: para comparar a varias personas (quién tiene envío masivo, por ejemplo) hay que ir una por una. La ficha deja espacio vacío cuando la persona tiene pocos datos." },
+    { "id": "nota-quien", "x": 4680, "y": 940, "w": 700, "text": "La presencia primero: arriba quién está conectado ahora; debajo el equipo en tarjetas, separado por rol. Más humana, y la disponibilidad se ve de un vistazo.\n\nCoste: menos densa que una tabla (caben unas 11 personas) y comparar columnas cuesta más." },
+    { "id": "nota-riel-claro", "x": 0, "y": 2320, "w": 700, "text": "El mismo riel en material claro: blanco con borde fino, iconos en gris y el activo en navy. Menos peso visual; el contenido manda.\n\nCoste: se pierde el ancla navy de la navegación, y el logo del HUV, en su azul real, queda muy tenue a este tamaño." },
+    { "id": "nota-barra", "x": 1560, "y": 2320, "w": 700, "text": "El riel abierto, con los nombres siempre a la vista. Ya existe: es el botón «Fijar menú abierto». La pregunta es si debería ser lo normal.\n\nCoste: 196 px menos de ancho para el contenido. Aquí apenas se nota; en Conversaciones, con tres columnas, sí." }
+  ],
+  "launch": { "view": "canvas" }
+}

@@ -7,6 +7,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import { initializeTheme } from './hooks/use-appearance';
 import { I18nextProvider } from 'react-i18next';
+import { MotionConfig } from 'framer-motion';
 import i18n from './i18n';
 import axios from 'axios';
 
@@ -24,6 +25,13 @@ axios.interceptors.response.use(
             originalRequest._retried = true;
             // Hit a lightweight endpoint to refresh XSRF-TOKEN cookie
             await axios.get('/csrf-refresh').catch(() => {});
+            // Quitar el X-CSRF-TOKEN viejo (del <meta> obsoleto tras iniciar sesión) para que el
+            // reintento use el token VIVO de la cookie. Si queda, Laravel lo prioriza y vuelve a dar 419.
+            try { originalRequest.headers?.delete?.('X-CSRF-TOKEN'); } catch { /* headers puede ser objeto plano */ }
+            if (originalRequest.headers) {
+                delete originalRequest.headers['X-CSRF-TOKEN'];
+                delete originalRequest.headers['x-csrf-token'];
+            }
             return axios(originalRequest);
         }
         return Promise.reject(error);
@@ -44,7 +52,10 @@ createInertiaApp({
 
         root.render(
             <I18nextProvider i18n={i18n}>
-                <App {...props} />
+                {/* reducedMotion="user" → respeta "reducir movimiento" del SO en las animaciones de framer */}
+                <MotionConfig reducedMotion="user">
+                    <App {...props} />
+                </MotionConfig>
             </I18nextProvider>
         );
     },

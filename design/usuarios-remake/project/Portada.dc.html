@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Usuarios · Portada y tabla</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+p,h1,h2,h3{margin:0}
+input::placeholder{color:#6b7192}
+a{color:#2e3f84}a:hover{color:#26356f}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; font-family: 'Instrument Sans', ui-sans-serif, system-ui, 'Segoe UI', sans-serif; color: #1f2447; background: radial-gradient(560px 420px at 0px 0px, rgba(78, 95, 164, 0.35), rgba(78, 95, 164, 0) 72%), linear-gradient(180deg, #2e3f84 0%, #2e3a75 55%, #26356f 100%); -webkit-font-smoothing: antialiased;">
+
+  <nav aria-label="Menú principal" style="flex: 0 0 240px; padding: 24px 10px 10px 12px; display: flex; flex-direction: column; min-height: 100vh;">
+    <div style="padding: 0 10px 0 12px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="width: 64px; height: 64px; border-radius: 14px; background: #ffffff; box-shadow: 0 10px 22px -10px rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center;">
+        <img src="/_blob/5a3d43ee5c2d014cfd48553a85a61af8" alt="Hospital Universitario del Valle" style="width: 54px; height: auto; display: block;">
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 18px; font-weight: 600; letter-spacing: -0.018em; color: #ffffff;">Evarisbot</span>
+        <span style="font-size: 11.8px; font-weight: 500; color: rgba(255, 255, 255, 0.7);">Hospital Universitario del Valle</span>
+      </div>
+    </div>
+    <div style="margin-top: 28px; display: flex; flex-direction: column; gap: 20px;">
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <p style="height: 28px; padding: 0 12px; display: flex; align-items: center; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; color: rgba(255, 255, 255, 0.66);">Trabajo</p>
+        <a href="#" style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.82);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg><span style="flex: 1;">Conversaciones</span><span style="height: 20px; min-width: 20px; padding: 0 6px; border-radius: 9999px; background: #ffffff; color: #2e3f84; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">12</span></a>
+        <a href="#" style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.82);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9a2 2 0 0 1-2 2H6l-4 4V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"></path><path d="M18 9h2a2 2 0 0 1 2 2v11l-4-4h-6a2 2 0 0 1-2-2v-1"></path></svg><span style="flex: 1;">Chat interno</span><span style="height: 20px; min-width: 20px; padding: 0 6px; border-radius: 9999px; background: #ffffff; color: #2e3f84; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;">3</span></a>
+        <a href="#" style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.82);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg><span style="flex: 1;">Plantillas</span></a>
+        <a href="#" style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.82);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg><span style="flex: 1;">Envío masivo</span></a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px;">
+        <p style="height: 28px; padding: 0 12px; display: flex; align-items: center; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; color: rgba(255, 255, 255, 0.66);">Gestión</p>
+        <a href="#" style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.82);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg><span style="flex: 1;">Citas</span></a>
+        <a href="#" style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.82);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg><span style="flex: 1;">Estadísticas</span></a>
+        <a href="#" aria-current="page" style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 13px; font-weight: 600; color: #2e3f84; background: #ffffff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 18px -10px rgba(0, 0, 0, 0.45);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><span style="flex: 1;">Usuarios</span></a>
+        <a href="#" style="height: 40px; border-radius: 10px; padding: 0 10px 0 12px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.82);"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg><span style="flex: 1;">Configuración</span></a>
+      </div>
+    </div>
+    <a href="#" style="margin-top: auto; border-radius: 14px; padding: 10px 10px 10px 12px; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 10px; text-decoration: none;">
+      <span style="width: 34px; height: 34px; flex-shrink: 0; border-radius: 9999px; background: linear-gradient(135deg, #4e5fa4, #3e4f94); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2); color: #ffffff; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center;">SQ</span>
+      <span style="display: flex; flex-direction: column; min-width: 0;"><span style="font-size: 13px; font-weight: 600; color: #ffffff; white-space: nowrap;">Sofía Quintero Ramos</span><span style="font-size: 11.8px; color: rgba(255, 255, 255, 0.7);">Administrador</span></span>
+    </a>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; margin: 10px 10px 10px 0; height: calc(100vh - 20px); overflow-y: auto; border-radius: 22px; background: #f0f2f8; box-shadow: 0 20px 44px -20px rgba(0, 0, 0, 0.5);">
+    <div style="padding: 20px 24px 32px; display: flex; flex-direction: column; gap: 18px;">
+
+      <div style="position: relative; overflow: hidden; border-radius: 22px; padding: 26px 28px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 18px; color: #ffffff; background: radial-gradient(ellipse 70% 90% at 20% 0%, #4e5fa4 0%, rgba(78, 95, 164, 0) 70%), #2b3a7d;">
+        <img src="/_blob/88d86aed76b5018a68b5c8f9dda1597a" alt="" aria-hidden="true" style="position: absolute; right: 120px; bottom: -70px; width: 460px; opacity: 0.09;">
+        <div style="position: relative; display: flex; flex-direction: column; gap: 6px;">
+          <p style="font-size: 11.5px; font-weight: 600; letter-spacing: 0.14em; color: rgba(255, 255, 255, 0.82);">EVARISBOT · HUV</p>
+          <h1 style="font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -0.025em;">Equipo de atención</h1>
+          <p style="font-size: 14.5px; color: rgba(255, 255, 255, 0.84);">34 personas · 5 administradores y 29 asesores</p>
+        </div>
+        <div style="position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 18px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex;">
+              <span style="width: 36px; height: 36px; border-radius: 9999px; border: 2px solid #2b3a7d; background: #5b6fb8; color: #ffffff; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; justify-content: center;">SQ</span>
+              <span style="margin-left: -10px; width: 36px; height: 36px; border-radius: 9999px; border: 2px solid #2b3a7d; background: #4e5fa4; color: #ffffff; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; justify-content: center;">AC</span>
+              <span style="margin-left: -10px; width: 36px; height: 36px; border-radius: 9999px; border: 2px solid #2b3a7d; background: #3e4f94; color: #ffffff; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; justify-content: center;">JP</span>
+              <span style="margin-left: -10px; width: 36px; height: 36px; border-radius: 9999px; border: 2px solid #2b3a7d; background: #ffffff; color: #2e3f84; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;">+4</span>
+            </div>
+            <p style="font-size: 14px; font-weight: 600;"><span style="display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background: #34d399; margin-right: 6px;"></span>7 en línea</p>
+          </div>
+          <button type="button" style="height: 44px; padding: 0 18px; border: none; border-radius: 12px; background: #ffffff; color: #2e3f84; font: inherit; font-size: 14.5px; font-weight: 600; display: flex; align-items: center; gap: 8px;"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Nuevo usuario</button>
+        </div>
+      </div>
+
+      <section aria-label="Usuarios" style="border-radius: 18px; background: #ffffff; border: 1px solid #e3e6f0; overflow: hidden;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #eceef6;">
+          <div style="position: relative; flex: 1 1 260px; max-width: 380px; display: flex; align-items: center;">
+            <svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7c82a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position: absolute; left: 13px;"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+            <label for="c-buscar" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Buscar persona</label>
+            <input id="c-buscar" placeholder="Buscar por nombre o correo" style="width: 100%; height: 40px; padding: 0 12px 0 38px; border: 1.5px solid #dfe2ef; border-radius: 11px; background: #f7f8fc; font: inherit; font-size: 14px;">
+          </div>
+          <div role="group" aria-label="Filtrar por rol" style="display: flex; gap: 4px; padding: 3px; border-radius: 11px; background: #eef0f7;">
+            <button type="button" aria-pressed="true" style="height: 34px; padding: 0 12px; border: none; border-radius: 8px; background: #ffffff; color: #2e3f84; font: inherit; font-size: 13px; font-weight: 600;">Todos</button>
+            <button type="button" aria-pressed="false" style="height: 34px; padding: 0 12px; border: none; border-radius: 8px; background: transparent; color: #4a4f73; font: inherit; font-size: 13px; font-weight: 500;">Administradores</button>
+            <button type="button" aria-pressed="false" style="height: 34px; padding: 0 12px; border: none; border-radius: 8px; background: transparent; color: #4a4f73; font: inherit; font-size: 13px; font-weight: 500;">Asesores</button>
+          </div>
+        </div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+            <thead>
+              <tr style="background: #f7f8fd; color: #5b6088; text-align: left;">
+                <th scope="col" style="padding: 10px 16px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">Persona</th>
+                <th scope="col" style="padding: 10px 16px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">Rol</th>
+                <th scope="col" style="padding: 10px 16px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">Envío masivo</th>
+                <th scope="col" style="padding: 10px 16px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">De turno</th>
+                <th scope="col" style="padding: 10px 16px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;">Última vez</th>
+                <th scope="col" style="padding: 10px 16px;"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{ filas }}" as="f" hint-placeholder-count="9">
+                <tr style="border-top: 1px solid #eceef6;">
+                  <td style="padding: 9px 16px;">
+                    <span style="display: flex; align-items: center; gap: 11px; min-width: 0;">
+                      <span style="position: relative; width: 36px; height: 36px; flex-shrink: 0; border-radius: 9999px; background: linear-gradient(135deg, #4e5fa4, #2e3f84); color: #ffffff; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center;">{{ f.ini }}<span style="position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 9999px; border: 2px solid #ffffff; background: {{ f.punto }};"></span></span>
+                      <span style="display: flex; flex-direction: column; min-width: 0;"><span style="font-weight: 600; white-space: nowrap;">{{ f.nombre }}</span><span style="font-size: 12.5px; color: #5b6088; white-space: nowrap;">{{ f.correo }}</span></span>
+                    </span>
+                  </td>
+                  <td style="padding: 9px 16px; color: #3a3f63; white-space: nowrap;">{{ f.rol }}</td>
+                  <td style="padding: 9px 16px;">
+                    <sc-if value="{{ f.esAsesor }}" hint-placeholder-val="{{ true }}">
+                      <button type="button" role="switch" aria-checked="{{ f.masivoTexto }}" aria-label="Envío masivo de {{ f.nombre }}" style="width: 42px; height: 24px; border: none; border-radius: 9999px; background: {{ f.fondoInterruptor }}; position: relative;"><span style="position: absolute; top: 3px; left: {{ f.posBola }}; width: 18px; height: 18px; border-radius: 9999px; background: #ffffff;"></span></button>
+                    </sc-if>
+                    <sc-if value="{{ f.admin }}" hint-placeholder-val="{{ false }}"><span style="font-size: 12.5px; color: #5b6088;">Siempre</span></sc-if>
+                  </td>
+                  <td style="padding: 9px 16px;"><sc-if value="{{ f.turno }}" hint-placeholder-val="{{ false }}"><span style="display: inline-flex; height: 24px; align-items: center; padding: 0 9px; border-radius: 9999px; background: #e7f6ee; color: #06683f; font-size: 12px; font-weight: 600;">De turno</span></sc-if></td>
+                  <td style="padding: 9px 16px; white-space: nowrap; color: {{ f.colorActividad }}; font-weight: 500;">{{ f.actividad }}</td>
+                  <td style="padding: 9px 12px; text-align: right; white-space: nowrap;">
+                    <button type="button" aria-label="Editar" style="width: 34px; height: 34px; border: none; border-radius: 10px; background: transparent; color: #2e3f84;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path></svg></button>
+                    <button type="button" aria-label="Más acciones" style="width: 34px; height: 34px; border: none; border-radius: 10px; background: transparent; color: #4a4f73;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ini = (n) => n.split(' ').filter(Boolean).slice(0, 2).map((x) => x.charAt(0).toUpperCase()).join('');
+    const f = (nombre, correo, admin, masivo, turno, online, actividad) => ({
+      nombre, correo, admin, turno, actividad, ini: ini(nombre),
+      esAsesor: !admin,
+      rol: admin ? 'Administrador' : 'Asesor',
+      masivoTexto: masivo ? 'true' : 'false',
+      fondoInterruptor: masivo ? '#2e3f84' : '#c9cde0',
+      posBola: masivo ? '21px' : '3px',
+      punto: online ? '#10b981' : '#a3a9c2',
+      colorActividad: online ? '#06683f' : '#5b6088',
+    });
+    return {
+      filas: [
+        f('Sofía Quintero Ramos', 'squintero@correohuv.gov.co', true, false, false, true, 'En línea'),
+        f('ANDREA CAROLINA MUÑOZ PAZ', 'andreacmunoz@gmail.com', false, true, true, true, 'En línea'),
+        f('JUAN PABLO RESTREPO VÉLEZ', 'juanprestrepo.v@gmail.com', false, false, true, true, 'En línea'),
+        f('MARÍA FERNANDA LOAIZA CRUZ', 'mafeloaiza@hotmail.com', false, true, false, true, 'En línea'),
+        f('DIEGO ALEJANDRO SÁNCHEZ ROJAS', 'diegosanchez.r@gmail.com', false, false, false, true, 'En línea'),
+        f('Hernán Ocampo Díaz', 'hocampo@correohuv.gov.co', true, false, false, true, 'En línea'),
+        f('VALENTINA OSPINA TORO', 'valeospina.t@gmail.com', false, true, false, false, 'Hace 12 min'),
+        f('CRISTIAN DAVID MORENO LASSO', 'cdmoreno@gmail.com', false, false, true, false, 'Hace 2 h'),
+        f('PAOLA ANDREA VIVEROS SOLARTE', 'paoviveros@hotmail.com', false, true, false, false, 'Ayer'),
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

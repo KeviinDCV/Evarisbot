@@ -15,6 +15,7 @@ class Conversation extends Model
         'profile_picture_url',
         'status',
         'assigned_to',
+        'assigned_at',
         'resolved_by',
         'resolved_at',
         'last_message_at',
@@ -33,6 +34,7 @@ class Conversation extends Model
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'assigned_at' => 'datetime',
         'resolved_at' => 'datetime',
         'pinned_at' => 'datetime',
         'is_pinned' => 'boolean',
@@ -43,6 +45,32 @@ class Conversation extends Model
     ];
 
     /**
+     * Cada vez que cambia el asesor se anota cuándo (lo usa la liberación automática por
+     * inactividad: el reloj no arranca antes de la asignación). Reabrir un chat cerrado que
+     * conserva su asesor cuenta como asignación nueva por la misma razón. Cubre todas las
+     * rutas que usan Eloquent; las que hacen update() directo sobre la consulta ponen
+     * assigned_at a mano (ConversationController: respuesta del asesor, asignación, cambio
+     * de estado y limpieza masivas).
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Conversation $conversation) {
+            $abiertos = \App\Services\InactiveConversationReleaser::OPEN_STATUSES;
+
+            if ($conversation->isDirty('assigned_to')) {
+                $conversation->assigned_at = $conversation->assigned_to ? now() : null;
+            } elseif (
+                $conversation->assigned_to
+                && $conversation->isDirty('status')
+                && in_array($conversation->status, $abiertos, true)
+                && ! in_array($conversation->getOriginal('status'), $abiertos, true)
+            ) {
+                $conversation->assigned_at = now();
+            }
+        });
+    }
+
+    /**
      * Relación con los mensajes
      */
     public function messages(): HasMany
@@ -51,11 +79,28 @@ class Conversation extends Model
     }
 
     /**
-     * Último mensaje de la conversación
+     * Último mensaje de la conversación: el más reciente, INCLUIDAS las respuestas
+     * automáticas de cita (confirmar/cancelar). Así el preview de la lista muestra el
+     * mensaje real y coincide con la hora por la que se ordena.
+     * Que las confirmaciones no cuenten como no-leídas ni como trabajo del asesor se
+     * maneja aparte (unread_count no se incrementa, assigned_to/resolved_by en null).
      */
     public function lastMessage()
     {
-        return $this->hasOne(Message::class)->latestOfMany();
+        return $this->hasOne(Message::class)->ofMany(['created_at' => 'max', 'id' => 'max']);
+    }
+
+    /**
+     * Último mensaje VISIBLE (excluye las respuestas automáticas de cita ocultas).
+     * Se usa como preview en la lista cuando hay no-leídos: así el asesor ve el mensaje
+     * REAL del paciente y no una confirmación del sistema (ver preview en el frontend).
+     */
+    public function lastVisibleMessage()
+    {
+        return $this->hasOne(Message::class)->ofMany(
+            ['created_at' => 'max', 'id' => 'max'],
+            fn ($query) => $query->where('is_hidden', false)
+        );
     }
 
     /**
@@ -95,12 +140,36 @@ class Conversation extends Model
      */
     public function markAsRead(): void
     {
+        // Último entrante pendiente ANTES de marcarlos: es el que se envía a Meta para que
+        // el paciente vea el doble check azul (marcar uno marca todos los anteriores).
+        // reorder() porque la relación messages() ya viene ordenada ascendente.
+        $ultimoEntrante = $this->messages()
+            ->where('is_from_user', true)
+            ->where('status', '!=', 'read')
+            ->whereNotNull('whatsapp_message_id')
+            ->reorder('created_at', 'desc')
+            ->value('whatsapp_message_id');
+
         $this->update(['unread_count' => 0]);
-        
+
         $this->messages()
             ->where('is_from_user', true)
             ->where('status', '!=', 'read')
             ->update(['status' => 'read']);
+
+        // Acuse de recibo hacia el paciente. Hasta ahora sólo se marcaba leído por dentro:
+        // el paciente se quedaba con el check gris aunque el asesor ya hubiera leído.
+        // Es "mejor esfuerzo": si Meta no responde, el chat se abre igual.
+        if ($ultimoEntrante) {
+            try {
+                app(\App\Services\WhatsAppService::class)->markAsRead($ultimoEntrante);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('No se pudo enviar el acuse de lectura', [
+                    'conversation_id' => $this->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**
@@ -109,6 +178,39 @@ class Conversation extends Model
     public function incrementUnread(): void
     {
         $this->increment('unread_count');
+    }
+
+    /**
+     * ¿La conversación está dentro de la ventana de atención de 24h de WhatsApp?
+     *
+     * La ventana se abre con cada mensaje ENTRANTE del paciente (is_from_user=true) y
+     * dura 24h desde ese último entrante. Dentro de la ventana se pueden enviar mensajes
+     * de texto libres (sesión), que NO están sujetos al tope de plantillas de marketing
+     * de Meta (evita el error 131049). Fuera de la ventana solo se pueden enviar plantillas.
+     *
+     * OJO: no se usa last_message_at porque ese campo también se actualiza con mensajes
+     * SALIENTES (respuestas del asesor, recordatorios), así que no refleja el último
+     * entrante. Se consulta el created_at del mensaje entrante más reciente. El reorder()
+     * es necesario porque la relación messages() trae orderBy('created_at','asc').
+     */
+    public function isWithinServiceWindow(): bool
+    {
+        // Preferimos wa_sent_at (hora real de WhatsApp) sobre created_at (cuando nuestro
+        // webhook lo procesó): es contra la primera que Meta cuenta las 24 h. Los mensajes
+        // antiguos no la tienen, de ahí el COALESCE.
+        $last = $this->messages()
+            ->where('is_from_user', true)
+            ->reorder(\DB::raw('COALESCE(wa_sent_at, created_at)'), 'desc')
+            ->first(['wa_sent_at', 'created_at']);
+
+        $lastInboundAt = $last?->wa_sent_at ?? $last?->created_at;
+
+        // 23 h, no 24: Meta cierra la ventana ANTES que nuestro reloj (su cuenta arranca
+        // cuando ELLA recibe el mensaje, no cuando lo procesa nuestro webhook). Medido en
+        // producción: rechazos con error 131047 a las 23,32 h — 15 de 39 fallos ocurrieron
+        // por debajo de las 24 h. El margen evita enviar texto libre que se perdería.
+        return $lastInboundAt !== null
+            && $lastInboundAt->greaterThan(now()->subHours(23));
     }
 
     /**

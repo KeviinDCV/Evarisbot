@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\InactiveConversationReleaser;
+use App\Services\WeekendNotice;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -38,9 +41,84 @@ class SettingsController extends Controller
             ->orderBy('name')
             ->get();
 
+        $autoRelease = InactiveConversationReleaser::settings();
+        $weekendNotice = WeekendNotice::settings();
+
         return Inertia::render('admin/settings/index', [
+            'weekendNotice' => [
+                'enabled' => $weekendNotice['enabled'],
+                'text' => $weekendNotice['text'],
+                'default_text' => WeekendNotice::DEFAULT_TEXT,
+                'max_length' => WeekendNotice::MAX_LENGTH,
+            ],
             'settings' => $settings,
             'advisors' => $advisors,
+            'autoRelease' => [
+                'enabled' => $autoRelease['enabled'],
+                'minutes' => $autoRelease['minutes'],
+                'min' => InactiveConversationReleaser::MIN_MINUTES,
+                'max' => InactiveConversationReleaser::MAX_MINUTES,
+            ],
+        ]);
+    }
+
+    /**
+     * Liberación automática: activar/desactivar y tiempo de espera sin respuesta del asesor.
+     */
+    public function updateAutoRelease(Request $request)
+    {
+        // Apagar nunca depende del tiempo: si el campo quedó mal, se conserva el guardado.
+        $validated = $request->validate([
+            'enabled' => 'required|boolean',
+            'minutes' => 'required_if:enabled,true,1|nullable|integer|min:' . InactiveConversationReleaser::MIN_MINUTES . '|max:' . InactiveConversationReleaser::MAX_MINUTES,
+        ], [
+            'minutes.required_if' => 'Indica el tiempo sin respuesta.',
+            'minutes.min' => 'El tiempo mínimo es de ' . InactiveConversationReleaser::MIN_MINUTES . ' minutos.',
+            'minutes.max' => 'El tiempo máximo es de 30 días.',
+        ]);
+
+        if (isset($validated['minutes'])) {
+            Setting::set(InactiveConversationReleaser::KEY_MINUTES, (string) $validated['minutes'], 'Minutos sin respuesta del asesor antes de liberar la conversación');
+        }
+        Setting::set(InactiveConversationReleaser::KEY_ENABLED, $validated['enabled'] ? 'true' : 'false', 'Liberación automática de conversaciones sin respuesta del asesor');
+
+        return redirect()->back()->with('success', 'Liberación automática actualizada.');
+    }
+
+    /**
+     * Mensaje de fin de semana: activar/desactivar y texto que recibe el paciente.
+     */
+    public function updateWeekendNotice(Request $request)
+    {
+        $validated = $request->validate([
+            'enabled' => 'required|boolean',
+            'text' => 'required_if:enabled,true,1|nullable|string|max:' . WeekendNotice::MAX_LENGTH,
+        ], [
+            'text.required_if' => 'Escribe el mensaje que recibirá el paciente.',
+            'text.max' => 'El mensaje puede tener como máximo ' . WeekendNotice::MAX_LENGTH . ' caracteres.',
+        ]);
+
+        // Saltos de línea de Windows → \n (WhatsApp los muestra igual, y así no se duplican).
+        $texto = trim(str_replace("\r\n", "\n", (string) ($validated['text'] ?? '')));
+        if ($texto !== '') {
+            Setting::set(WeekendNotice::KEY_TEXT, $texto, 'Mensaje automático que reciben los pacientes que escriben el fin de semana');
+        }
+        Setting::set(WeekendNotice::KEY_ENABLED, $validated['enabled'] ? 'true' : 'false', 'Mensaje automático de fin de semana');
+
+        return redirect()->back()->with('success', 'Mensaje de fin de semana actualizado.');
+    }
+
+    /**
+     * Cuántas conversaciones se liberarían ahora mismo con ese tiempo (solo consulta, no toca nada).
+     */
+    public function previewAutoRelease(Request $request, InactiveConversationReleaser $releaser)
+    {
+        $validated = $request->validate([
+            'minutes' => 'required|integer|min:' . InactiveConversationReleaser::MIN_MINUTES . '|max:' . InactiveConversationReleaser::MAX_MINUTES,
+        ]);
+
+        return response()->json([
+            'count' => $releaser->candidates((int) $validated['minutes'])->count(),
         ]);
     }
 
@@ -55,6 +133,16 @@ class SettingsController extends Controller
             'whatsapp_business_account_id' => 'nullable|numeric|digits_between:10,20',
             'whatsapp_verify_token' => 'nullable|string|min:8',
         ]);
+
+        // Seguridad (incidente oct 2026): las credenciales e identificadores de Meta ya no se cambian
+        // desde la web; solo desde la consola del servidor (php artisan whatsapp:guardar-token).
+        foreach (['whatsapp_token', 'whatsapp_phone_id', 'whatsapp_business_account_id', 'whatsapp_verify_token'] as $campo) {
+            if (!empty($validated[$campo])) {
+                throw ValidationException::withMessages([
+                    $campo => 'Por seguridad, esto ya no se cambia desde la web. Se hace en el servidor con: php artisan whatsapp:guardar-token',
+                ]);
+            }
+        }
 
         // Si se proporciona un token, verificar que sea válido
         if (!empty($validated['whatsapp_token'])) {
@@ -203,6 +291,13 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'groq_api_key' => 'nullable|string|min:20',
         ]);
+
+        // Seguridad (incidente oct 2026): la clave de Groq ya no se cambia desde la web.
+        if (!empty($validated['groq_api_key'])) {
+            throw ValidationException::withMessages([
+                'groq_api_key' => 'Por seguridad, la clave de Groq ya no se cambia desde la web; se cambia en el servidor.',
+            ]);
+        }
 
         if (!empty($validated['groq_api_key'])) {
             // Verificar que la API key sea válida
