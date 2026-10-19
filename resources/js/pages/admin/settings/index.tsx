@@ -65,6 +65,7 @@ interface Settings {
     };
     vigilancia: {
         revisado_en: string | null;
+        meta_ok_en: string | null;
     };
 }
 
@@ -96,7 +97,7 @@ interface SettingsIndexProps {
     weekendNotice: WeekendNoticeConfig;
 }
 
-type ResultadoMeta = 'ok' | 'sin_config' | 'rechazada' | 'desviado' | 'sin_respuesta';
+type ResultadoMeta = 'ok' | 'sin_config' | 'rechazada' | 'error_meta' | 'desviado' | 'sin_respuesta';
 type ResultadoGroq = 'ok' | 'rechazada' | 'sin_clave' | 'sin_respuesta';
 
 /** Respuesta de «Comprobar ahora»: alertas como código => texto (o [] si no hay). */
@@ -105,6 +106,7 @@ interface ComprobacionWhatsApp {
     alertas: Record<string, string> | [];
     perfil: PerfilWhatsApp | null;
     revisado_en: string | null;
+    meta_ok_en: string | null;
 }
 
 /**
@@ -133,11 +135,14 @@ const TIEMPOS_FRECUENTES = [5, 15, 30, 60, 120, 180, 300, 1440, 2880];
 
 // Alertas de la vigilancia que ya resume el estado de WhatsApp (clave, configuración, desvío).
 const esAlertaDeConexion = (codigo: string) =>
-    codigo === 'meta_config' || codigo === 'meta_token' || codigo === 'meta_override' || codigo.startsWith('meta_webhook_');
+    codigo === 'meta_config' || codigo === 'meta_token' || codigo === 'meta_error' || codigo === 'meta_override' || codigo.startsWith('meta_webhook_');
 const esDesvio = (codigo: string) => codigo === 'meta_override' || codigo.startsWith('meta_webhook_');
 
 // La vigilancia corre cada 10 minutos mientras se usa la app; sus alertas caducan a los 30.
 const REVISION_RECIENTE_MS = 30 * 60 * 1000;
+
+/** La más reciente de dos marcas ISO (la de la página o la de la última comprobación a mano). */
+const masReciente = (a: string | null, b: string | null) => (!a ? b : !b ? a : Date.parse(a) >= Date.parse(b) ? a : b);
 
 /* ── Tintas de la vista (design/vista-configuracion/gen_config.mjs) ────────────────────────────────
    Mismo lenguaje que Usuarios: navy #2e3f84 con alfa sobre la hoja blanca; en oscuro, blanco con alfa
@@ -533,8 +538,20 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
     }, []);
 
     /* ── WhatsApp: solo lectura + «Comprobar ahora» ── */
-    const [revisadoEn, setRevisadoEn] = useState(settings.vigilancia.revisado_en);
-    const [perfil, setPerfil] = useState(settings.whatsapp.perfil);
+    // Lo de la página (se refresca con cada guardado y recarga) o lo de la última comprobación a
+    // mano, lo que sea más reciente: así la franja no mezcla alertas de ahora con horas viejas.
+    const [revisadoLocal, setRevisadoLocal] = useState<string | null>(null);
+    const [metaOkLocal, setMetaOkLocal] = useState<string | null>(null);
+    const [perfilLocal, setPerfilLocal] = useState<PerfilWhatsApp | null>(null);
+    const revisadoEn = masReciente(revisadoLocal, settings.vigilancia.revisado_en);
+    const metaOkEn = masReciente(metaOkLocal, settings.vigilancia.meta_ok_en);
+    const perfilPagina = settings.whatsapp.perfil;
+    const perfil =
+        perfilLocal && perfilPagina
+            ? masReciente(perfilLocal.consultado_en, perfilPagina.consultado_en) === perfilLocal.consultado_en
+                ? perfilLocal
+                : perfilPagina
+            : (perfilLocal ?? perfilPagina);
     const [comprobandoMeta, setComprobandoMeta] = useState(false);
     const [comprobacion, setComprobacion] = useState<{ datos: ComprobacionWhatsApp } | { error: string } | null>(null);
 
@@ -543,11 +560,12 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
         try {
             const { data } = await axios.post<ComprobacionWhatsApp>('/admin/settings/whatsapp/check');
             setComprobacion({ datos: data });
-            if (data.perfil) setPerfil(data.perfil);
-            if (data.revisado_en) setRevisadoEn(data.revisado_en);
+            if (data.perfil) setPerfilLocal(data.perfil);
+            if (data.revisado_en) setRevisadoLocal(data.revisado_en);
+            if (data.meta_ok_en) setMetaOkLocal(data.meta_ok_en);
             setAhora(Date.now());
             // La franja roja y el estado de arriba se ponen al día con lo que se acaba de revisar.
-            router.reload({ only: ['alertasSeguridad'] });
+            router.reload({ only: ['alertasSeguridad', 'settings'] });
         } catch (error) {
             const status = axios.isAxiosError(error) ? error.response?.status : undefined;
             setComprobacion({ error: status === 429 ? t('settings.checkTooMany') : t('settings.checkError') });
@@ -557,6 +575,9 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
     };
 
     const revisionReciente = !!revisadoEn && ahora - new Date(revisadoEn).getTime() < REVISION_RECIENTE_MS;
+    // ¿Contestó Meta en la última revisión? La marca se pone segundos antes de cerrar la revisión.
+    const metaRespondio = !!metaOkEn && !!revisadoEn && Date.parse(revisadoEn) - Date.parse(metaOkEn) < 60_000;
+    const ultimaSinRespuesta = !!comprobacion && 'datos' in comprobacion && comprobacion.datos.meta === 'sin_respuesta';
     const desviado = codigosAlerta.some(esDesvio);
 
     // Estado de WhatsApp: lo guardado y lo que vio la vigilancia, con ese orden de prioridad.
@@ -567,11 +588,13 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
               ? { texto: t('settings.strip.state.rejected'), tono: 'error' }
               : desviado
                 ? { texto: t('settings.strip.state.diverted'), tono: 'error' }
-                : 'meta_plantillas' in alertas || 'silencio' in alertas
-                  ? { texto: t('settings.strip.state.alerts'), tono: 'aviso' }
-                  : revisionReciente
-                    ? { texto: t('settings.strip.state.working'), tono: 'ok' }
-                    : { texto: t('settings.strip.state.configured'), tono: 'neutro' };
+                : ultimaSinRespuesta || (revisionReciente && !metaRespondio)
+                  ? { texto: t('settings.strip.state.noResponse'), tono: 'aviso' }
+                  : 'meta_error' in alertas || 'meta_plantillas' in alertas || 'silencio' in alertas
+                    ? { texto: t('settings.strip.state.alerts'), tono: 'aviso' }
+                    : revisionReciente
+                      ? { texto: t('settings.strip.state.working'), tono: 'ok' }
+                      : { texto: t('settings.strip.state.configured'), tono: 'neutro' };
 
     const otrasAlertas = Object.entries(alertas).filter(([codigo]) => !esAlertaDeConexion(codigo));
 
@@ -607,7 +630,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
     const [releaseAmount, setReleaseAmount] = useState(cantidadGuardada);
     const [tiempoTocado, setTiempoTocado] = useState(false);
     const [savingRelease, setSavingRelease] = useState(false);
-    const [confirmarLiberacion, setConfirmarLiberacion] = useState(false);
+    const [confirmarLiberacion, setConfirmarLiberacion] = useState<{ count: number | null } | null>(null);
     const [releasePreview, setReleasePreview] = useState<{ minutes: number; count: number | null; error: boolean } | null>(null);
     const campoTiempo = useRef<HTMLInputElement>(null);
 
@@ -660,7 +683,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
     const necesitaConfirmar = liberacionAmplia && !(vistaPreviaVigente && !vistaPreviaVigente.error && vistaPreviaVigente.count === 0);
 
     const enviarLiberacion = () => {
-        setConfirmarLiberacion(false);
+        setConfirmarLiberacion(null);
         setSavingRelease(true);
         router.post(
             '/admin/settings/auto-release',
@@ -689,7 +712,8 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
             return;
         }
         if (necesitaConfirmar) {
-            setConfirmarLiberacion(true);
+            // El conteo se fija al abrir: si la vista previa llega después, el diálogo no cambia.
+            setConfirmarLiberacion({ count: vistaPreviaVigente && !vistaPreviaVigente.error ? vistaPreviaVigente.count : null });
             return;
         }
         enviarLiberacion();
@@ -709,7 +733,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
     // cambio, se avisa siempre (el texto no se puede guardar así).
     const errorTexto =
         weekendSobran > 0
-            ? t('settings.weekendNotice.tooLong', { n: weekendSobran, max: weekendNotice.max_length })
+            ? t('settings.weekendNotice.tooLong', { max: weekendNotice.max_length })
             : weekendEnabled && !weekendTextTrim
               ? t('settings.weekendNotice.textRequired')
               : undefined;
@@ -803,14 +827,35 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
 
         const quitar = router.on('before', (event) => {
             const visita = event.detail.visit;
-            // Solo las salidas de verdad: ni el prefetch al pasar por el menú, ni los guardados (POST),
-            // ni las recargas parciales de esta misma página.
-            if (visita.method !== 'get' || visita.prefetch || visita.url.pathname === window.location.pathname) return;
+            // Sin preguntar: el prefetch al pasar por el menú, los guardados y comprobaciones de esta
+            // página, y sus recargas parciales. Sí se pregunta al volver a pulsar «Configuración» en
+            // el menú (recarga la página entera) y al cerrar sesión (POST a otra ruta).
+            if (visita.prefetch) return;
+            if (visita.method !== 'get' && visita.url.pathname.startsWith('/admin/settings/')) return;
+            if (visita.method === 'get' && visita.url.pathname === window.location.pathname && (visita.only.length > 0 || visita.preserveState === true)) return;
             if (!window.confirm(t('settings.unsavedLeave'))) event.preventDefault();
         });
 
+        // Atrás/Adelante: Inertia cambia de página sin pasar por 'before'. Esta escucha (en captura,
+        // corre antes que la de Inertia) pregunta y, si se cancela, vuelve a donde estaba.
+        let volviendo = false;
+        const alNavegarHistorial = (event: PopStateEvent) => {
+            if (volviendo) {
+                volviendo = false;
+                event.stopImmediatePropagation();
+                return;
+            }
+            if (!window.confirm(t('settings.unsavedLeave'))) {
+                event.stopImmediatePropagation();
+                volviendo = true;
+                window.history.go(1);
+            }
+        };
+        window.addEventListener('popstate', alNavegarHistorial, { capture: true });
+
         return () => {
             window.removeEventListener('beforeunload', alCerrar);
+            window.removeEventListener('popstate', alNavegarHistorial, { capture: true });
             quitar();
         };
     }, [hayCambios, t]);
@@ -889,6 +934,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
     };
 
     const resultadoMetaTono = (meta: ResultadoMeta): Tono => (meta === 'ok' ? 'ok' : meta === 'sin_respuesta' ? 'aviso' : 'error');
+    // (error_meta, rechazada, desviado y sin_config: en rojo.)
 
     const conPila = deTurnoGuardados.length > HUECOS_PILA ? HUECOS_PILA - 1 : deTurnoGuardados.length;
     const restoPila = deTurnoGuardados.length - conPila;
@@ -979,8 +1025,11 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                 acciones={botonComprobar(comprobandoMeta, t('settings.whatsapp.checkNow'), comprobarWhatsApp)}
                             />
 
-                            {/* Resultado de «Comprobar ahora»: región viva siempre presente. */}
-                            <div aria-live="polite">
+                            {/* Lo que oye el lector: solo el resultado (no la hora relativa, que cambia cada minuto). */}
+                            <p className="sr-only" aria-live="polite">
+                                {comprobacion ? ('error' in comprobacion ? comprobacion.error : t(`settings.whatsapp.result.${comprobacion.datos.meta}`)) : ''}
+                            </p>
+                            <div>
                                 {comprobacion && (
                                     <Fila
                                         etiqueta={t('settings.whatsapp.checkRowLabel')}
@@ -989,34 +1038,25 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                         {'error' in comprobacion ? (
                                             <Mensaje tono="error">{comprobacion.error}</Mensaje>
                                         ) : (
-                                            <div className="flex flex-col gap-2.5">
-                                                <Mensaje tono={resultadoMetaTono(comprobacion.datos.meta)}>
-                                                    {t(`settings.whatsapp.result.${comprobacion.datos.meta}`)}
-                                                </Mensaje>
-                                                {(() => {
-                                                    const otras = Object.entries(comprobacion.datos.alertas ?? {}).filter(([codigo]) => !esAlertaDeConexion(codigo));
-                                                    return (
-                                                        otras.length > 0 && (
-                                                            <div className="flex flex-col gap-1.5">
-                                                                <p className={cn('text-[12.5px] leading-4 font-medium', TONO_TEXTO.aviso)}>{t('settings.whatsapp.otherAlerts')}</p>
-                                                                <ul className={cn('list-disc space-y-1 pl-5 text-[13px] leading-[18px]', TEXTO_NAVY)}>
-                                                                    {otras.map(([codigo, texto]) => (
-                                                                        <li key={codigo}>{texto}</li>
-                                                                    ))}
-                                                                </ul>
-                                                            </div>
-                                                        )
-                                                    );
-                                                })()}
-                                            </div>
+                                            // Con plantillas ajenas o sin mensajes entrantes, el resultado sale en ámbar
+                                            // como la franja, aunque la conexión con Meta esté bien.
+                                            <Mensaje
+                                                tono={
+                                                    comprobacion.datos.meta === 'ok' && ('meta_plantillas' in alertas || 'silencio' in alertas)
+                                                        ? 'aviso'
+                                                        : resultadoMetaTono(comprobacion.datos.meta)
+                                                }
+                                            >
+                                                {t(`settings.whatsapp.result.${comprobacion.datos.meta}`)}
+                                            </Mensaje>
                                         )}
                                     </Fila>
                                 )}
                             </div>
 
-                            {/* Alertas vigentes que no son de la conexión (cola, disco, respaldo…), mientras no haya
-                                una comprobación recién hecha que ya las muestre. Esta no se cierra. */}
-                            {!comprobacion && otrasAlertas.length > 0 && (
+                            {/* Alertas vigentes que no son de la conexión (llegada de mensajes, cola, disco, respaldo…),
+                                siempre desde la prop viva: se refresca tras comprobar o guardar. Esta no se cierra. */}
+                            {otrasAlertas.length > 0 && (
                                 <Fila etiqueta={t('settings.whatsapp.alertsRowLabel')} ayuda={t('settings.whatsapp.alertsRowHelp')}>
                                     <ul className={cn('list-disc space-y-1 pl-5 text-[13px] leading-[18px] font-medium', TONO_TEXTO.aviso)}>
                                         {otrasAlertas.map(([codigo, texto]) => (
@@ -1179,7 +1219,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                                         setTiempoTocado(false);
                                                     }}
                                                     className={cn(
-                                                        'h-8 cursor-pointer rounded-full px-3 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors',
+                                                        'h-8 cursor-pointer rounded-full px-3 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors forced-colors:border forced-colors:aria-pressed:bg-[Highlight] forced-colors:aria-pressed:text-[HighlightText] forced-colors:aria-pressed:forced-color-adjust-none',
                                                         elegido
                                                             ? 'bg-[#2e3f84] text-white dark:bg-[#596bcf]'
                                                             : 'bg-[#2e3f84]/[0.06] text-[#2e3f84] hover:bg-[#2e3f84]/[0.1] dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/10',
@@ -1339,7 +1379,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                             value={weekendText}
                                             onChange={(event) => setWeekendText(event.target.value)}
                                             onBlur={() => setTextoTocado(true)}
-                                            aria-describedby={describir('weekend-text-help', mostrarErrorTexto && 'weekend-text-error')}
+                                            aria-describedby={describir('weekend-text-help', 'weekend-text-count', mostrarErrorTexto && 'weekend-text-error')}
                                             aria-invalid={mostrarErrorTexto || undefined}
                                             className="caja-ajuste block w-full resize-y rounded-[9px] px-3 py-2.5 text-[13px] leading-[19px] outline-hidden"
                                         />
@@ -1355,6 +1395,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                             {t('settings.weekendNotice.restoreDefault')}
                                         </button>
                                         <span
+                                            id="weekend-text-count"
                                             className={cn(
                                                 'text-[12px] leading-4 tabular-nums',
                                                 weekendSobran > 0 ? cn('font-semibold', TONO_TEXTO.error) : TEXTO_SUAVE
@@ -1491,7 +1532,7 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                                             title={`${nombre} · ${advisor.email}`}
                                                             className={cn(
                                                                 'relative flex h-full min-h-[52px] min-w-0 cursor-pointer items-center gap-3 rounded-[10px] px-3 py-1.5 transition-colors',
-                                                                'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#2e3f84]/40 dark:has-[:focus-visible]:ring-[#8b9ae0]/60',
+                                                                'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#2e3f84]/40 has-[:focus-visible]:outline-hidden dark:has-[:focus-visible]:ring-[#8b9ae0]/60',
                                                                 selected
                                                                     ? 'bg-[#2e3f84]/[0.045] dark:bg-white/[0.06]'
                                                                     : 'hover:bg-[#2e3f84]/[0.025] dark:hover:bg-white/[0.03]'
@@ -1552,22 +1593,24 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
             </div>
 
             {/* Confirmación al activar la liberación (o acortar su tiempo): puede desasignar muchas de golpe. */}
-            <Dialog open={confirmarLiberacion} onOpenChange={setConfirmarLiberacion}>
+            <Dialog open={!!confirmarLiberacion} onOpenChange={(abierto) => !abierto && setConfirmarLiberacion(null)}>
                 <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl">
                     <DialogHeader>
-                        <DialogTitle className="settings-title">{t('settings.autoRelease.confirmTitle')}</DialogTitle>
+                        <DialogTitle className="settings-title">
+                            {t(autoRelease.enabled ? 'settings.autoRelease.confirmTitleShorten' : 'settings.autoRelease.confirmTitle')}
+                        </DialogTitle>
                         <DialogDescription className="settings-subtitle">
-                            {vistaPreviaVigente && !vistaPreviaVigente.error && vistaPreviaVigente.count !== null
-                                ? t('settings.autoRelease.confirmText', { count: vistaPreviaVigente.count })
+                            {confirmarLiberacion?.count != null
+                                ? t('settings.autoRelease.confirmText', { count: confirmarLiberacion.count })
                                 : t('settings.autoRelease.confirmUnknown')}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setConfirmarLiberacion(false)} className="rounded-xl">
+                        <Button type="button" variant="outline" onClick={() => setConfirmarLiberacion(null)} className="rounded-xl">
                             {t('common.cancel')}
                         </Button>
                         <Button type="button" onClick={enviarLiberacion} className="settings-btn-primary rounded-xl">
-                            {t('settings.autoRelease.confirmButton')}
+                            {t(autoRelease.enabled ? 'settings.autoRelease.confirmButtonShorten' : 'settings.autoRelease.confirmButton')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

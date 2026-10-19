@@ -1359,10 +1359,16 @@ class ConversationController extends Controller
 
     /**
      * Actualización masiva de estado
+     *
+     * La usan también los asesores (Ctrl + clic o arrastrar en la lista abre la selección) para cerrar de una vez
+     * los chats que ya no se pueden contestar. Con la misma regla que show() y updateStatus(), un asesor solo cambia
+     * sus conversaciones y, si está de turno, las que no tienen asesor; las demás (p. ej. de otro asesor en
+     * «Resueltas») se omiten y se le avisa cuántas.
      */
     public function bulkUpdateStatus(Request $request)
     {
-        abort_unless(auth()->user()?->isAdmin(), 403);
+        $user = auth()->user();
+        abort_unless($user && ($user->isAdmin() || $user->isAdvisor()), 403);
 
         $validated = $request->validate([
             'ids' => 'required|array',
@@ -1370,6 +1376,39 @@ class ConversationController extends Controller
             'status' => 'required|in:active,pending,resolved,scheduled',
         ]);
 
+        $pedidas = array_values(array_unique(array_map('intval', $validated['ids'])));
+        $ids = $pedidas;
+
+        if ($user->isAdvisor()) {
+            $ids = Conversation::whereIn('id', $pedidas)
+                ->where(function ($q) use ($user) {
+                    $q->where('assigned_to', $user->id);
+                    if ($user->isOnDuty()) {
+                        $q->orWhereNull('assigned_to');
+                    }
+                })
+                ->pluck('id')
+                ->all();
+        }
+
+        $omitidas = count($pedidas) - count($ids);
+
+        // La pantalla actual llama por axios y espera JSON. Con back(), el navegador seguía la redirección hasta la
+        // página anterior; si era un chat abierto que ya pasó a otra persona, show() daba 403 y salía el modal de error
+        // con el cambio ya guardado. Las pestañas con la versión anterior (router.post, X-Inertia) siguen con back().
+        $json = $request->expectsJson() && !$request->header('X-Inertia');
+
+        if ($ids === []) {
+            $aviso = $omitidas === 1
+                ? 'Esa conversación no está asignada a ti: no se cambió.'
+                : "Esas {$omitidas} conversaciones no están asignadas a ti: no se cambió ninguna.";
+
+            return $json
+                ? response()->json(['success' => false, 'cambiadas' => 0, 'omitidas' => $omitidas, 'mensaje' => null, 'aviso' => $aviso])
+                : back()->with('error', $aviso);
+        }
+
+        $validated['ids'] = $ids;
         $status = $validated['status'];
         $updateData = ['status' => $status];
 
@@ -1393,6 +1432,16 @@ class ConversationController extends Controller
 
         Conversation::whereIn('id', $validated['ids'])->update($updateData);
 
+        // Igual que updateStatus(): «Agendada» pone la etiqueta persistente «Agendado». La pestaña Agendados filtra
+        // por ella; sin la etiqueta, la conversación salía de «Todos» y no aparecía en ninguna parte.
+        if ($status === 'scheduled') {
+            $tag = Tag::firstOrCreate(
+                ['name' => 'Agendado'],
+                ['color' => '#f59e0b']
+            );
+            $tag->conversations()->syncWithoutDetaching($validated['ids']);
+        }
+
         // Si se resuelven, enviar despedida y marcar mensajes como leídos
         if ($status === 'resolved') {
             $conversations = Conversation::whereIn('id', $validated['ids'])->get();
@@ -1406,7 +1455,22 @@ class ConversationController extends Controller
                 ->update(['status' => 'read']);
         }
 
-        return back()->with('success', count($validated['ids']) . ' conversaciones actualizadas.');
+        $cambiadas = count($validated['ids']);
+        $mensaje = $cambiadas === 1 ? '1 conversación actualizada.' : "{$cambiadas} conversaciones actualizadas.";
+        $aviso = $omitidas === 0 ? null : ($omitidas === 1
+            ? '1 no se cambió porque no está asignada a ti.'
+            : "{$omitidas} no se cambiaron porque no están asignadas a ti.");
+
+        if ($json) {
+            return response()->json(['success' => true, 'cambiadas' => $cambiadas, 'omitidas' => $omitidas, 'mensaje' => $mensaje, 'aviso' => $aviso]);
+        }
+
+        $respuesta = back()->with('success', $mensaje);
+        if ($aviso !== null) {
+            $respuesta->with('error', $aviso);
+        }
+
+        return $respuesta;
     }
 
     /**
@@ -1563,6 +1627,14 @@ class ConversationController extends Controller
         }
 
         $resolverName = auth()->user()->name;
+
+        // Las llamadas de la pantalla por axios (clic derecho, cabecera del chat) esperan JSON. Antes recibían la
+        // redirección de back(), axios la seguía hasta la página anterior —un chat abierto que quizá ya no es de esta
+        // persona: 403 de show()— y la pantalla mostraba un error con el cambio ya guardado. Las visitas de Inertia
+        // (router.post, cabecera X-Inertia) siguen recibiendo la redirección de siempre.
+        if ($request->expectsJson() && !$request->header('X-Inertia')) {
+            return response()->json(['success' => true, 'status' => $validated['status']]);
+        }
 
         if ($validated['status'] === 'resolved') {
             return redirect('/admin/chat')

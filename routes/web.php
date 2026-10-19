@@ -72,14 +72,12 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/view', 'view')->name('view');
         Route::get('/export', 'export')->name('export');
         Route::post('/upload', 'upload')->name('upload');
-        Route::post('/process', 'process')->name('process');
         Route::post('/reminders/start', 'startReminders')->name('reminders.start');
         Route::post('/reminders/start-day-before', 'startRemindersDayBefore')->name('reminders.start-day-before');
         Route::post('/reminders/pause', 'pauseReminders')->name('reminders.pause');
         Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
         Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
-        Route::post('/update-pending-phones', 'updatePendingPhones')->name('update-pending-phones');
     });
     
     // Gestión de Citas de Oncología
@@ -88,24 +86,21 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/view', 'view')->name('view');
         Route::get('/export', 'export')->name('export');
         Route::post('/upload', 'upload')->name('upload');
-        Route::post('/process', 'process')->name('process');
         Route::post('/reminders/start', 'startReminders')->name('reminders.start');
         Route::post('/reminders/start-day-before', 'startRemindersDayBefore')->name('reminders.start-day-before');
         Route::post('/reminders/pause', 'pauseReminders')->name('reminders.pause');
         Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
         Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
-        Route::post('/update-pending-phones', 'updatePendingPhones')->name('update-pending-phones');
     });
     
     // Configuración del sistema
     Route::controller(\App\Http\Controllers\Admin\SettingsController::class)->group(function () {
         Route::get('/settings', 'index')->name('settings.index');
-        Route::post('/settings/whatsapp', 'updateWhatsApp')->name('settings.whatsapp');
-        Route::post('/settings/test-whatsapp', 'testWhatsAppConnection')->name('settings.test-whatsapp');
-        Route::get('/settings/business-profile', 'getBusinessProfile')->name('settings.business-profile');
+        // Las claves de WhatsApp y Groq ya no se guardan desde la web: solo se comprueban.
+        Route::post('/settings/whatsapp/check', 'checkWhatsApp')->middleware('throttle:6,1,ajustes-whatsapp')->name('settings.whatsapp.check');
+        Route::post('/settings/groq/check', 'checkGroq')->middleware('throttle:6,1,ajustes-groq')->name('settings.groq.check');
         Route::post('/settings/on-duty-advisors', 'updateOnDutyAdvisors')->name('settings.on-duty-advisors');
-        Route::post('/settings/groq', 'updateGroq')->name('settings.groq');
         Route::post('/settings/auto-release', 'updateAutoRelease')->name('settings.auto-release');
         Route::get('/settings/auto-release/preview', 'previewAutoRelease')->name('settings.auto-release.preview');
         Route::post('/settings/weekend-notice', 'updateWeekendNotice')->name('settings.weekend-notice');

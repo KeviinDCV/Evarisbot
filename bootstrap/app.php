@@ -65,5 +65,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Si alguna vez llegara un secreto en un formulario rechazado, que no quede en la sesión
+        // como "old input" (las credenciales solo se cambian desde la consola).
+        $exceptions->dontFlash(['whatsapp_token', 'whatsapp_verify_token', 'whatsapp_app_secret', 'groq_api_key']);
     })->create();

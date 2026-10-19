@@ -7,6 +7,9 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Setting;
 use App\Models\Tag;
+use App\Support\Recordatorios;
+use App\Support\WhatsAppErrorTranslator;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
 
@@ -24,8 +27,9 @@ class AppointmentReminderService
      */
     public function processReminders(): array
     {
-        // Verificar si los recordatorios están habilitados
-        if (!Setting::get('reminder_enabled', 'true') === 'true') {
+        // Verificar si los recordatorios están habilitados. (Antes decía «!Setting::get(...) === 'true'», que por la
+        // precedencia de operadores nunca era cierto: el interruptor no apagaba nada.)
+        if (Setting::get('reminder_enabled', 'true') !== 'true') {
             Log::info('Recordatorios deshabilitados en configuración');
             return ['sent' => 0, 'failed' => 0, 'skipped' => 0];
         }
@@ -60,6 +64,10 @@ class AppointmentReminderService
                         'phone' => $appointment->pactel,
                         'message_id' => $result['message_id']
                     ]);
+                } elseif (($result['alcance'] ?? 'cita') === 'lote') {
+                    // Plantilla, cuenta o límite: el resto también fallaría. Se para sin marcar ninguna cita.
+                    Log::error('Recordatorios detenidos: el problema no es de las citas', ['error' => $result['error']]);
+                    break;
                 } else {
                     $failed++;
                     $appointment->markReminderFailed($result['error']);
@@ -93,20 +101,11 @@ class AppointmentReminderService
      */
     protected function getAppointmentsNeedingReminder(int $daysInAdvance, int $limit): \Illuminate\Database\Eloquent\Collection
     {
-        $targetDate = now()->setTimezone('America/Bogota')->addDays($daysInAdvance)->startOfDay();
-
+        // El mismo criterio que la pantalla Citas (sin canceladas ni confirmadas, errores reintentables incluidos).
         return Appointment::query()
-            ->whereDate('citfc', $targetDate)
-            ->where('reminder_sent', false)
-            ->where(function ($query) {
-                // Excluir solo fallos permanentes (teléfono inválido, etc.)
-                // Permitir reintentar las que fallaron por problemas temporales (lock contention, API timeout)
-                $query->whereNull('reminder_error')
-                      ->orWhere('reminder_error', 'like', '%attempted too many%')
-                      ->orWhere('reminder_error', 'like', '%Something went wrong%');
-            })
-            ->whereNotNull('citfc')
-            ->whereNotNull('pactel')
+            ->porRecordar(Recordatorios::dentroDe($daysInAdvance))
+            ->orderBy('cithor')
+            ->orderBy('id')
             ->limit($limit)
             ->get();
     }
@@ -132,146 +131,171 @@ class AppointmentReminderService
         // = "connom - Consultorio citcon"), por lo que siempre se envían 6 parámetros.
         $includeConsultorio = true;
 
-        // Formatear número de teléfono (eliminar caracteres no numéricos)
-        $phoneNumber = preg_replace('/[^0-9]/', '', $appointment->pactel);
-        
-        Log::info('Número de teléfono procesado', [
-            'original' => $appointment->pactel,
-            'processed' => $phoneNumber,
-            'length' => strlen($phoneNumber)
-        ]);
-        
-        // Validar longitud mínima ANTES de intentar enviar
-        // Un número válido colombiano tiene mínimo 10 dígitos (sin código de país)
-        if (strlen($phoneNumber) < 10) {
-            $errorMsg = 'Número de teléfono inválido: ' . $appointment->pactel . ' (muy corto, mínimo 10 dígitos)';
-            Log::warning($errorMsg, [
-                'appointment_id' => $appointment->id,
-                'phone' => $phoneNumber
-            ]);
-            // Marcar como fallido permanentemente para no reintentar
+        // Celular al que se manda: el mismo normalizador que usan las cifras de la pantalla (Recordatorios::celular).
+        // Fijos (60X…), incompletos o sin número → error permanente; el texto conserva «Número de teléfono inválido».
+        $phoneNumber = Recordatorios::celular($appointment->pactel);
+
+        if (!$phoneNumber) {
+            $errorMsg = Recordatorios::error('telefono', 'Número de teléfono inválido: no es un celular', (string) $appointment->pactel);
+            Log::warning('Número de teléfono inválido para recordatorio', ['appointment_id' => $appointment->id]);
             $appointment->markReminderFailed($errorMsg);
-            return ['success' => false, 'error' => $errorMsg];
+
+            return ['success' => false, 'error' => $errorMsg, 'motivo' => 'telefono', 'codigo' => null, 'alcance' => 'cita'];
         }
-        
-        // Agregar código de país si no lo tiene (Colombia = 57)
-        if (strlen($phoneNumber) === 10) {
-            // Número colombiano de 10 dígitos (ej: 3045782893)
-            $phoneNumber = '57' . $phoneNumber;
-            Log::info('Código de país agregado', ['phone' => $phoneNumber]);
-        }
-        
-        // Validar longitud final (con código de país debe ser 12 para Colombia)
-        if (strlen($phoneNumber) < 12 || strlen($phoneNumber) > 15) {
-            $errorMsg = 'Número de teléfono con formato inválido: ' . $appointment->pactel . ' (longitud: ' . strlen($phoneNumber) . ')';
-            Log::warning($errorMsg, [
-                'phone' => $phoneNumber,
-                'appointment_id' => $appointment->id
-            ]);
-            $appointment->markReminderFailed($errorMsg);
-            return ['success' => false, 'error' => $errorMsg];
-        }
-        
+
         // Preparar parámetros del template
         $parameters = $this->prepareTemplateParameters($appointment, $includeConsultorio);
-        
+
         Log::info('Parámetros del template preparados', [
             'template_name' => $templateName,
             'parameters_count' => count($parameters)
         ]);
-        
-        try {
-            // Enviar mensaje usando template
-            Log::info('Enviando mensaje a WhatsApp API', [
-                'to' => $phoneNumber,
-                'template' => $templateName
-            ]);
-            
-            $response = $this->sendTemplateMessage($phoneNumber, $templateName, $parameters);
-            
-            Log::info('Respuesta de WhatsApp API recibida', [
-                'response' => $response
-            ]);
-            
-            if (isset($response['messages'][0]['id'])) {
-                $messageId = $response['messages'][0]['id'];
-                $messageStatus = $response['messages'][0]['message_status'] ?? 'unknown';
-                
-                Log::info('Mensaje enviado exitosamente', [
-                    'message_id' => $messageId,
-                    'phone' => $phoneNumber,
-                    'message_status' => $messageStatus,
-                    'full_response' => $response
-                ]);
-                
-                // Buscar o crear conversación (con formato internacional +57...)
-                $conversation = Conversation::firstOrCreate(
-                    ['phone_number' => '+' . $phoneNumber],
-                    [
-                        'contact_name' => $appointment->nom_paciente,
-                        // Recordatorio saliente: la conversación nace "agendada" (oculta de "Todos").
-                        // Si el paciente responde, la reactivación automática la pasa a "active" y aparece.
-                        'status' => 'scheduled',
-                        'last_message_at' => now()
-                    ]
-                );
-                
-                Log::info('Conversación encontrada/creada', [
-                    'conversation_id' => $conversation->id,
-                    'phone_number' => '+' . $phoneNumber
-                ]);
-                
-                // Crear mensaje en la conversación
-                $message = Message::create([
-                    'conversation_id' => $conversation->id,
-                    'content' => $this->generateReminderText($appointment, $includeConsultorio),
-                    'message_type' => 'text',
-                    'is_from_user' => false,
-                    'whatsapp_message_id' => $messageId,
-                    'status' => 'sent',
-                    'sent_by' => null // Sistema automático
-                ]);
-                
-                Log::info('Mensaje guardado en BD', [
-                    'message_id' => $message->id,
-                    'conversation_id' => $conversation->id
-                ]);
-                
-                // Auto-etiquetar conversaciones de oncología
-                if ($appointment->service === 'oncology') {
-                    $tag = Tag::firstOrCreate(
-                        ['name' => 'Oncología'],
-                        ['color' => '#9333ea']
-                    );
-                    $conversation->tags()->syncWithoutDetaching([$tag->id]);
-                }
 
-                // Actualizar appointment
-                $appointment->update(['conversation_id' => $conversation->id]);
-                $appointment->markReminderSent($messageId);
-                
-                Log::info('Appointment actualizado', [
-                    'appointment_id' => $appointment->id,
-                    'reminder_sent' => true
-                ]);
-                
-                return ['success' => true, 'message_id' => $messageId];
-            }
-            
+        try {
+            $response = $this->sendTemplateMessage($phoneNumber, $templateName, $parameters);
+        } catch (ConnectionException $e) {
+            // Sin respuesta de Meta. Si ni siquiera se conectó, el mensaje no salió: se puede reintentar. Si se
+            // conectó y no respondió («Operation timed out»), pudo haber salido: no se reenvía solo (sería duplicado).
+            $texto = $e->getMessage();
+            $noConecto = (bool) preg_match('/Connection timed out|Resolving timed out|Could not resolve|Failed to connect|Connection refused|cURL error (6|7):/i', $texto);
+            Log::error('Sin respuesta de WhatsApp al enviar recordatorio', [
+                'appointment_id' => $appointment->id,
+                'conecto' => !$noConecto,
+                'error' => $texto,
+            ]);
+
+            return $noConecto
+                ? $this->fallo('temporal', 'Falla temporal de WhatsApp: no se pudo conectar', null, $texto)
+                : $this->fallo('sin_respuesta', 'WhatsApp no respondió: revise el chat antes de reenviar', null, $texto);
+        } catch (\Throwable $e) {
+            Log::error('Error de WhatsApp al enviar recordatorio', [
+                'appointment_id' => $appointment->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->falloDeMeta($e);
+        }
+
+        Log::info('Respuesta de WhatsApp API recibida', [
+            'response' => $response
+        ]);
+
+        if (!isset($response['messages'][0]['id'])) {
             Log::warning('No se recibió ID de mensaje en la respuesta', [
                 'response' => $response
             ]);
-            
-            return ['success' => false, 'error' => 'No se recibió ID de mensaje. Respuesta: ' . json_encode($response)];
-        } catch (\Exception $e) {
-            Log::error('Excepción al enviar recordatorio', [
-                'appointment_id' => $appointment->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return ['success' => false, 'error' => $e->getMessage()];
+
+            return $this->fallo('sin_respuesta', 'WhatsApp no devolvió el número del mensaje: revise el chat antes de reenviar', null, json_encode($response));
         }
+
+        $messageId = $response['messages'][0]['id'];
+
+        // Marcar como enviada JUSTO al recibir el id de Meta: si algo de lo que sigue falla, la cita ya no se
+        // reintenta (antes se marcaba al final y un fallo al crear la conversación reenviaba el WhatsApp).
+        $appointment->markReminderSent($messageId);
+
+        Log::info('Mensaje enviado exitosamente', [
+            'message_id' => $messageId,
+            'appointment_id' => $appointment->id,
+            'message_status' => $response['messages'][0]['message_status'] ?? 'unknown',
+        ]);
+
+        try {
+            // Buscar o crear conversación (con formato internacional +57...)
+            $conversation = Conversation::firstOrCreate(
+                ['phone_number' => '+' . $phoneNumber],
+                [
+                    'contact_name' => $appointment->nom_paciente,
+                    // Recordatorio saliente: la conversación nace "agendada" (oculta de "Todos").
+                    // Si el paciente responde, la reactivación automática la pasa a "active" y aparece.
+                    'status' => 'scheduled',
+                    'last_message_at' => now()
+                ]
+            );
+
+            // Crear mensaje en la conversación
+            Message::create([
+                'conversation_id' => $conversation->id,
+                'content' => $this->generateReminderText($appointment, $includeConsultorio),
+                'message_type' => 'text',
+                'is_from_user' => false,
+                'whatsapp_message_id' => $messageId,
+                'status' => 'sent',
+                'sent_by' => null // Sistema automático
+            ]);
+
+            // Auto-etiquetar conversaciones de oncología
+            if ($appointment->service === 'oncology') {
+                $tag = Tag::firstOrCreate(
+                    ['name' => 'Oncología'],
+                    ['color' => '#9333ea']
+                );
+                $conversation->tags()->syncWithoutDetaching([$tag->id]);
+            }
+
+            Appointment::whereKey($appointment->id)->update(['conversation_id' => $conversation->id]);
+            $appointment->conversation_id = $conversation->id;
+        } catch (\Throwable $e) {
+            // El WhatsApp ya salió y la cita ya está marcada: un fallo aquí solo se registra.
+            Log::error('Recordatorio enviado, pero no se pudo guardar en el chat', [
+                'appointment_id' => $appointment->id,
+                'message_id' => $messageId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return ['success' => true, 'message_id' => $messageId];
+    }
+
+    /** Resultado de un envío fallido, con el texto etiquetado que se guarda y lo que el trabajo debe hacer. */
+    protected function fallo(string $motivo, string $texto, ?int $codigo = null, ?string $detalle = null): array
+    {
+        return [
+            'success' => false,
+            'error' => Recordatorios::error($motivo, $texto, $detalle),
+            'motivo' => $motivo,
+            'codigo' => $codigo,
+            'alcance' => Recordatorios::ALCANCE[$motivo] ?? 'cita',
+        ];
+    }
+
+    /** Clasifica la excepción de sendTemplateMessage (código de Meta y estado HTTP) en un motivo. */
+    protected function falloDeMeta(\Throwable $e): array
+    {
+        $mensaje = $e->getMessage();
+        $codigo = $e->getCode() ? (int) $e->getCode() : null;
+        $status = preg_match('/Status: (\d{3})/', $mensaje, $m) ? (int) $m[1] : null;
+
+        if (str_contains($mensaje, 'WhatsApp no configurado')) {
+            return $this->fallo('cuenta', 'WhatsApp no está configurado en el servidor', null, $mensaje);
+        }
+
+        $llave = strpos($mensaje, '{');
+        $cuerpo = $llave === false ? null : json_decode(substr($mensaje, $llave), true);
+
+        $motivo = Recordatorios::motivoDeCodigo($codigo);
+        if ($codigo === 100 && (int) data_get($cuerpo, 'error.error_subcode') === 33) {
+            // «(#100) Object with ID … does not exist»: el número del hospital (phone_number_id) no existe o no hay
+            // permiso. Es de la cuenta: se corta el lote en vez de marcar cada cita como «dato que no sirve».
+            $motivo = 'cuenta';
+        }
+        if ($motivo === null) {
+            $motivo = match (true) {
+                in_array($status, [401, 403], true) => 'cuenta',
+                $status === 429 => 'limite',
+                $status !== null && $status >= 500 => 'temporal',
+                default => 'otro',
+            };
+        }
+
+        $titulo = data_get($cuerpo, 'error.message');
+        $detalleMeta = data_get($cuerpo, 'error.error_data.details');
+        $texto = $codigo !== null && Recordatorios::motivoDeCodigo($codigo) !== null
+            ? WhatsAppErrorTranslator::human($codigo, $titulo, $detalleMeta)
+            : Recordatorios::ETIQUETAS_MOTIVO[$motivo];
+        $detalle = trim(($codigo !== null ? 'Meta '.$codigo : ($status !== null ? 'HTTP '.$status : '')).($titulo ? ': '.$titulo : ''));
+
+        return $this->fallo($motivo, rtrim($texto, '.'), $codigo, $detalle !== '' ? $detalle : $mensaje);
     }
 
     /**
@@ -479,7 +503,11 @@ class AppointmentReminderService
             'payload' => $payload
         ]);
         
+        // Tiempos propios: 5 s para conectar y 20 s en total. Sin ellos eran 30 s y un «sin respuesta» se reintentaba
+        // y reenviaba el mensaje (ver sendReminder: sin_respuesta no se reintenta).
         $response = Http::withToken($token)
+            ->connectTimeout(5)
+            ->timeout(20)
             ->post($url, $payload);
         
         Log::info('Respuesta HTTP recibida', [
@@ -494,7 +522,8 @@ class AppointmentReminderService
                 'status' => $response->status(),
                 'body' => $errorBody
             ]);
-            throw new \Exception('Error en API de WhatsApp (Status: ' . $response->status() . '): ' . $errorBody);
+            // El código de Meta (error.code) viaja como código de la excepción; el estado HTTP, en el texto.
+            throw new \RuntimeException('Error en API de WhatsApp (Status: ' . $response->status() . '): ' . $errorBody, (int) data_get($response->json(), 'error.code', 0));
         }
         
         $jsonResponse = $response->json();

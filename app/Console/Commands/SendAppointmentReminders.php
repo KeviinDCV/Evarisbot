@@ -14,6 +14,7 @@ class SendAppointmentReminders extends Command
      */
     protected $signature = 'appointments:send-reminders
                             {--dry-run : Ejecutar sin enviar mensajes reales}
+                            {--forzar : Enviar de todos modos (no recomendado: la pantalla Citas es la que envía)}
                             {--limit= : Limitar número de recordatorios a enviar}';
 
     /**
@@ -28,6 +29,14 @@ class SendAppointmentReminders extends Command
      */
     public function handle(AppointmentReminderService $reminderService): int
     {
+        // Este comando envía en el mismo proceso, sin bloqueo, sin ámbito y sin mirar si hay un envío en curso desde
+        // la pantalla: correrlo a mano durante un envío duplicaba mensajes. Se niega salvo --dry-run o --forzar.
+        // (Sigue registrado en el programador, que no corre y no se debe activar.)
+        if (!$this->option('forzar') && !$this->option('dry-run')) {
+            $this->error('Este comando ya no se usa: los recordatorios se envían desde la pantalla Citas.');
+            return Command::FAILURE;
+        }
+
         $this->info('🚀 Iniciando proceso de recordatorios de citas...');
         $this->newLine();
 
@@ -73,22 +82,22 @@ class SendAppointmentReminders extends Command
      */
     protected function dryRun(AppointmentReminderService $reminderService): array
     {
-        // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana)
+        // Por defecto 2 días: si hoy es 12/11, busca citas para 14/11 (pasado mañana). «Hoy» en hora de Colombia y
+        // el mismo criterio que la pantalla Citas (sin canceladas ni confirmadas).
         $daysInAdvance = (int) \App\Models\Setting::get('reminder_days_in_advance', '2');
-        $maxPerDay = $this->option('limit') ?? (int) \App\Models\Setting::get('reminder_max_per_day', '500');
-        
-        $targetDate = now()->addDays($daysInAdvance)->startOfDay();
-        
+        $maxPerDay = (int) ($this->option('limit') ?? \App\Models\Setting::get('reminder_max_per_day', '500'));
+
+        $targetDate = \App\Support\Recordatorios::dentroDe($daysInAdvance);
+
         $appointments = \App\Models\Appointment::query()
-            ->whereDate('citfc', $targetDate)
-            ->where('reminder_sent', false)
-            ->whereNotNull('citfc')
-            ->whereNotNull('pactel')
+            ->porRecordar($targetDate)
+            ->orderBy('cithor')
+            ->orderBy('id')
             ->limit($maxPerDay)
             ->get();
-        
+
         $this->info("📊 Se encontraron {$appointments->count()} citas que necesitan recordatorio");
-        $this->info("📅 Fecha objetivo: {$targetDate->format('Y-m-d')}");
+        $this->info("📅 Fecha objetivo: {$targetDate}");
         $this->newLine();
         
         if ($appointments->count() > 0) {

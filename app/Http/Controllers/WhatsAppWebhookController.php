@@ -210,6 +210,31 @@ class WhatsAppWebhookController extends Controller
 
                 $message->update($updateData);
 
+                // Si era el recordatorio de una cita y Meta avisa que no lo entregó, la cita pasa a «Con error» con el
+                // motivo (sigue con reminder_sent = 1: no se reenvía). Se busca por la conversación del mensaje, que
+                // ya tiene índice, y el id del recordatorio. Un fallo aquí solo se registra: no puede impedir lo de abajo.
+                if ($statusType === 'failed' && $message->conversation_id) {
+                    try {
+                        $codigoCita = $errorInfo[0]['code'] ?? null;
+                        $motivoCita = \App\Support\Recordatorios::motivoDeCodigo($codigoCita) ?? 'otro';
+                        if (in_array($motivoCita, ['temporal', 'caducado'], true)) {
+                            // Su texto promete «se reintenta en el próximo envío», pero esta cita ya cuenta como enviada
+                            // (reminder_sent = 1) y no vuelve a salir.
+                            $motivoCita = 'otro';
+                        }
+                        $textoCita = \App\Support\WhatsAppErrorTranslator::human($codigoCita, $errorInfo[0]['title'] ?? null, $errorInfo[0]['error_data']['details'] ?? null);
+                        \App\Models\Appointment::where('conversation_id', $message->conversation_id)
+                            ->where('reminder_whatsapp_message_id', $messageId)
+                            ->whereIn('reminder_status', ['sent', 'pending'])
+                            ->update([
+                                'reminder_status' => 'failed',
+                                'reminder_error' => \App\Support\Recordatorios::error($motivoCita, rtrim($textoCita, '.'), $codigoCita !== null ? 'Meta '.$codigoCita : null),
+                            ]);
+                    } catch (\Throwable $e) {
+                        Log::error('No se pudo marcar la cita del recordatorio no entregado', ['message_id' => $messageId, 'error' => $e->getMessage()]);
+                    }
+                }
+
                 // Si el mensaje era de envío masivo y falló, actualizar contadores del BulkSend
                 if ($statusType === 'failed' && str_contains($message->content ?? '', '[Envío masivo:')) {
                     // Buscar el BulkSend correspondiente y ajustar contadores

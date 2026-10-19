@@ -57,6 +57,7 @@ import {
     FileText,
     Loader2,
     ShieldBan,
+    Lock,
     Reply,
     SmilePlus,
     Copy,
@@ -92,6 +93,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useTranslation, Trans } from 'react-i18next';
 import { toast } from '@/lib/toast';
+import { nombrePropio } from '@/lib/nombres';
 import { duracionLegible } from '@/lib/duracion';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
 
@@ -492,6 +494,20 @@ export default function ConversationsIndex({ conversations: initialConversations
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
 
+    // Misma regla que ensureCanAccess() del servidor: un asesor solo cambia sus conversaciones y, si está de turno, las
+    // que no tienen asesor. En Resueltas, Agendados, Oncología… ve también las de otros, pero no puede cambiarlas.
+    const puedeActuar = (c: { assigned_to: number | null }) =>
+        auth.user.role !== 'advisor' || c.assigned_to === auth.user.id || (c.assigned_to == null && Boolean(auth.user.is_on_duty));
+
+    // csrfPost no lanza con 4xx/5xx (solo con 419): devuelve el texto del rechazo, o null si el servidor lo aceptó.
+    // Antes se daba por bueno cualquier respuesta y salía «Estado actualizado» o «guardada» con un 403. Del servidor
+    // solo se toma el texto de un 403 (los de permisos están en español); los demás («Server Error»…) van traducidos.
+    const rechazo = (res: { status: number; data?: unknown }, porDefecto: string): string | null => {
+        if (res.status < 400) return null;
+        const mensaje = (res.data as { message?: unknown } | null | undefined)?.message;
+        return res.status === 403 && typeof mensaje === 'string' && mensaje.trim() !== '' ? mensaje : porDefecto;
+    };
+
     // Helper: detectar cantidad de variables {{N}} en el texto de una plantilla
     const getTemplateParamCount = (tpl: WhatsappTemplate): number => {
         if (tpl.default_params && tpl.default_params.length > 0) return tpl.default_params.length;
@@ -529,6 +545,9 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [advisorMenu, setAdvisorMenu] = useState<{ id: number; name: string; count: number; x: number; y: number } | null>(null);
     const [advisorToClear, setAdvisorToClear] = useState<{ id: number; name: string; count: number } | null>(null);
     const [clearingAdvisor, setClearingAdvisor] = useState(false);
+    // El sondeo del chat abierto recibió 403: el chat pasó a otra persona (o quedó sin asesor y no está de turno). La
+    // lista no se entera sola —el servidor deja de mandarlo y Echo está apagado—, así que este es el aviso fiable.
+    const [sinAcceso, setSinAcceso] = useState(false);
     const [selectedConversations, setSelectedConversations] = useState<number[]>([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [isDragSelecting, setIsDragSelecting] = useState(false);
@@ -1743,6 +1762,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Polling para actualización de mensajes en conversación seleccionada
     // Usa endpoint liviano que solo devuelve mensajes nuevos después del último ID
     useEffect(() => {
+        // Otro chat abierto (o ninguno): el «sin acceso» del anterior no aplica.
+        setSinAcceso(false);
         if (!selectedConversation) return;
 
         let isActive = true;
@@ -1829,7 +1850,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Polling exitoso: la conexión está sana de nuevo.
                 pollFailuresRef.current = 0;
                 setConnectionStale(false);
-            } catch {
+                setSinAcceso(false);
+            } catch (err) {
+                // 403: el servidor ya no deja ver este chat (pasó a otra persona). No es un fallo de conexión: antes
+                // salía «conexión inestable» y el panel seguía ofreciendo acciones que el servidor rechazaba.
+                if ((err as { response?: { status?: number } })?.response?.status === 403) {
+                    pollFailuresRef.current = 0;
+                    setConnectionStale(false);
+                    setSinAcceso(true);
+                    return;
+                }
                 // Tras 2 fallos consecutivos, avisar que la conexión quedó inestable
                 // (servidor reiniciado, caída de LAN, etc.) en vez de silenciar siempre.
                 pollFailuresRef.current += 1;
@@ -2368,42 +2398,88 @@ export default function ConversationsIndex({ conversations: initialConversations
         });
     };
 
+    // Vuelve a poner en la lista las conversaciones que se quitaron por adelantado y el servidor no aceptó, en su sitio
+    // (fijadas primero, luego por último mensaje). Sin recargar la página: recargar /admin/chat/{id} con un chat abierto
+    // que ya pasó a otra persona da 403 y abre el modal de error.
+    const reponer = (items: Conversation[]) => {
+        if (items.length === 0) return;
+        setLocalConversations(prev => {
+            const ids = new Set(prev.map(c => c.id));
+            const faltan = items.filter(c => !ids.has(c.id));
+            if (faltan.length === 0) return prev;
+            return [...prev, ...faltan].sort((a, b) => {
+                if (a.is_pinned && !b.is_pinned) return -1;
+                if (!a.is_pinned && b.is_pinned) return 1;
+                if (a.is_pinned && b.is_pinned) {
+                    return new Date(b.pinned_at || 0).getTime() - new Date(a.pinned_at || 0).getTime();
+                }
+                return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+            });
+        });
+    };
+
     // Función para cambiar estado de múltiples conversaciones
     const handleBulkStatusChange = (status: string) => {
         if (selectedConversations.length === 0) return;
 
         const idsToUpdate = [...selectedConversations];
 
+        // Lo que se cambia por adelantado en la pantalla es solo lo que el servidor va a aceptar, con su misma regla
+        // (bulkUpdateStatus): un asesor, las suyas y, si está de turno, las que no tienen asesor. Se envían todas igual:
+        // el servidor decide y avisa cuántas omitió.
+        const deTurno = Boolean(auth.user.is_on_duty);
+        const permitidas = isAdmin
+            ? idsToUpdate
+            : idsToUpdate.filter(id => {
+                const c = localConversations.find(x => x.id === id);
+                return !!c && (c.assigned_to === auth.user.id || (c.assigned_to == null && deTurno));
+            });
+
+        const quitadas = status === 'resolved' ? localConversations.filter(c => permitidas.includes(c.id)) : [];
         if (status === 'resolved') {
             // Quitar inmediatamente del listado local para respuesta instantánea
-            setLocalConversations(prev => prev.filter(c => !idsToUpdate.includes(c.id)));
+            setLocalConversations(prev => prev.filter(c => !permitidas.includes(c.id)));
         }
 
-        router.post('/admin/chat/bulk-status', {
-            ids: idsToUpdate,
-            status: status
-        }, {
-            preserveScroll: true,
-            preserveState: true,
-            onSuccess: () => {
-                setSelectedConversations([]);
-                setIsSelectionMode(false);
+        // Por axios y no por router.post: el servidor responde JSON sin redirigir. Con la redirección a la página
+        // anterior, un chat abierto que ya pasó a otra persona daba 403 y salía el modal de error con el cambio guardado.
+        csrfPost('/admin/chat/bulk-status', { ids: idsToUpdate, status }).then(res => {
+            const error = rechazo(res, t('conversations.bulkStatusError'));
+            const data = res.data as { success?: boolean; mensaje?: string | null; aviso?: string | null } | string | null;
+            clearSelection();
 
-                // Si no era resolved, actualizar estado local (si era resolved ya los quitamos)
-                if (status !== 'resolved') {
-                    setLocalConversations(prev =>
-                        prev.map(c => idsToUpdate.includes(c.id)
-                            ? { ...c, status, resolved_by_user: null, resolved_at: null }
-                            : c
-                        )
-                    );
-                }
-            },
-            onError: (errors) => {
-                console.error('Error al cambiar estado de conversaciones:', errors);
-                // Si hubo error en resolved, tal vez deberíamos restaurarlos... 
-                // pero por complejidad dejémoslo así por ahora o recargar la página.
+            if (error || !data || typeof data !== 'object') {
+                // No se aplicó (sesión vencida, error del servidor, una conversación que ya no existe): se avisa y
+                // vuelven a la lista las que se quitaron por adelantado.
+                toast.error(error ?? t('conversations.bulkStatusError'));
+                reponer(quitadas);
+                return;
             }
+
+            // Cuántas cambió y, a un asesor, cuántas omitió por no ser suyas. Un solo aviso: los avisos se tapan entre
+            // sí, y «No se pudo completar» no puede ocultar que algunas sí cambiaron.
+            if (data.mensaje && data.aviso) toast.warning(`${data.mensaje} ${data.aviso}`);
+            else if (data.mensaje) toast.success(data.mensaje);
+            else if (data.aviso) toast.error(data.aviso);
+
+            if (!data.success) {
+                reponer(quitadas);
+                return;
+            }
+
+            // Si no era resolved, actualizar estado local (si era resolved ya los quitamos)
+            if (status !== 'resolved') {
+                setLocalConversations(prev =>
+                    prev.map(c => permitidas.includes(c.id)
+                        ? { ...c, status, resolved_by_user: null, resolved_at: null }
+                        : c
+                    )
+                );
+            }
+        }).catch(() => {
+            toast.error(t('conversations.bulkStatusError'));
+            clearSelection();
+            reponer(quitadas);
         });
     };
 
@@ -2677,11 +2753,23 @@ export default function ConversationsIndex({ conversations: initialConversations
         return currentAssignedTo !== null && currentAssignedTo !== auth.user.id;
     }, [currentAssignedTo, auth.user.id, isAdmin, selectedConversation]);
 
+    // El chat abierto ya no es de esta persona (lo tomó otro asesor, o quedó sin asesor y no está de turno): el
+    // servidor le niega cambiar estado, notas, especialidad y bloqueo. El panel lo muestra en solo lectura. Se sabe por
+    // la lista (si la trae al día) o por el 403 del sondeo del chat abierto (sinAcceso), que es lo que sí llega siempre.
+    const soloLectura = !!selectedConversation && (sinAcceso || !puedeActuar({ assigned_to: currentAssignedTo ?? null }));
+    // Responder y reaccionar tampoco: el servidor lo rechaza igual.
+    const bloqueado = isLockedByOther || sinAcceso;
+    const textoSoloLectura = currentAssignedTo && currentAssignedTo !== auth.user.id
+        ? t('conversations.readOnlyAssigned', { name: nombrePropio(currentAssignedUserName ?? t('conversations.anotherAgent')) })
+        : currentAssignedTo == null
+            ? t('conversations.readOnlyUnassigned')
+            : t('conversations.noLongerYours');
+
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
 
         // Protección contra doble envío
-        if (isSubmitting || isLockedByOther) {
+        if (isSubmitting || bloqueado) {
             return;
         }
 
@@ -2865,8 +2953,11 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (notesTimeoutRef.current) clearTimeout(notesTimeoutRef.current);
         notesTimeoutRef.current = setTimeout(() => {
             setSavingNotes(true);
-            csrfPost(`/admin/chat/${selectedConversation.id}/notes`, { notes: text }).then(() => {
+            csrfPost(`/admin/chat/${selectedConversation.id}/notes`, { notes: text }).then(res => {
                 setSavingNotes(false);
+                // Antes un 403 (el chat pasó a otra persona) dejaba la nota sin guardar y sin avisar.
+                const error = rechazo(res, t('conversations.notesSaveError'));
+                if (error) toast.error(error);
             }).catch(() => {
                 setSavingNotes(false);
                 toast.error(t('conversations.notesSaveError'));
@@ -2880,8 +2971,10 @@ export default function ConversationsIndex({ conversations: initialConversations
         try {
             const res = await axios.get(`/admin/chat/${selectedConversation.id}/activities`);
             setActivities(res.data.activities || []);
-        } catch {
-            toast.error(t('conversations.activityLoadError'));
+        } catch (err) {
+            // 403: la conversación ya no está a cargo de esta persona; se dice eso y no «error al cargar».
+            const estado = (err as { response?: { status?: number } })?.response?.status;
+            toast.error(estado === 403 ? t('conversations.readOnlyToast') : t('conversations.activityLoadError'));
         } finally {
             setLoadingActivities(false);
         }
@@ -2980,6 +3073,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (!selectedConversation) return;
         const convId = selectedConversation.id;
 
+        // El panel ya no ofrece cambiar el estado de un chat ajeno; esto cubre datos desactualizados.
+        if (soloLectura) {
+            toast.error(t('conversations.readOnlyToast'));
+            return;
+        }
+
         if (status === 'resolved') {
             // ¿Estaba el asesor leyendo al final del chat? Hay que preguntarlo AHORA,
             // antes de que el router recargue y el contenedor pierda la posición.
@@ -3001,38 +3100,57 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (tagFilterId !== null) params.tag = String(tagFilterId);
             if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
-            router.post(`/admin/chat/${convId}/status`, { status }, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast.success(t('conversations.chatResolved'));
-                    // preserveScroll: el router.post de arriba ya lo llevaba, pero este get
-                    // encadenado no — y sin él Inertia resetea el scroll tras resolver.
-                    router.get('/admin/chat', params, {
-                        preserveState: true,
-                        preserveScroll: true,
-                        replace: true,
-                        // preserveScroll solo cuida el scroll del documento, no el de este
-                        // panel. Si el asesor estaba abajo lo devolvemos ahí una vez pintado,
-                        // y sin animación: no se movió a propósito, así que no debe verse
-                        // ningún desplazamiento.
-                        onFinish: () => {
-                            if (estabaAlFinal) {
-                                requestAnimationFrame(() => scrollToBottom(false));
-                            }
-                        },
-                    });
-                },
-                onError: () => toast.error(t('conversations.statusChangeError')),
+            // Por axios y no por router.post: si el chat pasó a otra persona en el último momento, el 403 se avisa con
+            // un toast en vez de abrir el modal con la página de error. El servidor responde JSON (updateStatus).
+            const quitada = localConversations.find(c => c.id === convId);
+            csrfPost(`/admin/chat/${convId}/status`, { status }).then(res => {
+                const error = rechazo(res, t('conversations.statusChangeError'));
+                if (error) {
+                    toast.error(error);
+                    if (res.status !== 403 && quitada) reponer([quitada]);
+                    return;
+                }
+                toast.success(t('conversations.chatResolved'));
+                // preserveScroll: sin él Inertia resetea el scroll tras resolver.
+                router.get('/admin/chat', params, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    // preserveScroll solo cuida el scroll del documento, no el de este
+                    // panel. Si el asesor estaba abajo lo devolvemos ahí una vez pintado,
+                    // y sin animación: no se movió a propósito, así que no debe verse
+                    // ningún desplazamiento.
+                    onFinish: () => {
+                        if (estabaAlFinal) {
+                            requestAnimationFrame(() => scrollToBottom(false));
+                        }
+                    },
+                });
+            }).catch(() => {
+                toast.error(t('conversations.statusChangeError'));
+                if (quitada) reponer([quitada]);
             });
             return;
         }
 
         // Cambio de estado SIN recargar la lista (evita el salto al inicio y que se cierre el chat).
         // Actualización optimista local + refrescar SOLO la conversación abierta (encabezado).
+        const antes = localConversations.find(c => c.id === convId);
         setLocalConversations(prev =>
             prev.map(c => c.id === convId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
         );
-        csrfPost(`/admin/chat/${convId}/status`, { status }).then(() => {
+        csrfPost(`/admin/chat/${convId}/status`, { status }).then(res => {
+            // Rechazado (p. ej. el chat pasó a otro asesor mientras estaba abierto): se deshace lo adelantado.
+            const error = rechazo(res, t('conversations.statusChangeError'));
+            if (error) {
+                if (antes) {
+                    setLocalConversations(prev => prev.map(c => c.id === convId
+                        ? { ...c, status: antes.status, resolved_by_user: antes.resolved_by_user, resolved_at: antes.resolved_at }
+                        : c));
+                }
+                toast.error(error);
+                return;
+            }
             toast.success(t('conversations.statusUpdated'));
             router.reload({ only: ['selectedConversation'] });
         }).catch(() => toast.error(t('conversations.statusChangeError')));
@@ -3040,6 +3158,13 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const handleStatusChangeFromContext = (conversationId: number, status: string) => {
         setContextMenu(null);
+
+        // El menú ya no ofrece cambiar el estado de un chat ajeno; esto cubre una lista desactualizada.
+        const antes = localConversations.find(c => c.id === conversationId);
+        if (antes && !puedeActuar(antes)) {
+            toast.error(t('conversations.readOnlyToast'));
+            return;
+        }
 
         if (status === 'resolved') {
             // Mismo cuidado que en handleStatusChange: resolver desde el menú de la lista
@@ -3056,24 +3181,33 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
             if (tagFilterId !== null) params.tag = String(tagFilterId);
 
-            router.post(`/admin/chat/${conversationId}/status`, { status }, {
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast.success(t('conversations.chatResolved'));
-                    // preserveScroll: el router.post de arriba ya lo llevaba, pero este get
-                    // encadenado no — y sin él Inertia resetea el scroll tras resolver.
-                    router.get('/admin/chat', params, {
-                        preserveState: true,
-                        preserveScroll: true,
-                        replace: true,
-                        onFinish: () => {
-                            if (estabaAlFinal) {
-                                requestAnimationFrame(() => scrollToBottom(false));
-                            }
-                        },
-                    });
-                },
-                onError: () => toast.error(t('conversations.statusChangeError')),
+            // Por axios y no por router.post: un rechazo (403, p. ej. la lista estaba desactualizada y el chat ya es de
+            // otra persona) se avisa con un toast en vez de abrir el modal con la página de error. A estas llamadas el
+            // servidor responde JSON (updateStatus), sin redirigir.
+            csrfPost(`/admin/chat/${conversationId}/status`, { status }).then(res => {
+                const error = rechazo(res, t('conversations.statusChangeError'));
+                if (error) {
+                    toast.error(error);
+                    // Un 403 dice que el chat ya es de otra persona: no se repone. Con cualquier otro fallo vuelve a la
+                    // lista la que se quitó por adelantado.
+                    if (res.status !== 403 && antes) reponer([antes]);
+                    return;
+                }
+                toast.success(t('conversations.chatResolved'));
+                // preserveScroll: sin él Inertia resetea el scroll tras resolver.
+                router.get('/admin/chat', params, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    onFinish: () => {
+                        if (estabaAlFinal) {
+                            requestAnimationFrame(() => scrollToBottom(false));
+                        }
+                    },
+                });
+            }).catch(() => {
+                toast.error(t('conversations.statusChangeError'));
+                if (antes) reponer([antes]);
             });
             return;
         }
@@ -3082,7 +3216,17 @@ export default function ConversationsIndex({ conversations: initialConversations
         setLocalConversations(prev =>
             prev.map(c => c.id === conversationId ? { ...c, status, resolved_by_user: null, resolved_at: null } : c)
         );
-        csrfPost(`/admin/chat/${conversationId}/status`, { status }).then(() => {
+        csrfPost(`/admin/chat/${conversationId}/status`, { status }).then(res => {
+            const error = rechazo(res, t('conversations.statusChangeError'));
+            if (error) {
+                if (antes) {
+                    setLocalConversations(prev => prev.map(c => c.id === conversationId
+                        ? { ...c, status: antes.status, resolved_by_user: antes.resolved_by_user, resolved_at: antes.resolved_at }
+                        : c));
+                }
+                toast.error(error);
+                return;
+            }
             toast.success(t('conversations.statusUpdated'));
             if (selectedConversation?.id === conversationId) {
                 router.reload({ only: ['selectedConversation'] });
@@ -4238,6 +4382,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     </div>
                                 )}
 
+                                {/* Especialidad, estado y bloqueo: solo si el servidor lo va a permitir (ensureCanAccess).
+                                    Fijar y etiquetas siguen para todos: el servidor no los restringe. */}
+                                {puedeActuar(conversation) ? (
+                                <>
                                 {/* Especialidad */}
                                 <div className="border-t border-border my-1"></div>
                                 {!showSpecialtyInput ? (
@@ -4259,7 +4407,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            csrfPost(`/admin/chat/${conversation.id}/specialty`, { specialty: null }).then(() => {
+                                                            csrfPost(`/admin/chat/${conversation.id}/specialty`, { specialty: null }).then(res => {
+                                                                const error = rechazo(res, t('conversations.specialtyDeleteError'));
+                                                                if (error) {
+                                                                    toast.error(error);
+                                                                    return;
+                                                                }
                                                                 setLocalConversations(prev => prev.map(c =>
                                                                     c.id === conversation.id ? { ...c, specialty: null } : c
                                                                 ));
@@ -4298,7 +4451,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' && specialtyName.trim()) {
                                                     const name = specialtyName.trim();
-                                                    csrfPost(`/admin/chat/${conversation.id}/specialty`, { specialty: name }).then(() => {
+                                                    csrfPost(`/admin/chat/${conversation.id}/specialty`, { specialty: name }).then(res => {
+                                                        const error = rechazo(res, t('conversations.specialtySaveError'));
+                                                        if (error) {
+                                                            toast.error(error);
+                                                            return;
+                                                        }
                                                         setLocalConversations(prev => prev.map(c =>
                                                             c.id === conversation.id ? { ...c, specialty: name } : c
                                                         ));
@@ -4369,8 +4527,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 <div className="border-t border-border my-1"></div>
                                 <button
                                     onClick={() => {
-                                        csrfPost(`/admin/chat/${conversation.id}/block`).then(res => res.data).then(data => {
-                                            if (data.success) {
+                                        csrfPost(`/admin/chat/${conversation.id}/block`).then(res => {
+                                            const error = rechazo(res, t('conversations.blockError'));
+                                            if (error) {
+                                                toast.error(error);
+                                                return null;
+                                            }
+                                            return res.data;
+                                        }).then(data => {
+                                            if (data?.success) {
                                                 setLocalConversations(prev => prev.map(c =>
                                                     c.id === conversation.id ? { ...c, is_blocked: data.is_blocked } : c
                                                 ));
@@ -4399,6 +4564,20 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     <ShieldBan className="w-4 h-4" />
                                     {conversation.is_blocked ? t('conversations.unblock') : t('conversations.block')}
                                 </button>
+                                </>
+                                ) : (
+                                    <>
+                                        <div className="border-t border-border my-1"></div>
+                                        <p className="px-3 py-2 max-w-[240px] text-xs leading-snug text-muted-foreground flex items-start gap-2">
+                                            <Lock className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden="true" />
+                                            <span>
+                                                {conversation.assigned_to
+                                                    ? t('conversations.readOnlyAssigned', { name: conversation.assigned_user?.name ? nombrePropio(conversation.assigned_user.name) : t('conversations.anotherAgent') })
+                                                    : t('conversations.readOnlyUnassigned')}
+                                            </span>
+                                        </p>
+                                    </>
+                                )}
                             </div>
                         );
                     })()}
@@ -4664,7 +4843,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 >
                                           <div className={`group/msg relative flex ${message.is_from_user ? 'flex-row' : 'flex-row-reverse'} items-start gap-1 max-w-[85%] md:max-w-[56%]`}>
                                             {/* Acciones (responder, copiar, reaccionar): flotan al lado en hover SIN reservar espacio */}
-                                            {!isLockedByOther && (
+                                            {!bloqueado && (
                                             <div className={`absolute top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 px-1 transition-opacity duration-150 ${message.is_from_user ? 'left-full' : 'right-full'} ${reactionPickerFor === message.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto group-focus-within/msg:opacity-100 group-focus-within/msg:pointer-events-auto'}`}>
                                                 <button
                                                     onClick={() => {
@@ -4698,7 +4877,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </div>
                                             )}
                                             <SelectorReacciones
-                                                abierto={reactionPickerFor === message.id && !isLockedByOther}
+                                                abierto={reactionPickerFor === message.id && !bloqueado}
                                                 propia={!message.is_from_user}
                                                 actual={message.reactions?.find(r => !r.from_user)?.emoji}
                                                 onElegir={(emoji) => handleReact(message, emoji)}
@@ -4900,7 +5079,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 {/* Reacciones: la del paciente y la del asesor en una sola pastilla, como WhatsApp (montada siempre para el salto al llegar) */}
                                                 {(() => {
                                                     const reacciones = message.reactions ?? [];
-                                                    const mia = !isLockedByOther ? reacciones.find(r => !r.from_user) : undefined;
+                                                    const mia = !bloqueado ? reacciones.find(r => !r.from_user) : undefined;
                                                     const quien = reacciones.map(r => `${r.from_user ? (selectedConversation?.contact_name || t('conversations.customer')) : t('conversations.agent')} ${r.emoji}`).join(' · ');
                                                     return (
                                                         <PastillaReacciones
@@ -5037,12 +5216,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {/* Área de Entrada de Mensaje */}
-                        {isLockedByOther ? (
+                        {bloqueado ? (
                             <div className="px-3 md:px-6 py-4 bg-amber-50/80 dark:bg-amber-950/30 backdrop-blur-md border-t border-amber-200 dark:border-amber-800/50">
                                 <div className="flex items-center gap-3 justify-center">
                                     <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                                     <p className="text-sm text-amber-700 dark:text-amber-300">
-                                        <Trans i18nKey="conversations.lockedByOtherBanner" values={{ name: currentAssignedUserName }} components={{ strong: <strong /> }} />
+                                        {isLockedByOther
+                                            ? <Trans i18nKey="conversations.lockedByOtherBanner" values={{ name: currentAssignedUserName }} components={{ strong: <strong /> }} />
+                                            : t('conversations.noLongerYours')}
                                     </p>
                                 </div>
                             </div>
@@ -5056,8 +5237,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     <span className="text-sm font-medium text-red-600 dark:text-red-400">{t('conversations.contactIsBlocked')}</span>
                                     <button
                                         onClick={() => {
-                                            csrfPost(`/admin/chat/${selectedConversation.id}/block`).then(res => res.data).then(data => {
-                                                if (data.success) {
+                                            csrfPost(`/admin/chat/${selectedConversation.id}/block`).then(res => {
+                                                const error = rechazo(res, t('conversations.unblockError'));
+                                                if (error) {
+                                                    toast.error(error);
+                                                    return null;
+                                                }
+                                                return res.data;
+                                            }).then(data => {
+                                                if (data?.success) {
                                                     setLocalConversations(prev => prev.map(c =>
                                                         c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c
                                                     ));
@@ -5339,6 +5527,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             aplicando overflow:hidden, y la lista de conversaciones —que tiene
                                             su propio scroll— deja de desbordar y PIERDE su scrollTop. Al cerrar
                                             el menú ya se perdió: la lista aparecía "arriba del todo". */}
+                                        {!soloLectura && (
                                         <DropdownMenu modal={false}>
                                             <DropdownMenuTrigger asChild>
                                                 <button className="text-xs text-[#2e3f84] dark:text-blue-400 hover:underline flex items-center gap-0.5 flex-shrink-0">{t('common.change')} <ChevronDown className="w-3.5 h-3.5" /></button>
@@ -5358,6 +5547,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
+                                        )}
                                     </div>
                                     <div className="flex items-center justify-between gap-2">
                                         <span className="text-sm text-[#5f5e5e] dark:text-neutral-400 flex items-center gap-1.5 min-w-0">
@@ -5368,6 +5558,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             <button onClick={() => setShowAssignModal(true)} className="text-xs text-[#2e3f84] dark:text-blue-400 hover:underline flex-shrink-0">{t('conversations.reassign')}</button>
                                         )}
                                     </div>
+                                    {soloLectura && (
+                                        <p className="flex items-start gap-2 pt-1 text-xs leading-snug text-muted-foreground">
+                                            <Lock className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden="true" />
+                                            <span>{textoSoloLectura}</span>
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Etiquetas (gestión completa: ver, quitar, agregar, crear) */}
@@ -5421,7 +5617,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Especialidad (editable) */}
                                 <div className="px-4 py-3 border-b border-border">
                                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-2">{t('conversations.specialty')}</p>
-                                    {showSpecialtyInput ? (
+                                    {soloLectura ? (
+                                        <span className="flex items-center gap-2 min-w-0 px-1 py-1 text-sm text-foreground">
+                                            <Stethoscope className="w-4 h-4 text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                                            <span className="truncate">{selectedConversation.specialty || t('conversations.noSpecialty')}</span>
+                                        </span>
+                                    ) : showSpecialtyInput ? (
                                         <input
                                             type="text"
                                             value={specialtyName}
@@ -5430,7 +5631,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') {
                                                     const name = specialtyName.trim();
-                                                    csrfPost(`/admin/chat/${selectedConversation.id}/specialty`, { specialty: name }).then(() => {
+                                                    csrfPost(`/admin/chat/${selectedConversation.id}/specialty`, { specialty: name }).then(res => {
+                                                        const error = rechazo(res, t('conversations.specialtySaveError'));
+                                                        if (error) {
+                                                            toast.error(error);
+                                                            return;
+                                                        }
                                                         setLocalConversations(prev => prev.map(c => c.id === selectedConversation.id ? { ...c, specialty: name } : c));
                                                         router.reload({ only: ['selectedConversation'] });
                                                         toast.success(name ? t('conversations.specialtySaved', { name }) : t('conversations.specialtyRemoved'));
@@ -5487,6 +5693,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             <textarea
                                                 value={notesText}
                                                 onChange={(e) => handleSaveNotes(e.target.value)}
+                                                readOnly={soloLectura}
+                                                title={soloLectura ? t('conversations.readOnlyToast') : undefined}
                                                 placeholder={t('conversations.internalNotesPlaceholder')}
                                                 className="w-full min-h-[80px] max-h-[160px] resize-y rounded-lg border border-amber-200 dark:border-amber-800/30 bg-white dark:bg-neutral-900 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-amber-400/50"
                                             />
@@ -5534,10 +5742,18 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     >
                                         <Pin className={`w-4 h-4 ${selectedConversation.is_pinned ? 'text-primary rotate-45' : 'text-muted-foreground'}`} /> {selectedConversation.is_pinned ? t('conversations.unpinChat') : t('conversations.pinChat')}
                                     </button>
+                                    {!soloLectura && (
                                     <button
                                         onClick={() => {
-                                            csrfPost(`/admin/chat/${selectedConversation.id}/block`).then(res => res.data).then(data => {
-                                                if (data.success) {
+                                            csrfPost(`/admin/chat/${selectedConversation.id}/block`).then(res => {
+                                                const error = rechazo(res, t('conversations.blockError'));
+                                                if (error) {
+                                                    toast.error(error);
+                                                    return null;
+                                                }
+                                                return res.data;
+                                            }).then(data => {
+                                                if (data?.success) {
                                                     setLocalConversations(prev => prev.map(c => c.id === selectedConversation.id ? { ...c, is_blocked: data.is_blocked } : c));
                                                     router.reload({ only: ['selectedConversation'] });
                                                     if (data.meta_synced === false) {
@@ -5552,6 +5768,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     >
                                         <ShieldBan className="w-4 h-4" /> {selectedConversation.is_blocked ? t('conversations.unblock') : t('conversations.block')}
                                     </button>
+                                    )}
                                     {isAdmin && (
                                         <button onClick={() => window.open(`/admin/chat/${selectedConversation.id}/export-pdf`, '_blank')} className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-[#2e3f84] dark:text-neutral-300 hover:bg-muted transition-colors">
                                             <Download className="w-4 h-4" /> {t('conversations.exportPdf')}
@@ -5881,7 +6098,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             setTimeout(() => scrollToBottom(), 100);
                                         }
                                     } else {
-                                        toast.error(result.error || t('conversations.templateSendError'));
+                                        toast.error(result?.error || rechazo(response, t('conversations.templateSendError')) || t('conversations.templateSendError'));
                                     }
                                 } catch {
                                     toast.error(t('conversations.templateSendError'));

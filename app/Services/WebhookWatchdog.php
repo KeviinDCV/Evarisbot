@@ -38,6 +38,16 @@ class WebhookWatchdog
 
     private const KEY_TEMPLATE_BASELINE = 'vigilancia:plantillas_base';
 
+    /** Última vez que Meta respondió de verdad a la consulta del número (la pantalla no dice
+     *  «Funcionando» solo porque la vigilancia corrió: si Meta no contestó, no se sabe). */
+    public const KEY_META_OK = 'vigilancia:meta_ok_en';
+
+    /** Errores de Graph pasajeros o de límite de uso: no dicen nada del token; se mira otra vez luego. */
+    private const ERRORES_PASAJEROS = [1, 2, 4, 17, 32, 341, 613, 80007, 130429];
+
+    /** Qué partes de Meta se pudieron revisar en esta vuelta ('numero', 'desvio'). */
+    private array $revisado = [];
+
     /** Silencio máximo de mensajes entrantes en horario de atención (lun–vie 7:00–17:00, hora Colombia). */
     private const SILENCE_MINUTES = 45;
 
@@ -66,7 +76,12 @@ class WebhookWatchdog
      */
     public function run(): array
     {
+        // Cualquier ejecución (automática, «Comprobar ahora» o whatsapp:vigilar) aplaza la siguiente
+        // automática: así el terminating de esta misma petición no la repite enseguida.
+        @touch(storage_path(self::STAMP));
+
         $alerts = [];
+        $this->revisado = [];
 
         foreach (['checkMeta', 'checkSilence', 'checkQueue', 'checkDisk'] as $check) {
             try {
@@ -77,6 +92,17 @@ class WebhookWatchdog
         }
 
         $previous = (array) Cache::get(self::KEY_ALERTS, []);
+
+        // Lo que no se pudo revisar esta vez (Meta no respondió) no se da por resuelto: se conservan
+        // las alertas de Meta de la vuelta anterior en vez de borrar la franja y anotar «resuelta».
+        foreach ($previous as $code => $text) {
+            $deMeta = str_starts_with((string) $code, 'meta_') && $code !== 'meta_config' && $code !== 'meta_plantillas';
+            $sinRevisar = in_array($code, ['meta_override'], true) ? ! $this->revisado('desvio') : ! $this->revisado('numero');
+            if ($deMeta && $sinRevisar && ! isset($alerts[$code])) {
+                $alerts[$code] = $text;
+            }
+        }
+
         foreach (array_diff_key($alerts, $previous) as $code => $text) {
             Log::critical('ALERTA de vigilancia: '.$text, ['codigo' => $code]);
         }
@@ -88,6 +114,24 @@ class WebhookWatchdog
         Cache::put(self::KEY_CHECKED_AT, now()->toIso8601String(), now()->addDay());
 
         return $alerts;
+    }
+
+    /** ¿Se pudo revisar esta parte de Meta en la última vuelta de run()? */
+    public function revisado(string $parte): bool
+    {
+        return ! empty($this->revisado[$parte]);
+    }
+
+    /** ¿Se revisaron el número (clave y dirección) y el desvío de la cuenta? */
+    public function metaCompleta(): bool
+    {
+        return $this->revisado('numero') && $this->revisado('desvio');
+    }
+
+    /** La dirección de Evarisbot a la que Meta debe entregar los mensajes. */
+    public static function expectedWebhookUrl(): string
+    {
+        return rtrim((string) config('app.url'), '/').'/webhook/whatsapp';
     }
 
     /** Alertas vigentes (las ve la franja roja de los administradores). */
@@ -107,25 +151,42 @@ class WebhookWatchdog
         $waba = Setting::get('whatsapp_business_account_id');
 
         if (! is_string($token) || $token === '' || ! $phoneId || ! $waba) {
-            return ['meta_config' => 'Falta el token o los identificadores de WhatsApp en la configuración.'];
+            return ['meta_config' => 'Falta el token o los identificadores de WhatsApp en el servidor. Los guarda el equipo de sistemas.'];
         }
 
         $alerts = [];
         $graph = fn (string $path, array $query = []) => Http::withToken($token)->timeout(8)->connectTimeout(5)
             ->get("https://graph.facebook.com/v21.0/{$path}", $query);
 
-        $expected = rtrim((string) config('app.url'), '/').'/webhook/whatsapp';
+        $expected = self::expectedWebhookUrl();
 
-        $phone = $graph((string) $phoneId, ['fields' => 'webhook_configuration']);
+        try {
+            $phone = $graph((string) $phoneId, ['fields' => 'webhook_configuration']);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            // Sin respuesta de Meta (red caída) no se alerta: se vuelve a mirar en 10 minutos.
+            return $alerts;
+        }
+
         if ($phone->failed()) {
             $code = $phone->json('error.code');
-            // Sin respuesta de Meta (red caída) no se alerta: se vuelve a mirar en 10 minutos.
-            if ($code !== null) {
-                $alerts['meta_token'] = 'Meta rechazó la consulta con el token guardado (código '.$code.'). Si es 190, el token ya no sirve: guarde uno nuevo con php artisan whatsapp:guardar-token.';
+            $pasajero = $code === null || $phone->serverError() || $phone->status() === 429
+                || in_array((int) $code, self::ERRORES_PASAJEROS, true);
+            if ($pasajero) {
+                return $alerts;
             }
+
+            if ((int) $code === 190 || $phone->status() === 401) {
+                $alerts['meta_token'] = 'Meta ya no acepta el token guardado (código 190): guarde uno nuevo con php artisan whatsapp:guardar-token.';
+            } else {
+                $alerts['meta_error'] = 'Meta devolvió un error al consultar el número (código '.$code.'). Revise el ID del número y los permisos del token.';
+            }
+            $this->revisado['numero'] = true;
 
             return $alerts;
         }
+
+        $this->revisado['numero'] = true;
+        Cache::put(self::KEY_META_OK, now()->toIso8601String(), now()->addDay());
 
         foreach ((array) $phone->json('webhook_configuration', []) as $level => $url) {
             if (is_string($url) && $url !== '' && rtrim($url, '/') !== $expected) {
@@ -133,8 +194,13 @@ class WebhookWatchdog
             }
         }
 
-        $subs = $graph("{$waba}/subscribed_apps");
-        if ($subs->successful()) {
+        try {
+            $subs = $graph("{$waba}/subscribed_apps");
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            $subs = null;
+        }
+        if ($subs?->successful()) {
+            $this->revisado['desvio'] = true;
             foreach ((array) $subs->json('data', []) as $app) {
                 $override = $app['override_callback_uri'] ?? null;
                 if (is_string($override) && $override !== '' && rtrim($override, '/') !== $expected) {
@@ -145,8 +211,12 @@ class WebhookWatchdog
 
         // Plantillas: la cuenta conserva las del incidente; se alerta si el total SUBE respecto a lo
         // que se vio la primera vez o a lo que se creó desde Evarisbot.
-        $templates = $graph("{$waba}/message_templates", ['limit' => 1, 'summary' => 'total_count', 'fields' => 'name']);
-        $total = $templates->successful() ? $templates->json('summary.total_count') : null;
+        try {
+            $templates = $graph("{$waba}/message_templates", ['limit' => 1, 'summary' => 'total_count', 'fields' => 'name']);
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            $templates = null;
+        }
+        $total = $templates?->successful() ? $templates->json('summary.total_count') : null;
         if (is_numeric($total)) {
             $baseline = Cache::get(self::KEY_TEMPLATE_BASELINE);
             if ($baseline === null) {
