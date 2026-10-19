@@ -59,10 +59,25 @@ class TiempoReal
         InternalMessageReaction::deleted(fn (InternalMessageReaction $r) => self::deMensajeInterno((int) $r->internal_message_id));
     }
 
-    /** Aviso de una o varias conversaciones (los cambios en bloque van en un solo aviso). */
-    public static function conversacion(string $tipo, int|array $ids): void
+    /**
+     * Aviso de una o varias conversaciones (los cambios en bloque van en un solo aviso).
+     *
+     * Acepta un id, un array o una colección (p. ej. un pluck('id')) y nunca lanza, ni siquiera por el tipo: con
+     * `int|array` una colección daba TypeError en la llamada, fuera de todo try/catch, y tumbaba la petición
+     * («Limpiar conversaciones del asesor» dio 500 el 19/10/2026; la transacción se deshizo y no cambió nada).
+     */
+    public static function conversacion(string $tipo, mixed $ids): void
     {
-        $ids = array_values(array_unique(array_filter(array_map('intval', (array) $ids))));
+        try {
+            if ($ids instanceof \Illuminate\Support\Enumerable) {
+                $ids = $ids->all();
+            } elseif ($ids instanceof \Traversable) {
+                $ids = iterator_to_array($ids, false);
+            }
+            $ids = array_values(array_unique(array_filter(array_map('intval', (array) $ids))));
+        } catch (\Throwable) {
+            return;
+        }
         if ($ids === []) {
             return;
         }

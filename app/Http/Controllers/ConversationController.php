@@ -2482,13 +2482,19 @@ class ConversationController extends Controller
             ->orderBy('id', 'asc')
             ->get();
 
-        // Also return updated statuses for recent messages (last 20) that may have changed
+        // Estados que pudieron cambiar en los últimos 30 mensajes de ESTE chat (enviado → entregado → leído, o fallido).
+        // Antes: sin «sent» (el mensaje se quedaba con el reloj hasta que llegaba «entregado», o para siempre si el
+        // teléfono del paciente estaba apagado) y con una ventana de 20 ids GLOBALES (los ids son de todos los chats: en
+        // horas de movimiento solo cubría el último mensaje y los checks de los anteriores no se actualizaban).
         $updatedStatuses = [];
         if ($afterId > 0) {
             $updatedStatuses = $conversation->messages()
                 ->where('id', '<=', $afterId)
-                ->where('id', '>', $afterId - 20)
-                ->whereIn('status', ['delivered', 'read', 'failed'])
+                ->whereIn('status', ['sent', 'delivered', 'read', 'failed'])
+                // reorder: la relación messages() ya ordena por created_at ASC; con orderByDesc se sumaba detrás y
+                // traía los 30 MÁS VIEJOS.
+                ->reorder('id', 'desc')
+                ->limit(30)
                 ->select(['id', 'status', 'error_message'])
                 ->get()
                 ->toArray();
@@ -2499,8 +2505,10 @@ class ConversationController extends Controller
         // refleje altas, cambios y bajas aunque se haya perdido un evento de Reverb.
         $reactionUpdates = [];
         if ($afterId > 0) {
+            // Los últimos 50 mensajes de este chat (antes, 50 ids globales: la misma ventana corta de los estados).
             $reactionUpdates = $conversation->messages()
-                ->where('id', '>', max(0, $afterId - 50))
+                ->reorder('id', 'desc')
+                ->limit(50)
                 ->with('reactions')
                 ->get(['id'])
                 ->map(fn ($m) => [

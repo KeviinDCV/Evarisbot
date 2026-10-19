@@ -208,7 +208,23 @@ class WhatsAppWebhookController extends Controller
                 // posterior ('read') no borra lo ya capturado.
                 $this->fillBillingData($status, $updateData);
 
-                $message->update($updateData);
+                // Meta a veces manda los estados en desorden («read» antes que «delivered», «failed» antes que «sent»: ~6 %
+                // de los mensajes) y, con el paciente en el chat, «delivered» y «read» casi a la vez (Apache los atiende en
+                // paralelo). El estado nunca baja (enviado < entregado < leído) y «failed» es final frente a los demás;
+                // antes se guardaba el último que llegaba y un mensaje leído podía quedar como solo entregado. Se compara
+                // con la fila BLOQUEADA, no con la leída arriba. Los datos de facturación se guardan igual. Un update sin
+                // cambios no escribe ni avisa; el aviso de tiempo real de Message::updated espera al commit.
+                $nivel = ['pending' => 0, 'sent' => 1, 'delivered' => 2, 'read' => 3];
+                \Illuminate\Support\Facades\DB::transaction(function () use (&$message, &$updateData, $statusType, $nivel) {
+                    $message = \App\Models\Message::whereKey($message->id)->lockForUpdate()->first() ?? $message;
+                    $actual = $message->status;
+                    if ($actual === 'failed' && $statusType !== 'failed') {
+                        unset($updateData['status']);
+                    } elseif (isset($nivel[$statusType], $nivel[$actual]) && $nivel[$statusType] < $nivel[$actual]) {
+                        unset($updateData['status']);
+                    }
+                    $message->update($updateData);
+                }, 3);
 
                 // Si era el recordatorio de una cita y Meta avisa que no lo entregó, la cita pasa a «Con error» con el
                 // motivo (sigue con reminder_sent = 1: no se reenvía). Se busca por la conversación del mensaje, que

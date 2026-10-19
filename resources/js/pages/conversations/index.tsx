@@ -121,6 +121,7 @@ interface Message {
     error_message?: string | null;
     created_at: string;
     whatsapp_message_id?: string | null;
+    sent_by?: number | null;
     reply_to_id?: number | null;
     reply_to?: {
         id: number;
@@ -136,13 +137,56 @@ interface Message {
     reactions?: { id: number; emoji: string; from_user: boolean }[];
 }
 
+// Orden de los checks: el estado de un mensaje nunca baja (la respuesta del envío puede llegar después de que la
+// consulta del chat ya trajo «entregado»).
+const NIVEL_ESTADO: Record<string, number> = { pending: 0, sent: 1, delivered: 2, read: 3 };
+
+/** ¿Pasar de `actual` a `nuevo` es avanzar? «failed» se aplica siempre y es final (como en el servidor). */
+function avanzaEstado(actual: string, nuevo: string | undefined | null): boolean {
+    if (!nuevo || nuevo === actual) return false;
+    if (nuevo === 'failed') return true;
+    if (actual === 'failed') return false;
+    return (NIVEL_ESTADO[nuevo] ?? -1) > (NIVEL_ESTADO[actual] ?? -1);
+}
+
+type EstadoDeMensaje = { id: number; status: string; error_message?: string | null };
+
+/** Aplica a los mensajes del hilo que YA están el estado (y el motivo del error) de `llegan`, solo si avanza. */
+function actualizarEstados<T extends EstadoDeMensaje>(prev: T[], llegan: EstadoDeMensaje[]): T[] {
+    const porId = new Map(llegan.map(m => [m.id, m]));
+    let cambio = false;
+    const next = prev.map(m => {
+        const n = porId.get(m.id);
+        if (!n || !avanzaEstado(m.status, n.status)) return m;
+        cambio = true;
+        return { ...m, status: n.status, error_message: n.error_message || m.error_message };
+    });
+    return cambio ? next : prev;
+}
+
+/** Añade mensajes nuevos en su lugar por id (uno que llega tarde no queda debajo de otro posterior). */
+function insertarEnOrden<T extends { id: number }>(prev: T[], nuevos: T[]): T[] {
+    const next = prev.slice();
+    for (const m of nuevos) {
+        let i = next.length;
+        while (i > 0 && next[i - 1].id > m.id) i--;
+        next.splice(i, 0, m);
+    }
+    return next;
+}
+
 interface OptimisticMessage {
     tempId: string;
     content: string;
     message_type: string;
     media_url?: string | null;
     is_from_user: boolean;
-    status: 'sending' | 'error';
+    // sent: Meta ya lo aceptó (✓) y el mensaje real aún no llegó al hilo.
+    status: 'sending' | 'sent' | 'error';
+    // Último id del hilo al enviar: sin respuesta todavía, su mensaje real es el primer saliente propio posterior.
+    desdeId: number;
+    // Ids reales que devolvió el servidor (varios si eran los archivos de una plantilla).
+    realIds?: number[];
     created_at: string;
     sender?: {
         name: string;
@@ -722,6 +766,9 @@ export default function ConversationsIndex({ conversations: initialConversations
         };
     }, [reactionPickerFor]);
 
+    // Mensajes con una reacción del asesor en curso: el servidor la guarda después de que Meta responde, y una consulta
+    // del chat en ese intervalo la borraría un instante (parpadeo).
+    const reaccionesEnCursoRef = useRef<Set<number>>(new Set());
     const handleReact = async (message: Message, emoji: string) => {
         if (!selectedConversation) return;
         const mine = message.reactions?.find(r => !r.from_user);
@@ -738,6 +785,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             };
         }));
 
+        reaccionesEnCursoRef.current.add(message.id);
         try {
             await axios.post(`/admin/chat/${selectedConversation.id}/react`, {
                 message_id: message.id,
@@ -745,6 +793,8 @@ export default function ConversationsIndex({ conversations: initialConversations
             });
         } catch {
             // Si falla, el polling/Reverb reconciliará el estado real desde el servidor
+        } finally {
+            reaccionesEnCursoRef.current.delete(message.id);
         }
     };
 
@@ -1106,7 +1156,9 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Estados para mensajes optimistas (actualización instantánea)
     const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
-    const messageCountBeforeSendRef = useRef<number>(0);
+    // Estado que confirmó el servidor al responder un envío: si la consulta del chat trae el mensaje después, con una
+    // foto más vieja (el reloj), no se lo baja.
+    const estadosConfirmadosRef = useRef<Map<number, string>>(new Map());
 
     const { data, setData, post, reset, processing } = useForm({
         content: '',
@@ -1259,15 +1311,26 @@ export default function ConversationsIndex({ conversations: initialConversations
         localMessages.forEach(m => renderedMessageIdsRef.current.add(m.id));
     }, [localMessages]);
 
-    // Limpiar mensajes optimistas cuando llegan los mensajes reales (del poll o del servidor)
+    // Cada provisional se quita cuando aparece SU mensaje real. Antes bastaba con que entrara cualquier mensaje: si el
+    // paciente escribía mientras se enviaba, el del asesor desaparecía hasta crearse la fila real (y parecía no haber
+    // salido). Sin respuesta del servidor todavía, vale el primer saliente propio posterior al envío que no sea de otro
+    // provisional. Los de error sin mensaje real se quedan para «Reintentar».
+    const miId = auth?.user?.id;
     useEffect(() => {
-        if (optimisticMessages.length > 0 && localMessages.length > 0) {
-            // Si local messages grew since we sent, clear optimistic
-            if (localMessages.length > messageCountBeforeSendRef.current) {
-                setOptimisticMessages([]);
-            }
-        }
-    }, [localMessages.length, optimisticMessages.length]);
+        if (optimisticMessages.length === 0 || localMessages.length === 0) return;
+        const ids = new Set(localMessages.map(m => m.id));
+        // Reclamados: todo id que ya devolvió una respuesta de envío (este chat o la ventana de plantillas), aunque su
+        // provisional ya no esté; si no, el mensaje real de un envío anterior borraría el provisional del siguiente.
+        const reclamados = new Set([...estadosConfirmadosRef.current.keys(), ...optimisticMessages.flatMap(o => o.realIds ?? [])]);
+        const mios = localMessages.filter(m => !m.is_from_user && m.sent_by === miId && !reclamados.has(m.id));
+        const quedan = optimisticMessages.filter(o => {
+            if (o.realIds && o.realIds.length > 0) return !o.realIds.some(id => ids.has(id));
+            // Sin id (enviando, o error sin respuesta del servidor: pudo haberse enviado igual): se va cuando aparece un
+            // saliente propio posterior que no sea de otro envío.
+            return !mios.some(m => m.id > o.desdeId);
+        });
+        if (quedan.length !== optimisticMessages.length) setOptimisticMessages(quedan);
+    }, [localMessages, optimisticMessages, miId]);
 
     // Ref para trackear el último filtro de búsqueda aplicado
     const lastSearchFilterRef = useRef<string>(filters.search || '');
@@ -1852,9 +1915,14 @@ export default function ConversationsIndex({ conversations: initialConversations
                 if (newMessages.length > 0) {
                     setLocalMessages(prev => {
                         const existingIds = new Set(prev.map(m => m.id));
-                        const truly = newMessages.filter(m => !existingIds.has(m.id));
+                        const truly = newMessages
+                            .filter(m => !existingIds.has(m.id))
+                            .map(m => {
+                                const confirmado = estadosConfirmadosRef.current.get(m.id);
+                                return confirmado && avanzaEstado(m.status, confirmado) ? { ...m, status: confirmado } : m;
+                            });
                         if (truly.length === 0) return prev;
-                        return [...prev, ...truly];
+                        return insertarEnOrden(prev, truly);
                     });
                     const maxId = Math.max(...newMessages.map(m => m.id));
                     if (maxId > lastMessageIdRef.current) {
@@ -1862,21 +1930,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                     }
                 }
 
-                // Update statuses of existing messages (delivered/read/failed)
+                // Estados de los mensajes ya en pantalla (enviado/entregado/leído/fallido): solo avanzan.
                 if (updatedStatuses.length > 0) {
-                    setLocalMessages(prev => {
-                        const statusMap = new Map(updatedStatuses.map(s => [s.id, s]));
-                        let changed = false;
-                        const updated = prev.map(m => {
-                            const s = statusMap.get(m.id);
-                            if (s && s.status !== m.status) {
-                                changed = true;
-                                return { ...m, status: s.status, error_message: s.error_message || m.error_message };
-                            }
-                            return m;
-                        });
-                        return changed ? updated : prev;
-                    });
+                    setLocalMessages(prev => actualizarEstados(prev, updatedStatuses));
                 }
 
                 // Reconciliar reacciones (fallback del broadcast en tiempo real)
@@ -1889,7 +1945,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                         const map = new Map(reactionUpdates.map(r => [r.message_id, r.reactions]));
                         let changed = false;
                         const next = prev.map(m => {
-                            if (!map.has(m.id)) return m;
+                            if (!map.has(m.id) || reaccionesEnCursoRef.current.has(m.id)) return m;
                             const incoming = map.get(m.id) || [];
                             if (JSON.stringify(m.reactions || []) === JSON.stringify(incoming)) return m;
                             changed = true;
@@ -2884,8 +2940,6 @@ export default function ConversationsIndex({ conversations: initialConversations
 
         setIsSubmitting(true);
 
-        // Guardar conteo de mensajes actual para detectar cuando llegue el real
-        messageCountBeforeSendRef.current = localMessages.length;
 
         // Crear mensaje optimista (aparece inmediatamente)
         const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -2896,6 +2950,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             media_url: null, // el preview optimista solo muestra el texto/nombre; evitamos fugas de blob URL
             is_from_user: false,
             status: 'sending',
+            desdeId: Math.max(lastMessageIdRef.current, ...estadosConfirmadosRef.current.keys()),
             created_at: new Date().toISOString(),
             sender: auth?.user ? { name: auth.user.name } : undefined,
         };
@@ -2965,35 +3020,54 @@ export default function ConversationsIndex({ conversations: initialConversations
                 return response.data;
             })
             .then((data) => {
-                const serverMessage = data?.message;
-                if (serverMessage && serverMessage.status === 'failed') {
+                // El servidor devuelve lo que guardó con su estado real: un mensaje, o varios si eran los archivos de una
+                // plantilla (antes estos últimos no se leían).
+                const serverMessages: Message[] = Array.isArray(data?.messages) ? data.messages : data?.message ? [data.message] : [];
+                const realIds = serverMessages.map(m => m.id).filter(Boolean);
+                serverMessages.forEach(m => {
+                    // El real reemplaza al provisional sin volver a animarse.
+                    renderedMessageIdsRef.current.add(m.id);
+                    estadosConfirmadosRef.current.set(m.id, m.status);
+                });
+                // Si la consulta del chat ya trajo el mensaje real (con el reloj: se guarda antes de que Meta responda),
+                // se le pone ya su estado (✓, o ✗ si Meta lo rechazó). Solo toca los que están: si el chat abierto ya es
+                // otro, no encuentra nada.
+                if (serverMessages.length > 0) {
+                    setLocalMessages(prev => actualizarEstados(prev, serverMessages));
+                }
+                const fallido = serverMessages.find(m => m.status === 'failed');
+                if (fallido || data?.success === false) {
                     // El servidor envió pero WhatsApp rechazó: marcar como error
                     setOptimisticMessages(prev =>
-                        prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const } : m)
+                        prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const, realIds } : m)
                     );
                     // Actualizar last_message en la lista de conversaciones
-                    setLocalConversations(prev =>
-                        prev.map(c => c.id === selectedConversation.id
-                            ? { ...c, last_message: { content: serverMessage.content, created_at: serverMessage.created_at, is_from_user: false, status: 'failed', error_message: serverMessage.error_message } }
-                            : c
-                        )
-                    );
-                } else {
-                    // El mensaje real llegará por polling/Reverb. Lo marcamos como "ya animado"
-                    // para que reemplace al optimista SIN re-animar: transición fluida, sin doble pop.
-                    if (serverMessage?.id) {
-                        renderedMessageIdsRef.current.add(serverMessage.id);
+                    if (fallido) {
+                        setLocalConversations(prev =>
+                            prev.map(c => c.id === selectedConversation.id
+                                ? { ...c, last_message: { content: fallido.content, created_at: fallido.created_at, is_from_user: false, status: 'failed', error_message: fallido.error_message } }
+                                : c
+                            )
+                        );
                     }
-                    // Marcar como enviado - se eliminará cuando llegue el mensaje real del servidor
+                } else {
+                    // Meta ya lo aceptó (normalmente «sent»; «delivered»/«read» si su aviso llegó antes que esta respuesta):
+                    // el provisional muestra ✓ hasta que llega el mensaje real.
+                    const aceptado = serverMessages.length > 0 && serverMessages.every(m => (NIVEL_ESTADO[m.status] ?? -1) >= NIVEL_ESTADO.sent);
                     setOptimisticMessages(prev =>
-                        prev.map(m => m.tempId === tempId ? { ...m, status: 'sending' as const } : m)
+                        prev.map(m => m.tempId === tempId ? { ...m, status: aceptado ? ('sent' as const) : ('sending' as const), realIds } : m)
                     );
                 }
                 setIsSubmitting(false);
             })
             .catch((error) => {
                 console.error('Error sending message:', error);
-                toast.error(error.message || t('conversations.sendMessageError'));
+                // Los errores que lanza el .then ya vienen traducidos; los de axios (419 tras reintentar, red caída) no.
+                const estado = error?.response?.status;
+                const mensaje = error?.isAxiosError
+                    ? (estado === 419 ? t('conversations.sessionExpired') : t('conversations.sendMessageError'))
+                    : error?.message;
+                toast.error(mensaje || t('conversations.sendMessageError'));
                 // Marcar mensaje como error
                 setOptimisticMessages(prev =>
                     prev.map(m => m.tempId === tempId ? { ...m, status: 'error' as const } : m)
@@ -5237,6 +5311,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     <span title={formatFullDateTime(message.created_at)} className={`text-[10px] ${message.status === 'error' ? 'text-white/70' : 'text-[#557d6b] dark:text-white/55'}`}>{formatTime(message.created_at)}</span>
                                                     {message.status === 'sending' ? (
                                                         <Clock className="w-3 h-3 text-[#667781] animate-pulse" />
+                                                    ) : message.status === 'sent' ? (
+                                                        <span title={t('conversations.status.sent')}>
+                                                            <Check className="w-3 h-3 text-[#667781] dark:text-[#8696a0]" />
+                                                        </span>
                                                     ) : message.message_type === 'text' ? (
                                                         <button
                                                             type="button"
@@ -6201,7 +6279,13 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         setWaTemplateParams([]);
                                         // Agregar mensaje al chat
                                         if (result.message) {
-                                            setLocalMessages(prev => [...prev, result.message]);
+                                            // La consulta del chat pudo traerlo ya (el aviso de tiempo real llega antes que esta
+                                            // respuesta): solo se le actualiza el estado, sin duplicarlo.
+                                            const enviado: Message = result.message;
+                                            estadosConfirmadosRef.current.set(enviado.id, enviado.status);
+                                            setLocalMessages(prev => prev.some(m => m.id === enviado.id)
+                                                ? actualizarEstados(prev, [enviado])
+                                                : insertarEnOrden(prev, [enviado]));
                                             setTimeout(() => scrollToBottom(), 100);
                                         }
                                     } else {
