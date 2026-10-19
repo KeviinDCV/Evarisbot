@@ -7,7 +7,7 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 
-class MessageReactionUpdated implements ShouldBroadcastNow
+class MessageReactionUpdated
 {
     use Dispatchable, InteractsWithSockets;
 
@@ -20,11 +20,13 @@ class MessageReactionUpdated implements ShouldBroadcastNow
     ) {
     }
 
+    /**
+     * Ya no se difunde (no implementa ShouldBroadcast; los avisos van por App\Support\TiempoReal). Si alguien lo
+     * reactivara, saldría por el canal PRIVADO del personal y sin datos: nunca texto de pacientes por un canal público.
+     */
     public function broadcastOn(): array
     {
-        return [
-            new Channel('conversations'),
-        ];
+        return [new \Illuminate\Broadcasting\PrivateChannel('conversaciones')];
     }
 
     public function broadcastAs(): string
@@ -34,12 +36,6 @@ class MessageReactionUpdated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        return [
-            'conversation_id' => $this->conversationId,
-            'message_id' => $this->messageId,
-            'emoji' => $this->emoji,
-            'from_user' => $this->fromUser,
-            'removed' => $this->removed,
-        ];
+        return [];
     }
 }

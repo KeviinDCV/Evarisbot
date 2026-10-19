@@ -13,17 +13,25 @@
  *
  * Las dos cuentas se piden en SECUENCIA (nunca dos sockets a la vez), con jitter para no
  * sincronizar con los polls de la página de chat y backoff exponencial ante fallos.
+ *
+ * Con tiempo real (lib/tiempo-real) se piden en cuanto llega un aviso —también con la pestaña oculta,
+ * que es justo cuando hace falta avisar al asesor— y la consulta periódica queda de respaldo cada 60 s.
  */
-export type UnreadState = { chat: number; internal: number };
+import { agrupar, alAviso, hayTiempoReal } from './tiempo-real';
+
+// chatMensajes: suma de mensajes sin leer en esas conversaciones (sube aunque el mismo paciente vuelva a escribir y la
+// cifra de conversaciones no cambie; la usa la notificación de escritorio).
+export type UnreadState = { chat: number; internal: number; chatMensajes: number };
 
 type Listener = (state: UnreadState) => void;
 
 const HEADERS = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
 const BASE_MS = 20000;
+const BASE_CON_TIEMPO_REAL_MS = 60000;
 const MAX_MS = 60000;
 const JITTER_MS = 4000;
 
-let state: UnreadState = { chat: 0, internal: 0 };
+let state: UnreadState = { chat: 0, internal: 0, chatMensajes: 0 };
 const listeners = new Set<Listener>();
 
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -34,11 +42,12 @@ function emit() {
     for (const l of listeners) l(state);
 }
 
-async function fetchCount(url: string): Promise<number> {
+async function fetchCount(url: string): Promise<{ count: number; mensajes: number }> {
     const res = await fetch(url, { headers: HEADERS });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    return data.count || 0;
+    const count = Number(data.count) || 0;
+    return { count, mensajes: Number(data.mensajes) || count };
 }
 
 function schedule(delay: number) {
@@ -46,33 +55,62 @@ function schedule(delay: number) {
     timer = setTimeout(poll, delay);
 }
 
-async function poll(): Promise<void> {
+let pidiendo = false;
+let pendiente = false;
+
+async function poll(porAviso = false): Promise<void> {
     if (!running) return;
 
-    // Con la pestaña oculta no se pide nada; se re-chequea más tarde.
-    if (typeof document !== 'undefined' && document.hidden) {
+    // Con la pestaña oculta no se pide nada por tiempo; se re-chequea más tarde. Un aviso sí se atiende.
+    if (!porAviso && typeof document !== 'undefined' && document.hidden) {
         schedule(BASE_MS);
         return;
     }
+    // Nunca dos rondas a la vez (Windows y ERR_NO_BUFFER_SPACE): un aviso que llegue durante otra ronda se atiende
+    // justo al terminar esa (pudo leer las cifras antes del cambio).
+    if (pidiendo) {
+        pendiente = true;
+        return;
+    }
+    pidiendo = true;
 
     try {
         const chat = await fetchCount('/admin/chat/unread-count');
         // Secuencial: el interno sólo sale cuando el primero ya cerró su socket.
-        const internal = await fetchCount('/admin/internal-chat/unread-count');
+        const internal = (await fetchCount('/admin/internal-chat/unread-count')).count;
         failures = 0;
-        if (chat !== state.chat || internal !== state.internal) {
-            state = { chat, internal };
+        if (chat.count !== state.chat || internal !== state.internal || chat.mensajes !== state.chatMensajes) {
+            state = { chat: chat.count, internal, chatMensajes: chat.mensajes };
             emit();
         }
     } catch {
         failures++;
     } finally {
-        if (running) {
-            const base = Math.min(BASE_MS * Math.pow(2, failures), MAX_MS);
+        pidiendo = false;
+        if (running && pendiente) {
+            pendiente = false;
+            if (timer !== null) clearTimeout(timer);
+            timer = setTimeout(() => void poll(true), 300);
+        } else if (running) {
+            const ritmo = hayTiempoReal() ? BASE_CON_TIEMPO_REAL_MS : BASE_MS;
+            const base = Math.min(ritmo * Math.pow(2, failures), Math.max(MAX_MS, ritmo));
             schedule(base + Math.floor(Math.random() * JITTER_MS));
         }
     }
 }
+
+// Avisos que cambian los contadores: un mensaje visible del paciente, cambios de la conversación (asignar, resolver,
+// leer), el chat interno y la vuelta del tiempo real tras un corte. Agrupados (un webhook manda varios seguidos) y como
+// mucho una ronda cada 3 s: en las horas de más movimiento, cada asesor no pide a cada mensaje.
+const pedirPorAviso = agrupar(
+    () => {
+        if (running) void poll(true);
+    },
+    600,
+    2400,
+    3000,
+);
+let quitarAvisos: (() => void) | null = null;
 
 function onVisibility() {
     if (!document.hidden && running) {
@@ -92,6 +130,9 @@ export function subscribeUnread(listener: Listener): () => void {
     if (!running) {
         running = true;
         document.addEventListener('visibilitychange', onVisibility);
+        quitarAvisos = alAviso((aviso) => {
+            if (['mensaje_entrante', 'conversacion', 'chat_interno', 'reconectado'].includes(aviso.tipo)) pedirPorAviso();
+        });
         void poll();
     }
 
@@ -102,6 +143,8 @@ export function subscribeUnread(listener: Listener): () => void {
             if (timer !== null) clearTimeout(timer);
             timer = null;
             document.removeEventListener('visibilitychange', onVisibility);
+            quitarAvisos?.();
+            quitarAvisos = null;
         }
     };
 }

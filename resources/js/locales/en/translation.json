@@ -515,6 +515,8 @@
         "newMessage": "New message",
         "newMessageTitle": "New message",
         "newMessageFrom": "New message from {{name}}",
+        "unreadNotificationBody_one": "1 conversation with unread messages",
+        "unreadNotificationBody_other": "{{count}} conversations with unread messages",
         "window24SendAnyway": "Send anyway"
     },
     "templates": {

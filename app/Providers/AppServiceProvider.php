@@ -19,6 +19,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Avisos de tiempo real (Reverb) al crear o cambiar mensajes y conversaciones. Sin efecto si
+        // BROADCAST_CONNECTION no es «reverb»; nunca lanza errores (ver App\Support\TiempoReal).
+        \App\Support\TiempoReal::registrar();
+
         // Contraseñas nuevas (usuarios creados o editados por un administrador y cambio desde Ajustes).
         \Illuminate\Validation\Rules\Password::defaults(
             fn () => \Illuminate\Validation\Rules\Password::min(10)->letters()->numbers()

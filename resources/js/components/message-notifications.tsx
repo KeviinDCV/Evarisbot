@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getUnread, subscribeUnread } from '@/lib/unread-store';
 
 // --- Sonido (sintetizado, sin archivos) ---
 let audioCtx: AudioContext | null = null;
@@ -58,22 +59,18 @@ export function MessageNotifications() {
             else cleanTitleRef.current = document.title; // capturar título limpio al ocultar
         };
 
-        const channel = (window as any).Echo?.channel('conversations');
-
-        const handler = (data: any) => {
-            // NewMessageReceived: { message: { is_from_user, content, conversation_id }, conversation: {...} }
-            // MessageSent (saliente): is_from_user = false → se ignora
-            const msg = data?.message ?? data;
-            const isIncoming = msg?.is_from_user === true || msg?.is_from_user === 1;
-            if (!isIncoming) return;
-
-            // Solo notificar si la pestaña NO está enfocada (segundo plano)
-            if (!document.hidden) return;
-
-            const conv = data?.conversation ?? {};
-            const name = conv.contact_name || conv.phone_number || t('conversations.patientFallback');
-            const body = (data?.message?.content || t('conversations.newMessage')).toString().slice(0, 120);
-            const convId = data?.message?.conversation_id ?? conv.id;
+        // Con tiempo real, el contador del menú (unread-store) se pide en cuanto entra un mensaje del paciente, también con
+        // la pestaña oculta. Si SUBE en segundo plano, se avisa: sonido, título y notificación de escritorio. Sin datos
+        // del paciente: el aviso de tiempo real solo trae ids, y aquí solo se sabe cuántas conversaciones de ESTE asesor
+        // tienen mensajes sin leer (respeta lo que cada uno puede ver). Antes escuchaba un canal público con el texto.
+        // También cuando sube la suma de mensajes: el mismo paciente que vuelve a escribir no cambia la otra cifra.
+        // Los primeros 3 s no avisa: al cargar, la primera lectura del contador no es un mensaje nuevo.
+        const montado = Date.now();
+        let anterior = getUnread();
+        const quitarContador = subscribeUnread((estado) => {
+            const subio = estado.chat > anterior.chat || estado.chatMensajes > anterior.chatMensajes;
+            anterior = estado;
+            if (!subio || !document.hidden || Date.now() - montado < 3000) return;
 
             // Sonido (con throttle para no saturar en ráfagas)
             const now = Date.now();
@@ -90,29 +87,29 @@ export function MessageNotifications() {
             // Notificación de escritorio (coalescida por tag)
             if ('Notification' in window && Notification.permission === 'granted') {
                 try {
-                    const n = new Notification(t('conversations.newMessageFrom', { name }), {
-                        body,
+                    const n = new Notification(t('conversations.newMessageTitle'), {
+                        body: t('conversations.unreadNotificationBody', { count: estado.chat }),
                         tag: 'evarisbot-new-message',
                         icon: '/favicon.ico',
                         renotify: true,
                     } as NotificationOptions);
                     n.onclick = () => {
                         window.focus();
-                        if (convId) router.visit(`/admin/chat/${convId}`);
+                        // Ya en Conversaciones basta con traer la pestaña al frente (sin recargar ni perder el chat abierto).
+                        if (!window.location.pathname.startsWith('/admin/chat')) router.visit('/admin/chat');
                         n.close();
                     };
                 } catch {
                     /* algunos navegadores requieren Service Worker; ignoramos */
                 }
             }
-        };
+        });
 
-        channel?.listen('.new.message', handler);
         window.addEventListener('focus', restoreTitle);
         document.addEventListener('visibilitychange', onVisible);
 
         return () => {
-            channel?.stopListening('.new.message', handler);
+            quitarContador();
             window.removeEventListener('focus', restoreTitle);
             document.removeEventListener('visibilitychange', onVisible);
         };

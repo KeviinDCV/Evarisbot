@@ -94,6 +94,7 @@ import { cn } from '@/lib/utils';
 import { useTranslation, Trans } from 'react-i18next';
 import { toast } from '@/lib/toast';
 import { nombrePropio } from '@/lib/nombres';
+import { agrupar, alAviso, avisoDe, hayTiempoReal } from '@/lib/tiempo-real';
 import { duracionLegible } from '@/lib/duracion';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
 
@@ -1591,8 +1592,14 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Polling para actualizar la lista de conversaciones (siempre activo)
     // Usa endpoint liviano JSON en lugar de Inertia reload completo
+    // Con tiempo real se pide al llegar un aviso (y la consulta por tiempo queda de respaldo cada 30 s).
     useEffect(() => {
         let isActive = true;
+        // Conversaciones que nombró un aviso desde la última consulta: si el servidor ya no las trae y por su posición
+        // deberían venir, salieron de esta vista (otro asesor la tomó, se resolvió…) y se quitan de la lista. Antes lo
+        // hacía el evento público «conversation.assigned», que se retiró.
+        const avisadas = new Set<number>();
+        const ordenPorUltimoMensaje = !filters.status || ['all', 'unanswered', 'pending_response'].includes(filters.status);
 
         const tick = async () => {
             if (!isActive || document.hidden) return;
@@ -1605,8 +1612,17 @@ export default function ConversationsIndex({ conversations: initialConversations
                 if (filters.assigned) params.set('assigned', filters.assigned);
                 if (filters.search) params.set('search', filters.search);
                 if (filters.tag) params.set('tag', filters.tag);
+                if (filters.specialty) params.set('specialty', filters.specialty);
 
-                const res = await axios.get(`/admin/chat/poll-list?${params.toString()}`);
+                // Los avisos se toman ANTES de pedir: uno que llegue durante la petición queda para la siguiente (la
+                // respuesta pudo leerse antes de ese cambio).
+                const nombradas = new Set(avisadas);
+                avisadas.clear();
+                const res = await axios.get(`/admin/chat/poll-list?${params.toString()}`).catch((e) => {
+                    // Si falla, los avisos vuelven para la próxima consulta.
+                    nombradas.forEach(id => avisadas.add(id));
+                    throw e;
+                });
                 if (!isActive) return;
 
                 const freshConversations: Conversation[] = res.data.conversations;
@@ -1620,7 +1636,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     const serverMap = new Map(freshConversations.map(c => [c.id, c]));
                     let hasChanges = false;
 
-                    const updated = prev.map(conv => {
+                    let updated = prev.map(conv => {
                         const fresh = serverMap.get(conv.id);
                         if (fresh) {
                             if (fresh.unread_count !== conv.unread_count ||
@@ -1645,6 +1661,24 @@ export default function ConversationsIndex({ conversations: initialConversations
                         }
                         return true;
                     });
+                    // Con filtro de especialidad no se quita nada: esa vista muestra también resueltas o bloqueadas que la
+                    // consulta periódica no trae.
+                    if (nombradas.size > 0 && !filters.specialty) {
+                        // El servidor trae como mucho 50, del último mensaje al más viejo: si trajo menos, trajo toda la
+                        // vista y la ausente salió. Si trajo 50, solo se quita la que por su fecha debía venir en esa
+                        // página (último mensaje igual o más nuevo que el más viejo traído). Las fijadas nunca.
+                        const completa = freshConversations.length < 50;
+                        const limite = Math.min(...freshConversations.map(c => new Date(c.last_message_at || 0).getTime()));
+                        const salen = new Set(updated.filter(conv => {
+                            if (!nombradas.has(conv.id) || serverMap.has(conv.id) || conv.is_pinned) return false;
+                            if (completa) return true;
+                            return ordenPorUltimoMensaje && new Date(conv.last_message_at || 0).getTime() >= limite;
+                        }).map(c => c.id));
+                        if (salen.size > 0) {
+                            hasChanges = true;
+                            updated = updated.filter(c => !salen.has(c.id));
+                        }
+                    }
 
                     // Detect new conversations
                     const existingIds = new Set(prev.map(c => c.id));
@@ -1685,61 +1719,50 @@ export default function ConversationsIndex({ conversations: initialConversations
         // Gating por visibilidad: mientras la pestaña esté oculta, el guard document.hidden
         // dentro de tick corta el fetch + re-render; al volver a estar visible refrescamos
         // de inmediato en vez de esperar el siguiente tick.
-        const conversationsInterval = setInterval(tick, 10000); // 10s — endpoint liviano, no Inertia reload
-        const onVisible = () => { if (!document.hidden) tick(); };
+        // Una sola petición a la vez (Windows agota sockets: ERR_NO_BUFFER_SPACE); un aviso que llegue durante otra se
+        // atiende al terminar esa.
+        let enCurso = false;
+        let otraVez = false;
+        let ultima = 0;
+        const pedir = async () => {
+            if (enCurso) { otraVez = true; return; }
+            enCurso = true;
+            ultima = Date.now();
+            try {
+                await tick();
+            } finally {
+                enCurso = false;
+                if (otraVez && isActive) { otraVez = false; void pedir(); }
+            }
+        };
+        // 10 s como siempre; con tiempo real, de respaldo cada 30 s.
+        const conversationsInterval = setInterval(() => {
+            if (hayTiempoReal() && Date.now() - ultima < 30000) return;
+            void pedir();
+        }, 10000); // endpoint liviano, no Inertia reload
+        // Agrupado: un webhook o un envío masivo mandan varios avisos seguidos. Se pide al terminar la ráfaga (como mucho
+        // 4 s de espera) y nunca más de una vez cada 2,5 s: en las horas de más movimiento cada asesor no pide a cada
+        // mensaje.
+        const porAviso = agrupar(() => { if (isActive) void pedir(); }, 800, 4000, 2500);
+        const quitarAvisos = alAviso((aviso) => {
+            if (aviso.tipo === 'reconectado') { porAviso(); return; }
+            if (aviso.tipo !== 'mensaje_entrante' && aviso.tipo !== 'mensaje' && aviso.tipo !== 'conversacion') return;
+            if (aviso.tipo === 'conversacion') {
+                if (aviso.conversation_id) avisadas.add(aviso.conversation_id);
+                aviso.conversation_ids?.forEach(id => avisadas.add(id));
+            }
+            porAviso();
+        });
+        const onVisible = () => { if (!document.hidden) void pedir(); };
         document.addEventListener('visibilitychange', onVisible);
 
         return () => {
             isActive = false;
             clearInterval(conversationsInterval);
+            quitarAvisos();
             document.removeEventListener('visibilitychange', onVisible);
         };
-    }, [filters.status, filters.assigned, filters.search, filters.tag, isAdmin]);
-
-    // Escuchar evento en tiempo real cuando un chat es tomado por un asesor
-    // Así los demás asesores lo ven desaparecer de su bandeja inmediatamente sin esperar el polling
-    useEffect(() => {
-        const channel = (window as any).Echo?.channel('conversations');
-        if (!channel) return;
-
-        channel.listen('.conversation.assigned', (data: { conversation_id: number; assigned_to: number; status: string }) => {
-            if (!isAdmin) {
-                // Para asesores: quitar de la lista si fue asignado a otro asesor
-                setLocalConversations(prev =>
-                    prev.filter(c => {
-                        if (c.id !== data.conversation_id) return true;
-                        // Mantener si soy yo el asignado
-                        return data.assigned_to === auth.user.id;
-                    })
-                );
-            }
-        });
-
-        return () => {
-            channel.stopListening('.conversation.assigned');
-        };
-    }, [isAdmin, auth.user.id]);
-
-    // Escuchar reacciones (emojis) en tiempo real para la conversación abierta
-    useEffect(() => {
-        const channel = (window as any).Echo?.channel('conversations');
-        if (!channel) return;
-
-        channel.listen('.message.reaction', (data: { conversation_id: number; message_id: number; emoji: string | null; from_user: boolean; removed: boolean }) => {
-            if (!selectedConversation || data.conversation_id !== selectedConversation.id) return;
-            setLocalMessages(prev => prev.map(m => {
-                if (m.id !== data.message_id) return m;
-                // Reemplazar la reacción del mismo lado (paciente o negocio)
-                const others = (m.reactions || []).filter(r => r.from_user !== data.from_user);
-                if (data.removed || !data.emoji) return { ...m, reactions: others };
-                return { ...m, reactions: [...others, { id: -1, emoji: data.emoji, from_user: data.from_user }] };
-            }));
-        });
-
-        return () => {
-            channel.stopListening('.message.reaction');
-        };
-    }, [selectedConversation?.id]);
+    }, [filters.status, filters.assigned, filters.search, filters.tag, filters.specialty, isAdmin]);
 
     // Cerrar dropdowns de filtro cuando se hace clic fuera
     useEffect(() => {
@@ -1917,14 +1940,38 @@ export default function ConversationsIndex({ conversations: initialConversations
             }
         };
 
-        // Pausar mientras la pestaña esté oculta; refrescar al instante al volver a visible.
-        const messagesInterval = setInterval(tick, 5000);
-        const onVisible = () => { if (!document.hidden) tick(); };
+        // Una sola petición a la vez; un aviso que llegue durante otra se atiende al terminar esa.
+        let enCurso = false;
+        let otraVez = false;
+        let ultima = 0;
+        const pedir = async () => {
+            if (enCurso) { otraVez = true; return; }
+            enCurso = true;
+            ultima = Date.now();
+            try {
+                await tick();
+            } finally {
+                enCurso = false;
+                if (otraVez && isActive) { otraVez = false; void pedir(); }
+            }
+        };
+        // Pausar mientras la pestaña esté oculta; refrescar al instante al volver a visible. Cada 5 s como siempre; con
+        // tiempo real, al llegar un aviso de este chat (mensajes, checks, reacciones, quién escribe) y de respaldo cada 15 s.
+        const messagesInterval = setInterval(() => {
+            if (hayTiempoReal() && Date.now() - ultima < 15000) return;
+            void pedir();
+        }, 5000);
+        const porAviso = agrupar(() => { if (isActive) void pedir(); }, 250, 1000, 1000);
+        const quitarAvisos = alAviso((aviso) => {
+            if (aviso.tipo === 'reconectado' || (aviso.tipo !== 'chat_interno' && avisoDe(aviso, selectedConversation.id))) porAviso();
+        });
+        const onVisible = () => { if (!document.hidden) void pedir(); };
         document.addEventListener('visibilitychange', onVisible);
 
         return () => {
             isActive = false;
             clearInterval(messagesInterval);
+            quitarAvisos();
             document.removeEventListener('visibilitychange', onVisible);
         };
     }, [selectedConversation?.id]);

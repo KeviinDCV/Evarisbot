@@ -454,6 +454,8 @@ class InternalChatController extends Controller
         InternalChatParticipant::where('internal_chat_id', $chat->id)
             ->where('user_id', $userId)
             ->update(['last_read_at' => now()]);
+        // Confirmaciones de lectura al instante para los demás participantes.
+        \App\Support\TiempoReal::chatInterno($chat->id);
 
         return response()->json(['success' => true]);
     }

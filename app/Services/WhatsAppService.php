@@ -2094,7 +2094,7 @@ class WhatsAppService
             // Emitir evento de broadcasting solo para mensajes visibles, para que las
             // confirmaciones/cancelaciones no "salten" en tiempo real a la lista.
             if (!$isAppointmentResponse) {
-                broadcast(new MessageSent($message, $conversation->fresh(['lastMessage', 'assignedUser'])));
+                \App\Support\TiempoReal::conversacion('mensaje_entrante', $conversation->id);
             }
 
             Log::info('Incoming message processed', [
@@ -2346,7 +2346,7 @@ class WhatsAppService
         if ($emoji === '') {
             // El paciente quitó su reacción
             $target->reactions()->where('from_user', true)->delete();
-            broadcast(new MessageReactionUpdated($conversation->id, $target->id, null, true, true));
+            \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
             return;
         }
 
@@ -2356,7 +2356,7 @@ class WhatsAppService
             ['emoji' => $emoji, 'whatsapp_message_id' => $reactionWamid]
         );
 
-        broadcast(new MessageReactionUpdated($conversation->id, $target->id, $emoji, true, false));
+        \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
     }
 
     private function sendAppointmentAutoResponse(string $from, array $messageData, \Illuminate\Database\Eloquent\Collection $appointments, \App\Models\Conversation $conversation): void
@@ -2644,7 +2644,7 @@ class WhatsAppService
 
                 // Re-emitir evento para actualizar la UI con la transcripción
                 $conversation = $message->conversation->fresh(['lastMessage', 'assignedUser']);
-                broadcast(new \App\Events\MessageSent($message->fresh(), $conversation));
+                \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
             }
         } catch (\Exception $e) {
             Log::error('Audio transcription failed', [

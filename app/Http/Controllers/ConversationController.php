@@ -279,31 +279,32 @@ class ConversationController extends Controller
     {
         $user = auth()->user();
         
+        $query = Conversation::query()->where('unread_count', '>', 0);
+
         if ($user->isAdvisor()) {
             if ($user->isOnDuty()) {
                 // Asesor de turno: cuenta chats sin asignar + asignados a él
-                $count = Conversation::where(function ($q) {
+                $query->where(function ($q) {
                     $q->whereNull('assigned_to')
                       ->orWhere('assigned_to', auth()->id());
                 })
-                    ->whereIn('status', ['active', 'pending'])
-                    ->where('unread_count', '>', 0)
-                    ->count();
+                    ->whereIn('status', ['active', 'pending']);
             } else {
                 // Asesor normal: solo contar las asignadas a él
-                $count = Conversation::where('assigned_to', auth()->id())
-                    ->where('unread_count', '>', 0)
-                    ->count();
+                $query->where('assigned_to', auth()->id());
             }
         } else {
             // Si es admin, contar todas las conversaciones con mensajes no leídos (excluir resueltas)
-            $count = Conversation::whereIn('status', ['active', 'pending'])
-                ->where('unread_count', '>', 0)
-                ->count();
+            $query->whereIn('status', ['active', 'pending']);
         }
 
+        $fila = $query->selectRaw('COUNT(*) AS c, COALESCE(SUM(unread_count), 0) AS m')->first();
+
         return response()->json([
-            'count' => $count
+            'count' => (int) ($fila->c ?? 0),
+            // Mensajes sin leer en esas conversaciones: la notificación suena también cuando el mismo paciente vuelve a
+            // escribir (la cifra de conversaciones no cambia).
+            'mensajes' => (int) ($fila->m ?? 0),
         ]);
     }
 
@@ -983,7 +984,7 @@ class ConversationController extends Controller
         // Si el chat acaba de ser tomado, notificar a todos los demás asesores
         // para que lo eliminen de su bandeja inmediatamente (sin esperar polling)
         if ($wasUnassigned) {
-            broadcast(new \App\Events\ConversationAssigned($conversation->fresh()))->toOthers();
+            \App\Support\TiempoReal::conversacion('conversacion', $conversation->id);
         }
 
         // Enviar mensaje usando WhatsApp Business API
@@ -1057,7 +1058,7 @@ class ConversationController extends Controller
         }
 
         // Emitir evento de broadcasting para actualización en tiempo real
-        broadcast(new MessageSent($message->fresh(['sender', 'replyTo']), $conversation->fresh(['lastMessage', 'assignedUser'])))->toOthers();
+        \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
 
         // Si es petición AJAX/JSON, devolver JSON
         if ($request->expectsJson() || $request->ajax()) {
@@ -1115,7 +1116,7 @@ class ConversationController extends Controller
         if ($emoji === '') {
             // Quitar la reacción del negocio/asesor
             $message->reactions()->where('from_user', false)->delete();
-            broadcast(new MessageReactionUpdated($conversation->id, $message->id, null, false, true))->toOthers();
+            \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
         } else {
             // Crear o reemplazar la reacción del negocio/asesor (máximo una por lado)
             MessageReaction::updateOrCreate(
@@ -1126,7 +1127,7 @@ class ConversationController extends Controller
                     'whatsapp_message_id' => $result['message_id'] ?? null,
                 ]
             );
-            broadcast(new MessageReactionUpdated($conversation->id, $message->id, $emoji, false, false))->toOthers();
+            \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
         }
 
         return response()->json([
@@ -1300,7 +1301,7 @@ class ConversationController extends Controller
         // Emitir evento de broadcasting para el último mensaje
         if (!empty($messages)) {
             $lastMessage = end($messages);
-            broadcast(new MessageSent($lastMessage->fresh(['sender']), $conversation->fresh(['lastMessage', 'assignedUser'])))->toOthers();
+            \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
         }
 
         return response()->json([
@@ -1353,6 +1354,7 @@ class ConversationController extends Controller
         }
 
         Conversation::whereIn('id', $validated['ids'])->update($updateData);
+        \App\Support\TiempoReal::conversacion('conversacion', $validated['ids']);
 
         return back()->with('success', count($validated['ids']) . ' conversaciones actualizadas.');
     }
@@ -1431,6 +1433,7 @@ class ConversationController extends Controller
         }
 
         Conversation::whereIn('id', $validated['ids'])->update($updateData);
+        \App\Support\TiempoReal::conversacion('conversacion', $validated['ids']);
 
         // Igual que updateStatus(): «Agendada» pone la etiqueta persistente «Agendado». La pestaña Agendados filtra
         // por ella; sin la etiqueta, la conversación salía de «Todos» y no aparecía en ninguna parte.
@@ -1516,7 +1519,7 @@ class ConversationController extends Controller
 
         // Notificar a todos los demás en tiempo real sobre el cambio de asignación
         if ($userId) {
-            broadcast(new \App\Events\ConversationAssigned($conversation->fresh()))->toOthers();
+            \App\Support\TiempoReal::conversacion('conversacion', $conversation->id);
         }
 
         $message = $userId ? 'Conversación asignada exitosamente.' : 'Asignación removida exitosamente.';
@@ -1561,6 +1564,7 @@ class ConversationController extends Controller
                 ]);
             }
             Conversation::whereIn('id', $ids)->update(['assigned_to' => null, 'assigned_at' => null]);
+            \App\Support\TiempoReal::conversacion('conversacion', $ids);
         });
 
         \Illuminate\Support\Facades\Log::info('Limpieza manual de asesor (filtro)', [
@@ -2552,6 +2556,8 @@ class ConversationController extends Controller
             now(),
             10 // expires in 10 seconds
         );
+        // Los demás que tengan el chat abierto lo ven al instante (piden el estado del chat, no reciben datos).
+        \App\Support\TiempoReal::conversacion('escribiendo', $conversation->id);
 
         // Y el "escribiendo…" que ve el PACIENTE en WhatsApp.
         //
@@ -2587,11 +2593,17 @@ class ConversationController extends Controller
      */
     public function viewing(Conversation $conversation)
     {
+        $clave = 'viewing_' . $conversation->id . '_' . auth()->id();
+        $nuevo = !cache()->has($clave);
         cache()->put(
-            'viewing_' . $conversation->id . '_' . auth()->id(),
+            $clave,
             now(),
             15 // expires in 15 seconds
         );
+        // Solo cuando alguien empieza a mirar (el latido llega cada 10 s): los demás lo ven al instante.
+        if ($nuevo) {
+            \App\Support\TiempoReal::conversacion('escribiendo', $conversation->id);
+        }
 
         return response()->json(['ok' => true]);
     }

@@ -78,6 +78,7 @@ import {
 } from '@/components/internal-chat/piezas-chat';
 import { TextoMensaje } from '@/components/internal-chat/texto-mensaje';
 import { PanelDetalles, type TextosDetalles } from '@/components/internal-chat/panel-detalles';
+import { agrupar, alAviso, hayTiempoReal } from '@/lib/tiempo-real';
 
 // --- Interfaces matching backend API ---
 
@@ -240,6 +241,9 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
     const isAtBottomRef = useRef(true);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const lastMessageIdRef = useRef<number>(0);
+    // Inicio de la última consulta de mensajes que salió bien: la siguiente pide desde ahí (con 10 s de margen). Con
+    // tiempo real la consulta de respaldo es cada 15 s; «ahora − 10 s» dejaría un hueco si se perdiera un aviso.
+    const desdeRef = useRef<number>(0);
     const lastChatPollRef = useRef<string>('');
 
     // --- Derived State ---
@@ -376,14 +380,40 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
             }
         };
 
+        // Una sola petición a la vez (Windows agota sockets); un aviso durante otra se atiende al terminar esa.
+        let activo = true;
+        let enCurso = false;
+        let otraVez = false;
+        let ultima = 0;
+        const pedir = async () => {
+            if (enCurso) { otraVez = true; return; }
+            enCurso = true;
+            ultima = Date.now();
+            try {
+                await pollChats();
+            } finally {
+                enCurso = false;
+                if (otraVez && activo) { otraVez = false; void pedir(); }
+            }
+        };
+
         // Immediate first poll
-        pollChats();
-        // Gating por visibilidad: no pollear con la pestaña oculta; refrescar al volver.
-        const interval = setInterval(() => { if (!document.hidden) pollChats(); }, 5000);
-        const onVisible = () => { if (!document.hidden) pollChats(); };
+        void pedir();
+        // Gating por visibilidad: no pollear con la pestaña oculta; refrescar al volver. Cada 5 s como siempre; con
+        // tiempo real, al llegar un aviso de cualquiera de mis chats y de respaldo cada 30 s.
+        const interval = setInterval(() => {
+            if (document.hidden) return;
+            if (hayTiempoReal() && Date.now() - ultima < 30000) return;
+            void pedir();
+        }, 5000);
+        const porAviso = agrupar(() => { if (activo && !document.hidden) void pedir(); }, 400, 2000, 2500);
+        const quitarAvisos = alAviso((aviso) => { if (aviso.tipo === 'chat_interno' || aviso.tipo === 'reconectado') porAviso(); });
+        const onVisible = () => { if (!document.hidden) void pedir(); };
         document.addEventListener('visibilitychange', onVisible);
         return () => {
+            activo = false;
             clearInterval(interval);
+            quitarAvisos();
             document.removeEventListener('visibilitychange', onVisible);
         };
     }, [activeChat?.id]);
@@ -394,11 +424,15 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
         const pollMessages = async () => {
             try {
-                const res = await axios.get(`/admin/internal-chat/${activeChat.id}/poll?since=${lastMessageIdRef.current > 0 ? encodeURIComponent(new Date(Date.now() - 10000).toISOString()) : ''}`);
+                const inicio = Date.now();
+                const desde = (desdeRef.current > 0 ? desdeRef.current : inicio) - 10000;
+                const res = await axios.get(`/admin/internal-chat/${activeChat.id}/poll?since=${lastMessageIdRef.current > 0 ? encodeURIComponent(new Date(desde).toISOString()) : ''}`);
+                desdeRef.current = inicio;
                 // La IA reinició la conversación por inactividad: limpiar la vista
                 if (res.data?.reset) {
                     setMessages([]);
                     lastMessageIdRef.current = 0;
+                    desdeRef.current = 0;
                     setReadReceipts([]);
                     return;
                 }
@@ -449,16 +483,46 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                     setActiveChat(null);
                     setMessages([]);
                     lastMessageIdRef.current = 0;
+                    desdeRef.current = 0;
                     return;
                 }
             }
         };
 
-        const interval = setInterval(() => { if (!document.hidden) pollMessages(); }, 3000);
-        const onVisible = () => { if (!document.hidden) pollMessages(); };
+        // Una sola petición a la vez; un aviso durante otra se atiende al terminar esa.
+        let activo = true;
+        let enCurso = false;
+        let otraVez = false;
+        let ultima = 0;
+        const pedir = async () => {
+            if (enCurso) { otraVez = true; return; }
+            enCurso = true;
+            ultima = Date.now();
+            try {
+                await pollMessages();
+            } finally {
+                enCurso = false;
+                if (otraVez && activo) { otraVez = false; void pedir(); }
+            }
+        };
+        // Cada 3 s como siempre; con tiempo real, al llegar un aviso de ESTE chat (mensajes, reacciones, leídos) y de
+        // respaldo cada 15 s.
+        const interval = setInterval(() => {
+            if (document.hidden) return;
+            if (hayTiempoReal() && Date.now() - ultima < 15000) return;
+            void pedir();
+        }, 3000);
+        const chatId = activeChat.id;
+        const porAviso = agrupar(() => { if (activo && !document.hidden) void pedir(); }, 200, 1000, 1000);
+        const quitarAvisos = alAviso((aviso) => {
+            if ((aviso.tipo === 'chat_interno' && aviso.chat_id === chatId) || aviso.tipo === 'reconectado') porAviso();
+        });
+        const onVisible = () => { if (!document.hidden) void pedir(); };
         document.addEventListener('visibilitychange', onVisible);
         return () => {
+            activo = false;
             clearInterval(interval);
+            quitarAvisos();
             document.removeEventListener('visibilitychange', onVisible);
         };
     }, [activeChat?.id]);
@@ -468,6 +532,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
         if (activeChat) {
             // Reset tracking for new chat
             lastMessageIdRef.current = 0;
+            desdeRef.current = 0;
             isAtBottomRef.current = true; // Reset scroll tracking
             setEditingMessage(null);
             setReactionPickerFor(null);

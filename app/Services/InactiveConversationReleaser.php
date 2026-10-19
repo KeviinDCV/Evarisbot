@@ -169,6 +169,7 @@ class InactiveConversationReleaser
         $cutoff = now()->subMinutes($minutes);
         $names = User::whereIn('id', $candidates->pluck('assigned_to')->unique())->pluck('name', 'id');
         $released = 0;
+        $liberadas = [];
 
         foreach ($candidates as $c) {
             // Se vuelve a comprobar en el mismo UPDATE: si en este instante el asesor respondió
@@ -200,6 +201,7 @@ class InactiveConversationReleaser
             }
 
             $released++;
+            $liberadas[] = $c->id;
 
             // create() y no ConversationActivity::log(): log() pone como autor al usuario de la
             // petición que disparó la revisión, y esto lo hizo el sistema.
@@ -224,6 +226,9 @@ class InactiveConversationReleaser
                 'minutos' => $minutes,
             ]);
         }
+
+        // Un solo aviso para todas las liberadas (antes, uno por conversación dentro del bucle).
+        \App\Support\TiempoReal::conversacion('conversacion', $liberadas);
 
         return $released;
     }

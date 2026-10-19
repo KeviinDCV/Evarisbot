@@ -5,6 +5,7 @@ import { MessageNotifications } from '@/components/message-notifications';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
 import { GROUPS, PINNED_KEY, readPinned, type NavEntry, type NavGroupDef } from '@/layouts/admin-nav';
+import { iniciarTiempoReal } from '@/lib/tiempo-real';
 import { getUnread, seedUnreadChat, subscribeUnread, type UnreadState } from '@/lib/unread-store';
 import { logout } from '@/routes';
 import { type SharedData } from '@/types';
@@ -57,10 +58,16 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     // ── Contadores vivos: el mismo store de módulo que el riel de hoy (ver unread-store). ──
     const [unread, setUnread] = useState<UnreadState>(() => {
         const current = getUnread();
-        return current.chat === 0 && current.internal === 0 ? { chat: initialUnreadCount, internal: 0 } : current;
+        return current.chat === 0 && current.internal === 0 ? { chat: initialUnreadCount, internal: 0, chatMensajes: 0 } : current;
     });
     const [pingChat, setPingChat] = useState(false);
     const prevChatRef = useRef<number>(initialUnreadCount);
+
+    // Tiempo real (Reverb): una sola conexión por usuario, que sobrevive a las navegaciones (ver lib/tiempo-real).
+    const userId = Number(auth?.user?.id) || 0;
+    useEffect(() => {
+        if (userId) iniciarTiempoReal(userId);
+    }, [userId]);
 
     useEffect(() => {
         seedUnreadChat(initialUnreadCount);
