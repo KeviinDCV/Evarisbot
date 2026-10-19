@@ -428,6 +428,14 @@ function ChatImage({ src, alt, className, layoutId, reserve = false }: { src: st
  * Reemplaza el <select> nativo por el dropdown de shadcn con cada plantilla
  * mostrando su nombre, ícono de adjunto (documentos) y una etiqueta de categoría.
  */
+// Plantillas de SERVICIO (UTILITY) para abrir una conversación. Las de marketing (p. ej. «NUEVA CONVERSACION v2») Meta
+// las frena con el error 131049 a quien ya alcanzó su tope o nunca le escribió al hospital, y más con la calidad del
+// número en RED. Van primero en la lista y con la marca «Recomendada para iniciar».
+const PLANTILLAS_PARA_INICIAR = ['saludo_asesor_v2', 'saludo_por_solicitud'];
+// Plantillas cuyo dato {{1}} es el nombre de quien atiende: se rellena solo con el de la persona (se puede cambiar).
+// Sin esto se enviaron vacías y Meta respondió 131008 («falta un parámetro»).
+const PRIMER_DATO_ES_ASESOR = ['saludo_asesor_v2'];
+
 function WaTemplateSelect({
     templates,
     value,
@@ -452,8 +460,11 @@ function WaTemplateSelect({
                 <SelectValue placeholder={placeholder ?? t('conversations.selectTemplatePlaceholder')} />
             </SelectTrigger>
             <SelectContent className="rounded-xl max-h-[320px]">
-                {templates.map((tpl) => {
+                {[...templates].sort((a, b) =>
+                    Number(PLANTILLAS_PARA_INICIAR.includes(b.meta_template_name)) - Number(PLANTILLAS_PARA_INICIAR.includes(a.meta_template_name))
+                ).map((tpl) => {
                     const isMarketing = tpl.category === 'MARKETING';
+                    const recomendada = PLANTILLAS_PARA_INICIAR.includes(tpl.meta_template_name);
                     const categoryLabel = isMarketing
                         ? t('conversations.templateCategory.marketing')
                         : tpl.category === 'UTILITY'
@@ -480,6 +491,11 @@ function WaTemplateSelect({
                                 >
                                     {categoryLabel}
                                 </span>
+                                {recomendada && (
+                                    <span className="shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                        {t('conversations.templateRecommended')}
+                                    </span>
+                                )}
                             </span>
                         </SelectItem>
                     );
@@ -515,6 +531,19 @@ export default function ConversationsIndex({ conversations: initialConversations
         return matches ? matches.length : 0;
     };
 
+    // Datos con los que arranca una plantilla al elegirla: vacíos, salvo el nombre de quien atiende en las que lo piden
+    // (el asesor asignado si lo hay; si no, quien envía).
+    const paramsIniciales = (tpl: WhatsappTemplate, quienAtiende?: string | null): string[] => {
+        const params: string[] = Array(getTemplateParamCount(tpl)).fill('');
+        if (params.length > 0 && PRIMER_DATO_ES_ASESOR.includes(tpl.meta_template_name)) {
+            params[0] = nombrePropio(String(quienAtiende || auth.user.name || '')).trim();
+        }
+        return params;
+    };
+
+    // Cuántos datos de la plantilla siguen vacíos: Meta rechaza el envío (131008) si falta alguno.
+    const datosVacios = (params: string[]) => params.filter(p => !String(p ?? '').trim()).length;
+
     const [search, setSearch] = useState(filters.search || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const inputValueRef = useRef(''); // Ref for message input (zero re-renders while typing)
@@ -546,8 +575,27 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [advisorToClear, setAdvisorToClear] = useState<{ id: number; name: string; count: number } | null>(null);
     const [clearingAdvisor, setClearingAdvisor] = useState(false);
     // El sondeo del chat abierto recibió 403: el chat pasó a otra persona (o quedó sin asesor y no está de turno). La
-    // lista no se entera sola —el servidor deja de mandarlo y Echo está apagado—, así que este es el aviso fiable.
-    const [sinAcceso, setSinAcceso] = useState(false);
+    // lista no se entera sola —el servidor deja de mandarlo y Echo está apagado—, así que este es el aviso fiable. Se
+    // guarda el id del chat rechazado: un 403 que llega tarde del chat anterior no bloquea el que se acaba de abrir.
+    const [sinAccesoDe, setSinAccesoDe] = useState<number | null>(null);
+    const sinAcceso = sinAccesoDe !== null && sinAccesoDe === (selectedConversation?.id ?? null);
+
+    // Visitas de Inertia (no parciales) iniciadas y si la pantalla sigue montada. Al llegar la respuesta de un «Resuelta»
+    // lento, si la persona ya se fue a otro chat o pantalla, no se la saca de ahí (con router.post esa visita
+    // interrumpía la petición; con axios no).
+    const visitasRef = useRef(0);
+    const montadoRef = useRef(true);
+    useEffect(() => {
+        montadoRef.current = true;
+        const quitar = router.on('start', (event) => {
+            const visita = event.detail.visit;
+            if (!visita.only?.length && !visita.except?.length) visitasRef.current += 1;
+        });
+        return () => {
+            montadoRef.current = false;
+            quitar();
+        };
+    }, []);
     const [selectedConversations, setSelectedConversations] = useState<number[]>([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [isDragSelecting, setIsDragSelecting] = useState(false);
@@ -1763,7 +1811,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Usa endpoint liviano que solo devuelve mensajes nuevos después del último ID
     useEffect(() => {
         // Otro chat abierto (o ninguno): el «sin acceso» del anterior no aplica.
-        setSinAcceso(false);
+        setSinAccesoDe(null);
         if (!selectedConversation) return;
 
         let isActive = true;
@@ -1850,14 +1898,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Polling exitoso: la conexión está sana de nuevo.
                 pollFailuresRef.current = 0;
                 setConnectionStale(false);
-                setSinAcceso(false);
+                setSinAccesoDe(null);
             } catch (err) {
+                // Respuesta de un chat que ya se cerró: no toca el estado del que está abierto ahora.
+                if (!isActive) return;
                 // 403: el servidor ya no deja ver este chat (pasó a otra persona). No es un fallo de conexión: antes
                 // salía «conexión inestable» y el panel seguía ofreciendo acciones que el servidor rechazaba.
                 if ((err as { response?: { status?: number } })?.response?.status === 403) {
                     pollFailuresRef.current = 0;
                     setConnectionStale(false);
-                    setSinAcceso(true);
+                    setSinAccesoDe(selectedConversation.id);
                     return;
                 }
                 // Tras 2 fallos consecutivos, avisar que la conexión quedó inestable
@@ -2757,19 +2807,20 @@ export default function ConversationsIndex({ conversations: initialConversations
     // servidor le niega cambiar estado, notas, especialidad y bloqueo. El panel lo muestra en solo lectura. Se sabe por
     // la lista (si la trae al día) o por el 403 del sondeo del chat abierto (sinAcceso), que es lo que sí llega siempre.
     const soloLectura = !!selectedConversation && (sinAcceso || !puedeActuar({ assigned_to: currentAssignedTo ?? null }));
-    // Responder y reaccionar tampoco: el servidor lo rechaza igual.
-    const bloqueado = isLockedByOther || sinAcceso;
+    // Responder sigue igual que antes (solo se bloquea si la lista dice que el chat es de otra persona): si el chat
+    // quedó sin asesor, quien responde lo recupera (sendMessage); si lo tomó otra persona, el servidor responde 423.
+    // Si la lista dice «es tuyo» o «sin asesor» pero el sondeo dio 403, no se sabe quién lo tiene: «ya no está a tu cargo».
     const textoSoloLectura = currentAssignedTo && currentAssignedTo !== auth.user.id
         ? t('conversations.readOnlyAssigned', { name: nombrePropio(currentAssignedUserName ?? t('conversations.anotherAgent')) })
-        : currentAssignedTo == null
-            ? t('conversations.readOnlyUnassigned')
-            : t('conversations.noLongerYours');
+        : sinAcceso
+            ? t('conversations.noLongerYours')
+            : t('conversations.readOnlyUnassigned');
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
 
         // Protección contra doble envío
-        if (isSubmitting || bloqueado) {
+        if (isSubmitting || isLockedByOther) {
             return;
         }
 
@@ -3103,6 +3154,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             // Por axios y no por router.post: si el chat pasó a otra persona en el último momento, el 403 se avisa con
             // un toast en vez de abrir el modal con la página de error. El servidor responde JSON (updateStatus).
             const quitada = localConversations.find(c => c.id === convId);
+            const visitasAlPedir = visitasRef.current;
             csrfPost(`/admin/chat/${convId}/status`, { status }).then(res => {
                 const error = rechazo(res, t('conversations.statusChangeError'));
                 if (error) {
@@ -3111,6 +3163,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                     return;
                 }
                 toast.success(t('conversations.chatResolved'));
+                // Si mientras tanto abrió otro chat o se fue de la pantalla, no se la saca de ahí.
+                if (!montadoRef.current || visitasRef.current !== visitasAlPedir) return;
                 // preserveScroll: sin él Inertia resetea el scroll tras resolver.
                 router.get('/admin/chat', params, {
                     preserveState: true,
@@ -3184,6 +3238,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             // Por axios y no por router.post: un rechazo (403, p. ej. la lista estaba desactualizada y el chat ya es de
             // otra persona) se avisa con un toast en vez de abrir el modal con la página de error. A estas llamadas el
             // servidor responde JSON (updateStatus), sin redirigir.
+            const visitasAlPedir = visitasRef.current;
             csrfPost(`/admin/chat/${conversationId}/status`, { status }).then(res => {
                 const error = rechazo(res, t('conversations.statusChangeError'));
                 if (error) {
@@ -3194,6 +3249,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                     return;
                 }
                 toast.success(t('conversations.chatResolved'));
+                // Si mientras tanto abrió otro chat o se fue de la pantalla, no se la saca de ahí.
+                if (!montadoRef.current || visitasRef.current !== visitasAlPedir) return;
                 // preserveScroll: sin él Inertia resetea el scroll tras resolver.
                 router.get('/admin/chat', params, {
                     preserveState: true,
@@ -4843,7 +4900,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 >
                                           <div className={`group/msg relative flex ${message.is_from_user ? 'flex-row' : 'flex-row-reverse'} items-start gap-1 max-w-[85%] md:max-w-[56%]`}>
                                             {/* Acciones (responder, copiar, reaccionar): flotan al lado en hover SIN reservar espacio */}
-                                            {!bloqueado && (
+                                            {!isLockedByOther && (
                                             <div className={`absolute top-1/2 -translate-y-1/2 z-10 flex items-center gap-0.5 px-1 transition-opacity duration-150 ${message.is_from_user ? 'left-full' : 'right-full'} ${reactionPickerFor === message.id ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto group-focus-within/msg:opacity-100 group-focus-within/msg:pointer-events-auto'}`}>
                                                 <button
                                                     onClick={() => {
@@ -4877,7 +4934,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </div>
                                             )}
                                             <SelectorReacciones
-                                                abierto={reactionPickerFor === message.id && !bloqueado}
+                                                abierto={reactionPickerFor === message.id && !isLockedByOther}
                                                 propia={!message.is_from_user}
                                                 actual={message.reactions?.find(r => !r.from_user)?.emoji}
                                                 onElegir={(emoji) => handleReact(message, emoji)}
@@ -5079,7 +5136,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 {/* Reacciones: la del paciente y la del asesor en una sola pastilla, como WhatsApp (montada siempre para el salto al llegar) */}
                                                 {(() => {
                                                     const reacciones = message.reactions ?? [];
-                                                    const mia = !bloqueado ? reacciones.find(r => !r.from_user) : undefined;
+                                                    const mia = !isLockedByOther ? reacciones.find(r => !r.from_user) : undefined;
                                                     const quien = reacciones.map(r => `${r.from_user ? (selectedConversation?.contact_name || t('conversations.customer')) : t('conversations.agent')} ${r.emoji}`).join(' · ');
                                                     return (
                                                         <PastillaReacciones
@@ -5216,14 +5273,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                         </div>
 
                         {/* Área de Entrada de Mensaje */}
-                        {bloqueado ? (
+                        {isLockedByOther ? (
                             <div className="px-3 md:px-6 py-4 bg-amber-50/80 dark:bg-amber-950/30 backdrop-blur-md border-t border-amber-200 dark:border-amber-800/50">
                                 <div className="flex items-center gap-3 justify-center">
                                     <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                                     <p className="text-sm text-amber-700 dark:text-amber-300">
-                                        {isLockedByOther
-                                            ? <Trans i18nKey="conversations.lockedByOtherBanner" values={{ name: currentAssignedUserName }} components={{ strong: <strong /> }} />
-                                            : t('conversations.noLongerYours')}
+                                        <Trans i18nKey="conversations.lockedByOtherBanner" values={{ name: currentAssignedUserName }} components={{ strong: <strong /> }} />
                                     </p>
                                 </div>
                             </div>
@@ -5978,7 +6033,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 onChange={(templateId) => {
                                     const selectedTpl = whatsappTemplates.find(t => t.id === templateId);
                                     setWaTemplateId(templateId);
-                                    setWaTemplateParams(selectedTpl ? Array(getTemplateParamCount(selectedTpl)).fill('') : []);
+                                    setWaTemplateParams(selectedTpl ? paramsIniciales(selectedTpl, selectedConversation?.assigned_user?.name) : []);
                                 }}
                             />
                             {whatsappTemplates.length === 0 && (
@@ -6080,6 +6135,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                             className="settings-btn-primary"
                             onClick={async () => {
                                 if (!waTemplateId || !selectedConversation) return;
+                                const vacios = datosVacios(waTemplateParams);
+                                if (vacios > 0) {
+                                    toast.error(t('conversations.templateParamsMissing', { count: vacios }));
+                                    return;
+                                }
                                 setIsSendingWaTemplate(true);
                                 try {
                                     const response = await csrfPost(`/admin/chat/${selectedConversation.id}/send-template`, {
@@ -6243,6 +6303,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                             return;
                         }
 
+                        const vacios = datosVacios(newChatData.template_params);
+                        if (vacios > 0) {
+                            setNewChatError(t('conversations.templateParamsMissing', { count: vacios }));
+                            return;
+                        }
+
                         // Primer envío: pedir confirmación explícita en vez de mandar ya.
                         if (!confirmNewChat) {
                             setConfirmNewChat(true);
@@ -6309,10 +6375,11 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 value={newChatData.whatsapp_template_id}
                                 onChange={(templateId) => {
                                     const selectedTpl = whatsappTemplates.find(t => t.id === templateId);
+                                    const quienAtiende = newChatData.assigned_to ? users.find(u => u.id === newChatData.assigned_to)?.name : null;
                                     setNewChatData({
                                         ...newChatData,
                                         whatsapp_template_id: templateId,
-                                        template_params: selectedTpl ? Array(getTemplateParamCount(selectedTpl)).fill('') : [],
+                                        template_params: selectedTpl ? paramsIniciales(selectedTpl, quienAtiende) : [],
                                     });
                                 }}
                             />
@@ -6394,7 +6461,19 @@ export default function ConversationsIndex({ conversations: initialConversations
                             </label>
                             <Select
                                 value={newChatData.assigned_to ? String(newChatData.assigned_to) : '__self__'}
-                                onValueChange={(v) => setNewChatData({ ...newChatData, assigned_to: v === '__self__' ? null : Number(v) })}
+                                onValueChange={(v) => {
+                                    const asignado = v === '__self__' ? null : Number(v);
+                                    // Si la plantilla lleva el nombre de quien atiende y no lo han cambiado a mano, sigue al asesor elegido.
+                                    const tpl = whatsappTemplates.find(x => x.id === newChatData.whatsapp_template_id);
+                                    let params = newChatData.template_params;
+                                    if (tpl && PRIMER_DATO_ES_ASESOR.includes(tpl.meta_template_name)) {
+                                        const antes = paramsIniciales(tpl, newChatData.assigned_to ? users.find(u => u.id === newChatData.assigned_to)?.name : null)[0];
+                                        if ((params[0] ?? '') === antes) {
+                                            params = [paramsIniciales(tpl, asignado ? users.find(u => u.id === asignado)?.name : null)[0], ...params.slice(1)];
+                                        }
+                                    }
+                                    setNewChatData({ ...newChatData, assigned_to: asignado, template_params: params });
+                                }}
                             >
                                 <SelectTrigger className="w-full h-10 settings-input rounded-xl">
                                     <SelectValue placeholder={t('conversations.myself')} />
