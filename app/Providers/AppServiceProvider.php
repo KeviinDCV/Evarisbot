@@ -23,6 +23,12 @@ class AppServiceProvider extends ServiceProvider
         // BROADCAST_CONNECTION no es «reverb»; nunca lanza errores (ver App\Support\TiempoReal).
         \App\Support\TiempoReal::registrar();
 
+        // Señal de vida del worker de la cola (la usa la vigilancia para no confundir un envío masivo largo con un worker
+        // detenido). Solo dentro de queue:work.
+        if ($this->app->runningInConsole()) {
+            \App\Support\LatidoWorker::registrar();
+        }
+
         // Contraseñas nuevas (usuarios creados o editados por un administrador y cambio desde Ajustes).
         \Illuminate\Validation\Rules\Password::defaults(
             fn () => \Illuminate\Validation\Rules\Password::min(10)->letters()->numbers()

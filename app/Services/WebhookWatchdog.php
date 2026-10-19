@@ -261,8 +261,10 @@ class WebhookWatchdog
         $alerts = [];
 
         $oldest = DB::table('jobs')->whereNull('reserved_at')->where('available_at', '<=', now()->timestamp)->min('available_at');
-        if ($oldest && (now()->timestamp - (int) $oldest) > 600) {
-            $alerts['worker'] = 'Hay envíos en cola esperando más de 10 minutos: el worker (ventana "Evarisbot worker") parece detenido.';
+        // Un envío masivo grande espera horas a propósito (3 s entre mensajes): solo es alerta si además el worker dejó de
+        // dar señales de vida (App\Support\LatidoWorker).
+        if ($oldest && (now()->timestamp - (int) $oldest) > 600 && ! \App\Support\LatidoWorker::vivo()) {
+            $alerts['worker'] = 'Hay envíos en cola esperando más de 10 minutos y el worker no da señales hace más de 5 minutos: revise la tarea de Windows «Evarisbot - Worker (cola)» o reinicie el equipo.';
         }
 
         $failed = DB::table('failed_jobs')->where('failed_at', '>=', now()->subHour())->count();
