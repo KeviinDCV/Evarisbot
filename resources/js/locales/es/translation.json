@@ -223,6 +223,20 @@
         "markAsUnread": "Marcar como no leído",
         "selectConversation": "Selecciona una conversación",
         "selectConversationHint": "Elige una conversación de la izquierda para ver los mensajes",
+        "inicio": {
+            "saludoManana": "Buenos días, {{nombre}}",
+            "saludoTarde": "Buenas tardes, {{nombre}}",
+            "saludoNoche": "Buenas noches, {{nombre}}",
+            "deTurno": "de turno",
+            "subtitulo": "Elige una conversación de la lista para empezar.",
+            "mias": "Tuyas sin leer",
+            "esperan": "Esperan asesor",
+            "enEspera": "En espera",
+            "respondidasHoy_one": "Hoy respondiste {{count}} conversación",
+            "respondidasHoy_other": "Hoy respondiste {{count}} conversaciones",
+            "verEsperan": "Ver las {{count}} conversaciones que esperan asesor",
+            "verEnEspera": "Ver las {{count}} conversaciones en espera"
+        },
         "yesterday": "Ayer",
         "conversationStatus": {
             "active": "Activa",

@@ -223,6 +223,20 @@
         "markAsUnread": "Mark as unread",
         "selectConversation": "Select a conversation",
         "selectConversationHint": "Choose a conversation from the left to view messages",
+        "inicio": {
+            "saludoManana": "Good morning, {{nombre}}",
+            "saludoTarde": "Good afternoon, {{nombre}}",
+            "saludoNoche": "Good evening, {{nombre}}",
+            "deTurno": "on duty",
+            "subtitulo": "Pick a conversation from the list to get started.",
+            "mias": "Yours, unread",
+            "esperan": "Waiting for an agent",
+            "enEspera": "Awaiting reply",
+            "respondidasHoy_one": "You replied to {{count}} conversation today",
+            "respondidasHoy_other": "You replied to {{count}} conversations today",
+            "verEsperan": "View the {{count}} conversations waiting for an agent",
+            "verEnEspera": "View the {{count}} conversations awaiting reply"
+        },
         "yesterday": "Yesterday",
         "conversationStatus": {
             "active": "Active",

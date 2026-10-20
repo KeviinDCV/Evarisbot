@@ -33,6 +33,23 @@ class ConversationController extends Controller
             $counts[$filter] = $this->buildFilterCountQuery($request, $filter)->count();
         }
 
+        // Para el inicio sin chat abierto («Tu turno de un vistazo»): las del usuario con mensajes sin leer, como las
+        // muestra «Todos» (activas o pendientes, sin bloqueadas ni Oncología). No depende de la búsqueda ni de filtros.
+        $counts['mine_unread'] = Conversation::where('assigned_to', auth()->id())
+            ->where('unread_count', '>', 0)
+            ->whereIn('status', ['active', 'pending'])
+            ->where('is_blocked', false)
+            ->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'))
+            ->count();
+
+        // «Hoy respondiste N conversaciones»: conversaciones distintas a las que el usuario escribió hoy (día de
+        // Colombia; la app guarda en UTC).
+        $counts['mine_today'] = Message::where('sent_by', auth()->id())
+            ->where('is_from_user', false)
+            ->where('created_at', '>=', \Carbon\Carbon::now('America/Bogota')->startOfDay()->utc())
+            ->distinct()
+            ->count('conversation_id');
+
         return $counts;
     }
 
@@ -533,6 +550,9 @@ class ConversationController extends Controller
             'advisorCounts' => Inertia::defer(fn () => $this->getAdvisorCounts()),
             'filterCounts' => Inertia::defer(fn () => $this->getFilterCounts($request)),
             'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
+            // Diseño nuevo del inicio sin chat abierto para todos cuando inicio_chats_diseno = 'turno' (si no, solo en el
+            // navegador que entró con ?nuevo=1; ver lib/diseno-nuevo).
+            'inicioNuevo' => \App\Models\Setting::get('inicio_chats_diseno') === 'turno',
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])
                 ->select(['id', 'name', 'meta_template_name', 'preview_text', 'language', 'category', 'header_text', 'header_format', 'header_media_url', 'footer_text', 'default_params'])
@@ -789,6 +809,9 @@ class ConversationController extends Controller
             'advisorCounts' => $this->getAdvisorCounts(),
             'filterCounts' => $this->getFilterCounts($request),
             'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
+            // Diseño nuevo del inicio sin chat abierto para todos cuando inicio_chats_diseno = 'turno' (si no, solo en el
+            // navegador que entró con ?nuevo=1; ver lib/diseno-nuevo).
+            'inicioNuevo' => \App\Models\Setting::get('inicio_chats_diseno') === 'turno',
             'templates' => $templates,
             'whatsappTemplates' => WhatsappTemplate::where('is_active', true)
                 ->whereIn('status', ['APPROVED', 'approved'])

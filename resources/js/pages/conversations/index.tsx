@@ -94,6 +94,8 @@ import { cn } from '@/lib/utils';
 import { useTranslation, Trans } from 'react-i18next';
 import { toast } from '@/lib/toast';
 import { nombrePropio } from '@/lib/nombres';
+import { usarDisenoNuevo } from '@/lib/diseno-nuevo';
+import { InicioTurno } from '@/components/conversations/inicio-turno';
 import { agrupar, alAviso, avisoDe, hayTiempoReal } from '@/lib/tiempo-real';
 import { duracionLegible } from '@/lib/duracion';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
@@ -289,7 +291,9 @@ interface WhatsappTemplate {
 
 type ChatFilterKey = 'all' | 'unanswered' | 'pending_response' | 'resolved' | 'confirmed' | 'cancelled' | 'scheduled' | 'oncology' | 'blocked';
 
-type FilterCounts = Record<ChatFilterKey, number>;
+// mine_unread / mine_today: las del usuario sin leer y las que respondió hoy (solo para el inicio sin chat abierto; no
+// son filtros).
+type FilterCounts = Record<ChatFilterKey, number> & { mine_unread?: number; mine_today?: number };
 
 const DEFAULT_FILTER_COUNTS: FilterCounts = {
     all: 0,
@@ -305,6 +309,8 @@ const DEFAULT_FILTER_COUNTS: FilterCounts = {
 
 interface ConversationsIndexProps {
     conversations: Conversation[];
+    /** Inicio sin chat abierto «Tu turno de un vistazo» para todos (ajuste inicio_chats_diseno = 'turno'). */
+    inicioNuevo?: boolean;
     hasMore?: boolean;
     selectedConversation?: Conversation;
     unreadOnOpen?: number;
@@ -550,8 +556,10 @@ function WaTemplateSelect({
     );
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [] }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [], inicioNuevo = false }: ConversationsIndexProps) {
     const { t } = useTranslation();
+    // Diseño nuevo del inicio sin chat abierto: ?nuevo=1 lo prueba en este navegador (ver lib/diseno-nuevo).
+    const [inicioNuevoActivo] = useState(() => usarDisenoNuevo('evarisbot.inicio-chats-nuevo', inicioNuevo));
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
 
@@ -4765,6 +4773,21 @@ export default function ConversationsIndex({ conversations: initialConversations
                 {/* En mobile: muestra solo cuando hay selección | En desktop: siempre visible */}
                 {!selectedConversation ? (
                     <div className="hidden md:flex flex-1 items-center justify-center bg-background dark:bg-neutral-900">
+                        {inicioNuevoActivo ? (
+                            <InicioTurno
+                                nombre={(nombrePropio(auth?.user?.name ?? '') || '').split(' ')[0]}
+                                deTurno={auth?.user?.role === 'advisor' && Boolean(auth?.user?.is_on_duty)}
+                                mostrarEsperan={isAdmin || Boolean(auth?.user?.is_on_duty)}
+                                mias={localFilterCounts.mine_unread ?? 0}
+                                esperan={localFilterCounts.unanswered ?? 0}
+                                enEspera={localFilterCounts.pending_response ?? 0}
+                                respondidasHoy={localFilterCounts.mine_today ?? 0}
+                                onFiltrar={(estado) => {
+                                    setStatusFilter(estado);
+                                    applyFilters(estado, filterByAdvisor);
+                                }}
+                            />
+                        ) : (
                         <div className="text-center p-8 md:p-12">
                             <MessageSquare className="w-24 h-24 mx-auto mb-4 text-[#767681]/40" />
                             <h3 className="text-xl font-semibold text-[#2e3f84] dark:text-neutral-300 mb-2">
@@ -4774,6 +4797,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {t('conversations.selectConversationHint')}
                             </p>
                         </div>
+                        )}
                     </div>
                 ) : (
                     <div className="flex-1 flex min-w-0 w-full md:w-auto relative">
