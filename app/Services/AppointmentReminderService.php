@@ -48,7 +48,7 @@ class AppointmentReminderService
         foreach ($appointments as $appointment) {
             try {
                 // Validar número de teléfono
-                if (empty($appointment->pactel)) {
+                if (empty($appointment->pactel) && empty($appointment->pactel2)) {
                     Log::warning("Cita sin teléfono", ['appointment_id' => $appointment->id]);
                     $skipped++;
                     continue;
@@ -131,18 +131,81 @@ class AppointmentReminderService
         // = "connom - Consultorio citcon"), por lo que siempre se envían 6 parámetros.
         $includeConsultorio = true;
 
-        // Celular al que se manda: el mismo normalizador que usan las cifras de la pantalla (Recordatorios::celular).
+        // Celulares a los que se puede mandar: el principal y, de respaldo, el segundo (pactel2, o un segundo celular
+        // escrito en el mismo campo). El mismo normalizador que usan las cifras de la pantalla (Recordatorios).
         // Fijos (60X…), incompletos o sin número → error permanente; el texto conserva «Número de teléfono inválido».
-        $phoneNumber = Recordatorios::celular($appointment->pactel);
+        $numeros = Recordatorios::celularesCita($appointment->pactel, $appointment->pactel2);
 
-        if (!$phoneNumber) {
-            $errorMsg = Recordatorios::error('telefono', 'Número de teléfono inválido: no es un celular', (string) $appointment->pactel);
+        if ($numeros === []) {
+            $errorMsg = Recordatorios::error('telefono', 'Número de teléfono inválido: no es un celular', trim($appointment->pactel.' '.$appointment->pactel2));
             Log::warning('Número de teléfono inválido para recordatorio', ['appointment_id' => $appointment->id]);
             $appointment->markReminderFailed($errorMsg);
 
             return ['success' => false, 'error' => $errorMsg, 'motivo' => 'telefono', 'codigo' => null, 'alcance' => 'cita'];
         }
 
+        $resultado = $this->enviarA($appointment, $numeros[0], 1, $templateName, $includeConsultorio);
+
+        // El primer número no sirve (sin WhatsApp, no válido, WhatsApp no lo entrega): se prueba el segundo de una vez.
+        if (!$resultado['success'] && in_array($resultado['motivo'] ?? null, Recordatorios::MOTIVOS_DEL_NUMERO, true) && isset($numeros[1])) {
+            Log::info('Recordatorio: el primer número falló, se envía al segundo', [
+                'appointment_id' => $appointment->id,
+                'motivo' => $resultado['motivo'],
+            ]);
+            $segundo = $this->enviarA($appointment, $numeros[1], 2, $templateName, $includeConsultorio);
+            if ($segundo['success']) {
+                $this->anotarSegundo($appointment, $resultado['motivo']);
+            } elseif (in_array($segundo['motivo'] ?? null, Recordatorios::MOTIVOS_DEL_NUMERO, true)) {
+                $segundo['error'] = Recordatorios::error($segundo['motivo'], 'Ninguno de los dos números recibió el recordatorio', 'Teléfono: '.$resultado['error'].' · Teléfono 2: '.$segundo['error']);
+            }
+
+            return $segundo;
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Reenvío al SEGUNDO número cuando Meta avisó después (webhook) que el primero no se entregó. Lo llama
+     * App\Jobs\RecordatorioSegundoNumeroJob. null si no hay segundo número o ya se usó.
+     */
+    public function enviarAlSegundo(Appointment $appointment, string $motivoDelPrimero): ?array
+    {
+        $numeros = Recordatorios::celularesCita($appointment->pactel, $appointment->pactel2);
+        if (!isset($numeros[1]) || (int) $appointment->reminder_numero === 2) {
+            return null;
+        }
+
+        $templateName = $this->isCartago($appointment)
+            ? Setting::get('reminder_template_name_cartago', 'appointment_reminder_cartago')
+            : Setting::get('reminder_template_name', 'appointment_reminder');
+
+        $resultado = $this->enviarA($appointment, $numeros[1], 2, $templateName, true);
+        if ($resultado['success']) {
+            $this->anotarSegundo($appointment, $motivoDelPrimero);
+        }
+
+        return $resultado;
+    }
+
+    /** Nota en la cita: el recordatorio salió al segundo número y por qué (sin el número completo). */
+    protected function anotarSegundo(Appointment $appointment, string $motivo): void
+    {
+        $etiqueta = Recordatorios::ETIQUETAS_MOTIVO[$motivo] ?? $motivo;
+        Appointment::whereKey($appointment->id)->update([
+            'reminder_error' => null,
+            'notes' => trim(($appointment->notes ?? '')."\n[".now(Recordatorios::ZONA)->format('Y-m-d H:i')."] Recordatorio enviado al teléfono 2 (el principal: {$etiqueta})"),
+        ]);
+        $appointment->refresh();
+    }
+
+    /**
+     * Envía el recordatorio a UN número ($numero = 1 principal, 2 segundo). Con éxito marca la cita como enviada (con
+     * ese número) y la deja en la conversación de ese número; si no, devuelve el fallo sin marcar nada (lo decide quien
+     * llama).
+     */
+    protected function enviarA(Appointment $appointment, string $phoneNumber, int $numero, string $templateName, bool $includeConsultorio): array
+    {
         // Preparar parámetros del template
         $parameters = $this->prepareTemplateParameters($appointment, $includeConsultorio);
 
@@ -192,7 +255,7 @@ class AppointmentReminderService
 
         // Marcar como enviada JUSTO al recibir el id de Meta: si algo de lo que sigue falla, la cita ya no se
         // reintenta (antes se marcaba al final y un fallo al crear la conversación reenviaba el WhatsApp).
-        $appointment->markReminderSent($messageId);
+        $appointment->markReminderSent($messageId, $numero);
 
         Log::info('Mensaje enviado exitosamente', [
             'message_id' => $messageId,

@@ -53,6 +53,7 @@ import {
     History,
     Eye,
     CalendarCheck,
+    CalendarDays,
     Stethoscope,
     FileText,
     Loader2,
@@ -64,7 +65,7 @@ import {
     ArrowLeft,
     Image as ImageIcon,
 } from 'lucide-react';
-import { FormEvent, memo, useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { FormEvent, memo, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
@@ -92,6 +93,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useTranslation, Trans } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { toast } from '@/lib/toast';
 import { nombrePropio } from '@/lib/nombres';
 import { usarDisenoNuevo } from '@/lib/diseno-nuevo';
@@ -323,6 +325,8 @@ interface ConversationsIndexProps {
         assigned?: string;
         tag?: string;
         specialty?: string;
+        desde?: string;
+        hasta?: string;
     };
     filterCounts?: Partial<FilterCounts>;
     advisorCounts?: Record<number, number>;
@@ -556,8 +560,43 @@ function WaTemplateSelect({
     );
 }
 
+/** Filtro por fecha del último mensaje: AAAA-MM-DD o null (sin límite por ese lado). */
+type FiltroFecha = { desde: string | null; hasta: string | null };
+type RangoFecha = 'any' | 'today' | 'yesterday' | 'last7' | 'last30';
+
+/** AAAA-MM-DD de una fecha en la hora del equipo (los del hospital están en hora de Colombia). */
+function diaLocal(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Rangos rápidos del filtro de fecha, calculados en el momento (cambian a medianoche). */
+function rangosFecha(): ({ clave: RangoFecha } & FiltroFecha)[] {
+    const hace = (dias: number) => {
+        const d = new Date();
+        d.setDate(d.getDate() - dias);
+        return diaLocal(d);
+    };
+    const hoy = hace(0);
+    return [
+        { clave: 'today', desde: hoy, hasta: hoy },
+        { clave: 'yesterday', desde: hace(1), hasta: hace(1) },
+        { clave: 'last7', desde: hace(6), hasta: hoy },
+        { clave: 'last30', desde: hace(29), hasta: hoy },
+    ];
+}
+
+/** Texto corto del filtro activo: el nombre del rango rápido o las fechas («12 oct – 15 oct»). */
+function etiquetaFiltroFecha(f: FiltroFecha, t: TFunction, idioma: string): string {
+    const rapido = rangosFecha().find(r => r.desde === f.desde && r.hasta === f.hasta);
+    if (rapido) return t(`conversations.dateRange.${rapido.clave}`);
+    const corta = (dia: string) => new Date(`${dia}T12:00:00`).toLocaleDateString(idioma, { day: 'numeric', month: 'short' });
+    if (f.desde && f.hasta) return f.desde === f.hasta ? corta(f.desde) : `${corta(f.desde)} – ${corta(f.hasta)}`;
+    if (f.desde) return t('conversations.dateSince', { date: corta(f.desde) });
+    return f.hasta ? t('conversations.dateUntil', { date: corta(f.hasta) }) : '';
+}
+
 export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [], inicioNuevo = false }: ConversationsIndexProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     // Diseño nuevo del inicio sin chat abierto: ?nuevo=1 lo prueba en este navegador (ver lib/diseno-nuevo).
     const [inicioNuevoActivo] = useState(() => usarDisenoNuevo('evarisbot.inicio-chats-nuevo', inicioNuevo));
     const { auth } = usePage().props as any;
@@ -747,6 +786,24 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [allSpecialties] = useState<{ name: string; count: number }[]>(initialAllSpecialties);
     const [specialtyFilter, setSpecialtyFilter] = useState<string | null>(filters.specialty ?? null);
     const [specialtySearchQuery, setSpecialtySearchQuery] = useState('');
+
+    // Filtro por fecha del último mensaje (AAAA-MM-DD, días locales; el servidor los toma como días de Colombia). Va
+    // también en un ref para que todas las peticiones de la lista lo lean al día sin depender de cada useCallback.
+    const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>({ desde: filters.desde || null, hasta: filters.hasta || null });
+    const filtroFechaRef = useRef<FiltroFecha>(filtroFecha);
+    const ponerFiltroFecha = useCallback((f: FiltroFecha) => {
+        filtroFechaRef.current = f;
+        setFiltroFecha(f);
+    }, []);
+    const conFecha = useCallback((params: Record<string, string>): Record<string, string> => {
+        const { desde, hasta } = filtroFechaRef.current;
+        if (desde) params.desde = desde;
+        if (hasta) params.hasta = hasta;
+        return params;
+    }, []);
+    // Lo que se está escribiendo en «Desde» / «Hasta» antes de aplicar.
+    const [fechaDesdeTmp, setFechaDesdeTmp] = useState(filters.desde || '');
+    const [fechaHastaTmp, setFechaHastaTmp] = useState(filters.hasta || '');
 
     // Reacciones (emojis) a mensajes: qué mensaje tiene abierta la bandeja (components/selector-reacciones).
     const [reactionPickerFor, setReactionPickerFor] = useState<number | null>(null);
@@ -1347,6 +1404,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const lastAssignedFilterRef = useRef<string>(filters.assigned || '');
     const lastTagFilterRef = useRef<string>(filters.tag || '');
     const lastSpecialtyFilterRef = useRef<string>(filters.specialty || '');
+    const lastFechaFilterRef = useRef<string>(`${filters.desde || ''}|${filters.hasta || ''}`);
     // Ref para trackear si había conversación seleccionada
     const lastSelectedConversationRef = useRef<number | null>(selectedConversation?.id || null);
 
@@ -1357,12 +1415,14 @@ export default function ConversationsIndex({ conversations: initialConversations
         const currentAssignedFilter = filters.assigned || '';
         const currentTagFilter = filters.tag || '';
         const currentSpecialtyFilter = filters.specialty || '';
+        const currentFechaFilter = `${filters.desde || ''}|${filters.hasta || ''}`;
 
         const searchChanged = currentSearchFilter !== lastSearchFilterRef.current;
         const statusChanged = currentStatusFilter !== lastStatusFilterRef.current;
         const assignedChanged = currentAssignedFilter !== lastAssignedFilterRef.current;
         const tagChanged = currentTagFilter !== lastTagFilterRef.current;
         const specialtyChanged = currentSpecialtyFilter !== lastSpecialtyFilterRef.current;
+        const fechaChanged = currentFechaFilter !== lastFechaFilterRef.current;
         const selectedChanged = (selectedConversation?.id || null) !== lastSelectedConversationRef.current;
 
         // Actualizar refs
@@ -1371,10 +1431,11 @@ export default function ConversationsIndex({ conversations: initialConversations
         lastAssignedFilterRef.current = currentAssignedFilter;
         lastTagFilterRef.current = currentTagFilter;
         lastSpecialtyFilterRef.current = currentSpecialtyFilter;
+        lastFechaFilterRef.current = currentFechaFilter;
         lastSelectedConversationRef.current = selectedConversation?.id || null;
 
         // Si cambió algún filtro, resetear completamente
-        if (searchChanged || statusChanged || assignedChanged || tagChanged || specialtyChanged) {
+        if (searchChanged || statusChanged || assignedChanged || tagChanged || specialtyChanged || fechaChanged) {
             setLocalConversations(initialConversations);
             setHasMore(initialHasMore);
             setCurrentPage(1);
@@ -1501,6 +1562,9 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (search) params.set('search', search);
             if (statusFilter !== 'all') params.set('status', statusFilter);
             if (filterByAdvisor !== null) params.set('assigned', String(filterByAdvisor));
+            if (tagFilterId !== null) params.set('tag', String(tagFilterId));
+            if (specialtyFilter !== null) params.set('specialty', specialtyFilter);
+            Object.entries(conFecha({})).forEach(([clave, valor]) => params.set(clave, valor));
 
             // Usar cursor-based pagination para evitar duplicados
             // Calcular cursor del último elemento cargado
@@ -1537,7 +1601,58 @@ export default function ConversationsIndex({ conversations: initialConversations
         } finally {
             setIsLoadingMore(false);
         }
-    }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor, localConversations, nextCursor]);
+    }, [isLoadingMore, hasMore, currentPage, search, statusFilter, filterByAdvisor, tagFilterId, specialtyFilter, conFecha, localConversations, nextCursor]);
+
+    /**
+     * La lista se queda en su sitio cuando una conversación sube al primer puesto (le llegó un mensaje).
+     *
+     * El anclaje de scroll del navegador (overflow-anchor) toma de referencia una fila visible. Al subir una
+     * conversación, React no mueve esa fila: reinserta las que tenía encima, entre ellas la de referencia, y el
+     * navegador llevaba la lista arriba. Con un chat abierto, cada mensaje nuevo devolvía al asesor al principio.
+     * En la lista se apaga ([overflow-anchor:none]) y se hace aquí: queda anotada cada fila visible con su distancia
+     * al borde; tras el cambio se toma la primera que no subió (la que subió se va arriba, fuera de la vista) y se deja
+     * a la misma distancia. Arriba del todo no se toca: ahí lo nuevo tiene que verse aparecer.
+     */
+    const anclaListaRef = useRef<{ scrollTop: number; filas: { id: number; offset: number }[]; orden: Map<number, number> } | null>(null);
+    const anotarAnclaLista = useCallback(() => {
+        const el = conversationsListRef.current;
+        if (!el) return;
+        const borde = el.getBoundingClientRect().top;
+        const filas: { id: number; offset: number }[] = [];
+        const orden = new Map<number, number>();
+        let pasada = false;
+        el.querySelectorAll<HTMLElement>('[data-conversacion]').forEach((fila, i) => {
+            const id = Number(fila.dataset.conversacion);
+            orden.set(id, i);
+            if (pasada) return;
+            const caja = fila.getBoundingClientRect();
+            if (caja.bottom <= borde) return;
+            if (caja.top >= borde + el.clientHeight) { pasada = true; return; }
+            filas.push({ id, offset: caja.top - borde });
+        });
+        anclaListaRef.current = { scrollTop: el.scrollTop, filas, orden };
+    }, []);
+    const ordenLista = useMemo(() => localConversations.map(c => c.id).join(','), [localConversations]);
+    useLayoutEffect(() => {
+        const el = conversationsListRef.current;
+        const antes = anclaListaRef.current;
+        // Solo si nadie movió el scroll entretanto (un cambio de filtro lo lleva arriba a propósito).
+        if (el && antes && antes.scrollTop > 2 && Math.abs(el.scrollTop - antes.scrollTop) < 2) {
+            const ahora = new Map(localConversations.map((c, i) => [c.id, i]));
+            const visibles = antes.filas
+                .map(f => ({ ...f, sube: (antes.orden.get(f.id) ?? 0) - (ahora.get(f.id) ?? -1) }))
+                .filter(f => ahora.has(f.id));
+            // La primera que no subió; si todas subieron (salió una de más arriba), la que menos.
+            const ancla = visibles.find(f => f.sube <= 0) ?? [...visibles].sort((a, b) => a.sube - b.sube)[0];
+            const nodo = ancla ? el.querySelector<HTMLElement>(`[data-conversacion="${ancla.id}"]`) : null;
+            if (ancla && nodo) {
+                const corrimiento = nodo.getBoundingClientRect().top - el.getBoundingClientRect().top - ancla.offset;
+                if (Math.abs(corrimiento) >= 1) el.scrollTop += corrimiento;
+            }
+        }
+        anotarAnclaLista();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- solo cuando cambian el orden o las filas
+    }, [ordenLista, anotarAnclaLista]);
 
     /**
      * Preservar el scroll de la lista frente al bloqueo de scroll de Radix.
@@ -1609,6 +1724,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             // Throttle la verificación de scroll position con RAF
             if (!convScrollRafRef.current) {
                 convScrollRafRef.current = requestAnimationFrame(() => {
+                    anotarAnclaLista();
                     const { scrollTop, scrollHeight, clientHeight } = container;
                     // Si llegamos al 80% del scroll, cargar más
                     if (scrollTop + clientHeight >= scrollHeight * 0.8 && hasMore && !isLoadingMore) {
@@ -1630,7 +1746,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 convScrollRafRef.current = null;
             }
         };
-    }, [hasMore, isLoadingMore, loadMoreConversations]);
+    }, [hasMore, isLoadingMore, loadMoreConversations, anotarAnclaLista]);
 
     // Detectar tecla Escape para cerrar el chat
     useEffect(() => {
@@ -1684,6 +1800,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                 if (filters.search) params.set('search', filters.search);
                 if (filters.tag) params.set('tag', filters.tag);
                 if (filters.specialty) params.set('specialty', filters.specialty);
+                if (filters.desde) params.set('desde', filters.desde);
+                if (filters.hasta) params.set('hasta', filters.hasta);
 
                 // Los avisos se toman ANTES de pedir: uno que llegue durante la petición queda para la siguiente (la
                 // respuesta pudo leerse antes de ese cambio).
@@ -1833,7 +1951,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             quitarAvisos();
             document.removeEventListener('visibilitychange', onVisible);
         };
-    }, [filters.status, filters.assigned, filters.search, filters.tag, filters.specialty, isAdmin]);
+    }, [filters.status, filters.assigned, filters.search, filters.tag, filters.specialty, filters.desde, filters.hasta, isAdmin]);
 
     // Cerrar dropdowns de filtro cuando se hace clic fuera
     useEffect(() => {
@@ -2165,13 +2283,15 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (value) params.search = value;
             if (statusFilter !== 'all') params.status = statusFilter;
             if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
+            if (tagFilterId !== null) params.tag = String(tagFilterId);
+            if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
             // Si hay una conversación seleccionada, mantenerla abierta
             const url = selectedConversation
                 ? `/admin/chat/${selectedConversation.id}`
                 : '/admin/chat';
 
-            router.get(url, params, {
+            router.get(url, conFecha(params), {
                 preserveState: true,
                 preserveScroll: true,
                 replace: true,
@@ -2392,6 +2512,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         tagFilterId !== null,
         filterByAdvisor !== null,
         specialtyFilter !== null,
+        filtroFecha.desde !== null || filtroFecha.hasta !== null,
     ].filter(Boolean).length;
 
     // Filtrar asesores por búsqueda
@@ -2441,13 +2562,13 @@ export default function ConversationsIndex({ conversations: initialConversations
             ? `/admin/chat/${selectedConversation.id}`
             : '/admin/chat';
 
-        router.get(url, params, {
+        router.get(url, conFecha(params), {
             preserveState: true,
             preserveScroll: true,
             replace: true,
             only: ['conversations', 'hasMore', 'filters', 'filterCounts'],
         });
-    }, [search, selectedConversation, tagFilterId, specialtyFilter]);
+    }, [search, selectedConversation, tagFilterId, specialtyFilter, conFecha]);
 
     // Función para aplicar filtros incluyendo tag
     const applyFiltersWithTag = useCallback((newStatus: string, newAdvisor: number | null, newTagId: number | null) => {
@@ -2465,13 +2586,13 @@ export default function ConversationsIndex({ conversations: initialConversations
             ? `/admin/chat/${selectedConversation.id}`
             : '/admin/chat';
 
-        router.get(url, params, {
+        router.get(url, conFecha(params), {
             preserveState: true,
             preserveScroll: true,
             replace: true,
             only: ['conversations', 'hasMore', 'filters', 'allTags', 'filterCounts'],
         });
-    }, [search, selectedConversation, specialtyFilter]);
+    }, [search, selectedConversation, specialtyFilter, conFecha]);
 
     // Aplicar filtros incluyendo especialidad (texto exacto). Pasa null para limpiar.
     const applyFiltersWithSpecialty = useCallback((newSpecialty: string | null) => {
@@ -2489,13 +2610,38 @@ export default function ConversationsIndex({ conversations: initialConversations
             ? `/admin/chat/${selectedConversation.id}`
             : '/admin/chat';
 
-        router.get(url, params, {
+        router.get(url, conFecha(params), {
             preserveState: true,
             preserveScroll: true,
             replace: true,
             only: ['conversations', 'hasMore', 'filters', 'filterCounts'],
         });
-    }, [search, statusFilter, filterByAdvisor, tagFilterId, selectedConversation]);
+    }, [search, statusFilter, filterByAdvisor, tagFilterId, selectedConversation, conFecha]);
+
+    // Aplicar el filtro de fecha (null y null lo quita). Los demás filtros se conservan.
+    const aplicarFiltroFecha = (desde: string | null, hasta: string | null) => {
+        // En orden aunque se escriban al revés (el servidor también lo hace).
+        const [a, b] = desde && hasta && desde > hasta ? [hasta, desde] : [desde, hasta];
+        ponerFiltroFecha({ desde: a, hasta: b });
+        setFechaDesdeTmp(a ?? '');
+        setFechaHastaTmp(b ?? '');
+        setCurrentPage(1);
+        hasLoadedExtraPagesRef.current = false;
+
+        const params: Record<string, string> = {};
+        if (search) params.search = search;
+        if (statusFilter !== 'all') params.status = statusFilter;
+        if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
+        if (tagFilterId !== null) params.tag = String(tagFilterId);
+        if (specialtyFilter !== null) params.specialty = specialtyFilter;
+
+        router.get(selectedConversation ? `/admin/chat/${selectedConversation.id}` : '/admin/chat', conFecha(params), {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            only: ['conversations', 'hasMore', 'filters', 'filterCounts'],
+        });
+    };
 
     // Las conversaciones ya vienen filtradas del backend
     const displayedConversations = localConversations;
@@ -2531,8 +2677,9 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (statusFilter !== 'all') params.status = statusFilter;
             if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
             if (tagFilterId !== null) params.tag = String(tagFilterId);
+            if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
-            router.get(`/admin/chat/${conversationId}`, params, {
+            router.get(`/admin/chat/${conversationId}`, conFecha(params), {
                 preserveScroll: true,
                 preserveState: true
             });
@@ -3295,7 +3442,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Si mientras tanto abrió otro chat o se fue de la pantalla, no se la saca de ahí.
                 if (!montadoRef.current || visitasRef.current !== visitasAlPedir) return;
                 // preserveScroll: sin él Inertia resetea el scroll tras resolver.
-                router.get('/admin/chat', params, {
+                router.get('/admin/chat', conFecha(params), {
                     preserveState: true,
                     preserveScroll: true,
                     replace: true,
@@ -3363,6 +3510,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (statusFilter !== 'all') params.status = statusFilter;
             if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
             if (tagFilterId !== null) params.tag = String(tagFilterId);
+            if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
             // Por axios y no por router.post: un rechazo (403, p. ej. la lista estaba desactualizada y el chat ya es de
             // otra persona) se avisa con un toast en vez de abrir el modal con la página de error. A estas llamadas el
@@ -3381,7 +3529,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 // Si mientras tanto abrió otro chat o se fue de la pantalla, no se la saca de ahí.
                 if (!montadoRef.current || visitasRef.current !== visitasAlPedir) return;
                 // preserveScroll: sin él Inertia resetea el scroll tras resolver.
-                router.get('/admin/chat', params, {
+                router.get('/admin/chat', conFecha(params), {
                     preserveState: true,
                     preserveScroll: true,
                     replace: true,
@@ -3443,7 +3591,7 @@ export default function ConversationsIndex({ conversations: initialConversations
         if (tagFilterId !== null) params.tag = String(tagFilterId);
         if (specialtyFilter !== null) params.specialty = specialtyFilter;
 
-        router.get('/admin/chat', params, {
+        router.get('/admin/chat', conFecha(params), {
             preserveState: true,
         });
     };
@@ -3555,6 +3703,81 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                 {statusFilter === option.value && <Check className="w-3.5 h-3.5 text-primary dark:text-primary" />}
                                                             </button>
                                                         ))}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="border-t border-border my-0.5"></div>
+
+                                            {/* Sección: Fecha del último mensaje */}
+                                            <div>
+                                                <button
+                                                    onClick={() => setExpandedFilterSection(expandedFilterSection === 'date' ? null : 'date')}
+                                                    className="w-full px-3 py-2 text-left text-xs font-semibold text-muted-foreground uppercase flex items-center justify-between hover:bg-accent"
+                                                >
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <CalendarDays className="w-3.5 h-3.5" />
+                                                        <span>{t('conversations.filterDate')}</span>
+                                                        {(filtroFecha.desde || filtroFecha.hasta) && (
+                                                            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 rounded truncate max-w-[130px] normal-case">
+                                                                {etiquetaFiltroFecha(filtroFecha, t, i18n.language)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {expandedFilterSection === 'date' ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                                </button>
+                                                {expandedFilterSection === 'date' && (
+                                                    <div className="pb-1">
+                                                        <p className="px-4 pb-1 text-[11px] text-muted-foreground">{t('conversations.dateHint')}</p>
+                                                        {[{ clave: 'any' as RangoFecha, desde: null, hasta: null }, ...rangosFecha()].map((rango) => {
+                                                            const activo = filtroFecha.desde === rango.desde && filtroFecha.hasta === rango.hasta;
+                                                            return (
+                                                                <button
+                                                                    key={rango.clave}
+                                                                    onClick={() => aplicarFiltroFecha(rango.desde, rango.hasta)}
+                                                                    className={`w-full px-4 py-1.5 text-left text-sm hover:bg-accent flex items-center justify-between ${activo ? 'font-bold text-primary dark:text-primary bg-muted' : ''}`}
+                                                                >
+                                                                    <span>{t(`conversations.dateRange.${rango.clave}`)}</span>
+                                                                    {activo && <Check className="w-3.5 h-3.5 text-primary dark:text-primary" />}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                        <form
+                                                            className="px-4 pt-2 pb-2 mt-1 border-t border-border space-y-1.5"
+                                                            onSubmit={(e) => {
+                                                                e.preventDefault();
+                                                                aplicarFiltroFecha(fechaDesdeTmp || null, fechaHastaTmp || null);
+                                                            }}
+                                                        >
+                                                            <p className="text-[11px] font-semibold text-muted-foreground">{t('conversations.dateCustom')}</p>
+                                                            <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                                                                <span>{t('conversations.dateFrom')}</span>
+                                                                <input
+                                                                    type="date"
+                                                                    value={fechaDesdeTmp}
+                                                                    max={diaLocal(new Date())}
+                                                                    onChange={(e) => setFechaDesdeTmp(e.target.value)}
+                                                                    className="h-8 w-[136px] rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                                                />
+                                                            </label>
+                                                            <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                                                                <span>{t('conversations.dateTo')}</span>
+                                                                <input
+                                                                    type="date"
+                                                                    value={fechaHastaTmp}
+                                                                    max={diaLocal(new Date())}
+                                                                    onChange={(e) => setFechaHastaTmp(e.target.value)}
+                                                                    className="h-8 w-[136px] rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                                                                />
+                                                            </label>
+                                                            <button
+                                                                type="submit"
+                                                                disabled={!fechaDesdeTmp && !fechaHastaTmp}
+                                                                className="w-full h-8 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                            >
+                                                                {t('conversations.dateApply')}
+                                                            </button>
+                                                        </form>
                                                     </div>
                                                 )}
                                             </div>
@@ -3869,6 +4092,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                             setFilterByAdvisor(null);
                                                             setSpecialtyFilter(null);
                                                             setSpecialtySearchQuery('');
+                                                            ponerFiltroFecha({ desde: null, hasta: null });
+                                                            setFechaDesdeTmp('');
+                                                            setFechaHastaTmp('');
                                                             setEditingTag(null);
                                                             setShowFiltersPanel(false);
                                                             setExpandedFilterSection(null);
@@ -3969,7 +4195,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                     {/* Lista de Conversaciones */}
                     <div
                         ref={conversationsListRef}
-                        className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light"
+                        className="flex-1 overflow-y-auto overflow-x-hidden pb-6 custom-scrollbar-light [overflow-anchor:none]"
                     >
                         {/* El esqueleto SOLO en la primera carga (lista aún vacía).
                             Al recargar una lista que ya tiene elementos, sustituirlos por el
@@ -4005,6 +4231,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {displayedConversations.map((conversation: Conversation) => (
                                     <button
                                         key={conversation.id}
+                                        data-conversacion={conversation.id}
                                         onClick={(e) => handleConversationSelect(conversation.id, e)}
                                         onContextMenu={(e) => handleContextMenu(e, conversation.id)}
                                         onMouseDown={() => handleDragSelectStart(conversation.id)}

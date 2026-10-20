@@ -13,10 +13,10 @@ class Appointment extends Model
     protected $fillable = [
         'service',
         'citead', 'cianom', 'citmed', 'mednom', 'citesp', 'espnom',
-        'citfc', 'cithor', 'citdoc', 'nom_paciente', 'pactel', 'pacnac',
+        'citfc', 'cithor', 'citdoc', 'nom_paciente', 'pactel', 'pactel2', 'pacnac',
         'pachis', 'cittid', 'citide', 'citres', 'cittip', 'nom_cotizante',
         'citcon', 'connom', 'citurg', 'citobsobs', 'duracion', 'ageperdes_g', 'dia',
-        'uploaded_by', 'reminder_sent', 'reminder_sent_at', 'reminder_whatsapp_message_id',
+        'uploaded_by', 'reminder_sent', 'reminder_sent_at', 'reminder_whatsapp_message_id', 'reminder_numero',
         'reminder_status', 'reminder_error', 'conversation_id', 'notes'
     ];
 
@@ -51,8 +51,9 @@ class Appointment extends Model
             ->where('reminder_sent', false)
             ->where(fn ($q) => $q->whereNull('reminder_status')->orWhereNotIn('reminder_status', Recordatorios::RESUELTAS))
             ->where(fn ($q) => Recordatorios::errorReintentable($q))
-            ->whereNotNull('pactel')
-            ->where('pactel', '!=', '');
+            // Con algún teléfono: el principal o el segundo (pactel2).
+            ->where(fn ($q) => $q->where(fn ($p) => $p->whereNotNull('pactel')->where('pactel', '!=', ''))
+                ->orWhere(fn ($p) => $p->whereNotNull('pactel2')->where('pactel2', '!=', '')));
     }
 
     /**
@@ -60,7 +61,7 @@ class Appointment extends Model
      */
     public function needsReminder(int $daysInAdvance = 2): bool
     {
-        if ($this->reminder_sent || !$this->citfc || !$this->pactel) {
+        if ($this->reminder_sent || !$this->citfc || (!$this->pactel && !$this->pactel2)) {
             return false;
         }
 
@@ -75,12 +76,14 @@ class Appointment extends Model
      * se pisaba con 'sent', se perdía la cancelación y el bot podía «confirmar» una cita cancelada.
      * Se decide en la propia base (CASE), no con lo que se leyó antes de enviar: la cancelación pudo llegar mientras.
      */
-    public function markReminderSent(string $messageId): void
+    public function markReminderSent(string $messageId, int $numero = 1): void
     {
         static::whereKey($this->getKey())->update([
             'reminder_sent' => true,
             'reminder_sent_at' => now(),
             'reminder_whatsapp_message_id' => $messageId,
+            // A cuál teléfono salió: 1 el principal, 2 el segundo (pactel2).
+            'reminder_numero' => $numero,
             'reminder_status' => DB::raw("CASE WHEN reminder_status IN ('cancelled', 'confirmed') THEN reminder_status ELSE 'sent' END"),
         ]);
         $this->refresh();

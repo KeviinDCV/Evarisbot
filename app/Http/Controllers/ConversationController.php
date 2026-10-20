@@ -119,9 +119,40 @@ class ConversationController extends Controller
             $query->where('specialty', $request->input('specialty'));
         }
 
+        $this->aplicarFecha($query, $request);
         $this->aplicarBusqueda($query, $request->input('search'));
 
         return $query;
+    }
+
+    /**
+     * Filtro por fecha del último mensaje: «desde» y «hasta» (AAAA-MM-DD), días de Colombia, los dos incluidos. Las
+     * horas se guardan en UTC: el día de Colombia empieza a las 05:00 UTC. Una fecha que no sea válida no filtra; si
+     * vienen al revés se toman en orden.
+     */
+    private function aplicarFecha($query, Request $request): void
+    {
+        $desde = $this->diaDeColombia($request->input('desde'));
+        $hasta = $this->diaDeColombia($request->input('hasta'));
+        if ($desde && $hasta && $desde->gt($hasta)) {
+            [$desde, $hasta] = [$hasta, $desde];
+        }
+        if ($desde) {
+            $query->where('last_message_at', '>=', $desde->copy()->utc());
+        }
+        if ($hasta) {
+            $query->where('last_message_at', '<', $hasta->copy()->addDay()->utc());
+        }
+    }
+
+    /** Medianoche de Colombia de una fecha AAAA-MM-DD, o null si no es una fecha real. */
+    private function diaDeColombia(mixed $valor): ?\Carbon\Carbon
+    {
+        if (!is_string($valor) || !preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $valor, $m) || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
+            return null;
+        }
+
+        return \Carbon\Carbon::createFromFormat('!Y-m-d', $valor, 'America/Bogota');
     }
 
     /**
@@ -475,6 +506,9 @@ class ConversationController extends Controller
             $query->where('specialty', $request->input('specialty'));
         }
 
+        // Filtrar por fecha del último mensaje
+        $this->aplicarFecha($query, $request);
+
         // Buscar por nombre, teléfono o contenido de mensajes
         $this->aplicarBusqueda($query, $request->input('search'));
 
@@ -549,7 +583,7 @@ class ConversationController extends Controller
             'allSpecialties' => $this->getAllSpecialties(),
             'advisorCounts' => Inertia::defer(fn () => $this->getAdvisorCounts()),
             'filterCounts' => Inertia::defer(fn () => $this->getFilterCounts($request)),
-            'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
+            'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty', 'desde', 'hasta']),
             // Diseño nuevo del inicio sin chat abierto para todos cuando inicio_chats_diseno = 'turno' (si no, solo en el
             // navegador que entró con ?nuevo=1; ver lib/diseno-nuevo).
             'inicioNuevo' => \App\Models\Setting::get('inicio_chats_diseno') === 'turno',
@@ -724,6 +758,9 @@ class ConversationController extends Controller
             $query->where('specialty', $request->input('specialty'));
         }
 
+        // Filtrar por fecha del último mensaje
+        $this->aplicarFecha($query, $request);
+
         // Buscar por nombre, teléfono o contenido de mensajes
         $this->aplicarBusqueda($query, $request->input('search'));
 
@@ -808,7 +845,7 @@ class ConversationController extends Controller
             'allSpecialties' => $this->getAllSpecialties(),
             'advisorCounts' => $this->getAdvisorCounts(),
             'filterCounts' => $this->getFilterCounts($request),
-            'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty']),
+            'filters' => $request->only(['status', 'assigned', 'search', 'tag', 'specialty', 'desde', 'hasta']),
             // Diseño nuevo del inicio sin chat abierto para todos cuando inicio_chats_diseno = 'turno' (si no, solo en el
             // navegador que entró con ?nuevo=1; ver lib/diseno-nuevo).
             'inicioNuevo' => \App\Models\Setting::get('inicio_chats_diseno') === 'turno',
@@ -2448,6 +2485,7 @@ class ConversationController extends Controller
             $query->where('specialty', $request->input('specialty'));
         }
 
+        $this->aplicarFecha($query, $request);
         $this->aplicarBusqueda($query, $request->input('search'));
 
         $conversations = $query

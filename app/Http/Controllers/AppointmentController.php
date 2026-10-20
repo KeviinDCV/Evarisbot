@@ -38,10 +38,14 @@ class AppointmentController extends Controller
     /** Columnas del Excel de agendas que se leen (citfci se guarda como citfc). */
     private const COLUMNAS_EXCEL = [
         'citead', 'cianom', 'citmed', 'mednom', 'citesp', 'espnom',
-        'citfci', 'cithor', 'citdoc', 'nom_paciente', 'pactel', 'pacnac',
+        'citfci', 'cithor', 'citdoc', 'nom_paciente', 'pactel', 'pactel2', 'pacnac',
         'pachis', 'cittid', 'citide', 'citres', 'cittip', 'nom_cotizante',
         'citcon', 'connom', 'citurg', 'citobsobs', 'duracion', 'ageperdes_g', 'dia',
     ];
+
+    /** Encabezados que se aceptan para el segundo teléfono (opcional): todos se guardan como pactel2. */
+    private const ALIAS_PACTEL2 = ['pactel2', 'pactel 2', 'pactel_2', 'telefono2', 'telefono 2', 'teléfono2', 'teléfono 2',
+        'celular2', 'celular 2', 'tel2', 'tel 2', 'segundo telefono', 'segundo teléfono', 'segundo celular'];
 
     /** Sin estas columnas no se carga nada: las citas quedarían sin fecha, hora, teléfono o paciente. */
     private const OBLIGATORIAS = [
@@ -54,7 +58,7 @@ class AppointmentController extends Controller
     /** Filtros, columnas de orden y direcciones que acepta la lista (view) y la exportación. */
     private const FILTROS = ['all', 'pending', 'failed', 'confirmed', 'cancelled'];
     private const ORDENES = ['id', 'nom_paciente', 'citide', 'pactel', 'citfc', 'cithor', 'mednom', 'espnom', 'reminder_status'];
-    private const COLUMNAS_BUSQUEDA = ['nom_paciente', 'citide', 'pactel', 'mednom', 'espnom'];
+    private const COLUMNAS_BUSQUEDA = ['nom_paciente', 'citide', 'pactel', 'pactel2', 'mednom', 'espnom'];
 
     /**
      * Query builder filtrado por servicio
@@ -96,9 +100,9 @@ class AppointmentController extends Controller
     protected function tanda(string $fecha, int $max): array
     {
         $validos = [];
-        $filas = $this->serviceQuery()->porRecordar($fecha)->orderBy('cithor')->orderBy('id')->get(['id', 'pactel']);
+        $filas = $this->serviceQuery()->porRecordar($fecha)->orderBy('cithor')->orderBy('id')->get(['id', 'pactel', 'pactel2']);
         foreach ($filas as $fila) {
-            if (Recordatorios::celular($fila->pactel) !== null) {
+            if (Recordatorios::celularesCita($fila->pactel, $fila->pactel2) !== []) {
                 $validos[] = (int) $fila->id;
             }
         }
@@ -363,7 +367,7 @@ class AppointmentController extends Controller
         $query = $this->serviceQuery()->select([
             'id', 'citead', 'cianom', 'citdoc', 'nom_paciente', 'cittid', 'citide', 'pactel', 'citfc', 'cithor',
             'mednom', 'espnom', 'connom', 'citcon', 'citres', 'citobsobs',
-            'reminder_sent', 'reminder_sent_at', 'reminder_status', 'reminder_error', 'notes',
+            'reminder_sent', 'reminder_sent_at', 'reminder_status', 'reminder_error', 'notes', 'pactel2', 'reminder_numero',
         ]);
         $this->aplicarFiltros($query, $request);
 
@@ -381,17 +385,17 @@ class AppointmentController extends Controller
             'Admisión', 'IPS', 'N.º de cita', 'Paciente', 'Tipo de documento', 'Documento', 'Teléfono',
             'Fecha de la cita', 'Hora', 'Médico', 'Especialidad', 'Consultorio', 'Cód. consultorio', 'EPS',
             'Observaciones', 'Recordatorio', 'Fecha de envío (hora Colombia)', 'Respuesta del paciente',
-            'Motivo del error', 'Notas',
+            'Motivo del error', 'Notas', 'Teléfono 2', 'Recordatorio enviado a',
         ];
         $sheet->fromArray($headings, null, 'A1');
-        $sheet->getStyle('A1:T1')->applyFromArray([
+        $sheet->getStyle('A1:V1')->applyFromArray([
             'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '2e3f84']],
         ]);
 
         $widths = [
             'A' => 12, 'B' => 20, 'C' => 12, 'D' => 30, 'E' => 10, 'F' => 15, 'G' => 15, 'H' => 14, 'I' => 8, 'J' => 25,
-            'K' => 20, 'L' => 24, 'M' => 12, 'N' => 18, 'O' => 40, 'P' => 18, 'Q' => 18, 'R' => 24, 'S' => 40, 'T' => 40,
+            'K' => 20, 'L' => 24, 'M' => 12, 'N' => 18, 'O' => 40, 'P' => 18, 'Q' => 18, 'R' => 24, 'S' => 40, 'T' => 40, 'U' => 15, 'V' => 16,
         ];
         foreach ($widths as $col => $w) {
             $sheet->getColumnDimension($col)->setWidth($w);
@@ -429,6 +433,8 @@ class AppointmentController extends Controller
                     $respuesta ? Recordatorios::ETIQUETAS_RESPUESTA[$respuesta] : '',
                     $motivo ? Recordatorios::ETIQUETAS_MOTIVO[$motivo] : '',
                     $appt->notes ?? '',
+                    $appt->pactel2 ?? '',
+                    match ((int) $appt->reminder_numero) { 1 => 'Teléfono', 2 => 'Teléfono 2', default => '' },
                 ];
                 if (count($bloque) >= 1000) {
                     $sheet->fromArray($bloque, null, "A{$row}");
@@ -615,6 +621,16 @@ class AppointmentController extends Controller
                     $indices[$columna] = $i;
                 }
             }
+            // El segundo teléfono puede venir con otro nombre de columna (ver ALIAS_PACTEL2).
+            if (!isset($indices['pactel2'])) {
+                foreach (self::ALIAS_PACTEL2 as $alias) {
+                    $i = array_search($alias, $titulos, true);
+                    if ($i !== false) {
+                        $indices['pactel2'] = $i;
+                        break;
+                    }
+                }
+            }
 
             $faltan = array_values(array_diff(array_keys(self::OBLIGATORIAS), array_keys($indices)));
             if ($faltan) {
@@ -698,7 +714,7 @@ class AppointmentController extends Controller
             if ($cambios) {
                 $actualizar[$libre->id] = $cambios;
                 $conteos['actualizadas']++;
-                $finales[] = [$cita['citfc'], array_key_exists('pactel', $cambios) ? $cambios['pactel'] : $libre->pactel];
+                $finales[] = [$cita['citfc'], array_key_exists('pactel', $cambios) ? $cambios['pactel'] : $libre->pactel, array_key_exists('pactel2', $cambios) ? $cambios['pactel2'] : ($libre->pactel2 ?? null)];
             } else {
                 $conteos['duplicadas']++;
             }
@@ -744,7 +760,7 @@ class AppointmentController extends Controller
                 $usadas[$movida->id] = true;
                 $actualizar[$movida->id] = ['citfc' => $cita['citfc'], 'cithor' => $cita['cithor']] + $this->cambiosDeCita($movida, $cita);
                 $conteos['reprogramadas']++;
-                $finales[] = [$cita['citfc'], array_key_exists('pactel', $actualizar[$movida->id]) ? $actualizar[$movida->id]['pactel'] : $movida->pactel];
+                $finales[] = [$cita['citfc'], array_key_exists('pactel', $actualizar[$movida->id]) ? $actualizar[$movida->id]['pactel'] : $movida->pactel, array_key_exists('pactel2', $actualizar[$movida->id]) ? $actualizar[$movida->id]['pactel2'] : ($movida->pactel2 ?? null)];
                 continue;
             }
 
@@ -755,11 +771,11 @@ class AppointmentController extends Controller
                 'updated_at' => $ahora,
             ];
             $conteos['nuevas']++;
-            $finales[] = [$cita['citfc'], $cita['pactel'] ?? null];
+            $finales[] = [$cita['citfc'], $cita['pactel'] ?? null, $cita['pactel2'] ?? null];
         }
 
-        foreach ($finales as [$fecha, $telefono]) {
-            if ($fecha >= $hoy && Recordatorios::celular($telefono) === null) {
+        foreach ($finales as [$fecha, $telefono, $telefono2]) {
+            if ($fecha >= $hoy && Recordatorios::celularesCita($telefono, $telefono2) === []) {
                 $conteos['sin_celular']++;
             }
         }
@@ -917,7 +933,7 @@ class AppointmentController extends Controller
         }
 
         $huella = [];
-        foreach ($campos as $campo) {
+        foreach (array_diff($campos, ['pactel2']) as $campo) {
             $huella[$campo] = match ($campo) {
                 'citfc' => $fecha,
                 'cithor' => $hora,
@@ -946,7 +962,7 @@ class AppointmentController extends Controller
             }
         }
 
-        if (array_key_exists('pactel', $cambios) && Recordatorios::motivo($existente->reminder_error ?? null) === 'telefono') {
+        if ((array_key_exists('pactel', $cambios) || array_key_exists('pactel2', $cambios)) && Recordatorios::motivo($existente->reminder_error ?? null) === 'telefono') {
             $cambios['reminder_error'] = null;
             // Una cita cancelada o confirmada sigue así: volverla a 'pending' la metía otra vez en «Por enviar».
             if (! in_array($existente->reminder_status ?? null, Recordatorios::RESUELTAS, true)) {

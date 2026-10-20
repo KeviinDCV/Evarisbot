@@ -1056,7 +1056,7 @@ export default function AppointmentsIndex({
         if (!palabras.length) return initialAppointments;
 
         return initialAppointments.filter((cita) => {
-            const texto = plano([cita.nom_paciente, cita.citide, cita.pactel, cita.mednom, cita.espnom, cita.citdoc].filter(Boolean).join(' '));
+            const texto = plano([cita.nom_paciente, cita.citide, cita.pactel, cita.pactel2, cita.mednom, cita.espnom, cita.citdoc].filter(Boolean).join(' '));
             return palabras.every((palabra) => texto.includes(palabra));
         });
     }, [initialAppointments, searchTerm]);

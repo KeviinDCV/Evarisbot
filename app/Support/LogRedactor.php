@@ -11,7 +11,7 @@ namespace App\Support;
  */
 class LogRedactor
 {
-    private const PHONE_KEYS = ['phone', 'phone_number', 'from', 'to', 'recipient', 'recipient_id', 'recipient_phone', 'wa_id', 'telefono', 'pactel', 'user'];
+    private const PHONE_KEYS = ['phone', 'phone_number', 'from', 'to', 'recipient', 'recipient_id', 'recipient_phone', 'wa_id', 'telefono', 'pactel', 'pactel2', 'user'];
 
     private const TEXT_KEYS = ['text', 'content', 'body', 'caption', 'message_text', 'transcription', 'contact_name', 'profile_name', 'pacnom', 'original_filename', 'local_url', 'search', 'query', 'notes', 'texto'];
 

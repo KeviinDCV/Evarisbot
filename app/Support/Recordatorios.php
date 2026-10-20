@@ -164,13 +164,23 @@ class Recordatorios
      */
     public static function celular(?string $pactel): ?string
     {
+        return self::celularesDe($pactel)[0] ?? null;
+    }
+
+    /**
+     * Todos los celulares válidos de un texto, en orden y sin repetir (para «3001234567 - 3109876543» da los dos). Los
+     * extranjeros solo si no hay ninguno colombiano, como celular().
+     */
+    public static function celularesDe(?string $pactel): array
+    {
         $texto = trim((string) $pactel);
         if ($texto === '') {
-            return null;
+            return [];
         }
 
         // Solo se parte por separadores ENTRE números: «/ , ; |», un guion con espacios y « y ».
         $trozos = preg_split('/\s*[\/,;|]\s*|\s+-\s+|\s+y\s+/iu', $texto) ?: [$texto];
+        $colombianos = [];
         $extranjero = null;
 
         foreach ($trozos as $trozo) {
@@ -182,25 +192,41 @@ class Recordatorios
                 $d = substr($d, 1);
             }
             if (preg_match('/^3\d{9}$/', $d)) {
-                return '57'.$d;
-            }
-            if ($extranjero === null && strlen($d) >= 12 && strlen($d) <= 15 && ! str_starts_with($d, '57')) {
+                $colombianos[] = '57'.$d;
+            } elseif ($extranjero === null && strlen($d) >= 12 && strlen($d) <= 15 && ! str_starts_with($d, '57')) {
                 $extranjero = $d;
             }
         }
 
-        // Dos celulares pegados sin separador: 20, 30… dígitos. Vale el primer bloque de 10 que sea celular.
-        $todos = preg_replace('/\D/', '', $texto);
-        if (strlen($todos) >= 20 && strlen($todos) % 10 === 0) {
-            foreach (str_split($todos, 10) as $bloque) {
-                if (preg_match('/^3\d{9}$/', $bloque)) {
-                    return '57'.$bloque;
+        // Dos celulares pegados sin separador: 20, 30… dígitos, en bloques de 10.
+        if ($colombianos === []) {
+            $todos = preg_replace('/\D/', '', $texto);
+            if (strlen($todos) >= 20 && strlen($todos) % 10 === 0) {
+                foreach (str_split($todos, 10) as $bloque) {
+                    if (preg_match('/^3\d{9}$/', $bloque)) {
+                        $colombianos[] = '57'.$bloque;
+                    }
                 }
             }
         }
 
-        return $extranjero;
+        $colombianos = array_values(array_unique($colombianos));
+
+        return $colombianos !== [] ? $colombianos : ($extranjero !== null ? [$extranjero] : []);
     }
+
+    /**
+     * Los números a los que se puede mandar el recordatorio de una cita, en orden: el principal y el de respaldo. El
+     * respaldo es el de la columna «pactel2» o, si no hay, un segundo celular escrito en el mismo campo del teléfono.
+     * Como mucho dos, sin repetir.
+     */
+    public static function celularesCita(?string $pactel, ?string $pactel2): array
+    {
+        return array_slice(array_values(array_unique(array_merge(self::celularesDe($pactel), self::celularesDe($pactel2)))), 0, 2);
+    }
+
+    /** Motivos de fallo que son del NÚMERO (no de la cita ni del hospital): con ellos se prueba el segundo número. */
+    public const MOTIVOS_DEL_NUMERO = ['telefono', 'sin_whatsapp', 'rechazado'];
 
     /** Motivo de un código de error de Meta, o null si el código no está en la tabla. */
     public static function motivoDeCodigo(int|string|null $codigo): ?string
@@ -384,7 +410,7 @@ class Recordatorios
         if ($citfc <= $hoy) {
             return 'sin_enviar';
         }
-        if (self::celular(self::campo($apt, 'pactel')) === null) {
+        if (self::celularesCita(self::campo($apt, 'pactel'), self::campo($apt, 'pactel2')) === []) {
             return 'sin_celular';
         }
 
@@ -428,6 +454,9 @@ class Recordatorios
             'citide' => self::campo($apt, 'citide'),
             'cittid' => self::tipoDocumento(self::campo($apt, 'cittid')),
             'pactel' => self::campo($apt, 'pactel'),
+            'pactel2' => self::campo($apt, 'pactel2'),
+            // El recordatorio salió al segundo número (el primero no tenía WhatsApp o no se lo entregaron).
+            'al_segundo' => (int) self::campo($apt, 'reminder_numero') === 2,
             'citdoc' => self::campo($apt, 'citdoc'),
             'citfc' => self::fechaDe(self::campo($apt, 'citfc')),
             'cithor' => self::horaDe(self::campo($apt, 'cithor')),
@@ -444,7 +473,7 @@ class Recordatorios
 
     /** Columnas que necesita fila(): para no traer de la base lo que no viaja. */
     public const COLUMNAS_FILA = [
-        'id', 'nom_paciente', 'citide', 'cittid', 'pactel', 'citdoc', 'citfc', 'cithor', 'mednom', 'espnom',
-        'reminder_sent', 'reminder_sent_at', 'reminder_status', 'reminder_error', 'notes',
+        'id', 'nom_paciente', 'citide', 'cittid', 'pactel', 'pactel2', 'citdoc', 'citfc', 'cithor', 'mednom', 'espnom',
+        'reminder_sent', 'reminder_sent_at', 'reminder_status', 'reminder_error', 'reminder_numero', 'notes',
     ];
 }

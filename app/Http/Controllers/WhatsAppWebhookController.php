@@ -239,13 +239,35 @@ class WhatsAppWebhookController extends Controller
                             $motivoCita = 'otro';
                         }
                         $textoCita = \App\Support\WhatsAppErrorTranslator::human($codigoCita, $errorInfo[0]['title'] ?? null, $errorInfo[0]['error_data']['details'] ?? null);
-                        \App\Models\Appointment::where('conversation_id', $message->conversation_id)
+                        $citasFallidas = \App\Models\Appointment::where('conversation_id', $message->conversation_id)
                             ->where('reminder_whatsapp_message_id', $messageId)
                             ->whereIn('reminder_status', ['sent', 'pending'])
+                            ->pluck('id');
+                        $detalleCita = $codigoCita !== null ? 'Meta '.$codigoCita : null;
+                        // Las que ya habían salido al teléfono 2 (el principal falló antes): ninguno de los dos sirvió.
+                        $alSegundo = $citasFallidas->isEmpty() ? collect() : \App\Models\Appointment::whereIn('id', $citasFallidas)->where('reminder_numero', 2)->pluck('id');
+                        \App\Models\Appointment::whereIn('id', $citasFallidas->diff($alSegundo))
                             ->update([
                                 'reminder_status' => 'failed',
-                                'reminder_error' => \App\Support\Recordatorios::error($motivoCita, rtrim($textoCita, '.'), $codigoCita !== null ? 'Meta '.$codigoCita : null),
+                                'reminder_error' => \App\Support\Recordatorios::error($motivoCita, rtrim($textoCita, '.'), $detalleCita),
                             ]);
+                        if ($alSegundo->isNotEmpty()) {
+                            \App\Models\Appointment::whereIn('id', $alSegundo)
+                                ->update([
+                                    'reminder_status' => 'failed',
+                                    'reminder_error' => \App\Support\Recordatorios::error($motivoCita, 'Ninguno de los dos números recibió el recordatorio', 'Teléfono 2: '.rtrim($textoCita, '.').($detalleCita ? ' ('.$detalleCita.')' : '')),
+                                ]);
+                        }
+                        $citasFallidas = $citasFallidas->diff($alSegundo);
+                        // El número no sirve (sin WhatsApp, rechazado): si la cita tiene segundo teléfono, se le manda
+                        // ahí (en la cola, al ritmo de los recordatorios). El trabajo comprueba todo de nuevo.
+                        if ($citasFallidas->isNotEmpty() && in_array($motivoCita, \App\Support\Recordatorios::MOTIVOS_DEL_NUMERO, true)) {
+                            $conSegundo = \App\Models\Appointment::whereIn('id', $citasFallidas)->get(['id', 'pactel', 'pactel2'])
+                                ->filter(fn ($cita) => isset(\App\Support\Recordatorios::celularesCita($cita->pactel, $cita->pactel2)[1]));
+                            foreach ($conSegundo as $cita) {
+                                \App\Jobs\RecordatorioSegundoNumeroJob::dispatch((int) $cita->id, (string) $messageId, $motivoCita);
+                            }
+                        }
                     } catch (\Throwable $e) {
                         Log::error('No se pudo marcar la cita del recordatorio no entregado', ['message_id' => $messageId, 'error' => $e->getMessage()]);
                     }

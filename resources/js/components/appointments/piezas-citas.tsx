@@ -143,6 +143,10 @@ export interface CitaFila {
     citide: string | null;
     cittid: string | null;
     pactel: string | null;
+    /** Segundo teléfono (columna «pactel2» del Excel): de respaldo si el primero no tiene WhatsApp. */
+    pactel2?: string | null;
+    /** El recordatorio salió al segundo teléfono. */
+    al_segundo?: boolean;
     citdoc: string | null;
     citfc: string | null;
     cithor: string | null;
@@ -218,8 +222,13 @@ export function CeldaRecordatorio({ cita }: { cita: CitaFila }) {
     const { t, i18n } = useTranslation();
     const estado = estadoDe(cita);
     const { clave, tono } = RECORDATORIO[estado];
+    const envio = estado === 'enviado' && cita.reminder_sent_at ? fechaEnvio(cita.reminder_sent_at, i18n.language) : null;
     const detalle =
-        estado === 'con_error' ? t(claveMotivo(cita.motivo)) : estado === 'enviado' && cita.reminder_sent_at ? fechaEnvio(cita.reminder_sent_at, i18n.language) : null;
+        estado === 'con_error'
+            ? t(claveMotivo(cita.motivo))
+            : envio && cita.al_segundo
+              ? `${envio} · ${t('appointments.sentToPhone2')}`
+              : envio;
 
     return (
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -326,7 +335,16 @@ export function FilaCita({ cita, indice, conCedula = false }: { cita: CitaFila; 
             ) : (
                 <Phone className="size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
             )}
-            <span className="truncate">{cita.pactel || '-'}</span>
+            <span className="truncate">{cita.pactel || (cita.pactel2 ? '' : '-')}</span>
+            {cita.pactel2 && (
+                <>
+                    {cita.pactel && <span aria-hidden="true">·</span>}
+                    <span className="truncate" title={t('appointments.phone2')}>
+                        <span className="sr-only">{t('appointments.phone2')}: </span>
+                        {cita.pactel2}
+                    </span>
+                </>
+            )}
         </span>
     );
 
