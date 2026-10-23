@@ -181,6 +181,7 @@ const COLUMNAS_EXCEL = [
     ['Cithor', 'appointments.columnDescTime', true],
     ['Pactel', 'appointments.columnDescPhone', true],
     ['Nom_paciente', 'appointments.columnDescPatientName', true],
+    ['Pactel2', 'appointments.columnDescPhone2', false],
     ['Citide', 'appointments.columnDescPatientId', false],
     ['Citdoc', 'appointments.columnDescDocument', false],
     ['Mednom', 'appointments.columnDescDoctorName', false],

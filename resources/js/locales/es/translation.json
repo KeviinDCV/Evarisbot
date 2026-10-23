@@ -2267,6 +2267,7 @@
         "badgeNoResponse": "Sin respuesta",
         "columnDescPatientName": "Nombre del paciente",
         "columnDescPhone": "Celular del paciente",
+        "columnDescPhone2": "Segundo celular, por si el primero no tiene WhatsApp",
         "columnDescDate": "Fecha de la cita",
         "columnDescTime": "Hora de la cita",
         "columnDescDoctorName": "Médico",

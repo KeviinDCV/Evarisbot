@@ -2267,6 +2267,7 @@
         "badgeNoResponse": "No response",
         "columnDescPatientName": "Patient name",
         "columnDescPhone": "Patient's mobile",
+        "columnDescPhone2": "Second mobile, in case the first has no WhatsApp",
         "columnDescDate": "Appointment date",
         "columnDescTime": "Appointment time",
         "columnDescDoctorName": "Doctor",
