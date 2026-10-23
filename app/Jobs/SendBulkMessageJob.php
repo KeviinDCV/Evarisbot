@@ -41,9 +41,27 @@ class SendBulkMessageJob implements ShouldQueue
         ];
     }
 
+    /**
+     * Plazo para que salga este mensaje (se calcula al crear el envío y viaja con el trabajo).
+     *
+     * Antes era fijo: 3 h desde que se creaba el envío. Como los mensajes salen uno cada ~4 s (unos 15 por minuto), en
+     * 3 h solo alcanzaban unos 2.700: el 19/10/2026 el masivo #288 (4.649 destinatarios) dejó 2.082 sin intentar
+     * («has been attempted too many times») al vencerse el plazo. Ahora crece con el tamaño del envío (6 s por
+     * destinatario, con margen) más las 3 h de antes, con un tope de 48 h: así tampoco sale un aviso viejo si el worker
+     * estuvo detenido días.
+     */
     public function retryUntil(): \DateTime
     {
-        return now()->addHours(3);
+        static $totales = [];
+        if (!array_key_exists($this->bulkSendId, $totales)) {
+            try {
+                $totales[$this->bulkSendId] = (int) BulkSend::whereKey($this->bulkSendId)->value('total_recipients');
+            } catch (\Throwable) {
+                $totales[$this->bulkSendId] = 0;
+            }
+        }
+
+        return now()->addSeconds(min(3 * 3600 + $totales[$this->bulkSendId] * 6, 48 * 3600));
     }
 
     public function handle(): void
@@ -224,6 +242,15 @@ class SendBulkMessageJob implements ShouldQueue
                         'status' => 'sent',
                         'sent_by' => $bulkSend->created_by,
                     ]);
+
+                    // Poner al día la fecha de última actividad.
+                    //
+                    // El firstOrCreate de arriba solo aplica 'last_message_at' cuando CREA
+                    // la conversación; si ya existía —el caso normal— se quedaba con la
+                    // fecha antigua. La lista ORDENA por este campo pero MUESTRA la hora del
+                    // último mensaje, así que un envío masivo salía con la hora de hoy pero
+                    // colocado semanas atrás, y los asesores no lo encontraban.
+                    $conversation->forceFill(['last_message_at' => now()])->save();
                 } catch (\Exception $localErr) {
                     Log::warning('Mensaje masivo enviado pero error al registrar localmente', [
                         'recipient_id' => $this->recipientId,
@@ -232,6 +259,15 @@ class SendBulkMessageJob implements ShouldQueue
                         'error' => $localErr->getMessage(),
                     ]);
                 }
+
+                // Si era una cancelación, dejar la cita en 'cancelled'. Sin esto el mensaje
+                // salía pero la cita seguía "confirmada" y el bot contradecía al asesor.
+                \App\Services\AppointmentCancellationSync::fromTemplate(
+                    $phoneNumber,
+                    $bulkSend->template_name,
+                    $paramValues,
+                    'envío masivo #' . $bulkSend->id
+                );
 
                 Log::info('Mensaje masivo enviado', [
                     'recipient_id' => $this->recipientId,
@@ -265,7 +301,10 @@ class SendBulkMessageJob implements ShouldQueue
         $recipient = BulkSendRecipient::find($this->recipientId);
         // No marcar como fallido si ya fue enviado exitosamente
         if ($recipient && $recipient->status !== 'failed' && $recipient->status !== 'sent') {
-            $recipient->markAsFailed($exception->getMessage());
+            // Con plazo (retryUntil) este error solo sale cuando el plazo venció antes de llegar su turno: no se intentó.
+            $recipient->markAsFailed($exception instanceof \Illuminate\Queue\MaxAttemptsExceededException
+                ? 'No alcanzó a enviarse: venció el plazo del envío masivo (no se intentó).'
+                : $exception->getMessage());
             
             $bulkSend = BulkSend::find($this->bulkSendId);
             if ($bulkSend) {
@@ -319,7 +358,12 @@ class SendBulkMessageJob implements ShouldQueue
         ]);
 
         if (!$response->successful()) {
-            throw new \Exception('Error en API de WhatsApp (Status: ' . $response->status() . '): ' . $response->body());
+            $err = $response->json()['error'] ?? [];
+            throw new \Exception(\App\Support\WhatsAppErrorTranslator::human(
+                $err['code'] ?? null,
+                $err['message'] ?? null,
+                $err['error_data']['details'] ?? null
+            ));
         }
 
         return $response->json();

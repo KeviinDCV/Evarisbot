@@ -10,7 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 
 interface LanguageSelectorProps {
-    variant?: 'default' | 'admin';
+    /** 'translucido': para fondos navy (login "Tarjeta sobre el hospital"). */
+    variant?: 'default' | 'admin' | 'translucido';
 }
 
 export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps) {
@@ -75,6 +76,40 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48">
+                    {languages.map((language) => (
+                        <DropdownMenuItem
+                            key={language.code}
+                            onClick={() => changeLanguage(language.code)}
+                            className="cursor-pointer gap-2"
+                        >
+                            <span className="text-lg">{language.flag}</span>
+                            <span className={currentLanguage === language.code ? 'font-bold' : ''}>
+                                {language.name}
+                            </span>
+                            {currentLanguage === language.code && (
+                                <span className="ml-auto text-xs">✓</span>
+                            )}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    }
+
+    if (variant === 'translucido') {
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button
+                        type="button"
+                        className="lh-control flex h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 text-[13.5px] font-semibold text-white transition-colors hover:bg-white/[0.16]"
+                        title={t('common.language')}
+                    >
+                        <Languages className="h-4 w-4" aria-hidden="true" />
+                        {currentLang?.name}
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
                     {languages.map((language) => (
                         <DropdownMenuItem
                             key={language.code}

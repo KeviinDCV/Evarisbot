@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Events\MessageReactionUpdated;
 use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageReaction;
 use App\Models\Setting;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -35,6 +38,62 @@ class WhatsAppService
                 // NO reintentar errores de Meta (400/403/rate limit) — esos requieren intervención.
                 return $exception instanceof \Illuminate\Http\Client\ConnectionException;
             }, throw: false);
+    }
+
+    /**
+     * Sube un archivo multimedia LOCAL directamente a Meta y devuelve su media_id.
+     *
+     * Esto reemplaza el envío por "link": antes le pasábamos a Meta la URL pública
+     * (túnel de Tailscale) y Meta venía a descargar el archivo, lo que fallaba de forma
+     * intermitente con el error 131053 "Media upload error / Downloading media from
+     * weblink failed (DNS resolution timed out / DNS query shed)". Subiendo los bytes
+     * nosotros, Meta ya no depende de poder resolver/alcanzar nuestro túnel.
+     *
+     * Devuelve null si no puede subir (archivo externo o fallo) → el método que llama
+     * hace fallback a enviar por 'link', así nunca se rompe el envío.
+     */
+    public function uploadMedia(string $mediaUrl): ?string
+    {
+        try {
+            // Resolver la ruta local desde la URL pública (.../storage/whatsapp_media/xxx.png)
+            $pos = strpos($mediaUrl, '/storage/');
+            if ($pos === false) {
+                return null; // No es un archivo servido por nosotros
+            }
+            $relative = explode('?', substr($mediaUrl, $pos + strlen('/storage/')))[0];
+
+            $disk = \Illuminate\Support\Facades\Storage::disk('public');
+            if (!$disk->exists($relative)) {
+                return null;
+            }
+
+            $mime = $disk->mimeType($relative) ?: 'application/octet-stream';
+
+            $response = Http::withToken($this->token)
+                ->timeout(60)
+                ->connectTimeout(10)
+                ->attach('file', $disk->get($relative), basename($relative), ['Content-Type' => $mime])
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/media", [
+                    'messaging_product' => 'whatsapp',
+                    'type' => $mime,
+                ]);
+
+            $mediaId = $response->json()['id'] ?? null;
+            if ($response->successful() && $mediaId) {
+                Log::info('Media subida directamente a Meta', ['media_id' => $mediaId, 'file' => basename($relative)]);
+                return $mediaId;
+            }
+
+            Log::warning('No se pudo subir media a Meta; se usará enlace como respaldo', [
+                'status' => $response->status(),
+                'body' => $response->json(),
+                'file' => basename($relative),
+            ]);
+            return null;
+        } catch (\Throwable $e) {
+            Log::warning('Excepción subiendo media a Meta; se usará enlace', ['error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     /**
@@ -118,9 +177,10 @@ class WhatsAppService
     }
 
     /**
-     * Enviar mensaje con imagen
+     * Enviar una reacción (emoji) a un mensaje existente.
+     * Un emoji vacío ('') elimina la reacción previa, igual que en WhatsApp.
      */
-    public function sendImageMessage(string $to, string $imageUrl, ?string $caption = null, ?string $replyToWamid = null): array
+    public function sendReaction(string $to, string $targetWamid, string $emoji): array
     {
         if (!$this->isConfigured()) {
             return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
@@ -130,15 +190,153 @@ class WhatsAppService
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
-                'type' => 'image',
-                'image' => [
-                    'link' => $imageUrl,
+                'type' => 'reaction',
+                'reaction' => [
+                    'message_id' => $targetWamid,
+                    'emoji' => $emoji, // '' = quitar reacción
                 ],
             ];
 
-            if ($caption) {
-                $payload['image']['caption'] = $caption;
+            $response = $this->httpClient()
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", $payload);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return [
+                    'success' => true,
+                    'message_id' => $data['messages'][0]['id'] ?? null,
+                    'data' => $data,
+                ];
             }
+
+            $errorJson = $response->json();
+            $errorMsg = $errorJson['error']['message'] ?? 'Error desconocido';
+            Log::error('WhatsApp reaction error', [
+                'to' => $to,
+                'target' => $targetWamid,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return ['success' => false, 'error' => $errorMsg];
+        } catch (\Exception $e) {
+            Log::error('WhatsApp send reaction exception', [
+                'error' => $e->getMessage(),
+                'to' => $to,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Bloquea un número en WhatsApp vía el Block Users API de Meta.
+     * El bloqueo es REAL: Meta deja de entregarnos los mensajes de ese usuario
+     * y cuenta del lado de Meta. Requisito de Meta: el usuario debe haber escrito
+     * en las últimas 24h; si no, Meta lo rechaza (lo reportamos en 'error').
+     */
+    public function blockUser(string $phone): array
+    {
+        return $this->toggleBlockUser($phone, true);
+    }
+
+    /**
+     * Desbloquea un número previamente bloqueado en WhatsApp (DELETE block_users).
+     */
+    public function unblockUser(string $phone): array
+    {
+        return $this->toggleBlockUser($phone, false);
+    }
+
+    /**
+     * Lógica compartida block/unblock contra POST|DELETE /{phone-number-id}/block_users.
+     * Meta responde 200 aunque algún número falle: hay que revisar 'failed_users'.
+     */
+    private function toggleBlockUser(string $phone, bool $block): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        $user = $this->formatPhoneNumber($phone);
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'block_users' => [['user' => $user]],
+        ];
+        $url = "{$this->apiUrl}/{$this->phoneNumberId}/block_users";
+
+        try {
+            $response = $block
+                ? $this->httpClient()->post($url, $payload)
+                : $this->httpClient()->delete($url, $payload);
+
+            $data = $response->json();
+
+            if ($response->successful()) {
+                // Meta puede devolver 200 con números que fallaron individualmente.
+                $failed = $data['block_users']['failed_users'] ?? [];
+                if (!empty($failed)) {
+                    $errObj = $failed[0]['errors'][0] ?? [];
+                    $err = $errObj['error_data']['details']
+                        ?? $errObj['message']
+                        ?? 'Meta rechazó la operación (posible causa: el usuario no ha escrito en las últimas 24h).';
+                    Log::warning('WhatsApp block_users falló para el número', [
+                        'phone' => $user,
+                        'block' => $block,
+                        'failed' => $failed,
+                    ]);
+                    return ['success' => false, 'error' => $err, 'data' => $data];
+                }
+
+                Log::info('WhatsApp block_users OK', ['phone' => $user, 'block' => $block]);
+                return ['success' => true, 'data' => $data];
+            }
+
+            $errorMsg = $data['error']['message'] ?? 'Error desconocido';
+            $errorCode = $data['error']['code'] ?? null;
+            if ($errorCode) {
+                $errorMsg .= " (code: {$errorCode})";
+            }
+            Log::error('WhatsApp block_users error', [
+                'phone' => $user,
+                'block' => $block,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return ['success' => false, 'error' => $errorMsg, 'data' => $data];
+
+        } catch (\Exception $e) {
+            Log::error('WhatsApp block_users exception', [
+                'error' => $e->getMessage(),
+                'phone' => $user,
+                'block' => $block,
+            ]);
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Enviar mensaje con imagen
+     */
+    public function sendImageMessage(string $to, string $imageUrl, ?string $caption = null, ?string $replyToWamid = null): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'error' => 'WhatsApp API no está configurada'];
+        }
+
+        try {
+            // Subir el archivo a Meta y enviar por media_id (más confiable que el enlace).
+            $mediaId = $this->uploadMedia($imageUrl);
+            $image = $mediaId ? ['id' => $mediaId] : ['link' => $imageUrl];
+            if ($caption) {
+                $image['caption'] = $caption;
+            }
+
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'to' => $this->formatPhoneNumber($to),
+                'type' => 'image',
+                'image' => $image,
+            ];
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -198,20 +396,19 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($documentUrl);
+            $document = $mediaId ? ['id' => $mediaId, 'filename' => $filename] : ['link' => $documentUrl, 'filename' => $filename];
+            // Agregar caption si existe
+            if ($caption) {
+                $document['caption'] = $caption;
+            }
+
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'document',
-                'document' => [
-                    'link' => $documentUrl,
-                    'filename' => $filename,
-                ],
+                'document' => $document,
             ];
-
-            // Agregar caption si existe
-            if ($caption) {
-                $payload['document']['caption'] = $caption;
-            }
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -261,18 +458,18 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($videoUrl);
+            $video = $mediaId ? ['id' => $mediaId] : ['link' => $videoUrl];
+            if ($caption) {
+                $video['caption'] = $caption;
+            }
+
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'video',
-                'video' => [
-                    'link' => $videoUrl,
-                ],
+                'video' => $video,
             ];
-
-            if ($caption) {
-                $payload['video']['caption'] = $caption;
-            }
 
             if ($replyToWamid) {
                 $payload['context'] = ['message_id' => $replyToWamid];
@@ -320,13 +517,12 @@ class WhatsAppService
         }
 
         try {
+            $mediaId = $this->uploadMedia($audioUrl);
             $payload = [
                 'messaging_product' => 'whatsapp',
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'audio',
-                'audio' => [
-                    'link' => $audioUrl,
-                ],
+                'audio' => $mediaId ? ['id' => $mediaId] : ['link' => $audioUrl],
             ];
 
             if ($replyToWamid) {
@@ -366,7 +562,55 @@ class WhatsAppService
     }
 
     /**
-     * Marcar mensaje como leído
+     * Mostrarle al paciente el "escribiendo…" de WhatsApp.
+     *
+     * En la Cloud API el indicador NO es una llamada aparte: viaja junto al acuse de
+     * lectura, en la misma petición. Se muestra unos 25 segundos, o hasta que se envía
+     * el mensaje (lo que ocurra antes), y necesita el id de un mensaje ENTRANTE.
+     *
+     * Es cosmético: si Meta lo rechaza (por ejemplo, con la ventana de 24 h cerrada),
+     * no se registra como error ni se reintenta.
+     */
+    public function sendTypingIndicator(string $messageId): bool
+    {
+        if (!$this->isConfigured()) {
+            return false;
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken($this->token)
+                ->timeout(4)
+                ->connectTimeout(2)
+                ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
+                    'messaging_product' => 'whatsapp',
+                    'status' => 'read',
+                    'message_id' => $messageId,
+                    'typing_indicator' => ['type' => 'text'],
+                ]);
+
+            if (!$response->successful()) {
+                Log::info('Indicador de escritura no aceptado por Meta', [
+                    'status' => $response->status(),
+                    'body' => mb_substr($response->body(), 0, 200),
+                ]);
+            }
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            Log::info('Indicador de escritura: excepción', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
+     * Marcar un mensaje como leído en WhatsApp (el doble check azul del paciente).
+     *
+     * Marcar uno marca también todos los anteriores de esa conversación, así que basta
+     * con enviar el ÚLTIMO entrante sin leer.
+     *
+     * Va con su propio cliente HTTP, más impaciente que el general: esto se ejecuta al
+     * abrir un chat, y el cliente normal (timeout 10 s con 2 reintentos) podría dejar la
+     * pantalla colgada hasta 30 s. Es un acuse de recibo: si no llega, no pasa nada.
      */
     public function markAsRead(string $messageId): bool
     {
@@ -375,7 +619,9 @@ class WhatsAppService
         }
 
         try {
-            $response = $this->httpClient()
+            $response = \Illuminate\Support\Facades\Http::withToken($this->token)
+                ->timeout(4)
+                ->connectTimeout(2)
                 ->post("{$this->apiUrl}/{$this->phoneNumberId}/messages", [
                     'messaging_product' => 'whatsapp',
                     'status' => 'read',
@@ -411,7 +657,8 @@ class WhatsAppService
         'image/png' => 'png',
         'image/gif' => 'gif',
         'image/webp' => 'webp',
-        'image/svg+xml' => 'svg',
+        'image/heic' => 'heic',
+        'image/heif' => 'heic',
         // Audio
         'audio/ogg' => 'ogg',
         'audio/mpeg' => 'mp3',
@@ -421,17 +668,39 @@ class WhatsAppService
         // Video
         'video/mp4' => 'mp4',
         'video/3gpp' => '3gp',
+        'video/quicktime' => 'mov',
         // Texto
         'text/plain' => 'txt',
         'text/csv' => 'csv',
         // Comprimidos
         'application/zip' => 'zip',
         'application/x-rar-compressed' => 'rar',
+        'application/vnd.rar' => 'rar',
         'application/x-7z-compressed' => '7z',
     ];
 
     /**
-     * Obtener extensión a partir del MIME type
+     * Extensiones con las que se puede guardar un adjunto en la carpeta pública.
+     * La extensión la elige quien envía el archivo: sin esta lista, un documento "algo.php"
+     * o "algo.html" quedaba en /storage con esa extensión y Apache lo ejecutaba o lo abría
+     * como página al hacer clic. Lo que no esté aquí se guarda como .bin (se descarga, nunca se abre).
+     */
+    private const SAFE_EXTENSIONS = [
+        'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'bmp', 'tif', 'tiff',
+        'ogg', 'opus', 'mp3', 'm4a', 'amr', 'aac', 'wav', 'mp4', '3gp', 'mov',
+        'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf',
+        'txt', 'csv', 'zip', 'rar', '7z',
+    ];
+
+    /**
+     * Hosts desde los que Meta entrega los archivos. La descarga lleva el token en la cabecera,
+     * así que nunca se pide a otro sitio: un webhook falso podía apuntar el media_id a un objeto
+     * de Graph cuyo campo "url" fuera un servidor ajeno y llevarse el token.
+     */
+    private const MEDIA_HOST_SUFFIXES = ['.fbsbx.com', '.facebook.com', '.fbcdn.net', '.whatsapp.net', '.whatsapp.com'];
+
+    /**
+     * Obtener extensión a partir del MIME type (solo extensiones de SAFE_EXTENSIONS; si no, 'bin')
      */
     private function getExtensionFromMime(?string $mimeType): string
     {
@@ -446,21 +715,57 @@ class WhatsAppService
             return self::MIME_EXTENSIONS[$cleanMime];
         }
 
-        // Fallback: usar la parte después del / si es simple (ej: image/png → png)
+        // Fallback: usar la parte después del / si es una extensión permitida (ej: image/bmp → bmp)
         $parts = explode('/', $cleanMime);
         $sub = $parts[1] ?? 'bin';
 
-        // Si la sub-parte es corta (5 chars o menos), probablemente es una extensión válida
-        if (strlen($sub) <= 5 && preg_match('/^[a-z0-9]+$/', $sub)) {
-            return $sub;
+        return in_array($sub, self::SAFE_EXTENSIONS, true) ? $sub : 'bin';
+    }
+
+    /**
+     * Extensión segura para guardar el adjunto: manda el tipo que informa Meta; la extensión del
+     * nombre original solo se usa si Meta no dice nada útil y está en la lista permitida.
+     */
+    private function safeExtension(?string $mimeType, ?string $originalFilename): string
+    {
+        $fromMime = $this->getExtensionFromMime($mimeType);
+        if ($fromMime !== 'bin') {
+            return $fromMime;
         }
 
-        return 'bin';
+        $fromName = strtolower((string) pathinfo((string) $originalFilename, PATHINFO_EXTENSION));
+
+        return in_array($fromName, self::SAFE_EXTENSIONS, true) ? $fromName : 'bin';
+    }
+
+    private function isMetaMediaUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+        $host = strtolower($parts['host'] ?? '');
+
+        if (($parts['scheme'] ?? '') !== 'https' || $host === '') {
+            return false;
+        }
+
+        foreach (self::MEDIA_HOST_SUFFIXES as $suffix) {
+            if (str_ends_with('.' . $host, $suffix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function downloadMedia(string $mediaId, ?string $originalFilename = null): ?string
     {
         try {
+            // El media_id viene en el webhook: solo dígitos, para que no se pueda usar como
+            // ruta arbitraria de Graph (la petición lleva el token del hospital).
+            if (!preg_match('/^\d{1,40}$/', $mediaId)) {
+                Log::warning('Media ID inválido en webhook, no se descarga', ['length' => strlen($mediaId)]);
+                return null;
+            }
+
             // Paso 1: Obtener URL del media
             $response = $this->httpClient()
                 ->get("{$this->apiUrl}/{$mediaId}");
@@ -475,9 +780,17 @@ class WhatsAppService
 
             $mediaUrl = $response->json()['url'] ?? null;
             $apiMimeType = $response->json()['mime_type'] ?? null;
-            
-            if (!$mediaUrl) {
-                Log::error('Media URL not found in response', ['response' => $response->json()]);
+
+            if (!is_string($mediaUrl) || $mediaUrl === '') {
+                Log::error('Media URL not found in response', ['media_id' => $mediaId]);
+                return null;
+            }
+
+            if (!$this->isMetaMediaUrl($mediaUrl)) {
+                Log::critical('Media URL fuera de Meta: no se descarga (posible webhook falso)', [
+                    'media_id' => $mediaId,
+                    'host' => parse_url($mediaUrl, PHP_URL_HOST),
+                ]);
                 return null;
             }
 
@@ -487,39 +800,34 @@ class WhatsAppService
                 ->get($mediaUrl);
 
             if (!$fileResponse->successful()) {
-                Log::error('Failed to download media file', ['url' => $mediaUrl]);
+                Log::error('Failed to download media file', ['media_id' => $mediaId, 'status' => $fileResponse->status()]);
                 return null;
             }
 
-            // Paso 3: Determinar extensión correcta
+            // Paso 3: Determinar extensión segura
             $mimeType = $apiMimeType ?? $fileResponse->header('Content-Type');
-            
-            // Si tenemos un archivo original con extensión, usarla
-            if ($originalFilename && pathinfo($originalFilename, PATHINFO_EXTENSION)) {
-                $extension = pathinfo($originalFilename, PATHINFO_EXTENSION);
+            $extension = $this->safeExtension($mimeType, $originalFilename);
+
+            // Paso 4: Generar nombre de archivo preservando el nombre original si es posible.
+            // Prefijo aleatorio (no uniqid, que sale de la hora y se puede adivinar).
+            $prefix = \Illuminate\Support\Str::random(24);
+            if ($originalFilename) {
+                // Sanitizar nombre: quitar caracteres especiales (también los puntos), mantener legible
+                $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', pathinfo($originalFilename, PATHINFO_FILENAME));
+                $safeName = substr($safeName, 0, 100); // limitar longitud
+                $storageName = 'whatsapp_media/' . $prefix . '_' . $safeName . '.' . $extension;
             } else {
-                $extension = $this->getExtensionFromMime($mimeType);
+                $storageName = 'whatsapp_media/' . $prefix . '.' . $extension;
             }
 
-            // Paso 4: Generar nombre de archivo preservando el nombre original si es posible
-            if ($originalFilename) {
-                // Sanitizar nombre: quitar caracteres especiales, mantener legible
-                $safeName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', pathinfo($originalFilename, PATHINFO_FILENAME));
-                $safeName = substr($safeName, 0, 100); // limitar longitud
-                $storageName = 'whatsapp_media/' . uniqid() . '_' . $safeName . '.' . $extension;
-            } else {
-                $storageName = 'whatsapp_media/' . uniqid() . '.' . $extension;
-            }
-            
             \Storage::disk('public')->put($storageName, $fileResponse->body());
 
             // Usar ruta relativa para compatibilidad con IP local y ngrok
             $localUrl = '/storage/' . $storageName;
-            
+
+            // Sin nombre original ni ruta: suelen llevar el nombre del paciente.
             Log::info('Media downloaded successfully', [
                 'media_id' => $mediaId,
-                'local_url' => $localUrl,
-                'original_filename' => $originalFilename,
                 'mime_type' => $mimeType,
                 'extension' => $extension,
             ]);
@@ -618,6 +926,30 @@ class WhatsAppService
     }
 
     /**
+     * Nombre de la plantilla de saludo que hay que usar ahora mismo.
+     *
+     * Está en la BD y no fija en el código para poder conmutar a saludo_asesor_v2
+     * en cuanto Meta la apruebe, sin desplegar nada. Si la consulta falla o no hay
+     * ninguna activa y aprobada, cae a la de siempre: antes dejar al asesor con el
+     * saludo antiguo que dejarlo sin saludo.
+     */
+    private function activeGreetingTemplateName(): string
+    {
+        try {
+            return DB::table('whatsapp_templates')
+                ->where('meta_template_name', 'like', 'saludo_asesor%')
+                ->where('is_active', 1)
+                ->where('status', 'APPROVED')
+                ->orderByDesc('id')
+                ->value('meta_template_name') ?: 'saludo_asesor';
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo resolver la plantilla de saludo, se usa saludo_asesor', ['error' => $e->getMessage()]);
+
+            return 'saludo_asesor';
+        }
+    }
+
+    /**
      * Enviar plantilla de saludo de asesor
      * Esta plantilla debe estar aprobada en Meta con el nombre 'saludo_asesor'
      */
@@ -634,7 +966,7 @@ class WhatsAppService
                 'to' => $this->formatPhoneNumber($to),
                 'type' => 'template',
                 'template' => [
-                    'name' => 'saludo_asesor',
+                    'name' => $this->activeGreetingTemplateName(),
                     'language' => ['code' => 'es_CO'],
                     'components' => [
                         [
@@ -1076,6 +1408,7 @@ class WhatsAppService
                     'timestamp' => now()->toISOString(),
                 ];
                 $conversation->update(['welcome_flow_data' => $flowData]);
+                \App\Services\FlowClassificationService::sync($conversation);
 
                 Log::info('Welcome flow button pressed', [
                     'conversation_id' => $conversation->id,
@@ -1094,6 +1427,7 @@ class WhatsAppService
                     'timestamp' => now()->toISOString(),
                 ];
                 $conversation->update(['welcome_flow_data' => $flowData]);
+                \App\Services\FlowClassificationService::sync($conversation);
 
                 Log::info('Welcome flow text response', [
                     'conversation_id' => $conversation->id,
@@ -1240,9 +1574,14 @@ class WhatsAppService
                             'status' => 'pending',
                         ]);
 
-                        // Enviar plantilla de saludo por WhatsApp
+                        // Enviar saludo por WhatsApp: como el paciente acaba de completar
+                        // el flujo, la ventana de 24h está abierta y se envía como mensaje
+                        // de sesión libre (evita el tope de marketing / error 131049). Se
+                        // deja la plantilla como respaldo por si la ventana estuviera cerrada.
                         if ($this->isConfigured()) {
-                            $result = $this->sendGreetingTemplate($phoneNumber, $advisorName);
+                            $result = $conversation->isWithinServiceWindow()
+                                ? $this->sendTextMessage($phoneNumber, $greetingText)
+                                : $this->sendGreetingTemplate($phoneNumber, $advisorName);
                             $greetingMessage->update([
                                 'status' => ($result && $result['success']) ? 'sent' : 'failed',
                                 'whatsapp_message_id' => $result['message_id'] ?? null,
@@ -1431,7 +1770,9 @@ class WhatsAppService
             }
 
             // Buscar si hay appointments asociados (sin enviar respuesta todavía)
-            $appointments = $this->findAppointmentsForResponse($from, $messageData);
+            // ¿Responde a una cita, y qué hacer? (ver planRespuestaCita: una cita solo cambia con una indicación sin duda)
+            $planCita = $this->planRespuestaCita($from, $messageData);
+            $appointments = $planCita['citas'] ?? new \Illuminate\Database\Eloquent\Collection();
             $appointment = $appointments->first(); // Para compatibilidad con lógica de conversación
 
             // Extraer información del contacto
@@ -1561,6 +1902,8 @@ class WhatsAppService
                 $conversation->update([
                     'status' => 'active',
                     'assigned_to' => null,
+                    'resolved_by' => null, // Limpiar la resolución previa: ya no está resuelta (evita arrastrar el nombre viejo)
+                    'resolved_at' => null,
                     'last_message_at' => now(),
                     'welcome_flow_completed' => false,
                     'welcome_flow_step' => null,
@@ -1666,17 +2009,27 @@ class WhatsAppService
                 $content = 'Contacto: ' . implode(', ', $contactNames);
                 $messageType = 'contact';
             } elseif (isset($messageData['reaction'])) {
-                // Reacción a un mensaje (emoji). Si emoji está vacío significa que la reacción se removió.
-                $emoji = $messageData['reaction']['emoji'] ?? '';
-                $content = $emoji !== ''
-                    ? '↩️ Reaccionó con ' . $emoji
-                    : '↩️ Quitó su reacción';
-                $messageType = 'text';
+                // Reacción entrante (emoji): se adjunta al mensaje original y se difunde en
+                // tiempo real, en vez de crearse como un mensaje de texto suelto. Retornamos
+                // null porque no se persiste ningún mensaje nuevo.
+                $this->handleIncomingReaction($conversation, $messageData);
+                return null;
             } elseif (($messageData['type'] ?? null) === 'unsupported' || isset($messageData['errors'])) {
-                // WhatsApp marca como "unsupported" mensajes que su API no puede entregar
-                // (ej. encuestas, mensajes editados, ciertos formatos). Lo registramos descriptivo.
-                $errMsg = $messageData['errors'][0]['title'] ?? 'Tipo de mensaje no compatible';
-                $content = '⚠️ Mensaje no compatible con WhatsApp Business: ' . $errMsg;
+                $errorCode = $messageData['errors'][0]['code'] ?? null;
+                $errorTitle = $messageData['errors'][0]['title'] ?? null;
+                $errorDetails = $messageData['errors'][0]['error_data']['details'] ?? null;
+
+                Log::warning('WhatsApp envió mensaje unsupported', [
+                    'conversation_id' => $conversation->id,
+                    'whatsapp_message_id' => $messageId,
+                    'error_code' => $errorCode,
+                    'error_title' => $errorTitle,
+                    'error_details' => $errorDetails,
+                    'errors_payload' => $messageData['errors'] ?? null,
+                    'unsupported_payload' => $messageData['unsupported'] ?? null,
+                ]);
+
+                $content = "⚠️ El paciente envió un mensaje que WhatsApp Business no entrega (probablemente \"Ver una vez\", mensaje editado, o sticker no soportado). Pídale que lo reenvíe como imagen/PDF normal.";
                 $messageType = 'text';
             }
 
@@ -1696,13 +2049,28 @@ class WhatsAppService
                 return null;
             }
 
+            // ¿Es una respuesta automática de cita (confirmar/cancelar)? En ese caso
+            // el sistema la atiende solo y debe ocultarse de los asesores: no inunda
+            // la lista de "Conversaciones" ni el hilo. Cualquier otro mensaje del
+            // paciente (incluidos los datos para cancelar) sí queda visible.
+            // Se oculta lo que el sistema resuelve solo (botones, listas, textos exactos). Si el bot solo PREGUNTA (texto
+            // libre), el mensaje queda visible para los asesores: pudo no ser sobre la cita.
+            $isAppointmentResponse = (bool) ($planCita['ocultar'] ?? false);
+
             // Crear mensaje
             $message = $conversation->messages()->create([
                 'content' => $content,
                 'message_type' => $messageType,
                 'media_url' => $mediaUrl,
                 'is_from_user' => true,
+                'is_hidden' => $isAppointmentResponse,
                 'whatsapp_message_id' => $messageId,
+                // Hora REAL de envío según WhatsApp (epoch en el webhook). created_at es
+                // cuando NOSOTROS lo procesamos; para la ventana de 24 h manda ésta, que es
+                // contra la que cuenta Meta. Antes se extraía y se descartaba.
+                'wa_sent_at' => is_numeric($timestamp)
+                    ? \Carbon\Carbon::createFromTimestamp((int) $timestamp)
+                    : null,
                 'status' => 'delivered',
                 'reply_to_id' => isset($messageData['context']['id'])
                     ? Message::where('whatsapp_message_id', $messageData['context']['id'])->value('id')
@@ -1719,13 +2087,19 @@ class WhatsAppService
                 'last_message_at' => now(),
             ]);
 
-            $conversation->incrementUnread();
+            // Los mensajes ocultos no suman no-leídos ni reactivan la vista de trabajo.
+            if (!$isAppointmentResponse) {
+                $conversation->incrementUnread();
+            }
 
             // Marcar como leído en WhatsApp
             $this->markAsRead($messageId);
 
-            // Emitir evento de broadcasting para actualización en tiempo real
-            broadcast(new MessageSent($message, $conversation->fresh(['lastMessage', 'assignedUser'])));
+            // Emitir evento de broadcasting solo para mensajes visibles, para que las
+            // confirmaciones/cancelaciones no "salten" en tiempo real a la lista.
+            if (!$isAppointmentResponse) {
+                \App\Support\TiempoReal::conversacion('mensaje_entrante', $conversation->id);
+            }
 
             Log::info('Incoming message processed', [
                 'conversation_id' => $conversation->id,
@@ -1733,11 +2107,15 @@ class WhatsAppService
             ]);
 
             // DESPUÉS de guardar el mensaje del usuario, procesar respuesta automática de appointment
-            if ($appointments->isNotEmpty()) {
-                $this->sendAppointmentAutoResponse($from, $messageData, $appointments, $conversation);
+            if ($planCita) {
+                $this->sendAppointmentAutoResponse($from, $planCita, $conversation, $message);
                 // Si fue respuesta a un recordatorio de cita, NO iniciar el flujo de bienvenida
                 return $message;
             }
+
+            // Aviso de fin de semana (Configuración): sábados y domingos, una vez por
+            // conversación, con el horario de atención. Nunca lanza excepciones.
+            app(\App\Services\WeekendNotice::class)->maybeSend($conversation, $from, $this);
 
             // --- Flujo de bienvenida ---
             // Refrescar la conversación para tener datos actualizados
@@ -1868,95 +2246,446 @@ class WhatsAppService
     }
 
     /**
-     * Busca TODOS los appointments pendientes asociados a este número (sin enviar respuesta)
-     * Retorna Collection para manejar correctamente pacientes con múltiples citas el mismo día
+     * ¿Este mensaje responde a una cita, y qué hacer? null si no: el mensaje lo ve un asesor, como cualquier otro.
+     *
+     * Antes la respuesta se aplicaba a la cita pendiente MÁS PRÓXIMA del número, sin mirar a qué recordatorio respondía
+     * el paciente (feb–ago 2026: 839 respuestas cayeron en otra cita, 71 de ellas cancelaciones), y los textos se leían
+     * por palabras sueltas («no puedo asistir» confirmaba). Ahora una cita SOLO cambia con una indicación sin duda:
+     *  - el botón de SU recordatorio, o un botón o una lista que envía el bot con el id de la cita;
+     *  - un texto exacto («Confirmo», «Cancelar», «No puedo asistir»…) cuando el número tiene una sola cita por venir.
+     * Cualquier otro texto que hable de confirmar o cancelar recibe una PREGUNTA con botones (o una lista, si hay varias
+     * citas) y queda visible para los asesores. Tras una cancelación por WhatsApp (el paciente manda los datos que se le
+     * piden) el bot no interviene.
+     *
+     * Devuelve ['tipo' => aplicar|botones|lista|ya_procesadas, 'accion' => ?string, 'citas' => Collection, 'ocultar' => bool].
      */
-    private function findAppointmentsForResponse(string $from, array $messageData): \Illuminate\Database\Eloquent\Collection
+    private function planRespuestaCita(string $from, array $messageData): ?array
     {
-        $empty = new \Illuminate\Database\Eloquent\Collection();
-
         try {
-            // Obtener el contenido del mensaje
-            $messageText = $messageData['text']['body'] ?? 
-                          $messageData['button']['text'] ?? 
-                          $messageData['button']['payload'] ?? 
-                          null;
+            $una = fn ($cita) => new \Illuminate\Database\Eloquent\Collection([$cita]);
 
-            if (!$messageText) {
-                return $empty;
+            // 1) Lo que envía el bot: lista «¿sobre cuál cita?» (cita_ver_<id>) y botones (cita_confirmar_<id> /
+            //    cita_cancelar_<id>). Solo si la cita es de este número.
+            $idInteractivo = $messageData['interactive']['list_reply']['id'] ?? $messageData['interactive']['button_reply']['id'] ?? null;
+            if (is_string($idInteractivo) && preg_match('/^cita_(confirmar|cancelar|ver)_(\d+)$/', $idInteractivo, $m)) {
+                $cita = $this->citaPorIdDelNumero((int) $m[2], $from);
+                if (!$cita) {
+                    return null;
+                }
+                return $m[1] === 'ver'
+                    ? ['tipo' => 'botones', 'accion' => null, 'citas' => $una($cita), 'ocultar' => true, 'origen' => 'bot']
+                    : ['tipo' => 'aplicar', 'accion' => $m[1], 'citas' => $una($cita), 'ocultar' => true, 'origen' => 'bot'];
             }
 
-            // Verificar si el mensaje contiene palabras clave de respuesta
-            $messageText = trim($messageText);
-            if (!preg_match('/confirmar|confirmo|asistir|asisto|cancelar|cancelo|✅|❌/i', $messageText)) {
-                return $empty;
+            $citado = (string) ($messageData['context']['id'] ?? '');
+
+            // 2) Botón de plantilla («Confirmar» / «Cancelar»): de un recordatorio → SU cita, y solo esa. De otro mensaje
+            //    (p. ej. un envío masivo con «Confirmar») → no es de una cita.
+            if (isset($messageData['button'])) {
+                $texto = trim((string) ($messageData['button']['text'] ?? $messageData['button']['payload'] ?? ''));
+                $accion = preg_match('/cancel|❌/iu', $texto) ? 'cancelar' : (preg_match('/confirm|asist|✅/iu', $texto) ? 'confirmar' : null);
+                if (!$accion || $citado === '') {
+                    return null;
+                }
+                $cita = $this->citaDelRecordatorio($citado);
+                return $cita ? ['tipo' => 'aplicar', 'accion' => $accion, 'citas' => $una($cita), 'ocultar' => true, 'origen' => 'boton'] : null;
             }
 
-            // Buscar citas con recordatorio enviado
-            $phoneDigits = substr(preg_replace('/[^0-9]/', '', $from), -10);
-            
-            // Buscar TODAS las citas pendientes (no confirmadas ni canceladas) para este teléfono
-            $appointments = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
-                ->where('reminder_sent', true)
-                ->whereNotIn('reminder_status', ['confirmed', 'cancelled'])
-                ->whereDate('citfc', '>=', now())
-                ->orderBy('citfc', 'asc')
-                ->orderBy('cithor', 'asc')
-                ->get();
-
-            // Si no hay ninguna pendiente, buscar citas recientes (máximo 2 días pasados)
-            if ($appointments->isEmpty()) {
-                $appointments = \App\Models\Appointment::where('pactel', 'LIKE', '%' . $phoneDigits . '%')
-                    ->where('reminder_sent', true)
-                    ->whereDate('citfc', '>=', now()->subDays(2))
-                    ->orderBy('citfc', 'asc')
-                    ->orderBy('cithor', 'asc')
-                    ->get();
+            // 3) Texto escrito.
+            $texto = trim((string) ($messageData['text']['body'] ?? ''));
+            if ($texto === '') {
+                return null;
+            }
+            $exacta = $this->accionExacta($texto);
+            $accion = $exacta ?? $this->intencionDeTexto($texto);
+            if (!$accion || $this->canceloHacePoco($from)) {
+                return null;
+            }
+            // En medio del menú de bienvenida (p. ej. «Cancelación de cita», que pide documento y motivo): lo atiende el
+            // flujo o un asesor, no el bot de recordatorios.
+            $conversaciones = $this->conversacionesDe($from);
+            if (\App\Models\Conversation::whereIn('id', $conversaciones)->whereNotNull('welcome_flow_step')->where('welcome_flow_completed', false)->exists()) {
+                return null;
             }
 
-            if ($appointments->isNotEmpty()) {
-                Log::info('Found appointments for response', [
-                    'phone' => $from,
-                    'count' => $appointments->count(),
-                    'ids' => $appointments->pluck('id')->toArray(),
-                ]);
+            // Citando un mensaje: el recordatorio → esa cita; la pregunta del bot → como si no citara nada; otro mensaje
+            // del hilo (de un asesor, del bot…) → no es una respuesta a un recordatorio.
+            if ($citado !== '') {
+                $cita = $this->citaDelRecordatorio($citado);
+                if ($cita) {
+                    return $exacta
+                        ? ['tipo' => 'aplicar', 'accion' => $exacta, 'citas' => $una($cita), 'ocultar' => true, 'origen' => 'texto']
+                        : ['tipo' => 'botones', 'accion' => $accion, 'citas' => $una($cita), 'ocultar' => false, 'origen' => 'texto'];
+                }
+                $citadoMensaje = Message::where('whatsapp_message_id', $citado)->first(['id', 'is_from_user', 'sent_by', 'content']);
+                if ($citadoMensaje && !$this->esPreguntaDeCita($citadoMensaje)) {
+                    return null;
+                }
             }
 
-            return $appointments;
+            $futuras = $this->citasFuturasDe($from);
+            if ($futuras->isEmpty()) {
+                // «Confirmo» sin nada por venir: si respondió hace poco, aviso de que ya estaba registrado (una vez).
+                if ($exacta === 'confirmar') {
+                    $recientes = $this->citasRespondidasRecientesDe($from);
+                    if ($recientes->isNotEmpty()) {
+                        return ['tipo' => 'ya_procesadas', 'accion' => 'confirmar', 'citas' => $recientes, 'ocultar' => true, 'origen' => 'texto'];
+                    }
+                }
+                return null;
+            }
 
-        } catch (\Exception $e) {
-            Log::error('Find appointments exception', [
-                'error' => $e->getMessage(),
-                'from' => $from,
-            ]);
-            return $empty;
+            $unica = $futuras->count() === 1 ? $futuras->first() : null;
+            // Directo solo con texto exacto, una sola cita por venir y si lo último que le escribimos fue su recordatorio o
+            // la pregunta del bot (si hablaba con un asesor, «Confirmo» puede ser otra cosa). Cancelar una cita ya
+            // confirmada, siempre preguntando.
+            if ($exacta && $unica && !($exacta === 'cancelar' && $unica->reminder_status === 'confirmed')
+                && $this->ultimoSalienteEsDeCita($unica)) {
+                return ['tipo' => 'aplicar', 'accion' => $exacta, 'citas' => $futuras, 'ocultar' => true, 'origen' => 'texto'];
+            }
+
+            return $unica
+                ? ['tipo' => 'botones', 'accion' => $accion, 'citas' => $futuras, 'ocultar' => false, 'origen' => 'texto']
+                : ['tipo' => 'lista', 'accion' => $accion, 'citas' => $futuras, 'ocultar' => false, 'origen' => 'texto'];
+
+        } catch (\Throwable $e) {
+            Log::error('Plan de respuesta de cita: error (el mensaje sigue como uno normal)', ['error' => $e->getMessage()]);
+            return null;
         }
+    }
+
+    /** Texto exacto de respuesta (todo el mensaje): 'confirmar' | 'cancelar' | null. */
+    private function accionExacta(string $texto): ?string
+    {
+        $t = mb_strtolower(trim((string) preg_replace('/[\s.,;:!¡]+/u', ' ', $texto)));
+        if ($t === '✅') {
+            return 'confirmar';
+        }
+        if ($t === '❌') {
+            return 'cancelar';
+        }
+        $t = trim((string) preg_replace('/(?:\s*(?:✅|👍|🙏|😊|☺️|🙂))+$/u', '', $t));
+        if (preg_match('/^(?:s[ií]\s+)?(?:confirmo|confirmar|confirmado|confirmada)(?:\s+(?:asistencia|la\s+cita|mi\s+cita))?(?:\s+gracias)?$/u', $t)) {
+            return 'confirmar';
+        }
+        if (preg_match('/^(?:cancelar|cancelo)(?:\s+(?:la\s+cita|mi\s+cita))?$|^no\s+(?:puedo\s+asistir|podr[eé]\s+asistir|asistir[eé])$/u', $t)) {
+            return 'cancelar';
+        }
+        return null;
+    }
+
+    /**
+     * ¿El texto habla de confirmar o cancelar? Solo decide si el bot PREGUNTA (con botones): no cambia ninguna cita.
+     * null si no es claro (preguntas, textos largos o con un número de documento, o señales de ambas cosas).
+     */
+    private function intencionDeTexto(string $texto): ?string
+    {
+        if (mb_strlen($texto) > 80 || str_contains($texto, '?') || str_contains($texto, '¿') || preg_match('/\d(?:[.\s-]?\d){5,}/', $texto)) {
+            return null;
+        }
+
+        // «No puedo asistir», «no asistiré», «no voy a poder ir»…: la negación pegada al verbo.
+        $negacion = '/\bno\s+(?:(?:puedo|podr[eé]|podemos|podremos|voy\s+a\s+poder|vamos\s+a\s+poder|alcanzo\s+a|alcanzar[eé]\s+a)\s+)?(?:asistir[eé]?|asistiremos|ir)\b/iu';
+        $cancela = (bool) preg_match('/\b(?:cancelar|cancelo|cancelamos)\b|❌/iu', $texto) || (bool) preg_match($negacion, $texto);
+        // La confirmación se busca sin las frases negadas («no asistiré» no es «asistiré»).
+        $confirma = (bool) preg_match('/\b(?:confirmo|confirmar|confirmamos|confirmada|confirmado|asisto|asistir[eé]|asistiremos)\b|✅/iu', (string) preg_replace($negacion, ' ', $texto));
+
+        if ($confirma === $cancela) {
+            return null;
+        }
+
+        return $cancela ? 'cancelar' : 'confirmar';
+    }
+
+    /** La cita $id si es de este número (las ids de los botones y listas del bot se validan contra el teléfono). */
+    private function citaPorIdDelNumero(int $id, string $from): ?\App\Models\Appointment
+    {
+        $cita = \App\Models\Appointment::find($id);
+        if (!$cita || !$cita->conversation_id || !in_array((int) $cita->conversation_id, $this->conversacionesDe($from), true)) {
+            return null;
+        }
+        return $cita;
+    }
+
+    /** La cita cuyo recordatorio es el mensaje de WhatsApp $wamid (por la conversación del mensaje, que tiene índice). */
+    private function citaDelRecordatorio(string $wamid): ?\App\Models\Appointment
+    {
+        $conversationId = Message::where('whatsapp_message_id', $wamid)->value('conversation_id');
+        if ($conversationId) {
+            // El mensaje está en el hilo: si no es el recordatorio de una cita de esa conversación, no es de una cita.
+            return \App\Models\Appointment::where('conversation_id', $conversationId)
+                ->where('reminder_whatsapp_message_id', $wamid)
+                ->first();
+        }
+
+        // Mensaje que no está en el hilo (raro): búsqueda en toda la tabla (sin índice por esa columna).
+        return \App\Models\Appointment::where('reminder_whatsapp_message_id', $wamid)->first();
+    }
+
+    /**
+     * Citas del número de hoy en adelante con recordatorio propio recibido (pendientes o confirmadas). No cuenta las
+     * canceladas, las de recordatorio fallido (el paciente nunca lo recibió) ni las gemelas sin recordatorio propio.
+     */
+    private function citasFuturasDe(string $from): \Illuminate\Database\Eloquent\Collection
+    {
+        $conversaciones = $this->conversacionesDe($from);
+        if ($conversaciones === []) {
+            return new \Illuminate\Database\Eloquent\Collection();
+        }
+
+        return \App\Models\Appointment::whereIn('conversation_id', $conversaciones)
+            ->where('reminder_sent', true)
+            ->whereNotNull('reminder_whatsapp_message_id')
+            ->whereNotIn('reminder_status', ['cancelled', 'failed'])
+            ->whereDate('citfc', '>=', $this->hoyColombia()->toDateString())
+            ->orderBy('citfc', 'asc')
+            ->orderBy('cithor', 'asc')
+            ->get();
+    }
+
+    /** Citas del número ya respondidas (confirmadas o canceladas) desde hace 2 días: para el aviso «ya procesadas». */
+    private function citasRespondidasRecientesDe(string $from): \Illuminate\Database\Eloquent\Collection
+    {
+        $conversaciones = $this->conversacionesDe($from);
+        if ($conversaciones === []) {
+            return new \Illuminate\Database\Eloquent\Collection();
+        }
+
+        return \App\Models\Appointment::whereIn('conversation_id', $conversaciones)
+            ->where('reminder_sent', true)
+            ->whereNotNull('reminder_whatsapp_message_id')
+            ->whereIn('reminder_status', ['confirmed', 'cancelled'])
+            ->whereDate('citfc', '>=', $this->hoyColombia()->subDays(2)->toDateString())
+            ->orderBy('citfc', 'asc')
+            ->orderBy('cithor', 'asc')
+            ->get();
+    }
+
+    /**
+     * ¿Canceló una cita por WhatsApp en las últimas 24 h? Entonces lo que escribe suele ser lo que el bot le pidió
+     * (documento, motivo, parentesco): lo ve un asesor y el bot no interviene.
+     */
+    private function canceloHacePoco(string $from): bool
+    {
+        $conversaciones = $this->conversacionesDe($from);
+        if ($conversaciones === []) {
+            return false;
+        }
+
+        return \App\Models\Appointment::whereIn('conversation_id', $conversaciones)
+            ->where('reminder_status', 'cancelled')
+            ->where('updated_at', '>=', now()->subDay())
+            ->where('notes', 'like', '%Paciente canceló vía WhatsApp%')
+            ->exists();
+    }
+
+    /**
+     * Conversaciones de este número (como las crea el webhook y el envío de recordatorios: «+» y los dígitos). Las citas
+     * se buscan por aquí: es la conversación a la que de verdad llegó el recordatorio, y tiene índice.
+     */
+    private function conversacionesDe(string $from): array
+    {
+        $digitos = preg_replace('/[^0-9]/', '', $from);
+        if (strlen($digitos) < 8) {
+            return [];
+        }
+
+        return \App\Models\Conversation::whereIn('phone_number', ['+' . $digitos, $digitos])
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /** ¿Es una pregunta de cita que envía este bot («¿Qué desea hacer con la cita…?» o la lista «Tiene N citas próximas»)? */
+    private function esPreguntaDeCita($mensaje): bool
+    {
+        if (!$mensaje || $mensaje->is_from_user || $mensaje->sent_by !== null) {
+            return false;
+        }
+        $contenido = (string) $mensaje->content;
+        return str_starts_with($contenido, '¿Qué desea hacer con la cita')
+            || (str_starts_with($contenido, 'Tiene ') && str_contains($contenido, 'citas próximas'));
+    }
+
+    /** ¿Lo último que le escribimos en ese hilo fue el recordatorio de esta cita o una pregunta de cita del bot? */
+    private function ultimoSalienteEsDeCita(\App\Models\Appointment $cita): bool
+    {
+        if (!$cita->conversation_id) {
+            return false;
+        }
+        $ultimo = Message::where('conversation_id', $cita->conversation_id)
+            ->where('is_from_user', false)
+            ->orderByDesc('id')
+            ->first(['id', 'is_from_user', 'sent_by', 'content', 'whatsapp_message_id']);
+
+        return $ultimo && (
+            ($cita->reminder_whatsapp_message_id && $ultimo->whatsapp_message_id === $cita->reminder_whatsapp_message_id)
+            || $this->esPreguntaDeCita($ultimo)
+        );
+    }
+
+    /**
+     * Gemelas de una cita: la misma cita repetida en otra fila (misma cédula, servicio, fecha y hora), a la que no se le
+     * mandó otro recordatorio (SendAppointmentReminderJob::marcarSiEsGemela la anota «[Duplicada de la cita #id: …]»).
+     * Siguen la respuesta de su cita: al confirmar, las que no estén respondidas; al cancelar, todas las no canceladas.
+     */
+    private function gemelasDe(\App\Models\Appointment $a, string $accion): \Illuminate\Database\Eloquent\Collection
+    {
+        if (!$a->conversation_id) {
+            return new \Illuminate\Database\Eloquent\Collection();
+        }
+
+        return \App\Models\Appointment::where('conversation_id', $a->conversation_id)
+            ->where('id', '!=', $a->id)
+            ->where('notes', 'like', '%[Duplicada de la cita #' . $a->id . ':%')
+            // marcarSiEsGemela no mira el médico: con otro médico o especialidad es otra cita y no se toca.
+            ->where(fn ($q) => $a->citmed === null ? $q->whereNull('citmed') : $q->where('citmed', $a->citmed))
+            ->where(fn ($q) => $a->espnom === null ? $q->whereNull('espnom') : $q->where('espnom', $a->espnom))
+            ->whereNotIn('reminder_status', $accion === 'confirmar' ? ['confirmed', 'cancelled'] : ['cancelled'])
+            ->lockForUpdate()
+            ->get();
+    }
+
+    /**
+     * Hoy en Colombia. La app corre en UTC pero citfc es la fecha local de la cita: desde las 7 p. m. «hoy» en UTC ya
+     * es mañana, y las citas de hoy se daban por pasadas.
+     */
+    private function hoyColombia(): \Carbon\Carbon
+    {
+        return \Carbon\Carbon::now('America/Bogota')->startOfDay();
+    }
+
+    /**
+     * Aplica la respuesta del paciente a UNA cita (y a sus gemelas). Devuelve [texto de respuesta (sin firma) o null,
+     * ¿flujo terminado?].
+     *
+     * Confirmar una cita confirmada o cancelada, cancelar una cancelada o responder a una cita pasada solo informan, y
+     * una sola vez por cita (para no responder a cada toque). Cancelar una cita confirmada SÍ se permite (antes se
+     * respondía «ya procesada» y la cita quedaba confirmada aunque el paciente no iba a ir: 846 casos).
+     */
+    private function aplicarRespuestaCita(\App\Models\Appointment $a, string $accion): array
+    {
+        $marcaHora = '[' . now()->format('Y-m-d H:i') . ']';
+        $notas = $a->notes ?? '';
+        $cual = $this->descripcionCita($a);
+
+        $unaVez = function (string $marca, string $texto) use ($a, $notas, $marcaHora): array {
+            if (str_contains($notas, $marca)) {
+                return [null, true];
+            }
+            $a->update(['notes' => $notas . "\n{$marcaHora} {$marca}"]);
+            return [$texto, true];
+        };
+
+        // Recordatorio de una cita que ya pasó: no se cambia nada.
+        if ($a->citfc->toDateString() < $this->hoyColombia()->toDateString()) {
+            return $unaVez('[Aviso: la cita ya pasó]', "ℹ️ Esta cita ya pasó: {$cual}.\n\nPara programar una nueva cita:\n🌐 *Página web de citas:* https://citas.huv.gov.co/login\n📞 *Teléfono:* 6206275");
+        }
+
+        if ($accion === 'confirmar') {
+            if ($a->reminder_status === 'confirmed') {
+                return $unaVez('[Aviso: ya estaba confirmada]', "✅ Su cita ya estaba confirmada: {$cual}.\n\nLo esperamos en el Hospital Universitario del Valle.");
+            }
+            if ($a->reminder_status === 'cancelled') {
+                return $unaVez('[Aviso: cancelada, no se reconfirma]', "ℹ️ Esta cita fue cancelada y no se puede volver a confirmar por este medio: {$cual}.\n\nPara programar una nueva cita:\n🌐 *Página web de citas:* https://citas.huv.gov.co/login\n📞 *Teléfono:* 6206275");
+            }
+            $a->update([
+                'reminder_status' => 'confirmed',
+                'notes' => $notas . "\n{$marcaHora} Paciente confirmó asistencia vía WhatsApp",
+            ]);
+            foreach ($this->gemelasDe($a, 'confirmar') as $g) {
+                $g->update(['reminder_status' => 'confirmed', 'notes' => ($g->notes ?? '') . "\n{$marcaHora} Confirmada junto con su cita #{$a->id} (vía WhatsApp)"]);
+            }
+            Log::info('Appointment confirmed by patient', ['appointment_id' => $a->id]);
+            return ["✅ *Confirmación recibida*\n\nSe ha confirmado {$cual}.\n\nLo esperamos en el Hospital Universitario del Valle.", true];
+        }
+
+        if ($a->reminder_status === 'cancelled') {
+            return $unaVez('[Aviso: ya estaba cancelada]', "❌ Su cita ya estaba cancelada: {$cual}.");
+        }
+        $antes = $a->reminder_status === 'confirmed' ? ' (antes la había confirmado)' : '';
+        $a->update([
+            'reminder_status' => 'cancelled',
+            'notes' => $notas . "\n{$marcaHora} Paciente canceló vía WhatsApp{$antes}",
+        ]);
+        foreach ($this->gemelasDe($a, 'cancelar') as $g) {
+            $g->update(['reminder_status' => 'cancelled', 'notes' => ($g->notes ?? '') . "\n{$marcaHora} Cancelada junto con su cita #{$a->id} (vía WhatsApp)"]);
+        }
+        Log::info('Appointment cancelled by patient', ['appointment_id' => $a->id, 'estaba_confirmada' => $antes !== '']);
+        return ["❌ *Cancelación* de {$cual}.\n\nEstimado usuario/a, para hacer efectiva tu cancelación, por favor envíanos la siguiente información:\n\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\nHasta no enviar la información no se cancelará la consulta.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n🌐 *Página web de citas:* https://citas.huv.gov.co/login\n📞 *Teléfono:* 6206275", true];
+    }
+
+    /** «la cita de *Paciente* del dd/mm/aaaa a las hh:mm AM — Especialidad». */
+    private function descripcionCita(\App\Models\Appointment $a): string
+    {
+        $hora = $this->formatHoraForResponse($a->cithor);
+        $paciente = $a->nom_paciente ?? 'Paciente';
+        $especialidad = $a->espnom ?? 'No especificada';
+        return "la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}";
     }
 
     /**
      * Envía y guarda la respuesta automática del appointment
      * Soporta múltiples citas del mismo paciente en el mismo día
      */
-    private function sendAppointmentAutoResponse(string $from, array $messageData, \Illuminate\Database\Eloquent\Collection $appointments, \App\Models\Conversation $conversation): void
+    /**
+     * Procesa una reacción entrante: la adjunta al mensaje original (o la elimina si el
+     * emoji viene vacío) y la difunde en tiempo real. No crea un mensaje de texto.
+     */
+    private function handleIncomingReaction(Conversation $conversation, array $messageData): void
     {
+        $reaction = $messageData['reaction'] ?? [];
+        $targetWamid = $reaction['message_id'] ?? null;
+        $emoji = $reaction['emoji'] ?? '';
+        $reactionWamid = $messageData['id'] ?? null;
+
+        // Marcar el evento como leído para evitar reintentos del webhook
+        if ($reactionWamid) {
+            $this->markAsRead($reactionWamid);
+        }
+
+        if (!$targetWamid) {
+            return;
+        }
+
+        $target = Message::where('whatsapp_message_id', $targetWamid)
+            ->where('conversation_id', $conversation->id)
+            ->first();
+
+        if (!$target) {
+            Log::info('Reacción entrante sin mensaje destino en BD', [
+                'conversation_id' => $conversation->id,
+                'target_wamid' => $targetWamid,
+            ]);
+            return;
+        }
+
+        if ($emoji === '') {
+            // El paciente quitó su reacción
+            $target->reactions()->where('from_user', true)->delete();
+            \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
+            return;
+        }
+
+        // Crear o actualizar la reacción del paciente (máximo una por lado)
+        MessageReaction::updateOrCreate(
+            ['message_id' => $target->id, 'from_user' => true],
+            ['emoji' => $emoji, 'whatsapp_message_id' => $reactionWamid]
+        );
+
+        \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
+    }
+
+    private function sendAppointmentAutoResponse(string $from, array $plan, \App\Models\Conversation $conversation, ?Message $mensajePaciente = null): void
+    {
+        $enviado = false;
+        $falloEnvio = false;
         try {
-            // Obtener el contenido del mensaje
-            $messageText = $messageData['text']['body'] ?? 
-                          $messageData['button']['text'] ?? 
-                          $messageData['button']['payload'] ?? 
-                          null;
-
-            if (!$messageText) {
-                return;
-            }
-
-            // Normalizar el texto
-            $messageText = trim($messageText);
-
-            // Usar transacción con bloqueo pesimista para evitar condiciones de carrera
-            \Illuminate\Support\Facades\DB::transaction(function () use ($from, $messageText, $appointments, $conversation) {
-                // Bloquear TODAS las citas para evitar lecturas concurrentes
-                $appointmentIds = $appointments->pluck('id')->toArray();
+            // Transacción con bloqueo pesimista para evitar condiciones de carrera (dos toques casi a la vez). Primero la
+            // conversación: así dos avisos del mismo hilo van en fila y no se cruzan los bloqueos de citas y gemelas.
+            \Illuminate\Support\Facades\DB::transaction(function () use ($from, $plan, $conversation, &$enviado, &$falloEnvio) {
+                \App\Models\Conversation::whereKey($conversation->id)->lockForUpdate()->first(['id']);
+                $appointmentIds = $plan['citas']->pluck('id')->toArray();
                 $lockedAppointments = \App\Models\Appointment::whereIn('id', $appointmentIds)
                     ->lockForUpdate()
                     ->orderBy('citfc', 'asc')
@@ -1970,24 +2699,62 @@ class WhatsAppService
                     return;
                 }
 
-                // Separar citas que ya tienen estado final vs las pendientes
-                $alreadyProcessed = $lockedAppointments->filter(fn ($a) => in_array($a->reminder_status, ['confirmed', 'cancelled']));
-                $pendingAppointments = $lockedAppointments->filter(fn ($a) => !in_array($a->reminder_status, ['confirmed', 'cancelled']));
-
                 $responseMessage = null;
+                $autoResolveConversation = false;
+                $botones = null;
+                $lista = null;
 
-                // Si TODAS las citas ya fueron procesadas, enviar advertencia (solo una vez)
-                if ($pendingAppointments->isEmpty() && $alreadyProcessed->isNotEmpty()) {
-                    $firstProcessed = $alreadyProcessed->first();
+                if ($plan['tipo'] === 'aplicar') {
+                    $cita = $lockedAppointments->first();
+                    [$responseMessage, $autoResolveConversation] = $this->aplicarRespuestaCita($cita, $plan['accion']);
+                    if ($responseMessage) {
+                        // Las demás citas del número que siguen esperando respuesta, para que responda la de cada una.
+                        $otras = $this->citasFuturasDe($from)
+                            ->reject(fn ($o) => (int) $o->id === (int) $cita->id || $o->reminder_status === 'confirmed');
+                        if ($otras->isNotEmpty()) {
+                            $detalle = $otras->map(function ($o) {
+                                $h = $this->formatHoraForResponse($o->cithor);
+                                $p = $o->nom_paciente ?? 'Paciente';
+                                $e = $o->espnom ?? 'No especificada';
+                                return "• *{$p}*\n  {$o->citfc->format('d/m/Y')} a las {$h} — {$e}";
+                            })->join("\n\n");
+                            $n = $otras->count();
+                            $responseMessage .= "\n\n📋 Además tiene {$n} " . ($n === 1 ? 'cita pendiente' : 'citas pendientes') . " de respuesta:\n\n{$detalle}\n\nPara cada una, responda con los botones de su recordatorio.";
+                            $autoResolveConversation = false;
+                        }
+                        $responseMessage .= "\n\n_HUV - Evaristo García_";
+                    }
+                } elseif ($plan['tipo'] === 'botones') {
+                    // Pregunta con botones sobre UNA cita: nada cambia hasta que el paciente toque uno.
+                    $cita = $lockedAppointments->first();
+                    $confirmada = $cita->reminder_status === 'confirmed' ? "\n\n(Esta cita ya está confirmada.)" : '';
+                    $responseMessage = '¿Qué desea hacer con ' . $this->descripcionCita($cita) . "?{$confirmada}";
+                    $botones = [
+                        ['id' => "cita_confirmar_{$cita->id}", 'title' => 'Confirmar'],
+                        ['id' => "cita_cancelar_{$cita->id}", 'title' => 'Cancelar'],
+                    ];
+                } elseif ($plan['tipo'] === 'lista') {
+                    // Varias citas: primero cuál (lista); luego, botones para esa cita. Nada cambia hasta elegir.
+                    $n = $lockedAppointments->count();
+                    $responseMessage = "Tiene {$n} citas próximas. ¿Sobre cuál nos escribe?\n\nToque «Ver citas» y elija una."
+                        . ($n > 10 ? "\n\n(Se muestran las 10 más próximas.)" : '');
+                    $lista = $lockedAppointments->take(10)->map(fn ($a) => [
+                        'id' => "cita_ver_{$a->id}",
+                        'title' => $a->citfc->format('d/m/Y') . ' ' . $this->formatHoraForResponse($a->cithor),
+                        'description' => trim(($a->nom_paciente ?? 'Paciente') . ' · ' . ($a->espnom ?? '') . ($a->reminder_status === 'confirmed' ? ' · confirmada' : '')),
+                    ])->values()->all();
+                } elseif ($plan['tipo'] === 'ya_procesadas') {
+                    // «Confirmo» sin citas por venir: aviso de que ya estaban registradas (solo una vez).
+                    $firstProcessed = $lockedAppointments->first();
                     if (str_contains($firstProcessed->notes ?? '', '[Advertencia de estado final enviada]')) {
                         Log::info('Final status warning already sent, ignoring new response', [
                             'appointment_ids' => $appointmentIds,
-                            'phone' => $from
+                            'phone' => $from,
                         ]);
                         return;
                     }
 
-                    $citasInfo = $alreadyProcessed->map(function ($a) {
+                    $citasInfo = $lockedAppointments->map(function ($a) {
                         $hora = $this->formatHoraForResponse($a->cithor);
                         $status = $a->reminder_status === 'confirmed' ? 'CONFIRMADA' : 'CANCELADA';
                         $paciente = $a->nom_paciente ?? 'Paciente';
@@ -1995,123 +2762,76 @@ class WhatsAppService
                     })->join("\n\n");
 
                     $responseMessage = "⚠️ *Citas ya procesadas*\n\nSus citas ya se encuentran registradas:\n\n{$citasInfo}\n\nSi necesita realizar cambios adicionales, por favor contacte con un asesor.\n\n_HUV - Evaristo García_";
+                    $autoResolveConversation = true;
 
-                    foreach ($alreadyProcessed as $a) {
+                    foreach ($lockedAppointments as $a) {
                         $a->update([
                             'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] [Advertencia de estado final enviada]"
                         ]);
                     }
-
-                    Log::info('All appointments already have final status, sending info message', [
-                        'appointment_ids' => $appointmentIds,
-                        'phone' => $from,
-                        'attempted_action' => $messageText
-                    ]);
                 }
-                // Detectar tipo de respuesta — procesar UNA cita a la vez (la primera pendiente)
-                elseif (preg_match('/confirmar|confirmo|asistir|asisto|✅/i', $messageText)) {
-                    $a = $pendingAppointments->first();
-                    $a->update([
-                        'reminder_status' => 'confirmed',
-                        'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente confirmó asistencia vía WhatsApp"
-                    ]);
 
-                    $hora = $this->formatHoraForResponse($a->cithor);
-                    $paciente = $a->nom_paciente ?? 'Paciente';
-                    $especialidad = $a->espnom ?? 'No especificada';
-
-                    $remaining = $pendingAppointments->slice(1);
-
-                    if ($remaining->isEmpty()) {
-                        $responseMessage = "✅ *Confirmación recibida*\n\nSe ha confirmado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\nLo esperamos en el Hospital Universitario del Valle.\n\n_HUV - Evaristo García_";
-                    } else {
-                        $nextInfo = $remaining->map(function ($r) {
-                            $h = $this->formatHoraForResponse($r->cithor);
-                            $p = $r->nom_paciente ?? 'Paciente';
-                            $e = $r->espnom ?? 'No especificada';
-                            return "• *{$p}*\n  {$r->citfc->format('d/m/Y')} a las {$h} — {$e}";
-                        })->join("\n\n");
-
-                        $responseMessage = "✅ *Confirmación recibida*\n\nSe ha confirmado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\n📋 Aún tiene " . $remaining->count() . " " . ($remaining->count() === 1 ? 'cita pendiente' : 'citas pendientes') . ":\n\n{$nextInfo}\n\nResponda *confirmar* o *cancelar* para esta cita.\n\n_HUV - Evaristo García_";
-                    }
-
-                    Log::info('Appointment confirmed by patient (sequential)', [
-                        'appointment_id' => $a->id,
-                        'remaining' => $remaining->pluck('id')->toArray(),
-                        'phone' => $from,
-                    ]);
-
-                } elseif (preg_match('/cancelar|cancelo|no.*asistir|no.*podré|❌/i', $messageText)) {
-                    $a = $pendingAppointments->first();
-                    $a->update([
-                        'reminder_status' => 'cancelled',
-                        'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] Paciente canceló vía WhatsApp"
-                    ]);
-
-                    $hora = $this->formatHoraForResponse($a->cithor);
-                    $paciente = $a->nom_paciente ?? 'Paciente';
-                    $especialidad = $a->espnom ?? 'No especificada';
-
-                    $remaining = $pendingAppointments->slice(1);
-
-                    if ($remaining->isEmpty()) {
-                        $responseMessage = "❌ *Cancelación registrada*\n\nSe ha cancelado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\nPara programar tu nueva cita, recuerda nuestros canales:\n\n🌐 *Página web de citas:*\nhttps://citas.huv.gov.co/login\n\n📞 *Teléfono:* 6206275\n\nPara cancelación de la cita me regala su información:\n📄 Documento de identidad del paciente\n📝 Motivo de cancelación\n👤 Nombre completo de quien cancela la cita\n👥 Parentesco\n\n_HUV - Evaristo García_";
-                    } else {
-                        $nextInfo = $remaining->map(function ($r) {
-                            $h = $this->formatHoraForResponse($r->cithor);
-                            $p = $r->nom_paciente ?? 'Paciente';
-                            $e = $r->espnom ?? 'No especificada';
-                            return "• *{$p}*\n  {$r->citfc->format('d/m/Y')} a las {$h} — {$e}";
-                        })->join("\n\n");
-
-                        $responseMessage = "❌ *Cancelación registrada*\n\nSe ha cancelado la cita de *{$paciente}* del {$a->citfc->format('d/m/Y')} a las {$hora} — {$especialidad}.\n\n📋 Aún tiene " . $remaining->count() . " " . ($remaining->count() === 1 ? 'cita pendiente' : 'citas pendientes') . ":\n\n{$nextInfo}\n\nResponda *confirmar* o *cancelar* para esta cita.\n\n_HUV - Evaristo García_";
-                    }
-
-                    Log::info('Appointment cancelled by patient (sequential)', [
-                        'appointment_id' => $a->id,
-                        'remaining' => $remaining->pluck('id')->toArray(),
-                        'phone' => $from,
-                    ]);
-
-                } else {
-                    // Respuesta no reconocida
+                if (!$responseMessage) {
                     return;
                 }
 
-                // Enviar respuesta automática y guardar en BD
-                if ($responseMessage) {
-                    // Enviar mensaje a WhatsApp
-                    $result = $this->sendTextMessage($from, $responseMessage);
-                    
-                    Log::info('Send automatic response result', [
-                        'success' => $result['success'] ?? false,
-                        'message_id' => $result['message_id'] ?? null,
-                        'error' => $result['error'] ?? null
-                    ]);
-                    
-                    // Guardar mensaje en la conversación
-                    if (($result['success'] ?? false) && isset($result['message_id'])) {
-                        $messageId = $result['message_id'];
-                        
-                        \App\Models\Message::create([
-                            'conversation_id' => $conversation->id,
-                            'content' => $responseMessage,
-                            'message_type' => 'text',
-                            'is_from_user' => false,
-                            'whatsapp_message_id' => $messageId,
-                            'status' => 'sent',
-                            'sent_by' => null // Sistema automático
+                // Enviar a WhatsApp: lista, botones o texto.
+                $result = $lista
+                    ? $this->sendInteractiveListMessage($from, $responseMessage, 'Ver citas', [['title' => 'Citas', 'rows' => $lista]])
+                    : ($botones
+                        ? $this->sendInteractiveButtonMessage($from, $responseMessage, $botones)
+                        : $this->sendTextMessage($from, $responseMessage));
+                // Lo que se guarda en el hilo: el texto y las opciones.
+                if ($lista) {
+                    $responseMessage .= "\n\n" . collect($lista)->map(fn ($f) => '• ' . $f['title'] . ' — ' . $f['description'])->join("\n");
+                } elseif ($botones) {
+                    $responseMessage .= "\n\n[" . collect($botones)->pluck('title')->join('] [') . ']';
+                }
+
+                Log::info('Send automatic response result', [
+                    'tipo' => $plan['tipo'],
+                    'success' => $result['success'] ?? false,
+                    'message_id' => $result['message_id'] ?? null,
+                    'error' => $result['error'] ?? null,
+                ]);
+
+                if (!(($result['success'] ?? false) && isset($result['message_id']))) {
+                    Log::error('Failed to save automatic response', ['result' => $result, 'from' => $from]);
+                    $falloEnvio = true;
+                    return;
+                }
+                $enviado = true;
+
+                \App\Models\Message::create([
+                    'conversation_id' => $conversation->id,
+                    'content' => $responseMessage,
+                    'message_type' => 'text',
+                    'is_from_user' => false,
+                    // Oculta si el sistema lo resolvió solo; visible si solo pregunta (el asesor ve la conversación entera).
+                    'is_hidden' => (bool) $plan['ocultar'],
+                    'whatsapp_message_id' => $result['message_id'],
+                    'status' => 'sent',
+                    'sent_by' => null, // Sistema automático
+                ]);
+
+                // Confirmación/cancelación gestionada 100% por el sistema: sacar la conversación de "Todos" (pasa a
+                // "Resueltos") SOLO si nadie la tiene asignada y no hay ningún mensaje real sin leer. Si el paciente vuelve
+                // a escribir, la reactivación automática la reabre en "Todos".
+                if ($autoResolveConversation) {
+                    $closed = \App\Models\Conversation::where('id', $conversation->id)
+                        ->whereNull('assigned_to')
+                        ->where('unread_count', 0)
+                        ->whereIn('status', ['active', 'pending'])
+                        ->update([
+                            'status' => 'resolved',
+                            'resolved_at' => now(),
+                            'resolved_by' => null, // Auto-resuelto por el SISTEMA: no atribuir a un asesor
+                            'unread_count' => 0,
                         ]);
-                        
-                        Log::info('Automatic response saved to database', [
+
+                    if ($closed) {
+                        Log::info('Conversación auto-resuelta tras confirmación de cita', [
                             'conversation_id' => $conversation->id,
-                            'message_id' => $messageId,
-                            'appointment_ids' => $lockedAppointments->pluck('id')->toArray()
-                        ]);
-                    } else {
-                        Log::error('Failed to save automatic response', [
-                            'result' => $result,
-                            'from' => $from
                         ]);
                     }
                 }
@@ -2122,6 +2842,19 @@ class WhatsAppService
                 'error' => $e->getMessage(),
                 'from' => $from,
             ]);
+            $falloEnvio = true;
+        }
+
+        // El mensaje del paciente se ocultó porque lo iba a resolver el sistema. Si al final no se le respondió nada (un
+        // texto con un aviso que ya se había dado) o falló el envío, que lo vea un asesor.
+        if ($mensajePaciente && $mensajePaciente->is_hidden && !$enviado
+            && ($falloEnvio || ($plan['origen'] ?? '') === 'texto')) {
+            try {
+                $mensajePaciente->update(['is_hidden' => false]);
+                $conversation->incrementUnread();
+                \App\Support\TiempoReal::conversacion('mensaje_entrante', $conversation->id);
+            } catch (\Throwable) {
+            }
         }
     }
 
@@ -2188,7 +2921,7 @@ class WhatsAppService
 
                 // Re-emitir evento para actualizar la UI con la transcripción
                 $conversation = $message->conversation->fresh(['lastMessage', 'assignedUser']);
-                broadcast(new \App\Events\MessageSent($message->fresh(), $conversation));
+                \App\Support\TiempoReal::conversacion('mensaje', $conversation->id);
             }
         } catch (\Exception $e) {
             Log::error('Audio transcription failed', [

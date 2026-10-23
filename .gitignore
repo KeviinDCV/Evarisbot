@@ -14,6 +14,14 @@
 .env
 .env.backup
 .env.production
+# Cualquier copia del .env (.env.bak, .env.bak-AAAAMMDD-HHMMSS, .env.old…).
+# Una de estas llegó a un commit con credenciales reales dentro y el push quedó
+# bloqueado por el escáner de secretos. El .env ya se ignora, pero sus copias no.
+.env.bak*
+.env.*.bak
+.env.old
+!.env.example
+!.env.*.example
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
@@ -26,3 +34,4 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+/.claude

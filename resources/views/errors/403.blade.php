@@ -44,7 +44,7 @@
         <div class="code">403</div>
         <h1>Acceso denegado</h1>
         <p>No tienes permisos para acceder a esta página. Si crees que es un error, contacta al administrador del sistema.</p>
-        <a href="/admin/dashboard" class="btn">← Volver al inicio</a>
+        <a href="/dashboard" class="btn">← Volver al inicio</a>
         <div class="logo">Evarisbot — Hospital Universitario del Valle</div>
     </div>
 </body>

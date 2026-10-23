@@ -17,7 +17,7 @@ class UserSeeder extends Seeder
         User::create([
             'name' => 'Administrador',
             'email' => 'admin@evarisbot.com',
-            'password' => Hash::make('admin123'),
+            'password' => Hash::make($claveAdmin = \Illuminate\Support\Str::password(16)),
             'role' => 'admin',
             'email_verified_at' => now(),
         ]);
@@ -26,13 +26,14 @@ class UserSeeder extends Seeder
         User::create([
             'name' => 'Asesor Demo',
             'email' => 'asesor@evarisbot.com',
-            'password' => Hash::make('asesor123'),
+            'password' => Hash::make($claveAsesor = \Illuminate\Support\Str::password(16)),
             'role' => 'advisor',
             'email_verified_at' => now(),
         ]);
 
         $this->command->info('✅ Usuarios creados exitosamente:');
-        $this->command->info('   👤 Administrador: admin@evarisbot.com / admin123');
-        $this->command->info('   👤 Asesor: asesor@evarisbot.com / asesor123');
+        $this->command->info('   👤 Administrador: admin@evarisbot.com / ' . $claveAdmin);
+        $this->command->info('   👤 Asesor: asesor@evarisbot.com / ' . $claveAsesor);
+        $this->command->warn('   Contraseñas aleatorias: cámbielas al primer ingreso. No use este seeder en producción.');
     }
 }

@@ -52,8 +52,8 @@ class AutoSendAppointmentReminders extends Command
         // ---------------------------------------------------------------
         $maxPerDay = (int) Setting::get('reminder_max_per_day', '1000');
 
-        $tomorrowDate = now()->addDay()->startOfDay()->format('Y-m-d');
-        $dayAfterDate = now()->addDays(2)->startOfDay()->format('Y-m-d');
+        $tomorrowDate = now()->setTimezone('America/Bogota')->addDay()->startOfDay()->format('Y-m-d');
+        $dayAfterDate = now()->setTimezone('America/Bogota')->addDays(2)->startOfDay()->format('Y-m-d');
 
         $pendingAppointments = Appointment::query()
             ->where(function ($q) use ($tomorrowDate, $dayAfterDate) {

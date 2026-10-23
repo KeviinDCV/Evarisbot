@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Message extends Model
 {
@@ -16,15 +17,24 @@ class Message extends Model
         'media_filename',
         'transcription',
         'is_from_user',
+        'is_hidden',
         'whatsapp_message_id',
+        'wa_sent_at',
         'reply_to_id',
         'status',
         'error_message',
         'sent_by',
+        'pricing_category',
+        'pricing_model',
+        'billable',
+        'conversation_origin_type',
+        'wa_conversation_id',
     ];
 
     protected $casts = [
         'is_from_user' => 'boolean',
+        'is_hidden' => 'boolean',
+        'billable' => 'boolean',
     ];
 
     /**
@@ -49,6 +59,15 @@ class Message extends Model
     public function replyTo(): BelongsTo
     {
         return $this->belongsTo(Message::class, 'reply_to_id');
+    }
+
+    /**
+     * Reacciones (emojis) sobre este mensaje.
+     * Como máximo una por lado (paciente / negocio).
+     */
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(MessageReaction::class);
     }
 
     /**
@@ -106,5 +125,14 @@ class Message extends Model
     public function scopeUnread($query)
     {
         return $query->where('status', '!=', 'read');
+    }
+
+    /**
+     * Solo mensajes visibles para los asesores (excluye respuestas
+     * automáticas de cita marcadas como ocultas).
+     */
+    public function scopeVisible($query)
+    {
+        return $query->where('is_hidden', false);
     }
 }
