@@ -690,19 +690,112 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     );
 }
 
+/** Desde cuándo se muestra cada alerta en este navegador (código de la alerta → milisegundos). */
+const CLAVE_ALERTAS_VISTAS = 'evarisbot:alertas-vistas';
+/** Una alerta queda a la vista 3 minutos (o hasta que se cierre) y luego se oculta sola. */
+const ALERTA_A_LA_VISTA_MS = 3 * 60_000;
+/**
+ * Si sigue viva, vuelve a salir pasado este tiempo: 1 hora las graves (pueden no estar llegando mensajes o alguien
+ * tocó la cuenta de WhatsApp: el incidente de octubre pasó 56 horas sin que nadie se enterara) y 24 horas los avisos
+ * (disco, respaldo, envíos fallidos). Mientras tanto se siguen viendo en Configuración.
+ */
+const ALERTA_VUELVE_MS = { grave: 60 * 60_000, aviso: 24 * 60 * 60_000 };
+const ALERTA_GRAVE = /^(meta_override|meta_webhook_|meta_token|meta_config|meta_plantillas|silencio|worker)/;
+
+// Copia en memoria por si el navegador no deja guardar (ventana privada, almacenamiento bloqueado).
+let alertasVistasEnMemoria: Record<string, number> = {};
+
+function leerAlertasVistas(): Record<string, number> {
+    try {
+        const guardado = localStorage.getItem(CLAVE_ALERTAS_VISTAS);
+        const valor: unknown = guardado === null ? null : JSON.parse(guardado);
+        if (valor && typeof valor === 'object' && !Array.isArray(valor)) return { ...(valor as Record<string, number>) };
+    } catch {
+        // Ilegible o bloqueado: se usa la copia en memoria.
+    }
+    return { ...alertasVistasEnMemoria };
+}
+
+function guardarAlertasVistas(vistas: Record<string, number>): void {
+    alertasVistasEnMemoria = vistas;
+    try {
+        localStorage.setItem(CLAVE_ALERTAS_VISTAS, JSON.stringify(vistas));
+    } catch {
+        // Sin almacenamiento: vale la copia en memoria mientras la pestaña siga abierta.
+    }
+}
+
 /**
  * Franja roja con las alertas de la vigilancia del webhook (app/Services/WebhookWatchdog.php):
  * desvío del webhook en Meta, token rechazado, plantillas desconocidas, silencio de mensajes, cola
  * detenida o disco lleno. Solo llega a los administradores. Es fija (no empuja el contenido de la
- * página) y se puede cerrar; vuelve a salir en la siguiente navegación mientras la alerta siga viva.
+ * página). Se va sola a los 3 minutos o al cerrarla, y no vuelve al recargar: vuelve a salir si
+ * aparece una alerta nueva o, si la misma sigue viva, pasado ALERTA_VUELVE_MS. Lo visto se recuerda
+ * por navegador (localStorage), por código de alerta: el texto cambia (el disco dice los GB libres).
  */
 function AlertaSeguridad() {
     const { t } = useTranslation();
     const { alertasSeguridad } = usePage<PageProps>().props;
-    const [cerrada, setCerrada] = useState(false);
-    const lista = alertasSeguridad && !Array.isArray(alertasSeguridad) ? Object.values(alertasSeguridad).map(String) : [];
+    const alertas = alertasSeguridad && !Array.isArray(alertasSeguridad) ? Object.entries(alertasSeguridad).map(([codigo, texto]) => ({ codigo, texto: String(texto) })) : [];
+    const codigos = alertas.map((alerta) => alerta.codigo).join('|');
+    // Códigos a la vista. Vacío hasta revisar lo guardado: así no parpadea una alerta que ya se vio.
+    const [aLaVista, setALaVista] = useState<string[]>([]);
 
-    if (cerrada || lista.length === 0) return null;
+    useEffect(() => {
+        let reloj: number | undefined;
+        // Las nuevas y las que ya cumplieron su pausa empiezan sus 3 minutos; las que están dentro de ellos siguen; el
+        // resto queda oculto. La siguiente revisión, para cuando se acabe el tiempo de alguna.
+        const revisar = () => {
+            window.clearTimeout(reloj);
+            const ahora = Date.now();
+            const vistas = leerAlertasVistas();
+            const visibles: string[] = [];
+            let proxima = Infinity;
+            for (const codigo of codigos ? codigos.split('|') : []) {
+                const desde = vistas[codigo];
+                const vuelve = ALERTA_GRAVE.test(codigo) ? ALERTA_VUELVE_MS.grave : ALERTA_VUELVE_MS.aviso;
+                if (typeof desde !== 'number' || ahora - desde >= vuelve) {
+                    vistas[codigo] = ahora;
+                    visibles.push(codigo);
+                    proxima = Math.min(proxima, ALERTA_A_LA_VISTA_MS);
+                } else if (ahora - desde < ALERTA_A_LA_VISTA_MS) {
+                    visibles.push(codigo);
+                    proxima = Math.min(proxima, desde + ALERTA_A_LA_VISTA_MS - ahora);
+                } else {
+                    proxima = Math.min(proxima, desde + vuelve - ahora);
+                }
+            }
+            // Lo de hace más de una semana ya no sirve (ninguna pausa dura tanto).
+            for (const [codigo, desde] of Object.entries(vistas)) {
+                if (typeof desde !== 'number' || ahora - desde > 7 * 24 * 60 * 60_000) delete vistas[codigo];
+            }
+            guardarAlertasVistas(vistas);
+            setALaVista(visibles);
+            if (proxima < Infinity) reloj = window.setTimeout(revisar, proxima + 500);
+        };
+        revisar();
+        // Cerrada en otra pestaña: aquí también se oculta.
+        const enOtraPestana = (e: StorageEvent) => {
+            if (e.key === CLAVE_ALERTAS_VISTAS) revisar();
+        };
+        window.addEventListener('storage', enOtraPestana);
+        return () => {
+            window.clearTimeout(reloj);
+            window.removeEventListener('storage', enOtraPestana);
+        };
+    }, [codigos]);
+
+    // Cerrar = dar por cumplidos sus minutos a la vista: la pausa empieza ahora.
+    const cerrar = () => {
+        const vistas = leerAlertasVistas();
+        const ahora = Date.now();
+        for (const codigo of aLaVista) vistas[codigo] = ahora - ALERTA_A_LA_VISTA_MS;
+        guardarAlertasVistas(vistas);
+        setALaVista([]);
+    };
+
+    const lista = alertas.filter((alerta) => aLaVista.includes(alerta.codigo)).map((alerta) => alerta.texto);
+    if (lista.length === 0) return null;
 
     return (
         <div
@@ -714,7 +807,7 @@ function AlertaSeguridad() {
                 <p className="font-semibold">{t('common.systemAlert')}</p>
                 <button
                     type="button"
-                    onClick={() => setCerrada(true)}
+                    onClick={cerrar}
                     className="shrink-0 rounded px-1.5 text-red-700 hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900"
                     aria-label={t('common.closeAlert')}
                 >

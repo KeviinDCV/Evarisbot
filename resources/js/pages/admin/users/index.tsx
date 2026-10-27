@@ -519,11 +519,12 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             return matchesSearch && matchesRole;
         });
 
-        // Los conectados arriba. Se ordena SÓLO por ese criterio: Array.sort es estable,
-        // así que dentro de cada grupo se conserva el orden que manda el servidor (los más
-        // recientes primero). Ordenar además por última actividad haría saltar las filas
-        // cada vez que alguien hace algo.
-        return visibles.sort((a, b) => Number(b.is_online) - Number(a.is_online));
+        // Los conectados arriba, en el orden que manda el servidor (Array.sort es estable):
+        // ordenarlos por última actividad haría saltar las filas cada vez que alguien hace algo.
+        // Los desconectados, del que se conectó más recientemente al que hace más tiempo (su
+        // última actividad ya no cambia); los que nunca han entrado, al final.
+        const ultimaVez = (user: User) => (user.last_activity_at ? Date.parse(user.last_activity_at) || 0 : 0);
+        return visibles.sort((a, b) => Number(b.is_online) - Number(a.is_online) || (a.is_online ? 0 : ultimaVez(b) - ultimaVez(a)));
     }, [roleFilter, search, users]);
 
     // Las dos bandas de la lista: primero los que están, luego el resto (mismo orden de arriba).
