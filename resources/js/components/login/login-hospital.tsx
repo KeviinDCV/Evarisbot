@@ -5,7 +5,7 @@ import { useAppearance } from '@/hooks/use-appearance';
 import { store } from '@/routes/login';
 import { Form, Head } from '@inertiajs/react';
 import { ArrowRight, CalendarCheck, Check, CheckCheck, CircleAlert, Eye, EyeOff, Lock, Mail, Moon, ShieldCheck, Sun } from 'lucide-react';
-import { type InvalidEvent, type ReactNode, useRef, useState } from 'react';
+import { type CSSProperties, type InvalidEvent, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type Campo = 'email' | 'password';
@@ -78,16 +78,38 @@ export default function LoginHospital({ status }: { status?: string }) {
         appearance === 'dark' ||
         (appearance === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-    // Decorativos: no son datos en vivo (por eso aria-hidden) y solo caben en pantallas anchas.
-    const avisos: { clase: string; icono: ReactNode; texto: string }[] = [
-        { clase: 'lh-chip-1 left-[7%] top-[24%]', icono: <CalendarCheck className="h-4 w-4 text-[#7ee2b2]" />, texto: t('loginHospital.chipConfirmed') },
-        { clase: 'lh-chip-2 left-[11%] top-[60%]', icono: <CheckCheck className="h-4 w-4 text-[#b9c3ff]" />, texto: t('loginHospital.chipDelivered') },
-        { clase: 'lh-chip-3 right-[8%] top-[30%]', icono: <span className="h-2 w-2 rounded-full bg-emerald-400" />, texto: t('loginHospital.chipNewMessage') },
-        { clase: 'lh-chip-4 right-[12%] top-[64%]', icono: <Check className="h-4 w-4 text-[#7ee2b2]" />, texto: t('loginHospital.chipResolved') },
+    // Decorativos: no son datos en vivo (por eso aria-hidden) y solo caben en pantallas anchas. Cada uno con
+    // su color de brillo (RGB) para cuando le toca destacar y su profundidad (cuánto sigue al mouse).
+    const avisos: { lugar: string; icono: ReactNode; texto: string; brillo: string; profundidad: number }[] = [
+        { lugar: 'left-[7%] top-[24%]', icono: <CalendarCheck className="lh-chip-icono h-4 w-4 text-[#7ee2b2]" />, texto: t('loginHospital.chipConfirmed'), brillo: '126, 226, 178', profundidad: 22 },
+        { lugar: 'left-[11%] top-[60%]', icono: <CheckCheck className="lh-chip-icono h-4 w-4 text-[#b9c3ff]" />, texto: t('loginHospital.chipDelivered'), brillo: '185, 195, 255', profundidad: 14 },
+        { lugar: 'right-[8%] top-[30%]', icono: <span className="lh-punto relative h-2 w-2 rounded-full bg-emerald-400" />, texto: t('loginHospital.chipNewMessage'), brillo: '52, 211, 153', profundidad: 18 },
+        { lugar: 'right-[12%] top-[64%]', icono: <Check className="lh-chip-icono h-4 w-4 text-[#7ee2b2]" />, texto: t('loginHospital.chipResolved'), brillo: '126, 226, 178', profundidad: 26 },
     ];
 
+    // Los avisos siguen un poco al mouse, cada uno a su profundidad: la posición va en variables CSS de la raíz
+    // (sin volver a pintar React), una vez por cuadro. Con el puntero fuera vuelven a su sitio.
+    const raiz = useRef<HTMLDivElement>(null);
+    const cuadro = useRef(0);
+    const moverAvisos = (x: number, y: number) => {
+        cancelAnimationFrame(cuadro.current);
+        cuadro.current = requestAnimationFrame(() => {
+            raiz.current?.style.setProperty('--lh-mx', x.toFixed(3));
+            raiz.current?.style.setProperty('--lh-my', y.toFixed(3));
+        });
+    };
+    const alMoverPuntero = (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (e.pointerType === 'mouse') moverAvisos(e.clientX / window.innerWidth - 0.5, e.clientY / window.innerHeight - 0.5);
+    };
+    useEffect(() => () => cancelAnimationFrame(cuadro.current), []);
+
     return (
-        <div className="lh-raiz relative flex min-h-svh flex-col items-center justify-center gap-5 overflow-clip px-4 pb-12 pt-24 text-white antialiased sm:px-6">
+        <div
+            ref={raiz}
+            onPointerMove={alMoverPuntero}
+            onPointerLeave={() => moverAvisos(0, 0)}
+            className="lh-raiz relative flex min-h-svh flex-col items-center justify-center gap-5 overflow-clip px-4 pb-12 pt-24 text-white antialiased sm:px-6"
+        >
             <Head title={t('auth.loginTitle')} />
 
             <img
@@ -97,14 +119,21 @@ export default function LoginHospital({ status }: { status?: string }) {
                 className="pointer-events-none absolute bottom-[-90px] left-1/2 w-[min(1180px,170vw)] max-w-none -translate-x-1/2 select-none opacity-[0.09]"
             />
 
-            {avisos.map((aviso) => (
+            {/* Tres capas por aviso para que los movimientos no se pisen: el lugar (sigue al mouse), la que
+                flota y el aviso (llega, destaca y lleva el destello). */}
+            {avisos.map((aviso, i) => (
                 <div
-                    key={aviso.clase}
+                    key={aviso.lugar}
                     aria-hidden="true"
-                    className={`lh-chip pointer-events-none absolute hidden items-center gap-2.5 rounded-[14px] border border-white/[0.18] bg-white/10 px-3.5 py-2.5 text-[13px] font-medium text-white xl:flex ${aviso.clase}`}
+                    className={`lh-chip-lugar pointer-events-none absolute hidden xl:block ${aviso.lugar}`}
+                    style={{ '--lh-i': i, '--lh-brillo': aviso.brillo, '--lh-prof': `${aviso.profundidad}px` } as CSSProperties}
                 >
-                    {aviso.icono}
-                    {aviso.texto}
+                    <div className="lh-chip-flota">
+                        <div className="lh-chip flex items-center gap-2.5 rounded-[14px] border border-white/[0.18] bg-white/10 px-3.5 py-2.5 text-[13px] font-medium text-white">
+                            {aviso.icono}
+                            {aviso.texto}
+                        </div>
+                    </div>
                 </div>
             ))}
 

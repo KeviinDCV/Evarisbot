@@ -1991,8 +1991,38 @@ tr.table-row-hover:hover {
     outline-color: var(--lh-input-borde-foco);
 }
 
-/* Movimiento: la tarjeta entra una vez y los avisos de fondo flotan despacio. Nada se mueve
-   si el sistema pide menos movimiento. */
+/* Avisos de fondo: vidrio sobre el edificio. --lh-brillo (RGB) y --lh-i (0-3) vienen de cada aviso. */
+.lh-chip {
+    position: relative;
+    overflow: hidden;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 8px 24px -14px rgba(8, 14, 46, 0.6), 0 0 0 0 rgba(var(--lh-brillo), 0);
+}
+/* El destello que cruza el aviso cuando le toca destacar (fuera de la vista el resto del tiempo). */
+.lh-chip::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.3) 50%, transparent 70%);
+    transform: translateX(-120%);
+    pointer-events: none;
+}
+/* Onda del punto de «Nuevo mensaje», como el «en línea» de un chat. */
+.lh-punto::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    opacity: 0;
+}
+
+/* Movimiento: la tarjeta entra una vez. Los avisos llegan uno tras otro como notificaciones, flotan
+   despacio, se turnan para destacar cada 3 s (brillo de su color, el destello y el ícono que salta: una
+   vuelta de 12 s) y siguen un poco al mouse, cada uno a su profundidad. Cada efecto va en una capa o en
+   una propiedad propia (translate, scale, transform) para que no se pisen. Nada se mueve si el sistema
+   pide menos movimiento. */
 @keyframes lh-entrar {
     from { opacity: 0; transform: translateY(14px) scale(0.985); }
     to { opacity: 1; transform: none; }
@@ -2001,12 +2031,52 @@ tr.table-row-hover:hover {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-9px); }
 }
+@keyframes lh-chip-llegar {
+    from { opacity: 0; translate: 0 16px; filter: blur(6px); }
+    to { opacity: 1; translate: 0 0; filter: blur(0); }
+}
+@keyframes lh-chip-destacar {
+    0%, 14%, 100% {
+        scale: 1;
+        border-color: rgba(255, 255, 255, 0.18);
+        background-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 24px -14px rgba(8, 14, 46, 0.6), 0 0 0 0 rgba(var(--lh-brillo), 0);
+    }
+    4% {
+        scale: 1.045;
+        border-color: rgba(var(--lh-brillo), 0.6);
+        background-color: rgba(255, 255, 255, 0.17);
+        box-shadow: 0 16px 36px -12px rgba(var(--lh-brillo), 0.5), 0 0 0 4px rgba(var(--lh-brillo), 0.14);
+    }
+}
+@keyframes lh-chip-destello {
+    0%, 2% { transform: translateX(-120%); }
+    11%, 100% { transform: translateX(120%); }
+}
+@keyframes lh-icono-saltar {
+    0%, 3%, 12%, 100% { scale: 1; rotate: 0deg; }
+    6% { scale: 1.3; rotate: -8deg; }
+    9% { scale: 0.95; rotate: 0deg; }
+}
+@keyframes lh-latir {
+    0% { scale: 1; opacity: 0.75; }
+    70%, 100% { scale: 3.4; opacity: 0; }
+}
 @media (prefers-reduced-motion: no-preference) {
     .lh-tarjeta { animation: lh-entrar 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-    .lh-chip { animation: lh-flotar 9s ease-in-out infinite; }
-    .lh-chip-2 { animation-delay: -2.5s; animation-duration: 10s; }
-    .lh-chip-3 { animation-delay: -5s; animation-duration: 8.5s; }
-    .lh-chip-4 { animation-delay: -7s; animation-duration: 11s; }
+    .lh-chip-lugar {
+        translate: calc(var(--lh-mx, 0) * var(--lh-prof) * -1) calc(var(--lh-my, 0) * var(--lh-prof) * -1);
+        transition: translate 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .lh-chip-flota { animation: lh-flotar calc(9s + var(--lh-i) * 0.7s) ease-in-out calc(var(--lh-i) * -2.4s) infinite; }
+    .lh-chip {
+        animation:
+            lh-chip-llegar 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) calc(0.45s + var(--lh-i) * 0.16s) both,
+            lh-chip-destacar 12s ease-in-out calc(2.4s + var(--lh-i) * 3s) infinite both;
+    }
+    .lh-chip::before { animation: lh-chip-destello 12s ease-in-out calc(2.4s + var(--lh-i) * 3s) infinite both; }
+    .lh-chip-icono { animation: lh-icono-saltar 12s ease-out calc(2.4s + var(--lh-i) * 3s) infinite both; }
+    .lh-punto::after { animation: lh-latir 2.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
