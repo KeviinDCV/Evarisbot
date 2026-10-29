@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\VerifyMetaSignature;
+use App\Models\Conversation;
+use App\Models\ConversationActivity;
+use App\Models\Equipo;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\InactiveConversationReleaser;
@@ -72,11 +75,19 @@ class SettingsController extends Controller
             ],
         ];
 
-        // Asesores para la sección de turnos
+        // Asesores para la sección de turnos (y la de equipos: con su equipo)
         $advisors = User::where('role', 'advisor')
-            ->select('id', 'name', 'email', 'is_on_duty')
+            ->select('id', 'name', 'email', 'is_on_duty', 'equipo_id')
             ->orderBy('name')
             ->get();
+
+        // Equipos aparte de la línea general (Teleconsulta…), con sus miembros y cuántos chats abiertos tienen.
+        $equipos = Equipo::orderBy('nombre')->get()->map(fn (Equipo $e) => [
+            'id' => $e->id,
+            'nombre' => $e->nombre,
+            'miembros' => User::where('equipo_id', $e->id)->orderBy('name')->pluck('id')->all(),
+            'chats_abiertos' => Conversation::where('equipo_id', $e->id)->whereIn('status', ['active', 'pending'])->count(),
+        ])->all();
 
         $autoRelease = InactiveConversationReleaser::settings();
         $weekendNotice = WeekendNotice::settings();
@@ -90,6 +101,7 @@ class SettingsController extends Controller
             ],
             'settings' => $settings,
             'advisors' => $advisors,
+            'equipos' => $equipos,
             'autoRelease' => [
                 'enabled' => $autoRelease['enabled'],
                 'minutes' => $autoRelease['minutes'],
@@ -273,6 +285,85 @@ class SettingsController extends Controller
     /**
      * Actualizar asesores de turno
      */
+    /**
+     * Crear o actualizar un equipo (nombre y miembros). Al entrar a un equipo, los chats que la persona tenía asignados
+     * en la línea general vuelven a la bandeja general (ya no los vería); al salir, los del equipo que tenía asignados
+     * quedan sin asignar en el equipo (sus compañeros los siguen viendo).
+     */
+    public function guardarEquipo(Request $request, ?Equipo $equipo = null)
+    {
+        $validated = $request->validate([
+            'nombre' => 'required|string|max:80|unique:equipos,nombre' . ($equipo ? ',' . $equipo->id : ''),
+            'miembros' => 'present|array',
+            'miembros.*' => 'integer',
+        ], [
+            'nombre.required' => 'Escribe el nombre del equipo.',
+            'nombre.unique' => 'Ya hay un equipo con ese nombre.',
+        ]);
+
+        $afectadas = [];
+        DB::transaction(function () use ($validated, &$equipo, &$afectadas) {
+            $equipo = $equipo ?? new Equipo();
+            $equipo->nombre = trim($validated['nombre']);
+            $equipo->save();
+
+            // Solo asesores (los administradores ven todo y no van en equipos).
+            $nuevos = User::whereIn('id', $validated['miembros'])->where('role', 'advisor')->pluck('id')->all();
+            $antes = User::where('equipo_id', $equipo->id)->pluck('id')->all();
+
+            $salen = array_values(array_diff($antes, $nuevos));
+            if ($salen) {
+                $sueltas = Conversation::where('equipo_id', $equipo->id)->whereIn('assigned_to', $salen)->pluck('id')->all();
+                if ($sueltas) {
+                    Conversation::whereIn('id', $sueltas)->update(['assigned_to' => null, 'assigned_at' => null]);
+                    array_push($afectadas, ...$sueltas);
+                }
+                User::whereIn('id', $salen)->update(['equipo_id' => null]);
+            }
+
+            $entran = array_values(array_diff($nuevos, $antes));
+            foreach ($entran as $id) {
+                // Sus chats abiertos de la línea general (o de otro equipo) vuelven a su bandeja, sin asignar.
+                $devueltos = Conversation::where('assigned_to', $id)
+                    ->where(fn ($q) => $q->whereNull('equipo_id')->orWhere('equipo_id', '!=', $equipo->id))
+                    ->whereIn('status', \App\Services\InactiveConversationReleaser::OPEN_STATUSES)
+                    ->pluck('id');
+                if ($devueltos->isNotEmpty()) {
+                    Conversation::whereIn('id', $devueltos)->update(['assigned_to' => null, 'assigned_at' => null]);
+                    array_push($afectadas, ...$devueltos->all());
+                    foreach ($devueltos as $cid) {
+                        ConversationActivity::log((int) $cid, 'unassigned', auth()->id(), ['reason' => 'equipo', 'equipo' => $equipo->nombre, 'released_from_id' => $id]);
+                    }
+                }
+                // El turno es de la línea general: en un equipo no aplica (y así el bot tampoco lo cuenta).
+                User::whereKey($id)->update(['equipo_id' => $equipo->id, 'is_on_duty' => false]);
+            }
+        });
+        // Las pantallas abiertas sueltan (o recogen) esos chats sin esperar a recargar.
+        \App\Support\TiempoReal::conversacion('conversacion', $afectadas);
+        \App\Support\TiempoReal::paraTodos('conversacion');
+
+        return redirect()->back()->with('success', 'Equipo guardado.');
+    }
+
+    /** Eliminar un equipo: sus chats vuelven a la línea general (sin asignar) y sus miembros, también. */
+    public function eliminarEquipo(Equipo $equipo)
+    {
+        $afectadas = [];
+        DB::transaction(function () use ($equipo, &$afectadas) {
+            $afectadas = Conversation::where('equipo_id', $equipo->id)->pluck('id')->all();
+            Conversation::where('equipo_id', $equipo->id)->update(['equipo_id' => null, 'assigned_to' => null, 'assigned_at' => null]);
+            User::where('equipo_id', $equipo->id)->update(['equipo_id' => null]);
+            // Sus envíos masivos pasan a la línea general, como sus chats (y uno en curso ya no mueve chats).
+            \App\Models\BulkSend::where('equipo_id', $equipo->id)->update(['equipo_id' => null]);
+            $equipo->delete();
+        });
+        \App\Support\TiempoReal::conversacion('conversacion', $afectadas);
+        \App\Support\TiempoReal::paraTodos('conversacion');
+
+        return redirect()->back()->with('success', 'Equipo eliminado: sus chats volvieron a la línea general.');
+    }
+
     public function updateOnDutyAdvisors(Request $request)
     {
         // Sin exists: un asesor borrado con la página abierta no debe tumbar todo el guardado; el
@@ -289,6 +380,7 @@ class SettingsController extends Controller
             if (! empty($validated['advisor_ids'])) {
                 User::whereIn('id', $validated['advisor_ids'])
                     ->where('role', 'advisor')
+                    ->whereNull('equipo_id') // el turno es de la línea general: un equipo recibe siempre los suyos
                     ->update(['is_on_duty' => true]);
             }
         });

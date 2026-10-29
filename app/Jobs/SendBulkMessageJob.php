@@ -263,6 +263,27 @@ class SendBulkMessageJob implements ShouldQueue
                         ]
                     );
 
+                    // Si lo envía alguien de un equipo (Teleconsulta…), el chat pasa a ese equipo, sin asignar, con
+                    // todo su historial: las respuestas del paciente les llegan a ellos y la línea general deja de verlo.
+                    // Solo chats de la línea general: el de otro equipo se queda donde está (como en «Nuevo chat»). El
+                    // equipo es el del envío (el de quien lo creó, al crearlo); el cambio es condicional por si otro
+                    // proceso movió el chat entre medias, y si el equipo ya no existe no se mueve nada.
+                    $equipoEnvio = $bulkSend->equipo_id;
+                    $nombreEquipo = $equipoEnvio && is_null($conversation->equipo_id) ? \App\Models\Equipo::whereKey($equipoEnvio)->value('nombre') : null;
+                    if ($nombreEquipo !== null && Conversation::whereKey($conversation->id)->whereNull('equipo_id')
+                        ->update(['equipo_id' => $equipoEnvio, 'assigned_to' => null, 'assigned_at' => null]) > 0) {
+                        if (!\App\Models\Equipo::whereKey($equipoEnvio)->exists()) {
+                            // Eliminaron el equipo en ese mismo instante: el chat se queda en la línea general.
+                            Conversation::whereKey($conversation->id)->where('equipo_id', $equipoEnvio)->update(['equipo_id' => null]);
+                        } else {
+                            \App\Models\ConversationActivity::log($conversation->id, 'equipo_entrada', $bulkSend->created_by ? (int) $bulkSend->created_by : null, [
+                                'equipo' => $nombreEquipo,
+                            ]);
+                        }
+                        $conversation->refresh();
+                        \App\Support\TiempoReal::conversacion('conversacion', $conversation->id);
+                    }
+
                     // Obtener el preview_text del template para mostrar en el chat
                     $previewText = $template?->preview_text ?? '';
 

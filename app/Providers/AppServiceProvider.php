@@ -31,7 +31,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Contraseñas nuevas (usuarios creados o editados por un administrador y cambio desde Ajustes).
         \Illuminate\Validation\Rules\Password::defaults(
-            fn () => \Illuminate\Validation\Rules\Password::min(10)->letters()->numbers()
+            fn () => \Illuminate\Validation\Rules\Password::min(5)->letters()->numbers()
         );
 
         $this->registrarAccesos();

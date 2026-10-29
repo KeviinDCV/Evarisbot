@@ -20,6 +20,28 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 class BulkSendController extends Controller
 {
     /**
+     * Equipos (Teleconsulta…): un asesor ve los envíos masivos de su bandeja: los de su equipo o, si es de la línea
+     * general, los de la línea general (también los de los administradores). Los administradores ven todos. El equipo
+     * es el que tenía quien lo creó al crearlo (bulk_sends.equipo_id), no el de hoy.
+     */
+    private function alcanceEnvios($query): void
+    {
+        $user = auth()->user();
+        if (!$user || !$user->isAdvisor()) {
+            return;
+        }
+        $user->equipo_id ? $query->where('equipo_id', $user->equipo_id) : $query->whereNull('equipo_id');
+    }
+
+    private function envioVisible(BulkSend $envio): bool
+    {
+        $q = BulkSend::whereKey($envio->id);
+        $this->alcanceEnvios($q);
+
+        return $q->exists();
+    }
+
+    /**
      * Mostrar página de envíos masivos
      */
     public function index()
@@ -27,6 +49,7 @@ class BulkSendController extends Controller
         $activos = $this->enviosEnCurso();
 
         $bulkSends = BulkSend::with('creator')
+            ->tap(fn ($q) => $this->alcanceEnvios($q))
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(fn($bs) => [
@@ -92,20 +115,27 @@ class BulkSendController extends Controller
             return response()->json([]);
         }
 
+        // Envíos de su bandeja (equipos): la búsqueda no cruza a los de otro equipo.
+        $visibles = BulkSend::query();
+        $this->alcanceEnvios($visibles);
+        $visibles = $visibles->pluck('id');
+
         // Buscar en destinatarios que coincidan
-        $matchingRecipients = BulkSendRecipient::where('phone_number', 'like', "%{$q}%")
-            ->orWhere('contact_name', 'like', "%{$q}%")
-            ->orWhere('params', 'like', "%{$q}%")
-            ->orWhere('error', 'like', "%{$q}%")
+        $matchingRecipients = BulkSendRecipient::whereIn('bulk_send_id', $visibles)
+            ->where(fn ($w) => $w->where('phone_number', 'like', "%{$q}%")
+                ->orWhere('contact_name', 'like', "%{$q}%")
+                ->orWhere('params', 'like', "%{$q}%")
+                ->orWhere('error', 'like', "%{$q}%"))
             ->limit(200)
             ->get()
             ->groupBy('bulk_send_id');
 
         // Buscar bulk sends que coincidan por metadata
-        $metaMatchIds = BulkSend::where('name', 'like', "%{$q}%")
-            ->orWhere('template_name', 'like', "%{$q}%")
-            ->orWhere('status', 'like', "%{$q}%")
-            ->orWhereHas('creator', fn($cq) => $cq->where('name', 'like', "%{$q}%"))
+        $metaMatchIds = BulkSend::whereIn('id', $visibles)
+            ->where(fn ($w) => $w->where('name', 'like', "%{$q}%")
+                ->orWhere('template_name', 'like', "%{$q}%")
+                ->orWhere('status', 'like', "%{$q}%")
+                ->orWhereHas('creator', fn($cq) => $cq->where('name', 'like', "%{$q}%")))
             ->pluck('id');
 
         $allIds = $matchingRecipients->keys()->merge($metaMatchIds)->unique();
@@ -147,6 +177,7 @@ class BulkSendController extends Controller
      */
     public function show(BulkSend $bulkSend)
     {
+        abort_unless($this->envioVisible($bulkSend), 403);
         $bulkSend->load('creator');
 
         // Reconciliar contadores si el envío ya está completado
@@ -692,6 +723,8 @@ class BulkSendController extends Controller
                 'sent_count' => 0,
                 'failed_count' => 0,
                 'created_by' => auth()->id(),
+                // Las respuestas de un envío de un equipo le llegan a ese equipo (ver SendBulkMessageJob).
+                'equipo_id' => auth()->user()->isAdvisor() ? auth()->user()->equipo_id : null,
             ]);
 
             // Insertar destinatarios en lotes de 200 para no sobrecargar MySQL
@@ -771,7 +804,9 @@ class BulkSendController extends Controller
     private function enviosEnCurso(): array
     {
         $activos = [];
-        foreach (BulkSend::where('status', 'processing')->orderBy('id')->get() as $envio) {
+        $enCurso = BulkSend::where('status', 'processing');
+        $this->alcanceEnvios($enCurso);
+        foreach ($enCurso->orderBy('id')->get() as $envio) {
             if ($envio->batch_id) {
                 try {
                     $batch = Bus::findBatch($envio->batch_id);
@@ -860,6 +895,7 @@ class BulkSendController extends Controller
 
     public function cancel(BulkSend $bulkSend)
     {
+        abort_unless($this->envioVisible($bulkSend), 403);
         if ($bulkSend->status !== 'processing') {
             return response()->json([
                 'success' => false,

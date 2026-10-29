@@ -95,6 +95,10 @@ class UserController extends Controller
             'email' => $validated['email'],
             'role' => $validated['role'],
         ];
+        // Los administradores ven todo y no van en equipos (Configuración → Equipos).
+        if ($validated['role'] === 'admin') {
+            $data['equipo_id'] = null;
+        }
 
         if (!empty($validated['password'])) {
             $data['password'] = Hash::make($validated['password']);

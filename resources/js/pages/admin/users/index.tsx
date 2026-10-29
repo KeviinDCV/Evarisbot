@@ -131,7 +131,7 @@ async function copiarTexto(texto: string): Promise<boolean> {
 /** Requisitos de la contraseña, marcándose mientras se escribe (y si las dos coinciden). */
 function ReglasClave({ clave, confirmacion, textos }: { clave: string; confirmacion: string; textos: { largo: string; letras: string; numeros: string; coinciden: string } }) {
     const reglas: [boolean, string][] = [
-        [clave.length >= 10, textos.largo],
+        [clave.length >= 5, textos.largo],
         [/\p{L}/u.test(clave), textos.letras],
         [/\d/.test(clave), textos.numeros],
         [clave !== '' && clave === confirmacion, textos.coinciden],

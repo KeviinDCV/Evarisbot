@@ -101,6 +101,9 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/settings/whatsapp/check', 'checkWhatsApp')->middleware('throttle:6,1,ajustes-whatsapp')->name('settings.whatsapp.check');
         Route::post('/settings/groq/check', 'checkGroq')->middleware('throttle:6,1,ajustes-groq')->name('settings.groq.check');
         Route::post('/settings/on-duty-advisors', 'updateOnDutyAdvisors')->name('settings.on-duty-advisors');
+        Route::post('/settings/equipos', 'guardarEquipo')->name('settings.equipos.store');
+        Route::put('/settings/equipos/{equipo}', 'guardarEquipo')->name('settings.equipos.update');
+        Route::delete('/settings/equipos/{equipo}', 'eliminarEquipo')->name('settings.equipos.destroy');
         Route::post('/settings/auto-release', 'updateAutoRelease')->name('settings.auto-release');
         Route::get('/settings/auto-release/preview', 'previewAutoRelease')->name('settings.auto-release.preview');
         Route::post('/settings/weekend-notice', 'updateWeekendNotice')->name('settings.weekend-notice');
@@ -162,6 +165,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/clear-advisor/{user}', 'clearAdvisor')->name('chat.clear-advisor'); // Quitar asesor de todas sus conversaciones (solo admin)
         
         Route::get('/{conversation}', 'show')->name('chat.show');
+        Route::post('/{conversation}/linea-general', 'pasarALineaGeneral')->name('chat.linea-general');
         Route::get('/{conversation}/poll-messages', 'pollMessages')->name('chat.poll-messages');
         Route::post('/{conversation}/send', 'sendMessage')->name('chat.send');
         Route::post('/{conversation}/react', 'react')->name('chat.react');
@@ -236,11 +240,8 @@ Route::get('/media/download', function (\Illuminate\Http\Request $request) {
     if ($user->isAdvisor()) {
         $conversationId = \App\Models\Message::where('media_url', '/storage/' . $path)->value('conversation_id');
         $conversation = $conversationId ? \App\Models\Conversation::find($conversationId) : null;
-        $allowed = $conversation && (
-            ((int) $conversation->assigned_to === (int) $user->id && !is_null($conversation->assigned_to))
-            || (is_null($conversation->assigned_to) && $user->isOnDuty())
-        );
-        abort_unless($allowed, 403);
+        // Misma regla que abrir el chat (incluye equipos: Conversation::visiblePara).
+        abort_unless($conversation && $conversation->visiblePara($user), 403);
     }
 
     $fullPath = \Storage::disk('public')->path($path);

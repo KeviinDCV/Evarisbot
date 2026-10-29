@@ -126,6 +126,7 @@ class ResendBulkSend extends Command
             'sent_count' => 0,
             'failed_count' => 0,
             'created_by' => $source->created_by,
+            'equipo_id' => $source->equipo_id, // el reenvío es de la misma bandeja que el original
         ]);
 
         $newRecipientIds = [];

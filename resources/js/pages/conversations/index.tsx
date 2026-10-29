@@ -679,6 +679,8 @@ export default function ConversationsIndex({ conversations: initialConversations
     // Menú contextual (clic derecho) sobre un asesor en el filtro + confirmación de "Limpiar"
     const [advisorMenu, setAdvisorMenu] = useState<{ id: number; name: string; count: number; x: number; y: number } | null>(null);
     const [advisorToClear, setAdvisorToClear] = useState<{ id: number; name: string; count: number } | null>(null);
+    // Chat de un equipo que se va a pasar a la línea general (ventana de confirmación abierta).
+    const [chatAPasar, setChatAPasar] = useState<{ id: number; equipo_id: number } | null>(null);
     const [clearingAdvisor, setClearingAdvisor] = useState(false);
     // El sondeo del chat abierto recibió 403: el chat pasó a otra persona (o quedó sin asesor y no está de turno). La
     // lista no se entera sola —el servidor deja de mandarlo y Echo está apagado—, así que este es el aviso fiable. Se
@@ -928,13 +930,22 @@ export default function ConversationsIndex({ conversations: initialConversations
                 : c
         ));
         try {
-            await csrfPost(`/admin/tags/conversation/${conversationId}/attach`, { tag_id: tagId });
-        } catch {
+            const res = await csrfPost(`/admin/tags/conversation/${conversationId}/attach`, { tag_id: tagId });
+            const error = rechazo(res, t('conversations.tagError'));
+            if (error) throw new Error(error);
+        } catch (e) {
             // Rollback si falla el guardado en el servidor
             setLocalConversations(prev => prev.map(c =>
                 c.id === conversationId ? { ...c, tags: (c.tags || []).filter(t => t.id !== tagId) } : c
             ));
+            toast.error(textoErrorEtiqueta(e));
         }
+    };
+
+    // El texto del servidor (403 de otra bandeja) o, si falló la conexión o la sesión, el aviso traducido.
+    const textoErrorEtiqueta = (e: unknown): string => {
+        if (axios.isAxiosError(e)) return e.response?.status === 419 ? t('conversations.sessionExpired') : t('conversations.tagError');
+        return e instanceof Error && e.message ? e.message : t('conversations.tagError');
     };
 
     const detachTag = async (conversationId: number, tagId: number) => {
@@ -944,8 +955,11 @@ export default function ConversationsIndex({ conversations: initialConversations
             c.id === conversationId ? { ...c, tags: (c.tags || []).filter(t => t.id !== tagId) } : c
         ));
         try {
-            await csrfDelete(`/admin/tags/conversation/${conversationId}/detach/${tagId}`);
-        } catch {
+            const res = await csrfDelete(`/admin/tags/conversation/${conversationId}/detach/${tagId}`);
+            const error = rechazo(res, t('conversations.tagError'));
+            if (error) throw new Error(error);
+        } catch (e) {
+            toast.error(textoErrorEtiqueta(e));
             // Rollback si falla
             if (removed) setLocalConversations(prev => prev.map(c =>
                 c.id === conversationId && !(c.tags || []).some(t => t.id === tagId)
@@ -1846,6 +1860,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 fresh.status !== conv.status ||
                                 fresh.last_message_at !== conv.last_message_at ||
                                 fresh.assigned_to !== conv.assigned_to ||
+                                fresh.equipo_id !== conv.equipo_id ||
                                 fresh.last_message?.content !== conv.last_message?.content ||
                                 fresh.last_message?.status !== conv.last_message?.status) {
                                 hasChanges = true;
@@ -3188,6 +3203,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                     if (response.status === 423) {
                         throw new Error(response.data?.error || t('conversations.lockedByOtherError'));
                     }
+                    if (response.status === 403) {
+                        // El chat pasó a otra bandeja (equipos): el servidor dice por qué.
+                        throw new Error(response.data?.error || response.data?.message || t('conversations.sendMessageError'));
+                    }
                     throw new Error(t('conversations.sendMessageError'));
                 }
                 return response.data;
@@ -3264,12 +3283,13 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const handleTogglePin = (conversationId: number) => {
         setContextMenu(null);
-        const isPinned = localConversations.find(c => c.id === conversationId)?.is_pinned;
-        // Optimistic update
-        setLocalConversations(prev => {
+        const antes = localConversations.find(c => c.id === conversationId);
+        const isPinned = antes?.is_pinned;
+        // Optimistic update (y deshacer si el servidor no lo guarda)
+        const fijar = (pinned: boolean, pinnedAt: string | null) => setLocalConversations(prev => {
             const updated = prev.map(c =>
                 c.id === conversationId
-                    ? { ...c, is_pinned: !c.is_pinned, pinned_at: !c.is_pinned ? new Date().toISOString() : null }
+                    ? { ...c, is_pinned: pinned, pinned_at: pinnedAt }
                     : c
             );
             // Re-sort: pinned first, then by last_message_at
@@ -3282,11 +3302,20 @@ export default function ConversationsIndex({ conversations: initialConversations
                 return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
             });
         });
+        fijar(!isPinned, !isPinned ? new Date().toISOString() : null);
+        const deshacer = () => fijar(Boolean(isPinned), antes?.pinned_at ?? null);
         // Use fetch instead of router.post to avoid Inertia page reload
-        csrfPost(`/admin/chat/${conversationId}/pin`).then(() => {
+        csrfPost(`/admin/chat/${conversationId}/pin`).then((res) => {
+            const error = rechazo(res, t('conversations.pinError'));
+            if (error) {
+                deshacer();
+                toast.error(error);
+                return;
+            }
             toast.success(isPinned ? t('conversations.chatUnpinned') : t('conversations.chatPinned'));
         }).catch(err => {
             console.error('Error toggling pin:', err);
+            deshacer();
             toast.error(t('conversations.pinError'));
         });
     };
@@ -3601,10 +3630,18 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // «Pasar a línea general»: el chat sale del equipo y queda sin asignar en la bandeja general. Quien es del equipo
     // deja de verlo (se cierra); un administrador lo sigue viendo.
-    const pasarALineaGeneral = () => {
-        if (!selectedConversation?.equipo_id) return;
-        if (!confirm(t('conversations.equipo.pasarConfirm', { equipo: nombreEquipo(selectedConversation.equipo_id) }))) return;
-        const id = selectedConversation.id;
+    /** Devuelve un chat de un equipo a la línea general: el abierto (panel) o uno de la lista (× de la etiqueta, admin).
+     *  Primero pregunta con la ventana de la web (no el confirm() del navegador). */
+    const pasarALineaGeneral = (conv: Pick<Conversation, 'id' | 'equipo_id'> | null) => {
+        if (!conv?.equipo_id) return;
+        setChatAPasar({ id: conv.id, equipo_id: conv.equipo_id });
+    };
+
+    const confirmarPasarALineaGeneral = () => {
+        if (!chatAPasar) return;
+        const id = chatAPasar.id;
+        setChatAPasar(null);
+        const esElAbierto = selectedConversation?.id === id;
         csrfPost(`/admin/chat/${id}/linea-general`).then((res) => {
             const error = rechazo(res, t('conversations.equipo.pasarError'));
             if (error) {
@@ -3613,11 +3650,11 @@ export default function ConversationsIndex({ conversations: initialConversations
             }
             toast.success(t('conversations.equipo.pasado'));
             if (isAdmin) {
-                setLocalConversations((prev) => prev.map((c) => (c.id === id ? { ...c, equipo_id: null, assigned_to: null } : c)));
-                router.reload({ only: ['selectedConversation'] });
+                setLocalConversations((prev) => prev.map((c) => (c.id === id ? { ...c, equipo_id: null, assigned_to: null, assigned_user: undefined } : c)));
+                if (esElAbierto) router.reload({ only: ['selectedConversation'] });
             } else {
                 setLocalConversations((prev) => prev.filter((c) => c.id !== id));
-                handleCloseChat();
+                if (esElAbierto) handleCloseChat();
             }
         }).catch(() => toast.error(t('conversations.equipo.pasarError')));
     };
@@ -4452,9 +4489,33 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             {/* Equipo (Teleconsulta…): los administradores ven chats de todos */}
                                             {isAdmin && conversation.equipo_id && (
                                                 <div className="flex items-center gap-1 mt-1">
-                                                    <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-800 px-1.5 py-0.5 rounded-full truncate max-w-[150px] flex items-center gap-1" title={t('conversations.equipo.etiquetaTitulo', { equipo: nombreEquipo(conversation.equipo_id) })}>
+                                                    <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-800 pl-1.5 pr-0.5 py-0.5 rounded-full max-w-[170px] flex items-center gap-1" title={t('conversations.equipo.etiquetaTitulo', { equipo: nombreEquipo(conversation.equipo_id) })}>
                                                         <Users className="w-2.5 h-2.5 flex-shrink-0" />
-                                                        {nombreEquipo(conversation.equipo_id)}
+                                                        <span className="truncate">{nombreEquipo(conversation.equipo_id)}</span>
+                                                        {/* Quitar la etiqueta = pasar el chat a la línea general. Va dentro del botón de la fila:
+                                                            no puede ser otro <button>, y no debe abrir el chat ni empezar la selección. */}
+                                                        <span
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            aria-label={t('conversations.equipo.quitar', { equipo: nombreEquipo(conversation.equipo_id) })}
+                                                            title={t('conversations.equipo.quitar', { equipo: nombreEquipo(conversation.equipo_id) })}
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                e.preventDefault();
+                                                                pasarALineaGeneral(conversation);
+                                                            }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' || e.key === ' ') {
+                                                                    e.stopPropagation();
+                                                                    e.preventDefault();
+                                                                    pasarALineaGeneral(conversation);
+                                                                }
+                                                            }}
+                                                            className="flex-shrink-0 rounded-full p-0.5 text-violet-500 hover:bg-violet-200/70 hover:text-violet-800 dark:hover:bg-violet-800/60 dark:hover:text-violet-100 cursor-pointer"
+                                                        >
+                                                            <X className="w-2.5 h-2.5" />
+                                                        </span>
                                                     </span>
                                                 </div>
                                             )}
@@ -5062,7 +5123,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             <InicioTurno
                                 nombre={(nombrePropio(auth?.user?.name ?? '') || '').split(' ')[0]}
                                 deTurno={auth?.user?.role === 'advisor' && Boolean(auth?.user?.is_on_duty)}
-                                mostrarEsperan={isAdmin || Boolean(auth?.user?.is_on_duty)}
+                                mostrarEsperan={isAdmin || Boolean(auth?.user?.is_on_duty) || miEquipo !== null}
                                 mias={localFilterCounts.mine_unread ?? 0}
                                 esperan={localFilterCounts.unanswered ?? 0}
                                 enEspera={localFilterCounts.pending_response ?? 0}
@@ -6228,7 +6289,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                     {/* Chat de un equipo (Teleconsulta…): sus miembros o un administrador lo devuelven a la línea general. */}
                                     {selectedConversation.equipo_id && (isAdmin || deMiEquipo(selectedConversation)) && (
                                         <button
-                                            onClick={pasarALineaGeneral}
+                                            onClick={() => pasarALineaGeneral(selectedConversation)}
                                             className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-[#2e3f84] dark:text-neutral-300 hover:bg-muted transition-colors"
                                             title={t('conversations.equipo.pasarAyuda', { equipo: nombreEquipo(selectedConversation.equipo_id) })}
                                         >
@@ -7254,6 +7315,29 @@ export default function ConversationsIndex({ conversations: initialConversations
                             className="rounded-xl border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md hover:from-red-600 hover:to-red-700 disabled:opacity-50"
                         >
                             {clearingAdvisor ? t('conversations.clearing') : t('conversations.confirmClear')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Pasar un chat de un equipo (Teleconsulta…) a la línea general */}
+            <Dialog open={!!chatAPasar} onOpenChange={(open) => !open && setChatAPasar(null)}>
+                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:max-w-md sm:rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Users className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+                            {t('conversations.equipo.pasarTitulo')}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {t('conversations.equipo.pasarConfirm', { equipo: nombreEquipo(chatAPasar?.equipo_id) })}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setChatAPasar(null)} className="rounded-xl">
+                            {t('common.cancel')}
+                        </Button>
+                        <Button onClick={confirmarPasarALineaGeneral} className="rounded-xl">
+                            {t('conversations.equipo.pasar')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

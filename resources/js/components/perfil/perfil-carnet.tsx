@@ -355,9 +355,9 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                                 </div>
                                             </div>
                                             <div className="flex flex-wrap items-center justify-between gap-3">
-                                                {/* Requisitos de Password::defaults() (AppServiceProvider): 10 caracteres, letras y números. */}
+                                                {/* Requisitos de Password::defaults() (AppServiceProvider): 5 caracteres, letras y números. */}
                                                 <ul id="reglas-clave" className="m-0 flex list-none flex-wrap gap-x-4 gap-y-2 p-0 text-[13px]">
-                                                    <Regla cumple={nueva.length >= 10}>{t('perfilCarnet.ruleLength')}</Regla>
+                                                    <Regla cumple={nueva.length >= 5}>{t('perfilCarnet.ruleLength')}</Regla>
                                                     <Regla cumple={/\p{L}/u.test(nueva)}>{t('perfilCarnet.ruleLetters')}</Regla>
                                                     <Regla cumple={/\d/.test(nueva)}>{t('perfilCarnet.ruleNumbers')}</Regla>
                                                 </ul>

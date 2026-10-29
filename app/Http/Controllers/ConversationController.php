@@ -53,6 +53,82 @@ class ConversationController extends Controller
         return $counts;
     }
 
+    /**
+     * Qué conversaciones ve un asesor en las listas y contadores (los administradores, todas).
+     *  - Miembro de un equipo (Teleconsulta…): todas las de su equipo, de cualquiera de ellos o sin asignar, y ninguna
+     *    más: nada de la línea general aunque esté de turno.
+     *  - Línea general: nada de ningún equipo; de turno, las sin asignar y las suyas; sin turno, solo las suyas.
+     * Sin equipos creados (equipo_id siempre null) es exactamente la regla de antes.
+     */
+    private function alcanceAsesor($query, ?User $user = null): void
+    {
+        $user ??= auth()->user();
+        if (!$user || !$user->isAdvisor()) {
+            return;
+        }
+        if ($user->equipo_id) {
+            $query->where('equipo_id', $user->equipo_id);
+
+            return;
+        }
+        $query->whereNull('equipo_id');
+        if ($user->isOnDuty()) {
+            $query->where(fn ($q) => $q->whereNull('assigned_to')->orWhere('assigned_to', $user->id));
+        } else {
+            $query->where('assigned_to', $user->id);
+        }
+    }
+
+    /**
+     * Solo la parte de equipos. Las listas de resueltas, programadas, confirmadas, canceladas y Oncología muestran a
+     * los asesores las de todos (sin mirar a quién están asignadas), pero nunca las de un equipo ajeno ni, a un
+     * miembro de un equipo, las de fuera.
+     */
+    private function limitarAlEquipo($query, ?User $user = null): void
+    {
+        $user ??= auth()->user();
+        if (!$user || !$user->isAdvisor()) {
+            return;
+        }
+        $user->equipo_id ? $query->where('equipo_id', $user->equipo_id) : $query->whereNull('equipo_id');
+    }
+
+    /**
+     * De estas conversaciones, las asignadas a un asesor que ya no es de su bandeja (entró o salió de un equipo con el
+     * chat agendado o resuelto). Al reabrirlas quedan sin asignar: si no, nadie más que un administrador las vería.
+     */
+    private function asignadasFueraDeSuBandeja(array $ids): array
+    {
+        return Conversation::whereIn('id', $ids)->whereNotNull('assigned_to')
+            ->with('assignedUser:id,role,equipo_id')->get(['id', 'assigned_to', 'equipo_id'])
+            ->filter(fn ($c) => $c->assignedUser?->isAdvisor() && !$c->mismoEquipoQue($c->assignedUser))
+            ->pluck('id')->all();
+    }
+
+    /** ¿Puede este usuario abrir (y ver los mensajes de) la conversación? Ver Conversation::visiblePara. */
+    private function puedeVer(Conversation $conversation, ?User $user = null): bool
+    {
+        $user ??= auth()->user();
+
+        return $user ? $conversation->visiblePara($user) : false;
+    }
+
+    /** Frontera entre equipos (responder, reaccionar, fijar, «escribiendo»): ver Conversation::mismoEquipoQue. */
+    private function exigirMismoEquipo(Conversation $conversation): void
+    {
+        abort_unless(auth()->user() && $conversation->mismoEquipoQue(auth()->user()), 403, 'No tienes permiso para esta conversación.');
+    }
+
+    /** Lo que ve la pantalla de los equipos: nombre por id (para la etiqueta del chat). */
+    private function equiposParaPantalla(): array
+    {
+        try {
+            return \App\Models\Equipo::orderBy('nombre')->get(['id', 'nombre'])->map(fn ($e) => ['id' => $e->id, 'nombre' => $e->nombre])->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     private function buildFilterCountQuery(Request $request, string $filter)
     {
         $query = Conversation::query();
@@ -62,14 +138,7 @@ class ConversationController extends Controller
         $skipAdvisorScope = $user->isAdvisor() && in_array($filter, ['resolved', 'scheduled', 'oncology'], true);
 
         if ($user->isAdvisor() && !$skipAdvisorScope) {
-            if ($user->isOnDuty()) {
-                $query->where(function ($q) {
-                    $q->whereNull('assigned_to')
-                      ->orWhere('assigned_to', auth()->id());
-                });
-            } else {
-                $query->where('assigned_to', auth()->id());
-            }
+            $this->alcanceAsesor($query, $user);
         }
 
         if ($filter === 'all') {
@@ -120,6 +189,7 @@ class ConversationController extends Controller
         }
 
         $this->aplicarFecha($query, $request);
+        $this->limitarAlEquipo($query, $user);
         $this->aplicarBusqueda($query, $request->input('search'));
 
         return $query;
@@ -330,16 +400,10 @@ class ConversationController extends Controller
         $query = Conversation::query()->where('unread_count', '>', 0);
 
         if ($user->isAdvisor()) {
-            if ($user->isOnDuty()) {
-                // Asesor de turno: cuenta chats sin asignar + asignados a él
-                $query->where(function ($q) {
-                    $q->whereNull('assigned_to')
-                      ->orWhere('assigned_to', auth()->id());
-                })
-                    ->whereIn('status', ['active', 'pending']);
-            } else {
-                // Asesor normal: solo contar las asignadas a él
-                $query->where('assigned_to', auth()->id());
+            // Su alcance (equipo, o turno de la línea general). De turno o en un equipo se cuentan solo las abiertas.
+            $this->alcanceAsesor($query, $user);
+            if ($user->equipo_id || $user->isOnDuty()) {
+                $query->whereIn('status', ['active', 'pending']);
             }
         } else {
             // Si es admin, contar todas las conversaciones con mensajes no leídos (excluir resueltas)
@@ -368,17 +432,9 @@ class ConversationController extends Controller
 
         // Si es asesor, verificar si está de turno
         if ($user->isAdvisor()) {
-            if ($user->isOnDuty()) {
-                // Asesor de turno: ve chats SIN asignar + chats asignados a él
-                // Incluye resueltas para que no desaparezcan al marcarlas
-                $query->where(function ($q) {
-                    $q->whereNull('assigned_to')  // Sin asignar (pool compartido)
-                      ->orWhere('assigned_to', auth()->id());  // O asignados a él
-                });
-            } else {
-                // Asesor normal: solo ve las asignadas a él
-                $query->where('assigned_to', auth()->id());
-            }
+            // Su equipo, o la línea general (de turno: sin asignar + las suyas; si no, solo las suyas). Incluye
+            // resueltas para que no desaparezcan al marcarlas.
+            $this->alcanceAsesor($query, $user);
         }
 
         // Filtrar por estado (disponible para todos los usuarios)
@@ -509,6 +565,9 @@ class ConversationController extends Controller
         // Filtrar por fecha del último mensaje
         $this->aplicarFecha($query, $request);
 
+        // Equipos: también en las listas que los asesores ven completas (resueltas, programadas…).
+        $this->limitarAlEquipo($query, $user);
+
         // Buscar por nombre, teléfono o contenido de mensajes
         $this->aplicarBusqueda($query, $request->input('search'));
 
@@ -528,7 +587,7 @@ class ConversationController extends Controller
         }
 
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'equipo_id', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
             ->limit($perPage)
             ->get();
         
@@ -559,7 +618,7 @@ class ConversationController extends Controller
         })->values();
 
         // Obtener todos los usuarios (asesores) disponibles para asignación
-        $users = User::select('id', 'name', 'role')->get();
+        $users = User::select('id', 'name', 'role', 'equipo_id')->get();
 
         // Si es una petición de paginación (AJAX), devolver solo las conversaciones
         if ($request->wantsJson() || $request->has('page') || $request->has('cursor')) {
@@ -575,6 +634,7 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'hasMore' => $hasMore,
             'users' => $users,
+            'equipos' => $this->equiposParaPantalla(),
             // Metadata secundaria DIFERIDA (Inertia v2): no bloquea el render de la lista de chats.
             // El frontend ya las maneja async (estado local + sincronización), así que llegan en
             // una 2da petición sin romper nada. allSpecialties queda instantánea porque su estado
@@ -601,38 +661,17 @@ class ConversationController extends Controller
     {
         $user = auth()->user();
         
-        // Validar acceso: asesores solo pueden ver conversaciones asignadas a ellos
-        // EXCEPTO si están de turno (pueden ver sin asignar + las suyas)
-        if ($user->isAdvisor()) {
-            if ($user->isOnDuty()) {
-                // Asesor de turno puede ver: sin asignar O asignadas a él
-                $canAccess = is_null($conversation->assigned_to) || $conversation->assigned_to === auth()->id();
-                if (!$canAccess) {
-                    abort(403, 'No tienes permiso para ver esta conversación.');
-                }
-            } else {
-                // Asesor normal solo ve las asignadas a él
-                if ($conversation->assigned_to !== auth()->id()) {
-                    abort(403, 'No tienes permiso para ver esta conversación.');
-                }
-            }
+        // Validar acceso: las suyas, las sin asignar si está de turno, o las de su equipo (ver puedeVer).
+        if (!$this->puedeVer($conversation, $user)) {
+            abort(403, 'No tienes permiso para ver esta conversación.');
         }
 
         $query = Conversation::with(['lastMessage', 'lastVisibleMessage', 'assignedUser', 'resolvedByUser', 'tags'])
             ->orderBy('last_message_at', 'desc');
 
-        // Si es asesor, verificar si está de turno
+        // Si es asesor: su equipo, o la línea general según su turno (ver alcanceAsesor).
         if ($user->isAdvisor()) {
-            if ($user->isOnDuty()) {
-                // Asesor de turno: ve chats SIN asignar + chats asignados a él
-                $query->where(function ($q) {
-                    $q->whereNull('assigned_to')
-                      ->orWhere('assigned_to', auth()->id());
-                });
-            } else {
-                // Asesor normal: solo ve las asignadas a él
-                $query->where('assigned_to', auth()->id());
-            }
+            $this->alcanceAsesor($query, $user);
         }
 
         // Filtrar por estado (disponible para todos los usuarios)
@@ -761,13 +800,16 @@ class ConversationController extends Controller
         // Filtrar por fecha del último mensaje
         $this->aplicarFecha($query, $request);
 
+        // Equipos: también en las listas que los asesores ven completas (resueltas, programadas…).
+        $this->limitarAlEquipo($query, $user);
+
         // Buscar por nombre, teléfono o contenido de mensajes
         $this->aplicarBusqueda($query, $request->input('search'));
 
         // Paginación: cargar solo 50 conversaciones
         $perPage = 50;
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'equipo_id', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
             ->limit($perPage)
             ->get();
         
@@ -810,7 +852,7 @@ class ConversationController extends Controller
         $conversation->markAsRead();
 
         // Obtener todos los usuarios (asesores) disponibles para asignación
-        $users = User::select('id', 'name', 'role')->get();
+        $users = User::select('id', 'name', 'role', 'equipo_id')->get();
 
         // Obtener todas las etiquetas disponibles
         $allTags = \App\Models\Tag::withCount('conversations')->orderBy('name')->get();
@@ -841,6 +883,7 @@ class ConversationController extends Controller
             'selectedConversation' => $conversation,
             'unreadOnOpen' => $unreadOnOpen,
             'users' => $users,
+            'equipos' => $this->equiposParaPantalla(),
             'allTags' => $allTags,
             'allSpecialties' => $this->getAllSpecialties(),
             'advisorCounts' => $this->getAdvisorCounts(),
@@ -862,9 +905,14 @@ class ConversationController extends Controller
      */
     public function sendMessage(Request $request, Conversation $conversation, WhatsAppService $whatsappService, SpellCheckService $spellCheckService)
     {
-        // Bloquear envío si la conversación está asignada a otro asesor (admins pueden enviar siempre)
+        // Bloquear envío si la conversación está asignada a otro asesor (admins pueden enviar siempre). En un equipo
+        // (Teleconsulta…) responde cualquiera de sus miembros, aunque el chat esté asignado a un compañero.
         $conversation->refresh();
-        if ($conversation->assigned_to && $conversation->assigned_to !== auth()->id() && !auth()->user()->isAdmin()) {
+        if (!$conversation->mismoEquipoQue(auth()->user())) {
+            return response()->json(['error' => 'No tienes permiso para esta conversación.'], 403);
+        }
+        $deMiEquipo = auth()->user()->equipo_id && (int) $conversation->equipo_id === (int) auth()->user()->equipo_id;
+        if ($conversation->assigned_to && $conversation->assigned_to !== auth()->id() && !auth()->user()->isAdmin() && !$deMiEquipo) {
             $assignedUser = \App\Models\User::find($conversation->assigned_to);
             return response()->json([
                 'error' => 'Esta conversación está siendo atendida por ' . ($assignedUser->name ?? 'otro asesor') . '. No puedes enviar mensajes.',
@@ -1013,6 +1061,7 @@ class ConversationController extends Controller
         if ($wasUnassigned) {
             $affected = Conversation::where('id', $conversation->id)
                 ->whereNull('assigned_to')
+                ->tap(fn ($q) => $this->limitarAlEquipo($q)) // si entre medias cambió de bandeja, no se toma
                 ->update([
                     'assigned_to' => auth()->id(),
                     'assigned_at' => now(),
@@ -1022,13 +1071,25 @@ class ConversationController extends Controller
             if ($affected === 0) {
                 // Otro asesor tomó el chat en la fracción de segundo intermedia
                 $conversation->refresh();
+                if (!$conversation->mismoEquipoQue(auth()->user())) {
+                    // Pasó a otra bandeja (un compañero lo devolvió a la línea general, o un envío de un equipo).
+                    $message->update(['status' => 'failed']);
+
+                    return response()->json(['error' => 'Este chat acaba de pasar a otra bandeja. No se envió el mensaje.'], 403);
+                }
                 if ($conversation->assigned_to !== auth()->id()) {
-                    $assignedUser = \App\Models\User::find($conversation->assigned_to);
-                    return response()->json([
-                        'error' => 'Esta conversación acaba de ser tomada por ' . ($assignedUser->name ?? 'otro asesor') . '.',
-                        'assigned_to' => $conversation->assigned_to,
-                        'assigned_user_name' => $assignedUser->name ?? 'Otro asesor',
-                    ], 423);
+                    if (auth()->user()->equipo_id) {
+                        // Lo tomó un compañero de su equipo en ese instante: en un equipo responde cualquiera, así que
+                        // el mensaje sigue (sin quitárselo al compañero).
+                        $conversation->update(['last_message_at' => now()]);
+                    } else {
+                        $assignedUser = \App\Models\User::find($conversation->assigned_to);
+                        return response()->json([
+                            'error' => 'Esta conversación acaba de ser tomada por ' . ($assignedUser->name ?? 'otro asesor') . '.',
+                            'assigned_to' => $conversation->assigned_to,
+                            'assigned_user_name' => $assignedUser->name ?? 'Otro asesor',
+                        ], 423);
+                    }
                 }
             } else {
                 // Registrar auto-asignación
@@ -1137,6 +1198,7 @@ class ConversationController extends Controller
      */
     public function react(Request $request, Conversation $conversation, WhatsAppService $whatsappService)
     {
+        $this->exigirMismoEquipo($conversation);
         $validated = $request->validate([
             'message_id' => 'required|integer|exists:messages,id',
             'emoji' => 'nullable|string|max:16',
@@ -1350,8 +1412,8 @@ class ConversationController extends Controller
         // Actualizar conversación
         $conversation->update(['last_message_at' => now()]);
         // Asignación actual en la base (pudo liberarse por inactividad mientras se enviaba).
-        if (is_null(Conversation::whereKey($conversation->id)->value('assigned_to'))) {
-            $conversation->refresh(); // el modelo en memoria podía traer el asesor anterior
+        if (is_null(Conversation::whereKey($conversation->id)->value('assigned_to'))
+            && $conversation->refresh()->mismoEquipoQue(auth()->user())) { // y sigue en su bandeja
             $conversation->update([
                 'assigned_to' => auth()->id(),
                 'status' => 'active',
@@ -1387,10 +1449,7 @@ class ConversationController extends Controller
             return;
         }
 
-        $mine = !is_null($conversation->assigned_to) && (int) $conversation->assigned_to === (int) $user->id;
-        $freeOnDuty = is_null($conversation->assigned_to) && $user->isOnDuty();
-
-        abort_unless($mine || $freeOnDuty, 403, 'No tienes permiso para esta conversación.');
+        abort_unless($this->puedeVer($conversation, $user), 403, 'No tienes permiso para esta conversación.');
     }
 
     public function bulkAssign(Request $request)
@@ -1408,9 +1467,14 @@ class ConversationController extends Controller
         // update() directo no pasa por el modelo: la fecha de asignación se pone a mano.
         $updateData = ['assigned_to' => $userId, 'assigned_at' => $userId ? now() : null];
         
-        // Si se asigna a un usuario, reactivar la conversación
+        // Si se asigna a un usuario, reactivar la conversación. El chat pasa al equipo de quien lo recibe (o a la
+        // línea general si no tiene equipo); quitar la asignación no lo saca de su equipo.
         if ($userId) {
             $updateData['status'] = 'active';
+            $destino = User::find($userId);
+            if ($destino && $destino->isAdvisor()) {
+                $updateData['equipo_id'] = $destino->equipo_id;
+            }
         }
 
         Conversation::whereIn('id', $validated['ids'])->update($updateData);
@@ -1442,15 +1506,10 @@ class ConversationController extends Controller
         $ids = $pedidas;
 
         if ($user->isAdvisor()) {
-            $ids = Conversation::whereIn('id', $pedidas)
-                ->where(function ($q) use ($user) {
-                    $q->where('assigned_to', $user->id);
-                    if ($user->isOnDuty()) {
-                        $q->orWhereNull('assigned_to');
-                    }
-                })
-                ->pluck('id')
-                ->all();
+            // Solo las que puede tocar: las de su equipo, o las suyas y (de turno) las sin asignar de la línea general.
+            $alcance = Conversation::whereIn('id', $pedidas);
+            $this->alcanceAsesor($alcance, $user);
+            $ids = $alcance->pluck('id')->all();
         }
 
         $omitidas = count($pedidas) - count($ids);
@@ -1490,6 +1549,9 @@ class ConversationController extends Controller
                 ->whereNotNull('assigned_to')
                 ->whereNotIn('status', \App\Services\InactiveConversationReleaser::OPEN_STATUSES)
                 ->update(['assigned_at' => now()]);
+            if ($fuera = $this->asignadasFueraDeSuBandeja($validated['ids'])) {
+                Conversation::whereIn('id', $fuera)->update(['assigned_to' => null, 'assigned_at' => null]);
+            }
         }
 
         Conversation::whereIn('id', $validated['ids'])->update($updateData);
@@ -1557,11 +1619,22 @@ class ConversationController extends Controller
         }
         
         $previousAssignedTo = $conversation->assigned_to;
+        $equipoAntes = $conversation->equipo_id;
+        // Pasa al equipo de quien lo recibe si es un asesor (o a la línea general si no tiene equipo). Asignárselo a un
+        // administrador, o quitar la asignación, no lo saca de su equipo.
+        $destino = $userId ? User::find($userId) : null;
+        $equipoNuevo = $destino && $destino->isAdvisor() ? $destino->equipo_id : $equipoAntes;
 
         $conversation->update([
             'assigned_to' => $userId,
+            'equipo_id' => $equipoNuevo,
             'status' => $userId ? 'active' : $conversation->status,
         ]);
+        if ((int) $equipoNuevo !== (int) $equipoAntes) {
+            ConversationActivity::log($conversation->id, $equipoNuevo ? 'equipo_entrada' : 'equipo_salida', auth()->id(), [
+                'equipo' => \App\Models\Equipo::find($equipoNuevo ?: $equipoAntes)?->nombre,
+            ]);
+        }
 
         // Registrar actividad
         if ($userId) {
@@ -1664,6 +1737,12 @@ class ConversationController extends Controller
             // Si se reabre, limpiar info de resolución
             $updateData['resolved_by'] = null;
             $updateData['resolved_at'] = null;
+        }
+
+        if (in_array($validated['status'], \App\Services\InactiveConversationReleaser::OPEN_STATUSES, true)
+            && $this->asignadasFueraDeSuBandeja([$conversation->id])) {
+            $updateData['assigned_to'] = null;
+            $updateData['assigned_at'] = null;
         }
 
         $oldStatus = $conversation->status;
@@ -1864,6 +1943,7 @@ class ConversationController extends Controller
      */
     public function togglePin(Conversation $conversation)
     {
+        $this->exigirMismoEquipo($conversation);
         $userId = auth()->id();
 
         $exists = \DB::table('conversation_user_pins')
@@ -1951,8 +2031,8 @@ class ConversationController extends Controller
         // Auto-asignar al asesor si no está asignado
         $updateData = ['last_message_at' => now()];
         // Asignación actual en la base (pudo liberarse por inactividad mientras se enviaba).
-        if (is_null(Conversation::whereKey($conversation->id)->value('assigned_to'))) {
-            $conversation->refresh(); // el modelo en memoria podía traer el asesor anterior
+        if (is_null(Conversation::whereKey($conversation->id)->value('assigned_to'))
+            && $conversation->refresh()->mismoEquipoQue($user)) { // el modelo en memoria podía traer otro asesor u otra bandeja
             $updateData['assigned_to'] = $user->id;
             $updateData['status'] = 'active';
         }
@@ -2172,19 +2252,48 @@ class ConversationController extends Controller
         // Buscar si ya existe una conversación con este número
         $conversation = Conversation::where('phone_number', $phoneNumber)->first();
 
+        // El chat de un equipo (Teleconsulta…) no lo toma nadie de fuera: el equipo lo devuelve con «Pasar a línea
+        // general». Un administrador sí puede.
+        if ($conversation && $conversation->equipo_id && !auth()->user()->isAdmin()
+            && (int) $conversation->equipo_id !== (int) auth()->user()->equipo_id) {
+            $equipo = \App\Models\Equipo::find($conversation->equipo_id)?->nombre ?? 'otro equipo';
+
+            return response()->json([
+                'success' => false,
+                'message' => "Este paciente lo está atendiendo {$equipo}. Solo ese equipo puede escribirle.",
+            ], 423);
+        }
+
+        // Un asesor solo le asigna el chat nuevo a alguien de su misma bandeja (su equipo o la línea general).
+        if (auth()->user()->isAdvisor() && $assignedUser->isAdvisor() && (int) $assignedUser->equipo_id !== (int) auth()->user()->equipo_id) {
+            return response()->json(['success' => false, 'message' => 'Solo puedes asignar el chat a alguien de tu mismo equipo.'], 403);
+        }
+
+        // El chat queda en el equipo de quien lo atiende (si lo inicia alguien de Teleconsulta, pasa a Teleconsulta
+        // con todo su historial y la línea general deja de verlo). Asignado a un administrador conserva su equipo.
+        $equipoNuevo = $assignedUser->isAdvisor() ? $assignedUser->equipo_id : $conversation?->equipo_id;
+
         if ($conversation) {
+            $equipoAntes = $conversation->equipo_id;
             // Si existe, actualizar asignación y reactivar si está resuelta
             $conversation->update([
                 'status' => 'active',
                 'assigned_to' => $assignedUser->id,
+                'equipo_id' => $equipoNuevo,
                 'last_message_at' => now(),
             ]);
+            if ((int) $equipoNuevo !== (int) $equipoAntes) {
+                ConversationActivity::log($conversation->id, $equipoNuevo ? 'equipo_entrada' : 'equipo_salida', auth()->id(), [
+                    'equipo' => \App\Models\Equipo::find($equipoNuevo ?: $equipoAntes)?->nombre,
+                ]);
+            }
         } else {
             // Crear nueva conversación asignada al asesor seleccionado
             $conversation = Conversation::create([
                 'phone_number' => $phoneNumber,
                 'status' => 'active',
                 'assigned_to' => $assignedUser->id,
+                'equipo_id' => $equipoNuevo,
                 'last_message_at' => now(),
                 'unread_count' => 0,
             ]);
@@ -2294,6 +2403,28 @@ class ConversationController extends Controller
     }
 
     /**
+     * «Pasar a línea general»: el chat sale de su equipo y queda sin asignar en la bandeja general (lo verán los
+     * asesores de turno). Lo hacen los miembros del equipo o un administrador.
+     */
+    public function pasarALineaGeneral(Conversation $conversation)
+    {
+        $user = auth()->user();
+        if (!$conversation->equipo_id) {
+            return response()->json(['success' => false, 'message' => 'Este chat ya es de la línea general.'], 422);
+        }
+        if (!$user->isAdmin() && (int) $user->equipo_id !== (int) $conversation->equipo_id) {
+            return response()->json(['success' => false, 'message' => 'No tienes permiso para esta conversación.'], 403);
+        }
+
+        $equipo = \App\Models\Equipo::find($conversation->equipo_id)?->nombre;
+        $conversation->update(['equipo_id' => null, 'assigned_to' => null, 'assigned_at' => null]);
+        ConversationActivity::log($conversation->id, 'equipo_salida', $user->id, ['equipo' => $equipo]);
+        \App\Support\TiempoReal::conversacion('conversacion', $conversation->id);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Convierte una imagen WebP a PNG para compatibilidad con WhatsApp Cloud API.
      * WhatsApp NO soporta WebP, solo PNG y JPEG.
      * 
@@ -2366,14 +2497,7 @@ class ConversationController extends Controller
         $user = auth()->user();
 
         if ($user->isAdvisor()) {
-            if ($user->isOnDuty()) {
-                $query->where(function ($q) {
-                    $q->whereNull('assigned_to')
-                      ->orWhere('assigned_to', auth()->id());
-                });
-            } else {
-                $query->where('assigned_to', auth()->id());
-            }
+            $this->alcanceAsesor($query, $user);
         }
 
         $filteringByTag = $request->has('tag') && is_numeric($request->tag);
@@ -2486,10 +2610,11 @@ class ConversationController extends Controller
         }
 
         $this->aplicarFecha($query, $request);
+        $this->limitarAlEquipo($query, $user);
         $this->aplicarBusqueda($query, $request->input('search'));
 
         $conversations = $query
-            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
+            ->select(['id', 'phone_number', 'contact_name', 'status', 'unread_count', 'assigned_to', 'equipo_id', 'resolved_by', 'resolved_at', 'last_message_at', 'specialty', 'is_blocked'])
             ->limit(50)
             ->get();
 
@@ -2521,16 +2646,9 @@ class ConversationController extends Controller
     {
         $user = auth()->user();
 
-        // Access control
-        if ($user->isAdvisor()) {
-            if ($user->isOnDuty()) {
-                $canAccess = is_null($conversation->assigned_to) || $conversation->assigned_to === auth()->id();
-            } else {
-                $canAccess = $conversation->assigned_to === auth()->id();
-            }
-            if (!$canAccess) {
-                return response()->json(['error' => 'No autorizado'], 403);
-            }
+        // Access control (las mismas reglas de abrir el chat: ver puedeVer)
+        if (!$this->puedeVer($conversation, $user)) {
+            return response()->json(['error' => 'No autorizado'], 403);
         }
 
         $afterId = (int) $request->query('after', 0);
@@ -2619,6 +2737,7 @@ class ConversationController extends Controller
      */
     public function typing(Conversation $conversation)
     {
+        $this->exigirMismoEquipo($conversation);
         // Aviso entre asesores (para ver que un compañero ya está respondiendo).
         cache()->put(
             'typing_' . $conversation->id . '_' . auth()->id(),
@@ -2662,6 +2781,7 @@ class ConversationController extends Controller
      */
     public function viewing(Conversation $conversation)
     {
+        $this->exigirMismoEquipo($conversation);
         $clave = 'viewing_' . $conversation->id . '_' . auth()->id();
         $nuevo = !cache()->has($clave);
         cache()->put(

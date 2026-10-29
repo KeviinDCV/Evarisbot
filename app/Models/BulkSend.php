@@ -43,6 +43,7 @@ class BulkSend extends Model
         'failed_count',
         'batch_id',
         'created_by',
+        'equipo_id',
     ];
 
     protected $casts = [

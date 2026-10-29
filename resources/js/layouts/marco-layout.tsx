@@ -41,11 +41,11 @@ function prefiereMenosMovimiento(): boolean {
     return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
 
-type PageProps = SharedData & { unreadConversationsCount?: number };
+type PageProps = SharedData & { unreadConversationsCount?: number; equipo?: string | null };
 
 export default function MarcoLayout({ children }: { children: ReactNode }) {
     const { t } = useTranslation();
-    const { auth, unreadConversationsCount: initialUnreadCount = 0 } = usePage<PageProps>().props;
+    const { auth, unreadConversationsCount: initialUnreadCount = 0, equipo = null } = usePage<PageProps>().props;
     const currentUrl = usePage().url;
     const getInitials = useInitials();
 
@@ -96,8 +96,9 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     const [rotulo, setRotulo] = useState<{ texto: string; top: number; left: number } | null>(null);
 
     const isAdvisor = auth.user.role === 'advisor';
-    /** El turno sólo existe para asesores: es lo que decide si te auto-asignan pacientes. */
-    const onDuty = isAdvisor && Boolean(auth.user.is_on_duty);
+    /** El turno sólo existe para asesores: es lo que decide si te auto-asignan pacientes. En un equipo (Teleconsulta…)
+     *  no hay turno: recibe siempre los chats de su equipo, así que se pinta como activo y con el nombre del equipo. */
+    const onDuty = isAdvisor && (Boolean(auth.user.is_on_duty) || Boolean(equipo));
     const expanded = pinned || hoverOpen || isMobileOpen;
     /** Expandido SIN fijar (en escritorio): el menú flota encima de la isla como un panel. */
     const overlay = hoverOpen && !pinned && !isMobileOpen;
@@ -586,7 +587,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                             >
                                 {isAdvisor
                                     ? onDuty
-                                        ? t('navigation.onDuty', 'De turno')
+                                        ? equipo || t('navigation.onDuty', 'De turno')
                                         : t('navigation.offDuty', 'Fuera de turno')
                                     : t('navigation.admin', 'Administrador')}
                             </span>
@@ -617,20 +618,25 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                         {isAdvisor && (
                             <>
                                 <p className="text-[13px] font-semibold text-foreground">
-                                    {onDuty ? t('navigation.onDuty', 'De turno') : t('navigation.offDuty', 'Fuera de turno')}
+                                    {onDuty ? equipo || t('navigation.onDuty', 'De turno') : t('navigation.offDuty', 'Fuera de turno')}
                                 </p>
                                 <p className="mb-2 text-[11px] text-muted-foreground">
-                                    {onDuty
+                                    {equipo
+                                        ? t('navigation.equipoHint', 'Recibes los chats de tu equipo.')
+                                        : onDuty
                                         ? t('navigation.onDutyHint', 'Recibes conversaciones nuevas.')
                                         : t('navigation.offDutyHint', 'No se te asignan conversaciones.')}
                                 </p>
                                 {/* El turno es de SOLO LECTURA para el asesor: SettingsController pone
                                     TODOS los asesores en false antes de aplicar el roster, así que un
                                     interruptor propio se borraría al siguiente guardado. */}
-                                <div className="mb-3 flex items-start gap-2 rounded-lg bg-muted p-2 text-[11px] leading-snug text-muted-foreground">
-                                    <Lock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                                    <span>{t('navigation.dutyReadOnly', 'Tu turno lo asigna coordinación desde Configuración.')}</span>
-                                </div>
+                                {/* En un equipo no hay turno que asignar. */}
+                                {!equipo && (
+                                    <div className="mb-3 flex items-start gap-2 rounded-lg bg-muted p-2 text-[11px] leading-snug text-muted-foreground">
+                                        <Lock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                                        <span>{t('navigation.dutyReadOnly', 'Tu turno lo asigna coordinación desde Configuración.')}</span>
+                                    </div>
+                                )}
                                 <div className="mb-2 h-px bg-border" />
                             </>
                         )}

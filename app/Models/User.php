@@ -30,6 +30,7 @@ class User extends Authenticatable
         'role',
         'is_on_duty',
         'can_bulk_send',
+        'equipo_id',
     ];
 
     /**
@@ -130,6 +131,12 @@ class User extends Authenticatable
     public function isOnDuty(): bool
     {
         return (bool) $this->is_on_duty;
+    }
+
+    /** Equipo aparte de la línea general (Teleconsulta…): ver App\Models\Equipo. Sin equipo, línea general. */
+    public function equipo(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Equipo::class, 'equipo_id');
     }
     
     /**

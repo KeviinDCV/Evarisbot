@@ -814,6 +814,8 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
             onFinish: () => setGuardandoEquipo(false),
             onSuccess: () => {
                 setEditorEquipo(null);
+                // El servidor les quita el turno a quienes entran: que no queden marcados (y «Sin guardar») aquí.
+                setSelectedAdvisors((prev) => prev.filter((id) => !datos.miembros.includes(id)));
                 toast.success(t('settings.equipos.guardado'));
             },
             onError: (errores: Record<string, string>) => setErrorEquipo(errores.nombre || t('settings.equipos.errorGuardar')),
@@ -834,9 +836,13 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
     };
 
     // Lo guardado (la franja y la banda dicen lo que rige de verdad, no lo marcado sin guardar).
-    const deTurnoGuardados = useMemo(() => [...advisors].sort(ordenAlfabetico).filter((advisor) => advisor.is_on_duty), [advisors]);
-    // Lo marcado, sin IDs de asesores que ya no existen (p. ej. borrados con la página abierta).
-    const marcados = useMemo(() => selectedAdvisors.filter((id) => advisors.some((advisor) => advisor.id === id)), [selectedAdvisors, advisors]);
+    // El turno es de la línea general: los miembros de un equipo no cuentan (el servidor tampoco los pone de turno).
+    const deTurnoGuardados = useMemo(() => [...advisors].sort(ordenAlfabetico).filter((advisor) => advisor.is_on_duty && !advisor.equipo_id), [advisors]);
+    // Lo marcado, sin IDs de asesores que ya no existen (p. ej. borrados con la página abierta) ni de miembros de equipos.
+    const marcados = useMemo(
+        () => selectedAdvisors.filter((id) => advisors.some((advisor) => advisor.id === id && !advisor.equipo_id)),
+        [selectedAdvisors, advisors]
+    );
     const advisorsChanged =
         marcados.length !== deTurnoGuardados.length || marcados.some((id) => !deTurnoGuardados.some((advisor) => advisor.id === id));
 
@@ -1000,6 +1006,8 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
     const restoPila = deTurnoGuardados.length - conPila;
 
     const advisorCount = advisors.length;
+    // Los de un equipo no tienen turno: los totales «de N» cuentan solo la línea general.
+    const deLineaGeneral = advisors.filter((advisor) => !advisor.equipo_id).length;
     const filas = {
         '--f1': advisorsInOrder.length,
         '--f2': Math.ceil(advisorsInOrder.length / 2),
@@ -1046,7 +1054,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                 <span className="flex shrink-0 items-baseline gap-[7px]">
                                     <ValorFranja>{deTurnoGuardados.length}</ValorFranja>
                                     <span className="text-[13px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums">
-                                        {t('settings.strip.ofTotal', { total: advisorCount })}
+                                        {t('settings.strip.ofTotal', { total: deLineaGeneral })}
                                     </span>
                                 </span>
                                 {conPila > 0 && (
@@ -1546,7 +1554,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                     <span className="ml-auto text-[12.5px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums" aria-live="polite">
                                         <Trans
                                             i18nKey="settings.onDutyAdvisors.selectedOfTotal"
-                                            values={{ selected: marcados.length, total: advisorCount }}
+                                            values={{ selected: marcados.length, total: deLineaGeneral }}
                                             components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
                                         />
                                     </span>
@@ -1583,26 +1591,31 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                             )}
                                         >
                                             {advisorsInOrder.map((advisor) => {
-                                                const selected = selectedAdvisors.includes(advisor.id);
+                                                // En un equipo no hay turno (recibe siempre los chats de su equipo): se ve, pero no se marca.
+                                                const enEquipo = Boolean(advisor.equipo_id);
+                                                const selected = !enEquipo && selectedAdvisors.includes(advisor.id);
                                                 const nombre = nombrePropio(advisor.name);
 
                                                 return (
                                                     <li key={advisor.id} className="min-w-0">
                                                         <label
-                                                            title={`${nombre} · ${advisor.email}`}
+                                                            title={`${nombre} · ${enEquipo ? equipoDe(advisor.equipo_id) : advisor.email}`}
                                                             className={cn(
-                                                                'relative flex h-full min-h-[52px] min-w-0 cursor-pointer items-center gap-3 rounded-[10px] px-3 py-1.5 transition-colors',
+                                                                'relative flex h-full min-h-[52px] min-w-0 items-center gap-3 rounded-[10px] px-3 py-1.5 transition-colors',
                                                                 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#2e3f84]/40 has-[:focus-visible]:outline-hidden dark:has-[:focus-visible]:ring-[#8b9ae0]/60',
-                                                                selected
-                                                                    ? 'bg-[#2e3f84]/[0.045] dark:bg-white/[0.06]'
-                                                                    : 'hover:bg-[#2e3f84]/[0.025] dark:hover:bg-white/[0.03]'
+                                                                enEquipo
+                                                                    ? 'cursor-default opacity-60'
+                                                                    : selected
+                                                                      ? 'cursor-pointer bg-[#2e3f84]/[0.045] dark:bg-white/[0.06]'
+                                                                      : 'cursor-pointer hover:bg-[#2e3f84]/[0.025] dark:hover:bg-white/[0.03]'
                                                             )}
                                                         >
                                                             <input
                                                                 type="checkbox"
                                                                 className="sr-only"
                                                                 checked={selected}
-                                                                onChange={() => toggleAdvisor(advisor.id)}
+                                                                disabled={enEquipo}
+                                                                onChange={() => !enEquipo && toggleAdvisor(advisor.id)}
                                                             />
                                                             {/* Casilla: marcada navy con visto blanco; vacía con contorno pizarra 500 (4,76:1). */}
                                                             <span
@@ -1620,7 +1633,9 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                             <span className="flex min-w-0 flex-col gap-px">
                                                                 {/* Hasta dos líneas: los apellidos largos no se cortan a media palabra. */}
                                                                 <span className={cn('line-clamp-2 text-[13px] leading-[18px] font-semibold break-words', TEXTO_NAVY)}>{nombre}</span>
-                                                                <span className={cn('truncate text-[12px] leading-4', TEXTO_SUAVE)}>{advisor.email}</span>
+                                                                <span className={cn('truncate text-[12px] leading-4', TEXTO_SUAVE)}>
+                                                                    {enEquipo ? equipoDe(advisor.equipo_id) : advisor.email}
+                                                                </span>
                                                             </span>
                                                         </label>
                                                     </li>

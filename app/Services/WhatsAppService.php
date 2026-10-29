@@ -1474,8 +1474,11 @@ class WhatsAppService
                         $this->sendTextMessage($phoneNumber, '📋 Hemos recibido su solicitud de cancelación. Un asesor revisará su caso y le confirmará a la brevedad.');
 
                         // Asignar a asesor de turno
-                        $onDutyAdvisors = \App\Models\User::where('role', 'advisor')
+                        // De turno y de la línea general (los de un equipo, como Teleconsulta, no reciben estos chats).
+                        // Un chat que ya es de un equipo se queda en su bandeja, sin asignar.
+                        $onDutyAdvisors = $conversation->equipo_id ? collect() : \App\Models\User::where('role', 'advisor')
                             ->where('is_on_duty', true)
+                            ->whereNull('equipo_id')
                             ->get();
 
                         if ($onDutyAdvisors->isNotEmpty()) {
@@ -1491,8 +1494,11 @@ class WhatsAppService
                         $this->sendTextMessage($phoneNumber, 'ℹ️ Esta funcionalidad se encuentra en desarrollo. Por ahora, un asesor le atenderá para resolver su consulta.');
 
                         // Asignar a asesor de turno para que lo atiendan
-                        $onDutyAdvisors = \App\Models\User::where('role', 'advisor')
+                        // De turno y de la línea general (los de un equipo, como Teleconsulta, no reciben estos chats).
+                        // Un chat que ya es de un equipo se queda en su bandeja, sin asignar.
+                        $onDutyAdvisors = $conversation->equipo_id ? collect() : \App\Models\User::where('role', 'advisor')
                             ->where('is_on_duty', true)
+                            ->whereNull('equipo_id')
                             ->get();
 
                         if ($onDutyAdvisors->isNotEmpty()) {
@@ -1537,8 +1543,11 @@ class WhatsAppService
                     ]);
 
                     // Buscar asesores de turno activos
-                    $onDutyAdvisors = \App\Models\User::where('role', 'advisor')
+                    // De turno y de la línea general (los de un equipo, como Teleconsulta, no reciben estos chats).
+                    // Un chat que ya es de un equipo se queda en su bandeja, sin asignar.
+                    $onDutyAdvisors = $conversation->equipo_id ? collect() : \App\Models\User::where('role', 'advisor')
                         ->where('is_on_duty', true)
+                        ->whereNull('equipo_id')
                         ->get();
 
                     if ($onDutyAdvisors->isNotEmpty()) {
@@ -2126,7 +2135,8 @@ class WhatsAppService
             //    - La conversación nunca ha completado ni empezado el flujo
             //    - Y NO tiene un asesor ya asignado (si ya tiene asesor, no mostrar el menú)
             $shouldStartFlow = false;
-            if (!$conversation->assigned_to) {
+            // Ni en los chats de un equipo (Teleconsulta…): el menú y su reparto son de la línea general.
+            if (!$conversation->assigned_to && !$conversation->equipo_id) {
                 if (isset($isNewConversation) && $isNewConversation) {
                     $shouldStartFlow = true;
                 } elseif (!$conversation->welcome_flow_completed && !$conversation->welcome_flow_step) {
@@ -2185,8 +2195,8 @@ class WhatsAppService
                 } // end else (welcomeFlow activo)
             }
 
-            // 2. Si la conversación está en medio de un flujo de bienvenida, procesar la interacción
-            if (!$conversation->welcome_flow_completed && $conversation->welcome_flow_step) {
+            // 2. Si la conversación está en medio de un flujo de bienvenida, procesar la interacción (no en un equipo)
+            if (!$conversation->welcome_flow_completed && $conversation->welcome_flow_step && !$conversation->equipo_id) {
                 // Resetear flag de recordatorio de timeout (el usuario respondió)
                 $flowData = $conversation->welcome_flow_data ?? [];
                 if (!empty($flowData['_timeout_reminder_sent'])) {

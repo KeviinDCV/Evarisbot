@@ -16,6 +16,8 @@ class Conversation extends Model
         'status',
         'assigned_to',
         'assigned_at',
+        // Equipo aparte de la línea general (Teleconsulta…); null = línea general. Ver App\Models\Equipo.
+        'equipo_id',
         'resolved_by',
         'resolved_at',
         'last_message_at',
@@ -247,5 +249,39 @@ class Conversation extends Model
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class, 'conversation_tag')->withTimestamps();
+    }
+
+    /**
+     * Frontera entre equipos: ¿la conversación es de la misma «bandeja» que el usuario? Un administrador, siempre; un
+     * asesor, si es de su equipo o si los dos son de la línea general (equipo_id null). Es lo único que se exige para
+     * responder, reaccionar, fijar o etiquetar: dentro de la línea general sigue la regla de siempre.
+     */
+    public function mismoEquipoQue(User $user): bool
+    {
+        if (!$user->isAdvisor()) {
+            return true;
+        }
+
+        return (int) $this->equipo_id === (int) ($user->equipo_id ?? 0);
+    }
+
+    /**
+     * ¿Puede abrirla (y ver sus mensajes y archivos)? Equipo: todas las de su equipo. Línea general: nada de un equipo;
+     * las suyas y, si está de turno, las sin asignar.
+     */
+    public function visiblePara(User $user): bool
+    {
+        if (!$user->isAdvisor()) {
+            return true;
+        }
+        if (!$this->mismoEquipoQue($user)) {
+            return false;
+        }
+        if ($user->equipo_id) {
+            return true;
+        }
+        $mia = !is_null($this->assigned_to) && (int) $this->assigned_to === (int) $user->id;
+
+        return $mia || (is_null($this->assigned_to) && $user->isOnDuty());
     }
 }
