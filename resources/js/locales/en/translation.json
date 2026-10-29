@@ -2033,6 +2033,27 @@
         "checkWarnings_one": "There is {{count}} warning about the columns (check step 3)",
         "checkWarnings_other": "There are {{count}} warnings about the columns (check step 3)"
     },
+    "anuncio": {
+        "titulo": "Important announcement",
+        "de": "{{autor}} · {{fecha}}",
+        "contador": "{{actual}} of {{total}}",
+        "cuenta": "You can close it in {{s}} s",
+        "pausa": "Countdown paused: come back to this window to continue.",
+        "listo": "You can close it now.",
+        "entendido": "Got it",
+        "error": "Couldn't save. Please try again.",
+        "anunciar": "Announce to everyone",
+        "retirar": "Withdraw announcement",
+        "publicado": "Announcement published: everyone will see it.",
+        "retirado": "Announcement withdrawn.",
+        "errorAnunciar": "Couldn't announce the message.",
+        "errorRetirar": "Couldn't withdraw the announcement.",
+        "etiqueta": "Announcement",
+        "etiquetaRetirado": "Announcement withdrawn",
+        "leidoPor": "Read by {{leidos}} of {{total}}",
+        "faltan": "Missing: {{nombres}}",
+        "todosLeyeron": "Everyone read it"
+    },
     "internalChat": {
         "filterAll": "All",
         "filterUnread": "Unread",

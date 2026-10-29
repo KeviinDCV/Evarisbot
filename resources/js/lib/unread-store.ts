@@ -42,12 +42,39 @@ function emit() {
     for (const l of listeners) l(state);
 }
 
-async function fetchCount(url: string): Promise<{ count: number; mensajes: number }> {
+async function fetchCount(url: string): Promise<{ count: number; mensajes: number; anuncios?: AnuncioPendiente[] }> {
     const res = await fetch(url, { headers: HEADERS });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const count = Number(data.count) || 0;
-    return { count, mensajes: Number(data.mensajes) || count };
+    return { count, mensajes: Number(data.mensajes) || count, anuncios: Array.isArray(data.anuncios) ? data.anuncios : undefined };
+}
+
+/**
+ * Anuncios de lectura obligatoria que le faltan a esta persona (components/anuncio-obligatorio.tsx). Llegan con el
+ * contador del chat interno, que ya se pide en todas las páginas: no hace falta otra petición.
+ */
+export type AnuncioPendiente = { id: number; cuerpo: string; autor: string; creado: string | null; segundos: number };
+let anuncios: AnuncioPendiente[] = [];
+const oyentesAnuncios = new Set<(lista: AnuncioPendiente[]) => void>();
+
+function ponerAnuncios(lista: AnuncioPendiente[]) {
+    if (lista.map((a) => a.id).join(',') === anuncios.map((a) => a.id).join(',')) return;
+    anuncios = lista;
+    for (const l of oyentesAnuncios) l(anuncios);
+}
+
+export function subscribeAnuncios(listener: (lista: AnuncioPendiente[]) => void): () => void {
+    oyentesAnuncios.add(listener);
+    listener(anuncios);
+    return () => {
+        oyentesAnuncios.delete(listener);
+    };
+}
+
+/** Tras «Entendido» (ya guardado en el servidor): se quita sin esperar a la siguiente ronda. */
+export function quitarAnuncio(id: number): void {
+    ponerAnuncios(anuncios.filter((a) => a.id !== id));
 }
 
 function schedule(delay: number) {
@@ -77,7 +104,9 @@ async function poll(porAviso = false): Promise<void> {
     try {
         const chat = await fetchCount('/admin/chat/unread-count');
         // Secuencial: el interno sólo sale cuando el primero ya cerró su socket.
-        const internal = (await fetchCount('/admin/internal-chat/unread-count')).count;
+        const interno = await fetchCount('/admin/internal-chat/unread-count');
+        const internal = interno.count;
+        if (interno.anuncios) ponerAnuncios(interno.anuncios);
         failures = 0;
         if (chat.count !== state.chat || internal !== state.internal || chat.mensajes !== state.chatMensajes) {
             state = { chat: chat.count, internal, chatMensajes: chat.mensajes };

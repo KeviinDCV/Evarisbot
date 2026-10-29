@@ -2033,6 +2033,27 @@
         "checkWarnings_one": "Hay {{count}} aviso sobre las columnas (revisa el paso 3)",
         "checkWarnings_other": "Hay {{count}} avisos sobre las columnas (revisa el paso 3)"
     },
+    "anuncio": {
+        "titulo": "Anuncio importante",
+        "de": "{{autor}} · {{fecha}}",
+        "contador": "{{actual}} de {{total}}",
+        "cuenta": "Podrás cerrarlo en {{s}} s",
+        "pausa": "Conteo en pausa: vuelve a esta ventana para seguir.",
+        "listo": "Ya puedes cerrarlo.",
+        "entendido": "Entendido",
+        "error": "No se pudo guardar. Inténtalo de nuevo.",
+        "anunciar": "Anunciar a todos",
+        "retirar": "Retirar anuncio",
+        "publicado": "Anuncio publicado: les saldrá a todos.",
+        "retirado": "Anuncio retirado.",
+        "errorAnunciar": "No se pudo anunciar el mensaje.",
+        "errorRetirar": "No se pudo retirar el anuncio.",
+        "etiqueta": "Anuncio",
+        "etiquetaRetirado": "Anuncio retirado",
+        "leidoPor": "Leído por {{leidos}} de {{total}}",
+        "faltan": "Faltan: {{nombres}}",
+        "todosLeyeron": "Todos lo leyeron"
+    },
     "internalChat": {
         "filterAll": "Todos",
         "filterUnread": "No leídos",

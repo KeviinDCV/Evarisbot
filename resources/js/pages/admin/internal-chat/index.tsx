@@ -11,6 +11,8 @@ import {
     Inbox,
     LogOut,
     MessageSquare,
+    Megaphone,
+    MegaphoneOff,
     MessagesSquare,
     Music,
     PanelLeftClose,
@@ -130,6 +132,8 @@ interface MessageItem {
     edited?: boolean;
     reactions?: { emoji: string; count: number; users: string[]; mine: boolean }[];
     reply_to?: ReplyTo | null;
+    // Anuncio de lectura obligatoria hecho con este mensaje (quiénes faltan: solo para administradores).
+    anuncio?: { id: number; vigente: boolean; leidos: number; total: number; faltan: string[] } | null;
 }
 
 interface ReadReceipt {
@@ -458,16 +462,16 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
 
                 // Aplicar cambios en mensajes existentes (reacciones / ediciones)
                 if (Array.isArray(res.data?.updates) && res.data.updates.length > 0) {
-                    type Cambio = { id: number; body: string; edited: boolean; reactions: MessageItem['reactions'] };
+                    type Cambio = { id: number; body: string; edited: boolean; reactions: MessageItem['reactions']; anuncio?: MessageItem['anuncio'] };
                     const upd = new Map<number, Cambio>(res.data.updates.map((u: Cambio) => [u.id, u]));
                     setMessages(prev => {
                         let changed = false;
                         const next = prev.map(m => {
                             const u = upd.get(m.id);
                             if (!u) return m;
-                            if (m.body === u.body && !!m.edited === !!u.edited && JSON.stringify(m.reactions || []) === JSON.stringify(u.reactions || [])) return m;
+                            if (m.body === u.body && !!m.edited === !!u.edited && JSON.stringify(m.reactions || []) === JSON.stringify(u.reactions || []) && JSON.stringify(m.anuncio ?? null) === JSON.stringify(u.anuncio ?? null)) return m;
                             changed = true;
-                            return { ...m, body: u.body, edited: u.edited, reactions: u.reactions };
+                            return { ...m, body: u.body, edited: u.edited, reactions: u.reactions, anuncio: u.anuncio ?? null };
                         });
                         return changed ? next : prev;
                     });
@@ -828,6 +832,34 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, reactions: res.data.reactions } : m));
             }
         } catch { /* el polling reconciliará el estado real */ }
+    };
+
+    // Anuncio de lectura obligatoria (solo administradores): a cada persona le sale el mensaje en una ventana que no se
+    // cierra hasta tenerla 30 s a la vista (components/anuncio-obligatorio.tsx). Aquí se publica, se retira y se ve
+    // quién lo leyó.
+    const esAdmin = auth.user.role === 'admin';
+    const [faltanDe, setFaltanDe] = useState<number | null>(null);
+    const ponerAnuncio = (id: number, anuncio: MessageItem['anuncio']) =>
+        setMessages(prev => prev.map(x => (x.id === id ? { ...x, anuncio: anuncio ?? null } : x)));
+    const anunciarMensaje = async (m: MessageItem) => {
+        if (!activeChat) return;
+        try {
+            const res = await axios.post(`/admin/internal-chat/${activeChat.id}/messages/${m.id}/anunciar`);
+            ponerAnuncio(m.id, res.data?.anuncio);
+            toast.success(t('anuncio.publicado'));
+        } catch {
+            toast.error(t('anuncio.errorAnunciar'));
+        }
+    };
+    const retirarAnuncio = async (m: MessageItem) => {
+        if (!m.anuncio) return;
+        try {
+            const res = await axios.post(`/admin/internal-chat/anuncios/${m.anuncio.id}/retirar`);
+            ponerAnuncio(m.id, res.data?.anuncio);
+            toast.success(t('anuncio.retirado'));
+        } catch {
+            toast.error(t('anuncio.errorRetirar'));
+        }
     };
 
     // Iniciar la edición de un mensaje propio de texto (se carga en el input)
@@ -1727,6 +1759,36 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                                                     <NombreAutor nombre={msg.user.name} etiqueta={autor?.role === 'admin' ? t('internalChat.roleAdmin') : undefined} />
                                                                 )}
 
+                                                                {/* Anunciado a todos: cuántos lo leyeron (los administradores ven quiénes faltan con un clic). */}
+                                                                {msg.anuncio && (() => {
+                                                                    const a = msg.anuncio;
+                                                                    const lectura = a.leidos >= a.total ? t('anuncio.todosLeyeron') : t('anuncio.leidoPor', { leidos: a.leidos, total: a.total });
+                                                                    const clase = cn(
+                                                                        'mb-1 inline-flex max-w-full items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11.5px] leading-4 font-semibold',
+                                                                        a.vigente ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-neutral-300',
+                                                                    );
+                                                                    const contenido = (
+                                                                        <>
+                                                                            <Megaphone className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                                                            <span className="truncate">{a.vigente ? t('anuncio.etiqueta') : t('anuncio.etiquetaRetirado')} · {lectura}</span>
+                                                                        </>
+                                                                    );
+                                                                    return (
+                                                                        <div className="flex flex-col items-start">
+                                                                            {esAdmin && a.faltan.length > 0 ? (
+                                                                                <button type="button" className={cn(clase, 'cursor-pointer')} aria-expanded={faltanDe === msg.id} onClick={() => setFaltanDe(faltanDe === msg.id ? null : msg.id)}>
+                                                                                    {contenido}
+                                                                                </button>
+                                                                            ) : (
+                                                                                <span className={clase}>{contenido}</span>
+                                                                            )}
+                                                                            {esAdmin && faltanDe === msg.id && a.faltan.length > 0 && (
+                                                                                <p className="mb-1 max-w-[320px] text-[12px] leading-4 text-[#5b6088] dark:text-neutral-400">{t('anuncio.faltan', { nombres: a.faltan.join(', ') })}</p>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+
                                                                 {msg.reply_to && (() => {
                                                                     const r = resumenCita(msg.reply_to);
                                                                     return <CajaCitada autor={msg.reply_to.user_name} texto={r.texto} icono={r.icono} propia={propia} titulo={t('internalChat.vista.goToOriginal')} onClick={() => irAlMensaje(msg.reply_to!.id)} />;
@@ -2083,7 +2145,8 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 const editable = m.is_mine && m.type === 'text';
                 const verGrande = (m.type === 'image' || m.type === 'video') && !!m.file_url;
                 const descargable = m.type !== 'text' && !!m.file_url;
-                const alto = 12 + 36 * (2 + (editable ? 1 : 0) + (verGrande ? 1 : 0) + (descargable ? 1 : 0)) + (verGrande || descargable ? 11 : 0);
+                const anunciable = esAdmin && m.type === 'text' && !!m.body?.trim() && !esPendiente(m);
+                const alto = 12 + 36 * (2 + (editable ? 1 : 0) + (verGrande ? 1 : 0) + (descargable ? 1 : 0) + (anunciable ? 1 : 0)) + (verGrande || descargable ? 11 : 0) + (anunciable ? 11 : 0);
                 return (
                     <MenuFlotante x={msgMenu.x} y={msgMenu.y} ancho={236} alto={alto} etiqueta={t('internalChat.vista.messageActions')}>
                         <OpcionMenu icono={SmilePlus} onClick={() => { setMsgMenu(null); setReactionPickerFor(m.id); }}>
@@ -2097,6 +2160,16 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                                 {t('common.edit')}
                             </OpcionMenu>
                         )}
+                        {anunciable && <SeparadorMenu />}
+                        {anunciable && (m.anuncio?.vigente ? (
+                            <OpcionMenu icono={MegaphoneOff} onClick={() => { setMsgMenu(null); void retirarAnuncio(m); }}>
+                                {t('anuncio.retirar')}
+                            </OpcionMenu>
+                        ) : (
+                            <OpcionMenu icono={Megaphone} onClick={() => { setMsgMenu(null); void anunciarMensaje(m); }}>
+                                {t('anuncio.anunciar')}
+                            </OpcionMenu>
+                        ))}
                         {(verGrande || descargable) && <SeparadorMenu />}
                         {verGrande && (
                             <OpcionMenu icono={Expand} onClick={() => { setMsgMenu(null); abrirVisor(m); }}>

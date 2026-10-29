@@ -14,6 +14,7 @@ import { Lock, LogOut, Menu, PanelLeftClose, PanelLeftOpen, UserCircle, X } from
 import { type CSSProperties, type FocusEvent as ReactFocusEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avisos } from '@/components/avisos';
+import { AnuncioObligatorio } from '@/components/anuncio-obligatorio';
 
 /**
  * EL MARCO NAVY — el menú de la app (lo pinta AdminLayout en todas las páginas).
@@ -686,6 +687,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
 
             <AlertaSeguridad />
             <Avisos />
+            <AnuncioObligatorio />
         </div>
     );
 }
