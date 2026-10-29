@@ -20,9 +20,12 @@ import {
     Lock,
     MessageCircle,
     Phone,
+    Pencil,
     PlugZap,
+    Plus,
     Search,
     ShieldCheck,
+    Trash2,
     Users,
     Webhook,
     X,
@@ -74,6 +77,15 @@ interface Advisor {
     name: string;
     email: string;
     is_on_duty: boolean;
+    equipo_id?: number | null;
+}
+
+/** Equipo aparte de la línea general (Teleconsulta…): ver app/Models/Equipo.php. */
+interface EquipoAjuste {
+    id: number;
+    nombre: string;
+    miembros: number[];
+    chats_abiertos: number;
 }
 
 interface AutoReleaseConfig {
@@ -93,6 +105,7 @@ interface WeekendNoticeConfig {
 interface SettingsIndexProps {
     settings: Settings;
     advisors: Advisor[];
+    equipos?: EquipoAjuste[];
     autoRelease: AutoReleaseConfig;
     weekendNotice: WeekendNoticeConfig;
 }
@@ -520,7 +533,7 @@ const HUECOS_PILA = 7;
 // Orden alfabético con acentos bien ordenados ("Álvaro" junto a "Alvaro").
 const ordenAlfabetico = (a: Advisor, b: Advisor) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
 
-export default function SettingsIndex({ settings, advisors, autoRelease, weekendNotice }: SettingsIndexProps) {
+export default function SettingsIndex({ settings, advisors, equipos = [], autoRelease, weekendNotice }: SettingsIndexProps) {
     const { t, i18n } = useTranslation();
     const idioma = i18n.language;
     const { alertasSeguridad } = usePage<{ alertasSeguridad?: Record<string, string> | string[] }>().props;
@@ -772,6 +785,53 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
         advisors.filter((advisor) => advisor.is_on_duty).map((advisor) => advisor.id)
     );
     const [savingAdvisors, setSavingAdvisors] = useState(false);
+
+    /* ── Equipos (Teleconsulta…): crear, cambiar miembros y eliminar ── */
+    const [editorEquipo, setEditorEquipo] = useState<{ id: number | null; nombre: string; miembros: number[] } | null>(null);
+    const [buscarEnEquipo, setBuscarEnEquipo] = useState('');
+    const [guardandoEquipo, setGuardandoEquipo] = useState(false);
+    const [errorEquipo, setErrorEquipo] = useState('');
+    const [equipoABorrar, setEquipoABorrar] = useState<EquipoAjuste | null>(null);
+    const nombreDe = (id: number) => nombrePropio(advisors.find((a) => a.id === id)?.name ?? '');
+    const equipoDe = (id?: number | null) => equipos.find((e) => e.id === id)?.nombre ?? '';
+
+    const abrirEquipo = (equipo: EquipoAjuste | null) => {
+        setErrorEquipo('');
+        setBuscarEnEquipo('');
+        setEditorEquipo(equipo ? { id: equipo.id, nombre: equipo.nombre, miembros: equipo.miembros } : { id: null, nombre: '', miembros: [] });
+    };
+
+    const guardarEquipo = () => {
+        if (!editorEquipo || guardandoEquipo) return;
+        if (!editorEquipo.nombre.trim()) {
+            setErrorEquipo(t('settings.equipos.nombreFalta'));
+            return;
+        }
+        setGuardandoEquipo(true);
+        const datos = { nombre: editorEquipo.nombre.trim(), miembros: editorEquipo.miembros };
+        const opciones = {
+            preserveScroll: true,
+            onFinish: () => setGuardandoEquipo(false),
+            onSuccess: () => {
+                setEditorEquipo(null);
+                toast.success(t('settings.equipos.guardado'));
+            },
+            onError: (errores: Record<string, string>) => setErrorEquipo(errores.nombre || t('settings.equipos.errorGuardar')),
+        };
+        if (editorEquipo.id) router.put(`/admin/settings/equipos/${editorEquipo.id}`, datos, opciones);
+        else router.post('/admin/settings/equipos', datos, opciones);
+    };
+
+    const eliminarEquipo = () => {
+        if (!equipoABorrar) return;
+        const id = equipoABorrar.id;
+        setEquipoABorrar(null);
+        router.delete(`/admin/settings/equipos/${id}`, {
+            preserveScroll: true,
+            onSuccess: () => toast.success(t('settings.equipos.eliminado')),
+            onError: () => toast.error(t('settings.equipos.errorEliminar')),
+        });
+    };
 
     // Lo guardado (la franja y la banda dicen lo que rige de verdad, no lo marcado sin guardar).
     const deTurnoGuardados = useMemo(() => [...advisors].sort(ordenAlfabetico).filter((advisor) => advisor.is_on_duty), [advisors]);
@@ -1588,9 +1648,153 @@ export default function SettingsIndex({ settings, advisors, autoRelease, weekend
                                 </>
                             )}
                         </section>
+
+                        {/* ── 6. Equipos (Teleconsulta…) ── */}
+                        <section aria-labelledby="settings-equipos" className={cn('border-t', FILETE)}>
+                            <Banda
+                                id="settings-equipos"
+                                icon={Users}
+                                titulo={t('settings.equipos.titulo')}
+                                estado={
+                                    <Estado tono={equipos.length > 0 ? 'ok' : 'neutro'}>
+                                        {equipos.length > 0 ? t('settings.equipos.cuantos', { count: equipos.length }) : t('settings.equipos.ninguno')}
+                                    </Estado>
+                                }
+                                texto={t('settings.equipos.bandaTexto')}
+                                acciones={
+                                    <button type="button" onClick={() => abrirEquipo(null)} className={BOTON_SECUNDARIO}>
+                                        <Plus className="size-4" strokeWidth={2} aria-hidden="true" />
+                                        {t('settings.equipos.nuevo')}
+                                    </button>
+                                }
+                            />
+                            {equipos.length === 0 ? (
+                                <p className={cn('border-b py-6 text-[13px] leading-[18px]', SANGRIA, FILETE, TEXTO_SUAVE)}>{t('settings.equipos.vacio')}</p>
+                            ) : (
+                                equipos.map((equipo) => (
+                                    <div key={equipo.id} className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 border-b py-3.5', SANGRIA, FILETE)}>
+                                        <div className="flex min-w-0 flex-[1_1_18rem] flex-col gap-[3px]">
+                                            <span className={cn('text-[14px] leading-5 font-semibold', TEXTO_NAVY)}>{equipo.nombre}</span>
+                                            <span className={cn('text-[12.5px] leading-[17px]', TEXTO_SUAVE)}>
+                                                {equipo.miembros.length > 0 ? equipo.miembros.map(nombreDe).join(', ') : t('settings.equipos.sinMiembros')}
+                                                {' · '}
+                                                {t('settings.equipos.chatsAbiertos', { count: equipo.chats_abiertos })}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button type="button" onClick={() => abrirEquipo(equipo)} className={BOTON_SECUNDARIO}>
+                                                <Pencil className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                                                {t('common.edit')}
+                                            </button>
+                                            <button type="button" onClick={() => setEquipoABorrar(equipo)} className={cn(BOTON_SECUNDARIO, 'text-red-700 dark:text-red-400')}>
+                                                <Trash2 className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                                                {t('common.delete')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </section>
                     </div>
                 </div>
             </div>
+
+            {/* Crear / editar un equipo */}
+            <Dialog open={!!editorEquipo} onOpenChange={(abierto) => !abierto && !guardandoEquipo && setEditorEquipo(null)}>
+                <DialogContent className="card-gradient flex max-h-[min(720px,calc(100svh-2rem))] flex-col rounded-2xl shadow-2xl sm:max-w-lg sm:rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="settings-title">{editorEquipo?.id ? t('settings.equipos.editarTitulo') : t('settings.equipos.nuevoTitulo')}</DialogTitle>
+                        <DialogDescription>{t('settings.equipos.editorAyuda')}</DialogDescription>
+                    </DialogHeader>
+                    {editorEquipo && (
+                        <div className="flex min-h-0 flex-1 flex-col gap-3">
+                            <label className="flex flex-col gap-1.5">
+                                <span className={cn('text-[13px] font-semibold', TEXTO_NAVY)}>{t('settings.equipos.nombre')}</span>
+                                <input
+                                    type="text"
+                                    value={editorEquipo.nombre}
+                                    maxLength={80}
+                                    onChange={(e) => setEditorEquipo({ ...editorEquipo, nombre: e.target.value })}
+                                    placeholder={t('settings.equipos.nombreEjemplo')}
+                                    className={cn('h-9 rounded-[10px] bg-[#2e3f84]/[0.035] px-3 text-[13.5px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]', FOCO)}
+                                />
+                            </label>
+                            <div className="flex items-center justify-between gap-2">
+                                <span className={cn('text-[13px] font-semibold', TEXTO_NAVY)}>{t('settings.equipos.miembros', { count: editorEquipo.miembros.length })}</span>
+                                <input
+                                    type="search"
+                                    value={buscarEnEquipo}
+                                    onChange={(e) => setBuscarEnEquipo(e.target.value)}
+                                    placeholder={t('settings.onDutyAdvisors.searchPlaceholder')}
+                                    aria-label={t('settings.onDutyAdvisors.searchLabel')}
+                                    className={cn('h-8 w-44 rounded-[9px] bg-[#2e3f84]/[0.035] px-2.5 text-[12.5px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:bg-white/5', FOCO)}
+                                />
+                            </div>
+                            <ul className="custom-scrollbar min-h-0 flex-1 overflow-y-auto rounded-xl border border-[#2e3f84]/10 p-1 dark:border-white/10">
+                                {[...advisors]
+                                    .sort(ordenAlfabetico)
+                                    .filter((a) => !buscarEnEquipo.trim() || plano(`${a.name} ${a.email}`).includes(plano(buscarEnEquipo.trim())))
+                                    .map((a) => {
+                                        const marcado = editorEquipo.miembros.includes(a.id);
+                                        const otro = a.equipo_id && a.equipo_id !== editorEquipo.id ? equipoDe(a.equipo_id) : '';
+                                        return (
+                                            <li key={a.id}>
+                                                <label className={cn('flex cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-2', marcado ? 'bg-[#2e3f84]/[0.05] dark:bg-white/[0.06]' : 'hover:bg-[#2e3f84]/[0.03]')}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={marcado}
+                                                        onChange={() =>
+                                                            setEditorEquipo({
+                                                                ...editorEquipo,
+                                                                miembros: marcado ? editorEquipo.miembros.filter((id) => id !== a.id) : [...editorEquipo.miembros, a.id],
+                                                            })
+                                                        }
+                                                        className="size-4 accent-[#2e3f84]"
+                                                    />
+                                                    <span className="flex min-w-0 flex-col">
+                                                        <span className={cn('truncate text-[13px] font-semibold', TEXTO_NAVY)}>{nombrePropio(a.name)}</span>
+                                                        <span className={cn('truncate text-[12px]', TEXTO_SUAVE)}>
+                                                            {a.email}
+                                                            {otro && ` · ${t('settings.equipos.enOtro', { equipo: otro })}`}
+                                                        </span>
+                                                    </span>
+                                                </label>
+                                            </li>
+                                        );
+                                    })}
+                            </ul>
+                            <p className={cn('text-[12px] leading-[17px]', TEXTO_SUAVE)}>{t('settings.equipos.notaMiembros')}</p>
+                            {errorEquipo && <p className="text-[12.5px] text-red-700 dark:text-red-400">{errorEquipo}</p>}
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setEditorEquipo(null)} disabled={guardandoEquipo} className="rounded-xl">
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="button" onClick={guardarEquipo} disabled={guardandoEquipo} className="settings-btn-primary rounded-xl">
+                            {botonGuardar(guardandoEquipo, t('common.save'))}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Eliminar un equipo: sus chats vuelven a la línea general */}
+            <Dialog open={!!equipoABorrar} onOpenChange={(abierto) => !abierto && setEquipoABorrar(null)}>
+                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="settings-title">{t('settings.equipos.eliminarTitulo', { equipo: equipoABorrar?.nombre ?? '' })}</DialogTitle>
+                        <DialogDescription>{t('settings.equipos.eliminarTexto', { count: equipoABorrar?.chats_abiertos ?? 0 })}</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setEquipoABorrar(null)} className="rounded-xl">
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="button" onClick={eliminarEquipo} className="rounded-xl bg-red-600 text-white hover:bg-red-700">
+                            {t('settings.equipos.eliminarBoton')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Confirmación al activar la liberación (o acortar su tiempo): puede desasignar muchas de golpe. */}
             <Dialog open={!!confirmarLiberacion} onOpenChange={(abierto) => !abierto && setConfirmarLiberacion(null)}>

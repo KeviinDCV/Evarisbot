@@ -110,6 +110,7 @@ interface ActiveProgress {
     id: number;
     name: string;
     template_name: string;
+    created_by_name?: string | null;
     total: number;
     sent: number;
     failed: number;
@@ -153,7 +154,8 @@ interface TemplateRecord {
 
 interface BulkSendsProps {
     bulkSends: BulkSendRecord[];
-    activeProgress: ActiveProgress | null;
+    // Envíos que están saliendo (pueden ser varios a la vez: sus mensajes se turnan).
+    activeSends: ActiveProgress[];
     whatsappTemplates: WhatsappTemplate[];
     allTemplates: TemplateRecord[];
 }
@@ -314,7 +316,7 @@ function Contexto({ texto, mal = false }: { texto: string; mal?: boolean }) {
     );
 }
 
-export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgress, whatsappTemplates, allTemplates }: BulkSendsProps) {
+export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos = [], whatsappTemplates, allTemplates }: BulkSendsProps) {
     const { t, i18n } = useTranslation();
     const lng = i18n.language;
     const [activeTab, setActiveTab] = useState<'send' | 'templates'>('send');
@@ -330,8 +332,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [success, setSuccess] = useState('');
     const [manualPhone, setManualPhone] = useState('');
     const [manualName, setManualName] = useState('');
-    const [activeProgress, setActiveProgress] = useState<ActiveProgress | null>(initialProgress);
-    const [isProcessing, setIsProcessing] = useState(!!initialProgress);
+    const [activos, setActivos] = useState<ActiveProgress[]>(initialActivos);
+    // Se pide el estado cada 3 s mientras haya algún envío en curso (o recién iniciado).
+    const [vigilar, setVigilar] = useState(initialActivos.length > 0);
     const [newParamValue, setNewParamValue] = useState('');
     const [selectedTemplate, setSelectedTemplate] = useState<WhatsappTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
@@ -366,7 +369,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
     const [isSyncing, setIsSyncing] = useState(false);
     // Solo presentación: cuántos números trajo el último archivo y si está abierta la confirmación de detener.
     const [uploadedTotal, setUploadedTotal] = useState(0);
-    const [confirmarDetener, setConfirmarDetener] = useState(false);
+    // Envío que se va a detener (abre la confirmación).
+    const [detenerId, setDetenerId] = useState<number | null>(null);
 
     useEffect(() => {
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -649,12 +653,13 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
         }
     };
 
-    // Polling para progreso activo
+    // Sondeo de los envíos en curso. Cuando alguno termina se refresca el historial; sin ninguno, se deja de pedir.
     useEffect(() => {
-        if (!isProcessing) return;
+        if (!vigilar) return;
 
         let shouldStop = false;
         let intervalId: ReturnType<typeof setInterval> | null = null;
+        let ids = '';
 
         const checkStatus = async () => {
             if (shouldStop) return;
@@ -663,26 +668,19 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
                     headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' },
                 });
                 const data = await response.json();
+                const lista: ActiveProgress[] = Array.isArray(data.activos) ? data.activos : [];
+                const nuevos = lista.map((a) => a.id).join(',');
+                const termino = ids !== '' && ids.split(',').some((id) => !lista.some((a) => String(a.id) === id));
+                ids = nuevos;
+                setActivos(lista);
+                if (termino) router.reload({ only: ['bulkSends'] });
 
-                if (!data.processing) {
+                if (lista.length === 0) {
                     shouldStop = true;
-                    setIsProcessing(false);
-                    setActiveProgress(null);
+                    setVigilar(false);
                     if (intervalId) clearInterval(intervalId);
-                    router.reload();
-                    return;
+                    router.reload({ only: ['bulkSends'] });
                 }
-
-                setActiveProgress({
-                    id: data.id,
-                    name: data.name,
-                    template_name: data.template_name,
-                    total: data.total,
-                    sent: data.sent,
-                    failed: data.failed,
-                    pending: data.pending,
-                    percentage: data.percentage,
-                });
             } catch (err) {
                 console.error('Error polling status:', err);
             }
@@ -695,7 +693,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             shouldStop = true;
             if (intervalId) clearInterval(intervalId);
         };
-    }, [isProcessing]);
+    }, [vigilar]);
 
     const handleFileUpload = async (file: File) => {
         setIsUploading(true);
@@ -860,7 +858,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
             if (data.success) {
                 setSuccess(data.message);
-                setIsProcessing(true);
+                setVigilar(true);
                 setRecipients([]);
                 setUploadedFileName('');
                 setTemplateName('');
@@ -890,9 +888,8 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
             const data = response.data;
             if (data.success) {
-                setIsProcessing(false);
-                setActiveProgress(null);
-                router.reload();
+                setActivos((prev) => prev.filter((a) => a.id !== id));
+                router.reload({ only: ['bulkSends'] });
             } else {
                 setError(data.message);
             }
@@ -1190,57 +1187,71 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             <Banda
                 id="envio-en-curso"
                 icon={Send}
-                titulo={t('bulkSends.sendInProgressTitle')}
+                titulo={activos.length > 1 ? t('bulkSends.sendsInProgressTitle', { count: activos.length }) : t('bulkSends.sendInProgressTitle')}
                 estado={<Estado status="processing" peq />}
                 texto={
-                    activeProgress
-                        ? t('bulkSends.inProgressText', { name: activeProgress.name || t('bulkSends.unnamed'), template: activeProgress.template_name })
-                        : t('bulkSends.sendInProgress')
-                }
-                acciones={
-                    activeProgress && (
-                        <button type="button" onClick={() => setConfirmarDetener(true)} aria-haspopup="dialog" title={t('bulkSends.stopAsksConfirmation')} className={BOTON_PELIGRO}>
-                            <Square strokeWidth={2} aria-hidden="true" />
-                            {t('bulkSends.stopButton')}
-                        </button>
-                    )
+                    activos.length === 1
+                        ? t('bulkSends.inProgressText', { name: activos[0].name || t('bulkSends.unnamed'), template: activos[0].template_name })
+                        : t('bulkSends.sendsInProgressText')
                 }
                 className="rounded-t-2xl"
             />
-            {activeProgress && (
-                <div className={cn('border-b pt-[18px] pb-5', SANGRIA, FILETE)}>
+            {activos.map((envio) => (
+                <div key={envio.id} className={cn('border-b pt-[18px] pb-5', SANGRIA, FILETE)}>
+                    {activos.length > 1 && (
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                            <div className="flex min-w-0 flex-col">
+                                <span className={cn('truncate text-[14px] leading-5 font-semibold', TEXTO_NAVY)}>{envio.name || t('bulkSends.unnamed')}</span>
+                                <span className={cn('truncate text-[12.5px] leading-4', TEXTO_SUAVE)}>
+                                    {t('bulkSends.sendTemplateBy', { template: envio.template_name, name: envio.created_by_name || '-' })}
+                                </span>
+                            </div>
+                            <button type="button" onClick={() => setDetenerId(envio.id)} aria-haspopup="dialog" title={t('bulkSends.stopAsksConfirmation')} className={BOTON_PELIGRO}>
+                                <Square strokeWidth={2} aria-hidden="true" />
+                                {t('bulkSends.stopButton')}
+                            </button>
+                        </div>
+                    )}
                     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
                         <div className="flex min-w-0 flex-col gap-1.5">
-                            <Rotulo titulo={t('bulkSends.progressTitle')} apoyo={t('bulkSends.progressAutoRefresh')} />
+                            {activos.length === 1 && <Rotulo titulo={t('bulkSends.progressTitle')} apoyo={t('bulkSends.progressAutoRefresh')} />}
                             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                                <span className={cn('text-[30px] leading-9 font-medium tracking-[-0.03em] whitespace-nowrap tabular-nums', TEXTO_NAVY)}>{activeProgress.percentage} %</span>
+                                <span className={cn('text-[30px] leading-9 font-medium tracking-[-0.03em] whitespace-nowrap tabular-nums', TEXTO_NAVY)}>{envio.percentage} %</span>
                                 <span className={cn('text-[14px] leading-5 tabular-nums', TEXTO_SUAVE)}>
                                     <Trans
                                         i18nKey="bulkSends.progressProcessedRich"
-                                        values={{ done: miles(activeProgress.sent + activeProgress.failed, lng), total: miles(activeProgress.total, lng) }}
+                                        values={{ done: miles(envio.sent + envio.failed, lng), total: miles(envio.total, lng) }}
                                         components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
                                     />
                                 </span>
                             </div>
                         </div>
-                        <div className={cn('flex flex-wrap items-center gap-x-[22px] gap-y-1.5 pb-1.5 text-[13px] leading-[18px] font-medium whitespace-nowrap tabular-nums', TEXTO_NAVY)}>
-                            <span className="flex items-center gap-2">
-                                <span className="size-[9px] shrink-0 rounded-[2.5px] bg-emerald-600 dark:bg-emerald-500" aria-hidden="true" />
-                                {t('bulkSends.sent')} <span className="font-semibold">{miles(activeProgress.sent, lng)}</span>
-                            </span>
-                            <span className="flex items-center gap-2">
-                                <span className="size-[9px] shrink-0 rounded-[2.5px] bg-red-600 dark:bg-red-500" aria-hidden="true" />
-                                {t('bulkSends.failed')} <span className="font-semibold">{miles(activeProgress.failed, lng)}</span>
-                            </span>
-                            <span className="flex items-center gap-2">
-                                <span className="size-[9px] shrink-0 rounded-[2.5px] bg-[#2e3f84]/8 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.32)] dark:bg-white/10 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.3)]" aria-hidden="true" />
-                                {t('bulkSends.pending')} <span className="font-semibold">{miles(activeProgress.pending, lng)}</span>
-                            </span>
+                        <div className="flex flex-wrap items-center gap-x-[22px] gap-y-3">
+                            <div className={cn('flex flex-wrap items-center gap-x-[22px] gap-y-1.5 pb-1.5 text-[13px] leading-[18px] font-medium whitespace-nowrap tabular-nums', TEXTO_NAVY)}>
+                                <span className="flex items-center gap-2">
+                                    <span className="size-[9px] shrink-0 rounded-[2.5px] bg-emerald-600 dark:bg-emerald-500" aria-hidden="true" />
+                                    {t('bulkSends.sent')} <span className="font-semibold">{miles(envio.sent, lng)}</span>
+                                </span>
+                                <span className="flex items-center gap-2">
+                                    <span className="size-[9px] shrink-0 rounded-[2.5px] bg-red-600 dark:bg-red-500" aria-hidden="true" />
+                                    {t('bulkSends.failed')} <span className="font-semibold">{miles(envio.failed, lng)}</span>
+                                </span>
+                                <span className="flex items-center gap-2">
+                                    <span className="size-[9px] shrink-0 rounded-[2.5px] bg-[#2e3f84]/8 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.32)] dark:bg-white/10 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.3)]" aria-hidden="true" />
+                                    {t('bulkSends.pending')} <span className="font-semibold">{miles(envio.pending, lng)}</span>
+                                </span>
+                            </div>
+                            {activos.length === 1 && (
+                                <button type="button" onClick={() => setDetenerId(envio.id)} aria-haspopup="dialog" title={t('bulkSends.stopAsksConfirmation')} className={BOTON_PELIGRO}>
+                                    <Square strokeWidth={2} aria-hidden="true" />
+                                    {t('bulkSends.stopButton')}
+                                </button>
+                            )}
                         </div>
                     </div>
-                    <Barra ok={activeProgress.sent} mal={activeProgress.failed} total={activeProgress.total} alto="mt-3.5 h-2.5" etiqueta={t('bulkSends.progressTitle')} />
+                    <Barra ok={envio.sent} mal={envio.failed} total={envio.total} alto="mt-3.5 h-2.5" etiqueta={t('bulkSends.progressTitle')} />
                 </div>
-            )}
+            ))}
             <div className={cn('flex min-h-12 items-center gap-3 px-4 py-3 @3xl/hoja:px-5', FILETE)}>
                 <span className={cn('flex w-8 shrink-0 justify-center', TEXTO_SUAVE)}>
                     <Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
@@ -1851,7 +1862,7 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
     const seccionPreparar = (
         <section aria-labelledby="preparar-envio">
-            <Banda id="preparar-envio" icon={Send} titulo={t('bulkSends.prepareTitle')} texto={t('bulkSends.prepareText')} className="rounded-t-2xl" />
+            <Banda id="preparar-envio" icon={Send} titulo={t('bulkSends.prepareTitle')} texto={t('bulkSends.prepareText')} className={activos.length > 0 ? cn('border-t', FILETE) : 'rounded-t-2xl'} />
             <div className="grid grid-cols-1 @5xl/hoja:grid-cols-[minmax(0,1fr)_400px] @6xl/hoja:grid-cols-[minmax(0,1fr)_424px]">
                 <div className="flex min-w-0 flex-col">
                     {paso1}
@@ -2302,8 +2313,9 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
 
                     {activeTab === 'send' && (
                         <div id="panel-send" role="tabpanel" aria-labelledby="pestana-send" className={HOJA}>
-                            {/* Mientras sale un envío el formulario se oculta (solo puede haber uno a la vez). */}
-                            {isProcessing ? seccionEnCurso : seccionPreparar}
+                            {/* Los envíos en curso arriba; el formulario sigue disponible: pueden salir varios a la vez. */}
+                            {activos.length > 0 && seccionEnCurso}
+                            {seccionPreparar}
                             {seccionHistorial}
                         </div>
                     )}
@@ -2317,16 +2329,21 @@ export default function BulkSendsIndex({ bulkSends, activeProgress: initialProgr
             </div>
 
             {/* ── Detener el envío en curso: la MISMA llamada de siempre, solo tras "Sí, detener el envío" ── */}
-            <ConfirmarDetener
-                abierto={confirmarDetener && !!activeProgress}
-                onSeguir={() => setConfirmarDetener(false)}
-                onDetener={() => {
-                    setConfirmarDetener(false);
-                    if (activeProgress) handleCancel(activeProgress.id);
-                }}
-                pendientes={activeProgress?.pending}
-                procesados={activeProgress ? activeProgress.sent + activeProgress.failed : null}
-            />
+            {(() => {
+                const aDetener = activos.find((a) => a.id === detenerId) ?? null;
+                return (
+                    <ConfirmarDetener
+                        abierto={!!aDetener}
+                        onSeguir={() => setDetenerId(null)}
+                        onDetener={() => {
+                            setDetenerId(null);
+                            if (aDetener) handleCancel(aDetener.id);
+                        }}
+                        pendientes={aDetener?.pending}
+                        procesados={aDetener ? aDetener.sent + aDetener.failed : null}
+                    />
+                );
+            })()}
 
             {/* ── Confirmación de envío: obliga a ver el mensaje final antes de disparar ── */}
             <Dialogo

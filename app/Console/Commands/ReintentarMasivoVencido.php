@@ -54,8 +54,8 @@ class ReintentarMasivoVencido extends Command
             $this->error('Este envío sigue en proceso: espere a que termine.');
             return self::FAILURE;
         }
-        if (BulkSend::where('status', 'processing')->where('id', '!=', $bulk->id)->exists()) {
-            $this->error('Hay otro envío masivo en proceso: espere a que termine.');
+        if (BulkSend::where('status', 'processing')->count() >= BulkSend::MAXIMO_SIMULTANEOS) {
+            $this->error('Ya hay ' . BulkSend::MAXIMO_SIMULTANEOS . ' envíos masivos en curso: espere a que termine alguno.');
             return self::FAILURE;
         }
         if (!$this->option('aplicar')) {
@@ -83,22 +83,14 @@ class ReintentarMasivoVencido extends Command
             ->name('Reintento por plazo vencido: ' . ($bulk->name ?? $bulk->template_name))
             ->allowFailures()
             ->finally(function ($batch) use ($bulkId) {
-                $bs = BulkSend::find($bulkId);
-                if ($bs) {
-                    $bs->update([
-                        'status' => 'completed',
-                        'sent_count' => $bs->recipients()->where('status', 'sent')->count(),
-                        'failed_count' => $bs->recipients()->where('status', 'failed')->count(),
-                    ]);
-                }
+                BulkSend::find($bulkId)?->cerrar($batch->cancelled());
                 Log::info('Reintento de envío masivo completado', ['bulk_send_id' => $bulkId, 'batch_id' => $batch->id]);
             })
             ->dispatch();
         $bulk->update(['batch_id' => $batch->id]);
 
-        foreach (array_chunk($ids, 100) as $lote) {
-            $batch->add(array_map(fn ($id) => new SendBulkMessageJob((int) $id, $bulkId), $lote));
-        }
+        // En cadena, como los envíos nuevos: el primero deja en la fila al siguiente pendiente, y así.
+        $batch->add([new SendBulkMessageJob((int) min($ids), $bulkId, true)]);
 
         Log::info('Reintento de envío masivo (plazo vencido) encolado', ['bulk_send_id' => $bulkId, 'destinatarios' => count($ids)]);
         $this->info('Listo: ' . count($ids) . ' destinatarios en cola. Salen con el worker automático; el avance se ve en la pantalla del envío.');

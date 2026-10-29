@@ -15,6 +15,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -26,10 +27,53 @@ class SendBulkMessageJob implements ShouldQueue
     public $maxExceptions = 3;
     public $backoff = [5, 10, 30];
 
+    /**
+     * $encadenado: el envío va en cadena. En la cola hay UN trabajo de este envío a la vez y cada uno, al empezar, deja
+     * en la fila al siguiente destinatario. Así, si hay varios envíos a la vez, los mensajes se turnan (uno de cada
+     * envío) en vez de salir un envío entero detrás de otro. Los trabajos de antes de esto (sin la propiedad) no
+     * encadenan: ya estaban todos en la cola.
+     */
     public function __construct(
         public int $recipientId,
-        public int $bulkSendId
+        public int $bulkSendId,
+        public bool $encadenado = false
     ) {}
+
+    /**
+     * Deja en la fila al siguiente destinatario pendiente de este envío (al final: detrás de lo que haya de otros
+     * envíos). Una sola vez por destinatario aunque el trabajo se reintente, y también si falla o se vence (failed),
+     * para que la cadena no se corte.
+     */
+    private function encolarSiguiente(): void
+    {
+        if (!$this->encadenado) {
+            return;
+        }
+        try {
+            $batch = $this->batch();
+            if (!$batch || $batch->cancelled()) {
+                return;
+            }
+            if (!Cache::add("masivo:{$this->bulkSendId}:cadena:{$this->recipientId}", 1, now()->addDays(3))) {
+                return;
+            }
+            $siguiente = BulkSendRecipient::where('bulk_send_id', $this->bulkSendId)
+                ->where('id', '>', $this->recipientId)
+                ->where('status', 'pending')
+                ->min('id');
+            if ($siguiente) {
+                $batch->add([new self((int) $siguiente, $this->bulkSendId, true)]);
+            }
+        } catch (\Throwable $e) {
+            // Si no se pudo, al cerrar el lote los pendientes quedan como vencidos (masivo:reintentar-vencidos).
+            Cache::forget("masivo:{$this->bulkSendId}:cadena:{$this->recipientId}");
+            Log::error('No se pudo encolar el siguiente mensaje del envío masivo', [
+                'bulk_send_id' => $this->bulkSendId,
+                'recipient_id' => $this->recipientId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
 
     /**
      * Rate limiting: evitar enviar demasiados mensajes al mismo tiempo
@@ -66,6 +110,8 @@ class SendBulkMessageJob implements ShouldQueue
 
     public function handle(): void
     {
+        $this->encolarSiguiente();
+
         // Rate limiting: 3 segundos entre mensajes
         sleep(3);
 
@@ -298,6 +344,9 @@ class SendBulkMessageJob implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
+        // Vencido sin llegar a handle (worker detenido mucho tiempo): la cadena sigue con el siguiente.
+        $this->encolarSiguiente();
+
         $recipient = BulkSendRecipient::find($this->recipientId);
         // No marcar como fallido si ya fue enviado exitosamente
         if ($recipient && $recipient->status !== 'failed' && $recipient->status !== 'sent') {

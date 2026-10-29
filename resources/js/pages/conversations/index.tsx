@@ -204,6 +204,8 @@ interface Conversation {
     status: string;
     unread_count: number;
     assigned_to: number | null;
+    // Equipo aparte de la línea general (Teleconsulta…); null = línea general.
+    equipo_id?: number | null;
     assigned_user?: {
         name: string;
     };
@@ -257,6 +259,7 @@ interface User {
     id: number;
     name: string;
     role: string;
+    equipo_id?: number | null;
 }
 
 interface MediaFile {
@@ -317,6 +320,8 @@ interface ConversationsIndexProps {
     selectedConversation?: Conversation;
     unreadOnOpen?: number;
     users: User[];
+    // Equipos aparte de la línea general (Teleconsulta…), para la etiqueta del chat.
+    equipos?: { id: number; nombre: string }[];
     allTags?: TagItem[];
     allSpecialties?: { name: string; count: number }[];
     filters: {
@@ -595,17 +600,26 @@ function etiquetaFiltroFecha(f: FiltroFecha, t: TFunction, idioma: string): stri
     return f.hasta ? t('conversations.dateUntil', { date: corta(f.hasta) }) : '';
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [], inicioNuevo = false }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, equipos = [], allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [], inicioNuevo = false }: ConversationsIndexProps) {
     const { t, i18n } = useTranslation();
     // Diseño nuevo del inicio sin chat abierto: ?nuevo=1 lo prueba en este navegador (ver lib/diseno-nuevo).
     const [inicioNuevoActivo] = useState(() => usarDisenoNuevo('evarisbot.inicio-chats-nuevo', inicioNuevo));
     const { auth } = usePage().props as any;
     const isAdmin = auth.user.role === 'admin';
 
+    // Equipo de esta persona (Teleconsulta…): ve y responde todos los chats de su equipo, de cualquiera de ellos.
+    const miEquipo: number | null = auth.user.equipo_id ?? null;
+    const deMiEquipo = (c?: { equipo_id?: number | null } | null) => miEquipo !== null && !!c && c.equipo_id === miEquipo;
+    const nombreEquipo = (id?: number | null) => (id ? (equipos.find((e) => e.id === id)?.nombre ?? '') : '');
+
     // Misma regla que ensureCanAccess() del servidor: un asesor solo cambia sus conversaciones y, si está de turno, las
-    // que no tienen asesor. En Resueltas, Agendados, Oncología… ve también las de otros, pero no puede cambiarlas.
-    const puedeActuar = (c: { assigned_to: number | null }) =>
-        auth.user.role !== 'advisor' || c.assigned_to === auth.user.id || (c.assigned_to == null && Boolean(auth.user.is_on_duty));
+    // que no tienen asesor; en un equipo, todas las de su equipo. En Resueltas, Agendados, Oncología… ve también las de
+    // otros, pero no puede cambiarlas.
+    const puedeActuar = (c: { assigned_to: number | null; equipo_id?: number | null }) =>
+        auth.user.role !== 'advisor' ||
+        (miEquipo !== null
+            ? c.equipo_id === miEquipo
+            : c.equipo_id == null && (c.assigned_to === auth.user.id || (c.assigned_to == null && Boolean(auth.user.is_on_duty))));
 
     // csrfPost no lanza con 4xx/5xx (solo con 419): devuelve el texto del rechazo, o null si el servidor lo aceptó.
     // Antes se daba por bueno cualquier respuesta y salía «Estado actualizado» o «guardada» con un 403. Del servidor
@@ -2740,7 +2754,9 @@ export default function ConversationsIndex({ conversations: initialConversations
             ? idsToUpdate
             : idsToUpdate.filter(id => {
                 const c = localConversations.find(x => x.id === id);
-                return !!c && (c.assigned_to === auth.user.id || (c.assigned_to == null && deTurno));
+                if (!c) return false;
+                if (miEquipo !== null) return c.equipo_id === miEquipo;
+                return c.equipo_id == null && (c.assigned_to === auth.user.id || (c.assigned_to == null && deTurno));
             });
 
         const quitadas = status === 'resolved' ? localConversations.filter(c => permitidas.includes(c.id)) : [];
@@ -3058,13 +3074,15 @@ export default function ConversationsIndex({ conversations: initialConversations
     const isLockedByOther = useMemo(() => {
         if (!selectedConversation) return false;
         if (isAdmin) return false;
+        // En un equipo responde cualquiera de sus miembros, aunque el chat esté asignado a un compañero.
+        if (miEquipo !== null && selectedConversation.equipo_id === miEquipo) return false;
         return currentAssignedTo !== null && currentAssignedTo !== auth.user.id;
-    }, [currentAssignedTo, auth.user.id, isAdmin, selectedConversation]);
+    }, [currentAssignedTo, auth.user.id, isAdmin, selectedConversation, miEquipo]);
 
     // El chat abierto ya no es de esta persona (lo tomó otro asesor, o quedó sin asesor y no está de turno): el
     // servidor le niega cambiar estado, notas, especialidad y bloqueo. El panel lo muestra en solo lectura. Se sabe por
     // la lista (si la trae al día) o por el 403 del sondeo del chat abierto (sinAcceso), que es lo que sí llega siempre.
-    const soloLectura = !!selectedConversation && (sinAcceso || !puedeActuar({ assigned_to: currentAssignedTo ?? null }));
+    const soloLectura = !!selectedConversation && (sinAcceso || !puedeActuar({ assigned_to: currentAssignedTo ?? null, equipo_id: selectedConversation.equipo_id ?? null }));
     // Responder sigue igual que antes (solo se bloquea si la lista dice que el chat es de otra persona): si el chat
     // quedó sin asesor, quien responde lo recupera (sendMessage); si lo tomó otra persona, el servidor responde 423.
     // Si la lista dice «es tuyo» o «sin asesor» pero el sondeo dio 403, no se sabe quién lo tiene: «ya no está a tu cargo».
@@ -3327,6 +3345,9 @@ export default function ConversationsIndex({ conversations: initialConversations
                         time: duracionLegible(Number(meta.threshold_minutes) || 0, t),
                     });
                 }
+                if (meta.reason === 'equipo') {
+                    return t('conversations.activity.unassignedEquipo', { equipo: meta.equipo || '' });
+                }
                 return t('conversations.activity.unassigned', { name });
             case 'auto_assigned':
                 return t('conversations.activity.autoAssigned', { name: meta.assigned_to_name || name });
@@ -3348,6 +3369,10 @@ export default function ConversationsIndex({ conversations: initialConversations
                 return t('conversations.activity.created', { name });
             case 'weekend_notice':
                 return t('conversations.activity.weekendNotice');
+            case 'equipo_entrada':
+                return t('conversations.activity.equipoEntrada', { name, equipo: meta.equipo || '' });
+            case 'equipo_salida':
+                return t('conversations.activity.equipoSalida', { name, equipo: meta.equipo || '' });
             default:
                 return `${name}: ${activity.type}`;
         }
@@ -3363,6 +3388,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             case 'status_changed': return 'bg-purple-400';
             case 'created': return 'bg-sky-400';
             case 'weekend_notice': return 'bg-teal-400';
+            case 'equipo_entrada': case 'equipo_salida': return 'bg-violet-400';
             default: return 'bg-gray-400';
         }
     };
@@ -3571,6 +3597,29 @@ export default function ConversationsIndex({ conversations: initialConversations
     const handleHideChat = () => {
         if (!selectedConversation) return;
         setShowDeleteDialog(true);
+    };
+
+    // «Pasar a línea general»: el chat sale del equipo y queda sin asignar en la bandeja general. Quien es del equipo
+    // deja de verlo (se cierra); un administrador lo sigue viendo.
+    const pasarALineaGeneral = () => {
+        if (!selectedConversation?.equipo_id) return;
+        if (!confirm(t('conversations.equipo.pasarConfirm', { equipo: nombreEquipo(selectedConversation.equipo_id) }))) return;
+        const id = selectedConversation.id;
+        csrfPost(`/admin/chat/${id}/linea-general`).then((res) => {
+            const error = rechazo(res, t('conversations.equipo.pasarError'));
+            if (error) {
+                toast.error(error);
+                return;
+            }
+            toast.success(t('conversations.equipo.pasado'));
+            if (isAdmin) {
+                setLocalConversations((prev) => prev.map((c) => (c.id === id ? { ...c, equipo_id: null, assigned_to: null } : c)));
+                router.reload({ only: ['selectedConversation'] });
+            } else {
+                setLocalConversations((prev) => prev.filter((c) => c.id !== id));
+                handleCloseChat();
+            }
+        }).catch(() => toast.error(t('conversations.equipo.pasarError')));
     };
 
     const confirmHideChat = () => {
@@ -4400,6 +4449,15 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             {/* Las etiquetas se pintan más arriba, en el sitio que antes ocupaba la
                                                 línea de estado. Aquí había un segundo bloque que las repetía en una
                                                 línea propia: se retiró para no duplicarlas y para no gastar altura. */}
+                                            {/* Equipo (Teleconsulta…): los administradores ven chats de todos */}
+                                            {isAdmin && conversation.equipo_id && (
+                                                <div className="flex items-center gap-1 mt-1">
+                                                    <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-800 px-1.5 py-0.5 rounded-full truncate max-w-[150px] flex items-center gap-1" title={t('conversations.equipo.etiquetaTitulo', { equipo: nombreEquipo(conversation.equipo_id) })}>
+                                                        <Users className="w-2.5 h-2.5 flex-shrink-0" />
+                                                        {nombreEquipo(conversation.equipo_id)}
+                                                    </span>
+                                                </div>
+                                            )}
                                             {/* Especialidad */}
                                             {conversation.specialty && (
                                                 <div className="flex items-center gap-1 mt-1">
@@ -6167,6 +6225,16 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 {/* Acciones */}
                                 <div className="px-4 py-3">
                                     <p className="text-[11px] text-muted-foreground uppercase tracking-wide mb-1.5">{t('conversations.actions')}</p>
+                                    {/* Chat de un equipo (Teleconsulta…): sus miembros o un administrador lo devuelven a la línea general. */}
+                                    {selectedConversation.equipo_id && (isAdmin || deMiEquipo(selectedConversation)) && (
+                                        <button
+                                            onClick={pasarALineaGeneral}
+                                            className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-[#2e3f84] dark:text-neutral-300 hover:bg-muted transition-colors"
+                                            title={t('conversations.equipo.pasarAyuda', { equipo: nombreEquipo(selectedConversation.equipo_id) })}
+                                        >
+                                            <Users className="w-4 h-4" /> {t('conversations.equipo.pasar')}
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => handleTogglePin(selectedConversation.id)}
                                         className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm text-foreground hover:bg-muted transition-colors"

@@ -24,6 +24,8 @@ class BulkSendController extends Controller
      */
     public function index()
     {
+        $activos = $this->enviosEnCurso();
+
         $bulkSends = BulkSend::with('creator')
             ->orderBy('created_at', 'desc')
             ->get()
@@ -38,46 +40,6 @@ class BulkSendController extends Controller
                 'created_by_name' => $bs->creator?->name ?? 'Sistema',
                 'created_at' => $bs->created_at->format('Y-m-d H:i'),
             ]);
-
-        // Verificar si hay un envío en proceso
-        $activeSend = BulkSend::where('status', 'processing')->first();
-        $activeProgress = null;
-
-        if ($activeSend) {
-            $activeProgress = [
-                'id' => $activeSend->id,
-                'name' => $activeSend->name,
-                'template_name' => $activeSend->template_name,
-                'total' => $activeSend->total_recipients,
-                'sent' => $activeSend->sent_count,
-                'failed' => $activeSend->failed_count,
-                'pending' => max(0, $activeSend->total_recipients - $activeSend->sent_count - $activeSend->failed_count),
-                'percentage' => $activeSend->total_recipients > 0
-                    ? round(($activeSend->sent_count + $activeSend->failed_count) / $activeSend->total_recipients * 100)
-                    : 0,
-            ];
-
-            // Verificar si el batch realmente terminó
-            if ($activeSend->batch_id) {
-                try {
-                    $batch = Bus::findBatch($activeSend->batch_id);
-                    if ($batch && ($batch->finished() || $batch->cancelled())) {
-                        // Reconciliar contadores desde recipients reales
-                        $actualSent = $activeSend->recipients()->where('status', 'sent')->count();
-                        $actualFailed = $activeSend->recipients()->where('status', 'failed')->count();
-
-                        $activeSend->update([
-                            'status' => $batch->cancelled() ? 'cancelled' : 'completed',
-                            'sent_count' => $actualSent,
-                            'failed_count' => $actualFailed,
-                        ]);
-                        $activeProgress = null;
-                    }
-                } catch (\Exception $e) {
-                    Log::warning('Error verificando batch de envío masivo', ['error' => $e->getMessage()]);
-                }
-            }
-        }
 
         $whatsappTemplates = WhatsappTemplate::active()
             ->orderBy('name')
@@ -113,7 +75,7 @@ class BulkSendController extends Controller
 
         return Inertia::render('admin/bulk-sends/index', [
             'bulkSends' => $bulkSends,
-            'activeProgress' => $activeProgress,
+            'activeSends' => $activos,
             'whatsappTemplates' => $whatsappTemplates,
             'allTemplates' => $allTemplates,
         ]);
@@ -693,12 +655,12 @@ class BulkSendController extends Controller
             'recipients.*.params' => 'nullable|array',
         ]);
 
-        // Verificar que no haya un envío en proceso
+        // Varios envíos pueden salir a la vez (sus mensajes se turnan); como mucho MAXIMO_SIMULTANEOS.
         $activeCount = BulkSend::where('status', 'processing')->count();
-        if ($activeCount > 0) {
+        if ($activeCount >= BulkSend::MAXIMO_SIMULTANEOS) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ya hay un envío masivo en proceso. Espere a que termine.',
+                'message' => 'Ya hay ' . BulkSend::MAXIMO_SIMULTANEOS . ' envíos masivos en curso. Espere a que termine alguno.',
             ], 400);
         }
 
@@ -751,11 +713,9 @@ class BulkSendController extends Controller
                 BulkSendRecipient::insert($rows);
             }
 
-            // Obtener los IDs insertados
+            // El primer destinatario: los demás se encolan en cadena (SendBulkMessageJob::$encadenado).
             DB::reconnect();
-            $recipientIds = BulkSendRecipient::where('bulk_send_id', $bulkSend->id)
-                ->pluck('id')
-                ->toArray();
+            $primero = (int) BulkSendRecipient::where('bulk_send_id', $bulkSend->id)->min('id');
 
             // Crear el batch VACÍO primero (transacción pequeña)
             DB::reconnect();
@@ -763,18 +723,8 @@ class BulkSendController extends Controller
                 ->name('Envío masivo: ' . ($bulkSend->name ?? $bulkSend->template_name))
                 ->allowFailures()
                 ->finally(function ($batch) use ($bulkSend) {
-                    $bs = BulkSend::find($bulkSend->id);
-                    if ($bs) {
-                        // Reconciliar contadores desde los recipients reales
-                        $actualSent = $bs->recipients()->where('status', 'sent')->count();
-                        $actualFailed = $bs->recipients()->where('status', 'failed')->count();
-
-                        $bs->update([
-                            'status' => 'completed',
-                            'sent_count' => $actualSent,
-                            'failed_count' => $actualFailed,
-                        ]);
-                    }
+                    // Contadores desde los destinatarios reales; lo que quedó pendiente, como vencido.
+                    BulkSend::find($bulkSend->id)?->cerrar($batch->cancelled());
                     Log::info('Batch de envío masivo completado', [
                         'bulk_send_id' => $bulkSend->id,
                         'batch_id' => $batch->id,
@@ -784,16 +734,9 @@ class BulkSendController extends Controller
 
             $bulkSend->update(['batch_id' => $batch->id]);
 
-            // Agregar jobs al batch en chunks pequeños (100 a la vez)
-            $idChunks = array_chunk($recipientIds, 100);
-            foreach ($idChunks as $idChunk) {
-                DB::reconnect();
-                $jobs = array_map(
-                    fn($recipientId) => new SendBulkMessageJob($recipientId, $bulkSend->id),
-                    $idChunk
-                );
-                $batch->add($jobs);
-            }
+            // Solo el primero: cada mensaje deja en la fila al siguiente al empezar. Antes se encolaban todos de una vez
+            // y un segundo envío quedaba detrás del primero entero (por eso solo se permitía uno a la vez).
+            $batch->add([new SendBulkMessageJob($primero, $bulkSend->id, true)]);
 
             Log::info('Envío masivo iniciado', [
                 'bulk_send_id' => $bulkSend->id,
@@ -822,59 +765,50 @@ class BulkSendController extends Controller
     }
 
     /**
-     * Obtener estado del envío masivo activo
+     * Envíos en curso (pueden ser varios a la vez), del más viejo al más nuevo. Los que ya terminaron su lote se
+     * cierran aquí y dejan de salir.
+     */
+    private function enviosEnCurso(): array
+    {
+        $activos = [];
+        foreach (BulkSend::where('status', 'processing')->orderBy('id')->get() as $envio) {
+            if ($envio->batch_id) {
+                try {
+                    $batch = Bus::findBatch($envio->batch_id);
+                    if ($batch && ($batch->finished() || $batch->cancelled())) {
+                        $envio->cerrar($batch->cancelled());
+                        continue;
+                    }
+                } catch (\Exception $e) {
+                    // Sigue con lo que hay en la base.
+                }
+            }
+            $activos[] = [
+                'id' => $envio->id,
+                'name' => $envio->name,
+                'template_name' => $envio->template_name,
+                'created_by_name' => $envio->creator?->name,
+                'total' => $envio->total_recipients,
+                'sent' => $envio->sent_count,
+                'failed' => $envio->failed_count,
+                'pending' => max(0, $envio->total_recipients - $envio->sent_count - $envio->failed_count),
+                'percentage' => $envio->total_recipients > 0
+                    ? round(($envio->sent_count + $envio->failed_count) / $envio->total_recipients * 100)
+                    : 0,
+            ];
+        }
+
+        return $activos;
+    }
+
+    /**
+     * Estado de los envíos en curso (la pantalla lo pide cada 3 s mientras haya alguno).
      */
     public function status()
     {
-        $activeSend = BulkSend::where('status', 'processing')->first();
+        $activos = $this->enviosEnCurso();
 
-        if (!$activeSend) {
-            return response()->json([
-                'processing' => false,
-            ]);
-        }
-
-        // Verificar si el batch terminó
-        if ($activeSend->batch_id) {
-            try {
-                $batch = Bus::findBatch($activeSend->batch_id);
-                if ($batch && ($batch->finished() || $batch->cancelled())) {
-                    // Reconciliar contadores desde recipients reales antes de marcar como completado
-                    $actualSent = $activeSend->recipients()->where('status', 'sent')->count();
-                    $actualFailed = $activeSend->recipients()->where('status', 'failed')->count();
-
-                    $activeSend->update([
-                        'status' => $batch->cancelled() ? 'cancelled' : 'completed',
-                        'sent_count' => $actualSent,
-                        'failed_count' => $actualFailed,
-                    ]);
-
-                    return response()->json([
-                        'processing' => false,
-                        'completed' => true,
-                        'sent' => $actualSent,
-                        'failed' => $actualFailed,
-                        'total' => $activeSend->total_recipients,
-                    ]);
-                }
-            } catch (\Exception $e) {
-                // Continue with local data
-            }
-        }
-
-        return response()->json([
-            'processing' => true,
-            'id' => $activeSend->id,
-            'name' => $activeSend->name,
-            'template_name' => $activeSend->template_name,
-            'total' => $activeSend->total_recipients,
-            'sent' => $activeSend->sent_count,
-            'failed' => $activeSend->failed_count,
-            'pending' => max(0, $activeSend->total_recipients - $activeSend->sent_count - $activeSend->failed_count),
-            'percentage' => $activeSend->total_recipients > 0
-                ? round(($activeSend->sent_count + $activeSend->failed_count) / $activeSend->total_recipients * 100)
-                : 0,
-        ]);
+        return response()->json(['processing' => $activos !== [], 'activos' => $activos]);
     }
 
     /**
@@ -958,6 +892,8 @@ class BulkSendController extends Controller
             // hora detrás de basura, mostrando 0% mientras la consola parecía a tope.
             // Pasó dos veces el 12-ago y desconcertó a todo el mundo.
             $this->purgarTrabajosEncolados($idsCancelados);
+            // Contadores al día (los pendientes acaban de pasar a fallidos «cancelado»).
+            $bulkSend->cerrar(true);
 
             return response()->json([
                 'success' => true,
