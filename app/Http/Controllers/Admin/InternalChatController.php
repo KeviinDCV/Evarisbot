@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Anuncio;
 use App\Models\InternalChat;
 use App\Models\InternalChatParticipant;
 use App\Models\InternalMessage;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Models\WelcomeFlow;
 use App\Services\LmStudioService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -19,7 +21,7 @@ class InternalChatController extends Controller
     /**
      * Formatear un mensaje para la respuesta JSON
      */
-    private function formatMessage(InternalMessage $m, int $userId): array
+    private function formatMessage(InternalMessage $m, int $userId, array $anuncios = []): array
     {
         $data = [
             'id' => $m->id,
@@ -40,6 +42,7 @@ class InternalChatController extends Controller
             'edited' => (bool) $m->edited_at,
             'reactions' => $this->formatReactions($m, $userId),
             'reply_to' => null,
+            'anuncio' => $anuncios[$m->id] ?? null,
         ];
 
         if ($m->reply_to_id && $m->replyTo) {
@@ -202,8 +205,9 @@ class InternalChatController extends Controller
             ->limit(200)
             ->get()
             ->reverse()
-            ->values()
-            ->map(fn($m) => $this->formatMessage($m, $userId));
+            ->values();
+        $anuncios = $this->anunciosDe($messages->pluck('id')->all(), $userId);
+        $messages = $messages->map(fn($m) => $this->formatMessage($m, $userId, $anuncios));
 
         $chatData = [
             'id' => $chat->id,
@@ -471,7 +475,16 @@ class InternalChatController extends Controller
             $q->where('users.id', $userId);
         })->get()->sum(fn($chat) => $chat->unreadCountFor($userId));
 
-        return response()->json(['count' => $count]);
+        return response()->json([
+            'count' => $count,
+            'anuncios' => Anuncio::pendientesPara(auth()->user())->map(fn (Anuncio $a) => [
+                'id' => $a->id,
+                'cuerpo' => $a->cuerpo,
+                'autor' => $a->autor?->name ?? '',
+                'creado' => $a->created_at?->toISOString(),
+                'segundos' => Anuncio::SEGUNDOS_LECTURA,
+            ])->values(),
+        ]);
     }
 
     /**
@@ -504,9 +517,14 @@ class InternalChatController extends Controller
             $query->where('created_at', '>', $since);
         }
 
-        $messages = $query->orderBy('created_at', 'asc')
-            ->get()
-            ->map(fn($m) => $this->formatMessage($m, $userId));
+        $messages = $query->orderBy('created_at', 'asc')->get();
+        $updates = $chat->messages()
+            ->with('reactions.user')
+            ->orderBy('created_at', 'desc')
+            ->limit(80)
+            ->get();
+        $anuncios = $this->anunciosDe(array_merge($messages->pluck('id')->all(), $updates->pluck('id')->all()), $userId);
+        $messages = $messages->map(fn($m) => $this->formatMessage($m, $userId, $anuncios));
 
         // Actualizar last_read_at
         if ($messages->count() > 0) {
@@ -517,16 +535,13 @@ class InternalChatController extends Controller
 
         // Cambios en mensajes existentes (reacciones / ediciones): no generan un mensaje
         // nuevo, así que se envían aparte para que los demás participantes los vean.
-        $updates = $chat->messages()
-            ->with('reactions.user')
-            ->orderBy('created_at', 'desc')
-            ->limit(80)
-            ->get()
+        $updates = $updates
             ->map(fn ($m) => [
                 'id'        => $m->id,
                 'body'      => $m->body,
                 'edited'    => (bool) $m->edited_at,
                 'reactions' => $this->formatReactions($m, $userId),
+                'anuncio'   => $anuncios[$m->id] ?? null,
             ])
             ->values();
 
@@ -627,6 +642,98 @@ class InternalChatController extends Controller
      * Devuelve por cada participante (excepto el propio usuario) su last_read_at,
      * para que el frontend pueda mostrar "Visto por X" en el último mensaje leído.
      */
+    /**
+     * Anuncios de los mensajes dados (el más reciente de cada uno): si sigue vigente y cuántos lo leyeron. Quiénes
+     * faltan, solo para los administradores. Casi ningún mensaje tiene anuncio: es una consulta por lote.
+     */
+    private function anunciosDe(array $messageIds, int $userId): array
+    {
+        if ($messageIds === []) {
+            return [];
+        }
+        $esAdmin = User::whereKey($userId)->value('role') === 'admin';
+        $resultado = [];
+        $anuncios = Anuncio::with('mensaje:id,user_id')->whereIn('internal_message_id', array_unique($messageIds))->orderBy('id')->get();
+        foreach ($anuncios as $anuncio) {
+            $destinatarios = $anuncio->destinatarios()->orderBy('name')->get(['id', 'name']);
+            $leyeron = array_flip($anuncio->leidoPor());
+            $faltan = $destinatarios->reject(fn ($u) => isset($leyeron[$u->id]));
+            $resultado[$anuncio->internal_message_id] = [
+                'id' => $anuncio->id,
+                'vigente' => $anuncio->vigente(),
+                'leidos' => $destinatarios->count() - $faltan->count(),
+                'total' => $destinatarios->count(),
+                'faltan' => $esAdmin ? $faltan->pluck('name')->values()->all() : [],
+            ];
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Anunciar un mensaje a todos (solo administradores): a cada administrador y asesor le sale en una ventana que no
+     * se cierra hasta tenerla 30 s a la vista. Solo mensajes con texto. Si ya está anunciado, no se repite.
+     */
+    public function anunciar(InternalChat $chat, InternalMessage $message)
+    {
+        $user = auth()->user();
+        if (!$user->isAdmin() || !$chat->hasParticipant($user->id) || (int) $message->internal_chat_id !== (int) $chat->id) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+        $cuerpo = trim((string) $message->body);
+        if ($message->type !== 'text' || $cuerpo === '') {
+            return response()->json(['error' => 'Solo se pueden anunciar mensajes con texto.'], 422);
+        }
+
+        Anuncio::vigentes()->where('internal_message_id', $message->id)->exists()
+            || Anuncio::create([
+                'user_id' => $user->id,
+                'internal_message_id' => $message->id,
+                'cuerpo' => $cuerpo,
+                'vence_en' => now()->addDays(Anuncio::DIAS_VIGENCIA),
+            ]);
+        // A todos al instante: cada pantalla vuelve a pedir sus pendientes (y quien tenga el chat abierto, el chat).
+        \App\Support\TiempoReal::paraTodos('chat_interno', ['chat_id' => $chat->id]);
+
+        return response()->json(['success' => true, 'anuncio' => $this->anunciosDe([$message->id], $user->id)[$message->id] ?? null]);
+    }
+
+    /** Retirar un anuncio (solo administradores): deja de salirle a quien no lo había leído. */
+    public function retirarAnuncio(Anuncio $anuncio)
+    {
+        $user = auth()->user();
+        if (!$user->isAdmin()) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+        if ($anuncio->retirado_en === null) {
+            $anuncio->update(['retirado_en' => now()]);
+        }
+        \App\Support\TiempoReal::paraTodos('chat_interno', ['chat_id' => (int) ($anuncio->mensaje?->internal_chat_id ?? 0)]);
+        $messageId = (int) $anuncio->internal_message_id;
+
+        return response()->json(['success' => true, 'anuncio' => $messageId ? ($this->anunciosDe([$messageId], $user->id)[$messageId] ?? null) : null]);
+    }
+
+    /** «Entendido» en la ventana del anuncio. La espera de 30 s la lleva la pantalla. */
+    public function leerAnuncio(Anuncio $anuncio)
+    {
+        $user = auth()->user();
+        if (!in_array($user->role, Anuncio::ROLES, true)) {
+            return response()->json(['error' => 'No autorizado'], 403);
+        }
+        DB::table('anuncio_lecturas')->insertOrIgnore([
+            'anuncio_id' => $anuncio->id,
+            'user_id' => $user->id,
+            'leido_en' => now(),
+        ]);
+        // Quien tenga abierto el chat del mensaje ve subir el «leído por» al instante.
+        if ($anuncio->mensaje) {
+            \App\Support\TiempoReal::chatInterno((int) $anuncio->mensaje->internal_chat_id);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
     public function readReceipts(InternalChat $chat)
     {
         $userId = auth()->id();

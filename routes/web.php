@@ -134,6 +134,10 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::controller(\App\Http\Controllers\Admin\InternalChatController::class)->prefix('internal-chat')->name('internal-chat.')->group(function () {
         Route::get('/', 'index')->name('index');          Route::get('/list', 'chatList')->name('list');        Route::get('/unread-count', 'unreadCount')->name('unread-count');
         Route::post('/create', 'create')->name('create');
+        // Anuncios de lectura obligatoria
+        Route::post('/anuncios/{anuncio}/leido', 'leerAnuncio')->name('anuncios.leido');
+        Route::post('/anuncios/{anuncio}/retirar', 'retirarAnuncio')->name('anuncios.retirar');
+        Route::post('/{chat}/messages/{message}/anunciar', 'anunciar')->name('anunciar');
         Route::get('/{chat}/messages', 'messages')->name('messages');
         Route::post('/{chat}/send', 'send')->name('send');
         Route::post('/{chat}/ai-reply', 'aiReply')->name('ai-reply');

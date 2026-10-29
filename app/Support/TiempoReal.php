@@ -104,6 +104,23 @@ class TiempoReal
         }
     }
 
+    /** A todos los administradores y asesores (anuncios de lectura obligatoria). Por tandas de 90 canales. */
+    public static function paraTodos(string $tipo, array $datos = []): void
+    {
+        if (! self::activo()) {
+            return;
+        }
+
+        try {
+            $usuarios = DB::table('users')->whereIn('role', ['admin', 'advisor'])->pluck('id')->all();
+        } catch (\Throwable) {
+            return;
+        }
+        foreach (array_chunk(array_map(fn ($id) => 'App.Models.User.'.(int) $id, $usuarios), 90) as $canales) {
+            self::enviar($tipo, $datos, $canales);
+        }
+    }
+
     private static function deMensaje(int $messageId): void
     {
         if (! self::activo()) {
