@@ -23,6 +23,7 @@ class UserController extends Controller
                 'email' => $user->email,
                 'role' => $user->role,
                 'can_bulk_send' => (bool) $user->can_bulk_send,
+                'is_on_duty' => (bool) $user->is_on_duty,
                 'created_at' => $user->created_at,
                 'is_online' => $user->isOnline(),
                 'online_status' => $user->getOnlineStatus(),
@@ -51,7 +52,7 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => ['required', 'confirmed', Password::min(8)],
+            'password' => ['required', 'confirmed', Password::defaults()],
             'role' => 'required|in:admin,advisor',
         ]);
 
@@ -86,7 +87,7 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email,' . $user->id,
             'role' => 'required|in:admin,advisor',
-            'password' => ['nullable', 'confirmed', Password::min(8)],
+            'password' => ['nullable', 'confirmed', Password::defaults()],
         ]);
 
         $data = [
@@ -94,6 +95,10 @@ class UserController extends Controller
             'email' => $validated['email'],
             'role' => $validated['role'],
         ];
+        // Los administradores ven todo y no van en equipos (Configuración → Equipos).
+        if ($validated['role'] === 'admin') {
+            $data['equipo_id'] = null;
+        }
 
         if (!empty($validated['password'])) {
             $data['password'] = Hash::make($validated['password']);

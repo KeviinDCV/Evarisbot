@@ -1,93 +1,615 @@
 import AdminLayout from '@/layouts/admin-layout';
-import { Head, useForm, router, usePage } from '@inertiajs/react';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, Search, ChevronLeft, ChevronRight, Send, Clock, XCircle, Play, Pause, RefreshCw, Square, ExternalLink, CalendarCheck, CalendarX, Phone } from 'lucide-react';
-import { FormEventHandler, useState, useMemo, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { AppointmentsScopeSwitch } from '@/components/appointments-scope-switch';
+import {
+    BANDA,
+    BOTON_APAGADO,
+    BOTON_PELIGRO,
+    BOTON_PELIGRO_LLENO,
+    BOTON_PRIMARIO,
+    BOTON_SECUNDARIO,
+    Buscador,
+    COLUMNAS_CITA,
+    FILETE,
+    FOCO,
+    FilaCita,
+    HOJA,
+    MONO,
+    TEXTO_NAVY,
+    TEXTO_SUAVE,
+    TONO_TEXTO,
+    Th,
+    esIngles,
+    fechaCorta,
+    fechaEnvio,
+    fechaLarga,
+    fechaLocal,
+    horaDe,
+    miles,
+    nombrePropio,
+    type CitaFila,
+} from '@/components/appointments/piezas-citas';
+import { AvisoCampo } from '@/components/avisos-campo';
+import { Skeleton } from '@/components/ui/skeleton';
+import { plano } from '@/lib/texto';
+import { cn } from '@/lib/utils';
+import { Deferred, Head, Link, useForm, router, usePage } from '@inertiajs/react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import {
+    ArrowRight,
+    Calendar,
+    CalendarCheck2,
+    CalendarClock,
+    CircleAlert,
+    CircleCheck,
+    CircleX,
+    Clock,
+    FileSpreadsheet,
+    History,
+    Info,
+    LoaderCircle,
+    Pause,
+    Play,
+    Send,
+    Square,
+    TriangleAlert,
+    Upload,
+    X,
+    type LucideIcon,
+} from 'lucide-react';
+import { FormEventHandler, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
+import axios from 'axios';
 
-interface Appointment {
-    id: number;
-    citead?: string;
-    cianom?: string;
-    citmed?: string;
-    mednom?: string;
-    citesp?: string;
-    espnom?: string;
-    citfc?: string;
-    cithor?: string;
-    citdoc?: string;
-    nom_paciente?: string;
-    pactel?: string;
-    pacnac?: string;
-    pachis?: string;
-    cittid?: string;
-    citide?: string;
-    citres?: string;
-    cittip?: string;
-    nom_cotizante?: string;
-    citcon?: string;
-    connom?: string;
-    citurg?: string;
-    citobsobs?: string;
-    duracion?: string;
-    ageperdes_g?: string;
-    dia?: string;
-    reminder_sent?: boolean;
-    reminder_sent_at?: string;
-    reminder_status?: 'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'confirmed' | 'cancelled';
+/* ── Datos que manda el servidor (contrato de Citas: index, reminders/*, upload) ─────────────────── */
+
+type Ambito = 'general' | 'oncology';
+
+/** Cifras de un envío, contadas en la BD sobre las citas del lote. */
+interface Progreso {
+    total: number;
+    sent: number;
+    failed: number;
+    pending: number;
+    skipped: number;
+    percentage: number;
+}
+
+/** El último envío del ámbito. Las horas llegan en hora de Colombia como 'Y-m-d H:i' (sin zona). */
+interface UltimoEnvio {
+    batch_id: string;
+    tipo: 'normal' | 'dia_antes';
+    fecha_citas: string;
+    total: number;
+    sin_celular: number;
+    iniciado_por: string | null;
+    inicio: string;
+    estado: 'en_curso' | 'terminado' | 'detenido' | 'cortado';
+    motivo: 'plantilla' | 'cuenta' | 'limite' | null;
+    fin: string | null;
+    enviados: number;
+    con_error: number;
+    sin_enviar: number;
+    omitidas: number;
+}
+
+/** Una fecha con recordatorios por enviar: `salen` es lo que sale al pulsar (tope max_per_day). */
+interface Tanda {
+    fecha: string;
+    por_enviar: number;
+    sin_celular: number;
+    salen: number;
+}
+
+interface RemindersStats {
+    hoy: string;
+    days_in_advance: number;
+    max_per_day: number;
+    objetivo: Tanda;
+    manana: Tanda;
+    sent: number;
+    failed: number;
+    futuras: number;
+}
+
+interface UploadResult {
+    name: string;
+    size: number;
+    uploaded_at: string;
+    nuevas: number;
+    actualizadas: number;
+    reprogramadas: number;
+    duplicadas: number;
+    sin_fecha: number;
+    sin_celular: number;
 }
 
 interface AppointmentIndexProps {
-    appointments: Appointment[];
-    totalAppointments?: number;
-    remindersStats?: {
-        sent: number;
-        pending: number;
-        pending_tomorrow: number;
-        failed: number;
-    };
-    uploadedFile?: {
-        name: string;
-        path: string;
-        size: number;
-        uploaded_at: string;
-        total_rows?: number;
-    };
-    reminderPaused?: boolean;
-    reminderProcessing?: boolean;
-    reminderProgress?: {
-        sent: number;
-        failed: number;
-        total: number;
-        pending: number;
-        percentage: number;
-    } | null;
-    flash?: {
-        success?: string;
-        error?: string;
-    };
+    ambito?: Ambito;
     routePrefix?: string;
-    pageTitle?: string;
+    reminderProcessing?: boolean;
+    reminderPaused?: boolean;
+    reminderProgress?: Progreso | null;
+    reminderStalled?: boolean;
+    ultimoEnvio?: UltimoEnvio | null;
+    uploadedFile?: UploadResult | null;
+    uploadError?: { code: string; columnas?: string[] } | null;
+    // Diferidas (Inertia v2): ausentes en la primera respuesta; <Deferred> pinta el esqueleto.
+    appointments?: CitaFila[];
+    totalAppointments?: number;
+    remindersStats?: RemindersStats;
 }
 
-export default function AppointmentsIndex({ appointments: initialAppointments, totalAppointments = 0, remindersStats, uploadedFile, reminderPaused = false, reminderProcessing = false, reminderProgress: initialProgress = null, routePrefix = '/admin/appointments', pageTitle = 'Gestión de Citas' }: AppointmentIndexProps) {
+// Lo que se recarga para saber el estado del envío y las cifras: al abrir la confirmación, al volver a
+// la pestaña sin envío en curso y al terminar un envío (entonces, además, las citas).
+const ESTADO = ['reminderProcessing', 'reminderPaused', 'reminderProgress', 'reminderStalled', 'ultimoEnvio', 'remindersStats'];
+const ESTADO_Y_CITAS = [...ESTADO, 'appointments', 'totalAppointments'];
+
+// Cada mensaje tarda unos 3-4 s (la pausa de 3 s del trabajo más la llamada a WhatsApp).
+const SEGUNDOS_POR_MENSAJE = 4;
+const MAX_MB = 10;
+
+type Accion = 'start' | 'dayBefore' | 'pause' | 'resume' | 'stop';
+type AvisoEnvio = { tipo: 'ok' | 'aviso' | 'error'; texto: string };
+
+const ERROR_CARGA = {
+    requerido: 'appointments.uploadError.requerido',
+    tipo: 'appointments.uploadError.tipo',
+    tamano: 'appointments.uploadError.tamano',
+    subida_incompleta: 'appointments.uploadError.subida_incompleta',
+    vacio: 'appointments.uploadError.vacio',
+    columnas_faltantes: 'appointments.uploadError.columnas_faltantes',
+    fallo: 'appointments.uploadError.fallo',
+} as const;
+
+const COLUMNA_OBLIGATORIA = {
+    citfci: 'appointments.requiredColumn.citfci',
+    cithor: 'appointments.requiredColumn.cithor',
+    pactel: 'appointments.requiredColumn.pactel',
+    nom_paciente: 'appointments.requiredColumn.nom_paciente',
+} as const;
+
+const RAZON_CORTE = {
+    plantilla: 'appointments.cutReason.plantilla',
+    cuenta: 'appointments.cutReason.cuenta',
+    limite: 'appointments.cutReason.limite',
+    otro: 'appointments.cutReason.otro',
+} as const;
+
+// Columnas que lee la carga (fila 1 del Excel): las cuatro obligatorias primero.
+const COLUMNAS_EXCEL = [
+    ['Citfci', 'appointments.columnDescDate', true],
+    ['Cithor', 'appointments.columnDescTime', true],
+    ['Pactel', 'appointments.columnDescPhone', true],
+    ['Nom_paciente', 'appointments.columnDescPatientName', true],
+    ['Pactel2', 'appointments.columnDescPhone2', false],
+    ['Citide', 'appointments.columnDescPatientId', false],
+    ['Citdoc', 'appointments.columnDescDocument', false],
+    ['Mednom', 'appointments.columnDescDoctorName', false],
+    ['Espnom', 'appointments.columnDescSpecialty', false],
+    ['Citcon', 'appointments.columnDescRoomCode', false],
+    ['Connom', 'appointments.columnDescLocation', false],
+] as const;
+
+/* ── Utilidades ─────────────────────────────────────────────────────────────────────────────────── */
+
+const progresoDe = (u: UltimoEnvio): Progreso => ({
+    total: u.total,
+    sent: u.enviados,
+    failed: u.con_error,
+    pending: u.sin_enviar,
+    skipped: u.omitidas,
+    percentage: u.total ? Math.floor(((u.total - u.sin_enviar) / u.total) * 100) : 0,
+});
+
+/** Hoy en Colombia ('Y-m-d'), sin depender de la zona horaria del equipo. */
+const hoyColombia = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
+
+/** La hora actual en Colombia (0-23). */
+function horaColombia() {
+    const partes = new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Bogota' }).formatToParts(new Date());
+    return Number(partes.find((parte) => parte.type === 'hour')?.value ?? 12);
+}
+
+/** "9:05 p. m." (es) · "9:05 PM" (en), en hora de Colombia: es el instante actual, no un dato del servidor. */
+const ahoraColombia = (lng: string) =>
+    new Intl.DateTimeFormat(esIngles(lng) ? 'en-US' : 'es-CO', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Bogota' }).format(new Date());
+
+/** "1,5 MB" (es) · "1.5 MB" (en). */
+function tamanoArchivo(bytes: number, lng: string) {
+    const formato = new Intl.NumberFormat(esIngles(lng) ? 'en-US' : 'es-CO', { maximumFractionDigits: 1 });
+    if (bytes < 1024) return `${formato.format(bytes)} bytes`;
+    if (bytes < 1024 * 1024) return `${formato.format(bytes / 1024)} KB`;
+    return `${formato.format(bytes / (1024 * 1024))} MB`;
+}
+
+const leerEstado = (error: unknown) => (axios.isAxiosError(error) ? error.response?.status : undefined);
+
+// 401 (sin sesión, en JSON) y 419 (token vencido): la sesión caducó. Las acciones los reciben como error (no como
+// dato) para decir eso y no «No se pudo…».
+const sesionVencida = (status?: number) => status === 401 || status === 419;
+const VALIDAR = { validateStatus: (s: number) => !sesionVencida(s) };
+
+/* ── Piezas del panel ────────────────────────────────────────────────────────────────────────────── */
+
+// Sangría del texto de la hoja: 20 px + 32 de la ranura del icono de sección + 12 = 64 px.
+const SANGRIA = 'px-4 @3xl/hoja:pr-5 @3xl/hoja:pl-16';
+
+/** Una cifra de la franja: marca + etiqueta arriba, número grande y su detalle debajo. */
+function Cifra({ marca, etiqueta, valor, detalle, puntoDetalle, tonoDetalle }: { marca: ReactNode; etiqueta: string; valor: string; detalle: ReactNode; puntoDetalle?: string; tonoDetalle?: string }) {
+    return (
+        <div className="flex min-w-0 flex-col">
+            {/* En el teléfono la etiqueta puede ir en dos líneas: «Por enviar, pasado mañana» no cabe en una. */}
+            <div className="flex min-h-4 items-start gap-2">
+                {marca}
+                <span className="line-clamp-2 text-[12px] leading-4 font-medium text-muted-foreground @5xl/pagina:line-clamp-1">{etiqueta}</span>
+            </div>
+            <span className={cn('mt-[7px] text-[28px] leading-8 font-medium tracking-[-0.03em] whitespace-nowrap tabular-nums', TEXTO_NAVY)}>{valor}</span>
+            <span className="mt-[5px] flex min-h-4 min-w-0 items-start gap-1.5 text-[12.5px] leading-4 text-muted-foreground tabular-nums">
+                {puntoDetalle && <span className={cn('mt-[4.5px] size-[7px] shrink-0 rounded-full', puntoDetalle)} aria-hidden="true" />}
+                <span className={cn('line-clamp-2 min-w-0 @5xl/pagina:line-clamp-1', tonoDetalle)}>{detalle}</span>
+            </span>
+        </div>
+    );
+}
+
+// Filete vertical entre cifras (no un borde de tarjeta). Solo cuando la franja va en una fila.
+const Divisor = () => <div className="hidden w-px self-stretch bg-[#2e3f84]/12 @5xl/pagina:block dark:bg-white/10" aria-hidden="true" />;
+const FRANJA = 'grid grid-cols-2 gap-x-6 gap-y-5 @5xl/pagina:grid-cols-[repeat(3,minmax(0,1fr)_1px)_minmax(0,1fr)] @5xl/pagina:gap-y-0';
+
+/** Banda de sección: icono en la ranura, título + estado, qué hace; acciones a la derecha. */
+function Banda({
+    id,
+    icon: Icon,
+    titulo,
+    estado,
+    texto,
+    acciones,
+    className,
+    accionesClassName,
+}: {
+    id: string;
+    icon: LucideIcon;
+    titulo: string;
+    estado?: ReactNode;
+    texto: string;
+    acciones?: ReactNode;
+    className?: string;
+    accionesClassName?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                'flex flex-wrap items-center gap-x-3 gap-y-3 border-b px-4 py-3 @3xl/hoja:min-h-16 @3xl/hoja:flex-nowrap @3xl/hoja:px-5 @3xl/hoja:py-2.5',
+                BANDA,
+                FILETE,
+                className
+            )}
+        >
+            <span className={cn('flex w-8 shrink-0 justify-center self-start pt-px @3xl/hoja:self-center @3xl/hoja:pt-0', TEXTO_NAVY)}>
+                <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
+            </span>
+            <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-[3px]">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {/* tabIndex -1: tras enviar o detener, el foco vuelve aquí (el botón que abrió el diálogo ya no está o está apagado). */}
+                    <h2 id={id} tabIndex={-1} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em] focus-visible:outline-hidden', TEXTO_NAVY)}>
+                        {titulo}
+                    </h2>
+                    {estado}
+                </div>
+                {/* Hasta dos líneas; si aún no cabe, el texto completo queda en el title. */}
+                <p title={texto} className={cn('text-[12.5px] leading-4 @3xl/hoja:line-clamp-2', TEXTO_SUAVE)}>
+                    {texto}
+                </p>
+            </div>
+            {/* En el teléfono las acciones bajan a su propia línea, alineadas con el título. */}
+            {acciones && (
+                <div className={cn('flex flex-wrap items-center gap-2.5 @max-3xl/hoja:basis-full @max-3xl/hoja:pl-11 @3xl/hoja:shrink-0', accionesClassName)}>{acciones}</div>
+            )}
+        </div>
+    );
+}
+
+/** Rótulo en versalitas + apoyo ("PROGRESO DEL ENVÍO  se actualiza solo mientras la pestaña está abierta"). */
+function Rotulo({ titulo, apoyo }: { titulo: string; apoyo?: string }) {
+    return (
+        <div className="flex min-h-4 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+            <span className={cn('text-[11px] leading-4 font-semibold tracking-[0.07em] whitespace-nowrap uppercase', TEXTO_SUAVE)}>{titulo}</span>
+            {apoyo && <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{apoyo}</span>}
+        </div>
+    );
+}
+
+/** Estado del envío en la banda: icono o punto + texto del color de su significado. */
+function EstadoEnvio({ tipo, texto }: { tipo: 'enviando' | 'pausa' | 'sin_avanzar' | 'quieto'; texto: string }) {
+    if (tipo === 'enviando') {
+        return (
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-semibold whitespace-nowrap text-sky-700 dark:text-sky-300">
+                <LoaderCircle className="size-3.5 animate-spin text-sky-600 motion-reduce:animate-none dark:text-sky-400" strokeWidth={2.25} aria-hidden="true" />
+                {texto}
+            </span>
+        );
+    }
+    if (tipo === 'pausa' || tipo === 'sin_avanzar') {
+        const Icono = tipo === 'pausa' ? Pause : TriangleAlert;
+        return (
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-semibold whitespace-nowrap text-amber-700 dark:text-amber-400">
+                <Icono className="size-3.5 text-amber-600 dark:text-amber-400" strokeWidth={2.25} aria-hidden="true" />
+                {texto}
+            </span>
+        );
+    }
+    return (
+        <span className="inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-medium whitespace-nowrap text-slate-600 dark:text-neutral-300">
+            <span className="size-[7px] shrink-0 rounded-full bg-slate-400 dark:bg-neutral-500" aria-hidden="true" />
+            {texto}
+        </span>
+    );
+}
+
+/** Fila de aviso ámbar dentro de la hoja (límite por envío, envío sin avanzar, último envío cortado…). */
+function FilaAviso({ etiqueta, children }: { etiqueta?: string; children: ReactNode }) {
+    return (
+        <div
+            className={cn(
+                'flex items-start gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 @3xl/hoja:min-h-14 @3xl/hoja:items-center @3xl/hoja:px-5',
+                'dark:border-amber-500/20 dark:bg-amber-500/10'
+            )}
+        >
+            <span className="flex w-8 shrink-0 justify-center text-amber-700 dark:text-amber-400">
+                <TriangleAlert className="size-[17px]" strokeWidth={2} aria-hidden="true" />
+            </span>
+            <p className="text-[13px] leading-[18px] text-amber-800 tabular-nums dark:text-amber-200">
+                {etiqueta && <span className="font-semibold">{etiqueta} </span>}
+                {children}
+            </p>
+        </div>
+    );
+}
+
+/**
+ * Confirmación (Radix Dialog): la opción segura con el foco; Esc cancela. Al cerrar, el foco vuelve al botón
+ * que la abrió; si ese botón ya no existe o quedó apagado (tras enviar o detener), va al título de la sección.
+ */
+function Confirmacion({
+    abierto,
+    onCancelar,
+    onConfirmar,
+    icono: Icono,
+    peligro = false,
+    titulo,
+    children,
+    textoSeguro,
+    iconoSeguro: IconoSeguro,
+    textoConfirmar,
+    iconoConfirmar,
+    confirmarDesactivado = false,
+    respaldoFoco,
+}: {
+    abierto: boolean;
+    onCancelar: () => void;
+    onConfirmar: () => void;
+    icono: LucideIcon;
+    peligro?: boolean;
+    titulo: string;
+    children: ReactNode;
+    textoSeguro: string;
+    iconoSeguro: LucideIcon;
+    textoConfirmar: string;
+    iconoConfirmar?: LucideIcon;
+    confirmarDesactivado?: boolean;
+    respaldoFoco?: string;
+}) {
+    const seguro = useRef<HTMLButtonElement>(null);
+    const origen = useRef<HTMLElement | null>(null);
+    const IconoConfirmar = iconoConfirmar ?? (peligro ? Square : Send);
+
+    // Antes de que Radix mueva el foco al diálogo (sus efectos corren después de este).
+    useLayoutEffect(() => {
+        if (abierto) origen.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }, [abierto]);
+
+    return (
+        <DialogPrimitive.Root open={abierto} onOpenChange={(open) => !open && onCancelar()}>
+            <DialogPrimitive.Portal>
+                <DialogPrimitive.Overlay className="fixed inset-0 z-[65] bg-[#2e3f84]/28 data-[state=open]:animate-in data-[state=open]:fade-in-0 motion-reduce:animate-none dark:bg-black/55" />
+                <DialogPrimitive.Content
+                    onOpenAutoFocus={(event) => {
+                        event.preventDefault();
+                        seguro.current?.focus();
+                    }}
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        const boton = origen.current;
+                        if (boton?.isConnected && !(boton as HTMLButtonElement).disabled) boton.focus();
+                        else if (respaldoFoco) document.getElementById(respaldoFoco)?.focus();
+                    }}
+                    className="fixed top-1/2 left-1/2 z-[65] w-[calc(100%-2rem)] max-w-[460px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-card shadow-[0_0_0_1px_rgba(46,63,132,0.1),0_6px_14px_rgba(46,63,132,0.1),0_30px_60px_-20px_rgba(46,63,132,0.55)] outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 motion-reduce:animate-none forced-colors:border dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_30px_60px_-20px_rgba(0,0,0,0.8)]"
+                >
+                    <div className="flex gap-3.5 px-6 pt-[22px] pb-[18px]">
+                        <span
+                            className={cn(
+                                'flex size-[38px] shrink-0 items-center justify-center rounded-[10px]',
+                                peligro
+                                    ? 'bg-red-50 text-red-700 shadow-[inset_0_0_0_1px_var(--color-red-200)] dark:bg-red-500/10 dark:text-red-300 dark:shadow-none'
+                                    : 'bg-[#2e3f84]/8 text-[#2e3f84] dark:bg-white/8 dark:text-neutral-100'
+                            )}
+                        >
+                            <Icono className="size-[17px]" strokeWidth={2.25} aria-hidden="true" />
+                        </span>
+                        <div className="flex min-w-0 flex-col gap-2">
+                            <DialogPrimitive.Title className={cn('text-[16.5px] leading-[22px] font-semibold tracking-[-0.01em] tabular-nums', TEXTO_NAVY)}>
+                                {titulo}
+                            </DialogPrimitive.Title>
+                            <DialogPrimitive.Description asChild>
+                                <div className="flex flex-col gap-2 text-[13.5px] leading-5 text-muted-foreground tabular-nums dark:text-neutral-400">{children}</div>
+                            </DialogPrimitive.Description>
+                        </div>
+                    </div>
+                    {/* En el teléfono los dos botones van a lo ancho: la acción arriba y la opción segura debajo. */}
+                    <div className={cn('flex flex-col-reverse gap-2 border-t px-6 py-3.5 sm:flex-row sm:justify-end', BANDA, FILETE)}>
+                        <DialogPrimitive.Close asChild>
+                            <button ref={seguro} type="button" className={cn(BOTON_SECUNDARIO, 'w-full sm:w-auto')}>
+                                <IconoSeguro strokeWidth={1.9} aria-hidden="true" />
+                                {textoSeguro}
+                            </button>
+                        </DialogPrimitive.Close>
+                        <button
+                            type="button"
+                            onClick={onConfirmar}
+                            disabled={confirmarDesactivado}
+                            className={cn(confirmarDesactivado ? BOTON_APAGADO : peligro ? BOTON_PELIGRO_LLENO : BOTON_PRIMARIO, 'w-full sm:w-auto')}
+                        >
+                            {confirmarDesactivado ? (
+                                <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" />
+                            ) : (
+                                <IconoConfirmar strokeWidth={2} aria-hidden="true" />
+                            )}
+                            {textoConfirmar}
+                        </button>
+                    </div>
+                </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
+    );
+}
+
+export default function AppointmentsIndex({
+    ambito,
+    routePrefix = '/admin/appointments',
+    reminderProcessing = false,
+    reminderPaused = false,
+    reminderProgress = null,
+    reminderStalled = false,
+    ultimoEnvio: ultimoEnvioServidor = null,
+    uploadedFile = null,
+    uploadError = null,
+    appointments: initialAppointments = [],
+    totalAppointments = 0,
+    remindersStats,
+}: AppointmentIndexProps) {
+    const { t, i18n } = useTranslation();
+    const lng = i18n.language;
     const { flash } = usePage<{ flash: { success?: string; error?: string } }>().props;
+    // El ámbito lo manda el servidor; solo si faltara (respuesta vieja) se deduce de las rutas.
+    const esOncologia = (ambito ?? (routePrefix.startsWith('/admin/oncology') ? 'oncology' : 'general')) === 'oncology';
+    const nombreAmbito = esOncologia ? t('navigation.appointmentsOncology') : t('navigation.appointmentsGeneral');
+    const stats = remindersStats;
+
     const [showFlashMessage, setShowFlashMessage] = useState(true);
+    const [showUploadResult, setShowUploadResult] = useState(true);
     const [isDragging, setIsDragging] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 50;
-    const [isPaused, setIsPaused] = useState(reminderPaused);
-    // Inicializar como procesando si el servidor dice que está procesando
-    // (ya sea para citas de pasado mañana O de mañana)
-    const [isProcessing, setIsProcessing] = useState(reminderProcessing);
-    const [isLoading, setIsLoading] = useState(false);
-    const [localStats, setLocalStats] = useState(remindersStats || { sent: 0, pending: 0, pending_tomorrow: 0, failed: 0 });
-    // Inicializar progreso con el valor del servidor si existe
-    const [progress, setProgress] = useState<{ sent: number; failed: number; total: number; pending: number; percentage: number } | null>(initialProgress);
 
-    const { data, setData, post, processing, errors, reset } = useForm({
+    // Estado del envío: lo manda el servidor (props) y lo actualiza el sondeo o la respuesta de cada acción.
+    const [isProcessing, setIsProcessing] = useState(reminderProcessing);
+    const [isPaused, setIsPaused] = useState(reminderProcessing && reminderPaused);
+    const [progress, setProgress] = useState<Progreso | null>(reminderProgress);
+    const [sinAvanzar, setSinAvanzar] = useState(reminderProcessing && reminderStalled);
+    const [ultimo, setUltimo] = useState<UltimoEnvio | null>(ultimoEnvioServidor);
+    // Al terminar o detener, la barra se queda con las cifras finales hasta cerrar el aviso del resultado.
+    const [barraFinal, setBarraFinal] = useState<UltimoEnvio | null>(null);
+    // Qué botón está esperando respuesta: cada uno muestra su propio «…ando» (antes los cuatro a la vez).
+    const [accion, setAccion] = useState<Accion | null>(null);
+    const [avisoEnvio, setAvisoEnvio] = useState<AvisoEnvio | null>(null);
+    const [fallosSondeo, setFallosSondeo] = useState(0);
+    // El sondeo se paró porque la sesión caducó: la barra deja de decir «se actualiza solo».
+    const [sondeoParado, setSondeoParado] = useState(false);
+    const [confirmarEnvio, setConfirmarEnvio] = useState<'start' | 'dayBefore' | null>(null);
+    const [recalculando, setRecalculando] = useState(false);
+    const [confirmarDetener, setConfirmarDetener] = useState(false);
+    const [confirmarReanudar, setConfirmarReanudar] = useState(false);
+    // Región viva siempre montada: los lectores de pantalla oyen el inicio, la pausa y la reanudación.
+    const [anuncio, setAnuncio] = useState('');
+    const [avisoArchivo, setAvisoArchivo] = useState<string | undefined>();
+    const [errorCargaOculto, setErrorCargaOculto] = useState(false);
+
+    const { data, setData, post, processing, errors, reset, progress: subida } = useForm({
         file: null as File | null,
     });
+
+    const botonCargar = useRef<HTMLButtonElement>(null);
+    const campoArchivo = useRef<HTMLInputElement>(null);
+    const enfocarTras = useRef<'cargar' | 'elegir' | null>(null);
+    // Por objeto y no por uploaded_at: dos cargas en el mismo minuto tienen la misma hora y la segunda no se mostraba.
+    const cargaAnunciada = useRef<UploadResult | null>(null);
+    const sinAvanzarAntes = useRef(sinAvanzar);
+    // Sube al empezar y al terminar cada pausa o reanudación: una vuelta del sondeo pedida antes trae el estado
+    // viejo y se descarta (si no, «Pausar» y «Reanudar» parpadeaban 3 s y se podían pulsar de nuevo).
+    const versionEnvio = useRef(0);
+
+    const anunciar = useCallback((texto: string) => {
+        setAnuncio('');
+        window.setTimeout(() => setAnuncio(texto), 80);
+    }, []);
+
+    const fechaTexto = useCallback(
+        (ymd?: string | null) => {
+            const fecha = fechaLocal(ymd);
+            return fecha ? fechaLarga(fecha, lng) : (ymd ?? '');
+        },
+        [lng]
+    );
+
+    const textoEnCurso = useCallback(
+        (u?: UltimoEnvio | null) =>
+            u?.iniciado_por ? t('appointments.errorAlreadyRunning', { name: nombrePropio(u.iniciado_por) }) : t('appointments.errorAlreadyRunningAnon'),
+        [t]
+    );
+
+    // Las que fallaron por su cuenta antes del corte (sin WhatsApp, bloqueo…) sí quedan con error: el texto habla
+    // solo de las que faltaban, y dice cuántas alcanzaron a salir.
+    const textoCorte = useCallback(
+        (u: UltimoEnvio) =>
+            t('appointments.lastSendCut', {
+                reason: t(u.motivo && Object.hasOwn(RAZON_CORTE, u.motivo) ? RAZON_CORTE[u.motivo] : RAZON_CORTE.otro),
+                sent: miles(u.enviados, lng),
+            }),
+        [t, lng]
+    );
+
+    /** El resultado de un envío que acaba de terminar, de detenerse o de cortarse (va a la región viva). */
+    const resumenDe = useCallback(
+        (u: UltimoEnvio | null): AvisoEnvio => {
+            if (!u || u.estado === 'en_curso') return { tipo: 'ok', texto: t('appointments.sendFinishedGeneric') };
+            if (u.estado === 'cortado') return { tipo: 'error', texto: textoCorte(u) };
+            if (u.estado === 'detenido') {
+                return { tipo: 'ok', texto: t('appointments.stopSummary', { sent: miles(u.enviados, lng), left: miles(u.sin_enviar, lng) }) };
+            }
+            const frases = [
+                u.con_error > 0
+                    ? t('appointments.sendFinished', { count: u.enviados, sent: miles(u.enviados, lng), failed: miles(u.con_error, lng) })
+                    : t('appointments.sendFinishedAll', { count: u.enviados, sent: miles(u.enviados, lng) }),
+            ];
+            if (u.omitidas > 0) frases.push(t('appointments.sendFinishedSkipped', { count: u.omitidas, value: miles(u.omitidas, lng) }));
+            if (u.sin_enviar > 0) frases.push(t('appointments.sendFinishedLeft', { count: u.sin_enviar, value: miles(u.sin_enviar, lng) }));
+            return { tipo: u.con_error > 0 || u.sin_enviar > 0 ? 'aviso' : 'ok', texto: frases.join(' ') };
+        },
+        [t, lng, textoCorte]
+    );
+
+    /** El envío terminó (lo dijo el sondeo): cifras finales, resumen y una sola recarga de estado y citas. */
+    const alTerminar = useCallback(
+        (u: UltimoEnvio | null) => {
+            setIsProcessing(false);
+            setIsPaused(false);
+            setSinAvanzar(false);
+            setFallosSondeo(0);
+            setUltimo(u);
+            setBarraFinal(u && u.estado !== 'en_curso' && u.total > 0 ? u : null);
+            setAvisoEnvio(resumenDe(u));
+            router.reload({ only: ESTADO_Y_CITAS });
+        },
+        [resumenDe]
+    );
+
+    // El servidor manda: cada vez que llegan sus props (carga de la página o recarga parcial) se toma su estado.
+    useEffect(() => {
+        setIsProcessing(reminderProcessing);
+        setIsPaused(reminderProcessing && reminderPaused);
+        setProgress(reminderProgress);
+        setSinAvanzar(reminderProcessing && reminderStalled);
+        setUltimo(ultimoEnvioServidor);
+    }, [reminderProcessing, reminderPaused, reminderProgress, reminderStalled, ultimoEnvioServidor]);
 
     // Resetear visibilidad del mensaje flash cuando cambie
     useEffect(() => {
@@ -96,158 +618,357 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
         }
     }, [flash?.success, flash?.error]);
 
-    // Sincronizar estadísticas locales con las del servidor cuando cambian
+    // Un error nuevo de la carga se muestra aunque se hubiera ocultado el anterior al elegir otro archivo.
     useEffect(() => {
-        if (remindersStats) {
-            setLocalStats(remindersStats);
-        }
-    }, [remindersStats]);
+        setErrorCargaOculto(false);
+    }, [uploadError, errors.file]);
 
-    // Sincronizar estado de procesamiento y progreso con el servidor
+    // Si el envío cambia por debajo (terminó, otra persona lo reanudó…), los diálogos que ya no aplican se cierran.
     useEffect(() => {
-        // Si el servidor dice que está procesando, respetar eso
-        if (reminderProcessing) {
-            setIsProcessing(true);
-            // Sincronizar progreso inicial si existe
-            if (initialProgress) {
-                setProgress(initialProgress);
-            }
-        }
-    }, [reminderProcessing, initialProgress]);
+        if (isProcessing) setConfirmarEnvio(null);
+        if (!isProcessing) setConfirmarDetener(false);
+        if (!isPaused) setConfirmarReanudar(false);
+    }, [isProcessing, isPaused]);
 
-    // Actualizar estado cada 500ms si está procesando para capturar actualizaciones en tiempo real
     useEffect(() => {
-        // Solo hacer polling si el estado local indica que está procesando
-        // No depender de reminderProcessing porque puede tardar en actualizarse
-        if (!isProcessing) {
-            return;
-        }
+        if (sinAvanzar && !sinAvanzarAntes.current) anunciar(t('appointments.stalledText'));
+        sinAvanzarAntes.current = sinAvanzar;
+    }, [sinAvanzar, anunciar, t]);
 
-        let updateCount = 0;
-        let shouldStop = false;
-        let intervalId: NodeJS.Timeout | null = null;
+    /**
+     * Sondeo del envío en curso. Windows agota los sockets con peticiones en paralelo, así que es un bucle
+     * SECUENCIAL: la siguiente vuelta sale 3 s (+ azar) después de que vuelva la anterior, solo con la pestaña
+     * visible, y ante errores espera 6, 12 y 30 s. Una sesión caducada nunca se toma como «terminó».
+     */
+    useEffect(() => {
+        if (!isProcessing) return;
 
-        // Primera actualización inmediata
-        const updateStatus = async () => {
-            if (shouldStop) return;
+        let vivo = true;
+        let enCurso = false;
+        let fallos = 0;
+        let temporizador: ReturnType<typeof setTimeout> | undefined;
 
+        const vuelta = async () => {
+            if (!vivo || enCurso || document.visibilityState !== 'visible') return;
+            enCurso = true;
+            let espera = 3000;
+            const version = versionEnvio.current;
             try {
-                const response = await fetch(`${routePrefix}/reminders/status?` + new Date().getTime(), {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Cache-Control': 'no-cache',
-                    },
-                });
-                const data = await response.json();
-
-                setIsPaused(data.paused || false);
-                setIsProcessing(data.processing || false);
-
-                // Si el servidor dice que no está procesando, detener polling y recargar estadísticas
-                if (!data.processing) {
-                    shouldStop = true;
-                    setIsProcessing(false);
-                    setProgress(null);
-                    if (intervalId) {
-                        clearInterval(intervalId);
-                        intervalId = null;
-                    }
-                    // Recargar estadísticas finales cuando termine el procesamiento
-                    router.reload({
-                        only: ['remindersStats', 'reminderProcessing', 'reminderPaused', 'appointments'],
-                        onSuccess: (page: any) => {
-                            if (page.props.remindersStats) {
-                                setLocalStats(page.props.remindersStats as { sent: number; pending: number; pending_tomorrow: number; failed: number });
-                            }
-                        }
-                    });
+                const { data: estado } = await axios.get(`${routePrefix}/reminders/status`, { headers: { Accept: 'application/json' }, timeout: 10000 });
+                if (!vivo) return;
+                if (!estado || typeof estado !== 'object' || typeof estado.processing !== 'boolean') {
+                    // Llegó HTML (la sesión caducó y respondió el login): parar y avisar.
+                    vivo = false;
+                    setSondeoParado(true);
+                    setAvisoEnvio({ tipo: 'error', texto: t('appointments.sessionExpired') });
                     return;
                 }
-
-                // Actualizar progreso en tiempo real solo si hay progreso válido
-                if (data.progress && data.progress.total > 0) {
-                    setProgress(data.progress);
-                } else {
-                    setProgress(null);
-                }
-
-                // Actualizar estadísticas cada 5 polls (15 segundos con intervalo de 3s)
-                updateCount++;
-                if (updateCount % 5 === 0 && data.pending_count !== undefined) {
-                    router.reload({
-                        only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
-                        onSuccess: (page: any) => {
-                            if (page.props.remindersStats) {
-                                setLocalStats(page.props.remindersStats as { sent: number; pending: number; pending_tomorrow: number; failed: number });
-                            }
-                        }
-                    });
+                fallos = 0;
+                setFallosSondeo(0);
+                // Pedida antes de (o durante) una pausa o reanudación: trae el estado viejo y la siguiente vuelta lo corrige.
+                if (version === versionEnvio.current) {
+                    if (!estado.processing) {
+                        vivo = false;
+                        alTerminar(estado.ultimo_envio ?? null);
+                        return;
+                    }
+                    setIsPaused(estado.paused === true);
+                    setProgress(estado.progress ?? null);
+                    setSinAvanzar(estado.sin_avanzar === true);
+                    setUltimo(estado.ultimo_envio ?? null);
                 }
             } catch (error) {
-                console.error('Error al obtener estado:', error);
+                if (!vivo) return;
+                if (sesionVencida(leerEstado(error))) {
+                    vivo = false;
+                    setSondeoParado(true);
+                    setAvisoEnvio({ tipo: 'error', texto: t('appointments.sessionExpired') });
+                    return;
+                }
+                fallos += 1;
+                setFallosSondeo(fallos);
+                espera = [6000, 12000, 30000][Math.min(fallos, 3) - 1];
+            } finally {
+                enCurso = false;
+            }
+            if (vivo) {
+                clearTimeout(temporizador);
+                temporizador = setTimeout(() => void vuelta(), espera + Math.random() * 500);
             }
         };
 
-        // Actualizar inmediatamente
-        updateStatus();
+        const alVolver = () => {
+            if (document.visibilityState !== 'visible') return;
+            clearTimeout(temporizador);
+            void vuelta();
+        };
 
-        // Actualizar cada 3 segundos (reduce carga en BD y evita congelamientos)
-        intervalId = setInterval(() => {
-            if (!shouldStop) {
-                updateStatus();
-            } else if (intervalId) {
-                clearInterval(intervalId);
-            }
-        }, 3000);
+        document.addEventListener('visibilitychange', alVolver);
+        void vuelta();
 
         return () => {
-            shouldStop = true;
-            if (intervalId) {
-                clearInterval(intervalId);
-            }
+            vivo = false;
+            clearTimeout(temporizador);
+            document.removeEventListener('visibilitychange', alVolver);
         };
-    }, [isProcessing, router]);
+    }, [isProcessing, routePrefix, t, alTerminar]);
 
-    // Filtrar citas por búsqueda
-    const filteredAppointments = useMemo(() => {
-        if (!searchTerm.trim()) return initialAppointments;
+    // Sin envío en curso, las cifras se refrescan al volver a la pestaña (la página pudo quedar abierta desde ayer).
+    useEffect(() => {
+        if (isProcessing) return;
+        let ultimaVez = Date.now();
+        let enVuelo = false;
 
-        const search = searchTerm.toLowerCase();
-        return initialAppointments.filter(apt =>
-            apt.nom_paciente?.toLowerCase().includes(search) ||
-            apt.pactel?.toLowerCase().includes(search) ||
-            apt.mednom?.toLowerCase().includes(search) ||
-            apt.espnom?.toLowerCase().includes(search) ||
-            apt.citdoc?.toLowerCase().includes(search)
-        );
-    }, [initialAppointments, searchTerm]);
+        const refrescar = () => {
+            // 'focus' y 'visibilitychange' llegan casi juntos al volver: una sola recarga.
+            if (document.visibilityState !== 'visible' || enVuelo || Date.now() - ultimaVez < 5000) return;
+            enVuelo = true;
+            ultimaVez = Date.now();
+            router.reload({
+                only: ESTADO,
+                onFinish: () => {
+                    enVuelo = false;
+                },
+            });
+        };
 
-    // Paginación
-    const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
-    const paginatedAppointments = useMemo(() => {
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        return filteredAppointments.slice(startIndex, startIndex + itemsPerPage);
-    }, [filteredAppointments, currentPage]);
+        document.addEventListener('visibilitychange', refrescar);
+        window.addEventListener('focus', refrescar);
+        return () => {
+            document.removeEventListener('visibilitychange', refrescar);
+            window.removeEventListener('focus', refrescar);
+        };
+    }, [isProcessing]);
 
-    // Reset página cuando cambia la búsqueda
-    const handleSearch = (value: string) => {
-        setSearchTerm(value);
-        setCurrentPage(1);
+    /* ── Envío: abrir la confirmación, iniciar, pausar, reanudar, detener ── */
+
+    // Al abrir la confirmación se piden las cifras de nuevo: el diálogo dice la fecha y la cantidad de AHORA.
+    const abrirConfirmacion = (tipo: 'start' | 'dayBefore') => {
+        setAvisoEnvio(null);
+        setConfirmarEnvio(tipo);
+        setRecalculando(true);
+        router.reload({
+            only: ESTADO,
+            onSuccess: (pagina) => {
+                const props = pagina.props as AppointmentIndexProps;
+                if (props.reminderProcessing) {
+                    setConfirmarEnvio(null);
+                    setAvisoEnvio({ tipo: 'aviso', texto: textoEnCurso(props.ultimoEnvio) });
+                    return;
+                }
+                const tanda = tipo === 'dayBefore' ? props.remindersStats?.manana : props.remindersStats?.objetivo;
+                if (tanda && tanda.salen <= 0) {
+                    setConfirmarEnvio(null);
+                    setAvisoEnvio({ tipo: 'aviso', texto: t('appointments.errorNothingLeft', { date: fechaTexto(tanda.fecha) }) });
+                }
+            },
+            onFinish: () => setRecalculando(false),
+        });
+    };
+
+    const iniciar = async (tipo: 'start' | 'dayBefore') => {
+        const tanda = tipo === 'dayBefore' ? stats?.manana : stats?.objetivo;
+        if (!tanda) return;
+        setAccion(tipo);
+        setAvisoEnvio(null);
+        setBarraFinal(null);
+
+        try {
+            // La fecha la decide el servidor; esto solo le dice lo que la persona confirmó, para que lo compare.
+            const { status, data: r } = await axios.post(
+                `${routePrefix}/reminders/${tipo === 'dayBefore' ? 'start-day-before' : 'start'}`,
+                { fecha_citas: tanda.fecha, esperadas: tanda.salen },
+                VALIDAR
+            );
+            const codigo = r && typeof r === 'object' ? r.code : undefined;
+
+            if (status === 200 && (!r || typeof r !== 'object')) {
+                // HTML en vez de JSON: respondió el login (la sesión caducó) y no se inició nada.
+                setAvisoEnvio({ tipo: 'error', texto: t('appointments.sessionExpired') });
+            } else if (status === 200 && r.success) {
+                versionEnvio.current += 1;
+                setSondeoParado(false);
+                const total = Number(r.total) || tanda.salen;
+                setProgress({ total, sent: 0, failed: 0, pending: total, skipped: 0, percentage: 0 });
+                setIsPaused(false);
+                setSinAvanzar(false);
+                setFallosSondeo(0);
+                setUltimo(r.ultimo_envio ?? null);
+                setIsProcessing(true);
+                anunciar(t('appointments.announceStarted', { count: total, value: miles(total, lng) }));
+            } else if (status === 409 && codigo === 'en_curso') {
+                setUltimo(r.ultimo_envio ?? null);
+                setProgress(null);
+                setIsProcessing(true);
+                setAvisoEnvio({ tipo: 'aviso', texto: textoEnCurso(r.ultimo_envio) });
+            } else if (status === 409 && codigo === 'cambio') {
+                router.reload({ only: ESTADO });
+                const total = Number(r.total) || 0;
+                setAvisoEnvio({
+                    tipo: 'aviso',
+                    texto:
+                        total > 0
+                            ? t('appointments.errorChanged', { count: total, value: miles(total, lng), date: fechaTexto(r.fecha) })
+                            : t('appointments.errorNothingLeft', { date: fechaTexto(r.fecha) }),
+                });
+            } else if (codigo === 'sin_configurar') {
+                setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorNotConfigured') });
+            } else if (codigo === 'datos_invalidos') {
+                setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorReload') });
+            } else {
+                setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorStart') });
+            }
+        } catch (error) {
+            if (leerEstado(error) !== undefined) {
+                setAvisoEnvio({ tipo: 'error', texto: t('appointments.sessionExpired') });
+                return;
+            }
+            // Sin respuesta del servidor: el envío pudo haber arrancado. Una sola consulta para saberlo.
+            try {
+                const { data: estado } = await axios.get(`${routePrefix}/reminders/status`, { headers: { Accept: 'application/json' }, timeout: 10000 });
+                if (estado && estado.processing === true) {
+                    setUltimo(estado.ultimo_envio ?? null);
+                    setProgress(estado.progress ?? null);
+                    setIsPaused(estado.paused === true);
+                    setIsProcessing(true);
+                    return;
+                }
+            } catch {
+                // Tampoco respondió: se avisa abajo.
+            }
+            setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorNoAnswer') });
+        } finally {
+            setAccion(null);
+        }
+    };
+
+    /** Error de pausar, reanudar o detener: si la sesión caducó se dice eso, no «No se pudo…». */
+    const avisoDeError = (error: unknown, texto: string): AvisoEnvio =>
+        sesionVencida(leerEstado(error)) ? { tipo: 'error', texto: t('appointments.sessionExpired') } : { tipo: 'error', texto };
+
+    const pausar = async () => {
+        setAccion('pause');
+        versionEnvio.current += 1;
+        try {
+            const { status, data: r } = await axios.post(`${routePrefix}/reminders/pause`, null, VALIDAR);
+            if (status === 200 && r?.success) {
+                setIsPaused(true);
+                setSinAvanzar(false);
+                anunciar(t('appointments.announcePaused'));
+            } else if (status === 409) {
+                setAvisoEnvio({ tipo: 'aviso', texto: t('appointments.errorNoSend') });
+                router.reload({ only: ESTADO });
+            } else {
+                setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorPause') });
+            }
+        } catch (error) {
+            setAvisoEnvio(avisoDeError(error, t('appointments.errorPause')));
+        } finally {
+            versionEnvio.current += 1;
+            setAccion(null);
+        }
+    };
+
+    const reanudar = async () => {
+        setAccion('resume');
+        versionEnvio.current += 1;
+        try {
+            const { status, data: r } = await axios.post(`${routePrefix}/reminders/resume`, null, VALIDAR);
+            if (status === 200 && r?.success) {
+                setIsPaused(false);
+                anunciar(t('appointments.announceResumed'));
+            } else if (status === 409) {
+                setAvisoEnvio({ tipo: 'aviso', texto: t('appointments.errorNoSend') });
+                router.reload({ only: ESTADO });
+            } else {
+                setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorResume') });
+            }
+        } catch (error) {
+            setAvisoEnvio(avisoDeError(error, t('appointments.errorResume')));
+        } finally {
+            versionEnvio.current += 1;
+            setAccion(null);
+        }
+    };
+
+    const detener = async () => {
+        setAccion('stop');
+        try {
+            const { status, data: r } = await axios.post(`${routePrefix}/reminders/stop`, null, VALIDAR);
+            if (status === 200 && r?.success) {
+                const u: UltimoEnvio | null = r.ultimo_envio ?? null;
+                setIsProcessing(false);
+                setIsPaused(false);
+                setSinAvanzar(false);
+                setFallosSondeo(0);
+                setUltimo(u);
+                setBarraFinal(u && u.total > 0 ? u : null);
+                setAvisoEnvio({
+                    tipo: 'ok',
+                    texto: u ? t('appointments.stopSummary', { sent: miles(u.enviados, lng), left: miles(u.sin_enviar, lng) }) : t('appointments.stopSuccess'),
+                });
+                router.reload({ only: ESTADO_Y_CITAS });
+            } else {
+                setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorStop') });
+            }
+        } catch (error) {
+            setAvisoEnvio(avisoDeError(error, t('appointments.errorStop')));
+        } finally {
+            setAccion(null);
+        }
+    };
+
+    const aceptarEnvio = () => {
+        const tipo = confirmarEnvio;
+        setConfirmarEnvio(null);
+        if (tipo) void iniciar(tipo);
+    };
+
+    const aceptarDetener = () => {
+        setConfirmarDetener(false);
+        setAvisoEnvio(null);
+        void detener();
+    };
+
+    const aceptarReanudar = () => {
+        setConfirmarReanudar(false);
+        setAvisoEnvio(null);
+        void reanudar();
+    };
+
+    const cerrarAvisoEnvio = () => {
+        setAvisoEnvio(null);
+        setBarraFinal(null);
+    };
+
+    /* ── Carga del Excel ── */
+
+    const problemaArchivo = (archivo: File) => {
+        if (!/\.(xlsx|xls)$/i.test(archivo.name)) return t('appointments.fileTypeInvalid');
+        if (archivo.size > MAX_MB * 1024 * 1024) return t('appointments.fileTooLarge');
+        return undefined;
+    };
+
+    const elegirArchivo = (archivo?: File | null) => {
+        if (!archivo) return;
+        const problema = problemaArchivo(archivo);
+        setAvisoArchivo(problema);
+        if (problema) return;
+        setErrorCargaOculto(true);
+        enfocarTras.current = 'cargar';
+        setData('file', archivo);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setData('file', e.target.files[0]);
-        }
+        elegirArchivo(e.target.files?.[0]);
+        // Así, elegir otra vez el mismo archivo (tras un aviso) vuelve a avisar.
+        e.target.value = '';
     };
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(false);
-
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            setData('file', e.dataTransfer.files[0]);
-        }
+        elegirArchivo(e.dataTransfer.files?.[0]);
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -257,1056 +978,930 @@ export default function AppointmentsIndex({ appointments: initialAppointments, t
 
     const handleDragLeave = (e: React.DragEvent) => {
         e.preventDefault();
+        // Pasar por encima de los textos de dentro no es salir del recuadro (antes parpadeaba).
+        if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
         setIsDragging(false);
     };
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+        if (!data.file) return;
+        setErrorCargaOculto(false);
+        anunciar(t('appointments.uploadingWait'));
         post(`${routePrefix}/upload`, {
             onSuccess: () => reset('file'),
         });
     };
 
     const removeFile = () => {
+        enfocarTras.current = 'elegir';
         setData('file', null);
     };
 
-    const formatFileSize = (bytes: number) => {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-    };
+    // Al elegir el archivo el foco pasa a «Cargar citas»; al quitarlo, vuelve al selector.
+    useEffect(() => {
+        if (enfocarTras.current === 'cargar') botonCargar.current?.focus();
+        if (enfocarTras.current === 'elegir') campoArchivo.current?.focus();
+        enfocarTras.current = null;
+    }, [data.file]);
 
-    const handleStartReminders = async () => {
-        setIsLoading(true);
-
-        // Establecer estado de procesamiento inmediatamente para mostrar la barra de progreso
-        setIsProcessing(true);
-        setIsPaused(false);
-
-        // Inicializar progreso con el total de pendientes (estimado)
-        if (localStats.pending > 0) {
-            setProgress({
-                sent: 0,
-                failed: 0,
-                total: localStats.pending,
-                pending: localStats.pending,
-                percentage: 0
-            });
+    const errorCarga = useMemo(() => {
+        if (!uploadError) return errors.file;
+        const codigo = uploadError.code;
+        if (!Object.hasOwn(ERROR_CARGA, codigo)) return errors.file;
+        if (codigo === 'columnas_faltantes') {
+            const columnas = (uploadError.columnas ?? [])
+                .map((c) => (Object.hasOwn(COLUMNA_OBLIGATORIA, c) ? `${c} (${t(COLUMNA_OBLIGATORIA[c as keyof typeof COLUMNA_OBLIGATORIA])})` : c))
+                .join(', ');
+            return t(ERROR_CARGA.columnas_faltantes, { columns: columnas });
         }
+        return t(ERROR_CARGA[codigo as keyof typeof ERROR_CARGA]);
+    }, [uploadError, errors.file, t]);
 
-        try {
-            const response = await fetch(`${routePrefix}/reminders/start`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
+    // El resultado de la carga se arma aquí con sus cifras (antes, «50 citas» aunque no entrara ninguna).
+    const frasesCarga = useMemo(() => {
+        if (!uploadedFile) return [];
+        const n = (valor?: number) => Number(valor) || 0;
+        const nuevas = n(uploadedFile.nuevas);
+        const actualizadas = n(uploadedFile.actualizadas);
+        const reprogramadas = n(uploadedFile.reprogramadas);
+        const duplicadas = n(uploadedFile.duplicadas);
+        const sinFecha = n(uploadedFile.sin_fecha);
+        const sinCelular = n(uploadedFile.sin_celular);
+        const frases: string[] = [];
 
-            const data = await response.json();
+        if (nuevas + actualizadas + reprogramadas === 0) frases.push(t('appointments.uploadResultNone'));
+        if (nuevas > 0) frases.push(t('appointments.uploadResultNew', { count: nuevas, value: miles(nuevas, lng) }));
+        if (actualizadas > 0) frases.push(t('appointments.uploadResultUpdated', { count: actualizadas, value: miles(actualizadas, lng) }));
+        if (reprogramadas > 0) frases.push(t('appointments.uploadResultMoved', { count: reprogramadas, value: miles(reprogramadas, lng) }));
+        if (duplicadas > 0) frases.push(t('appointments.uploadResultSkipped', { count: duplicadas, value: miles(duplicadas, lng) }));
+        if (sinFecha > 0) frases.push(t('appointments.uploadResultNoDate', { count: sinFecha, value: miles(sinFecha, lng) }));
+        if (sinCelular > 0) frases.push(t('appointments.uploadResultNoMobile', { count: sinCelular, value: miles(sinCelular, lng) }));
+        return frases;
+    }, [uploadedFile, t, lng]);
 
-            if (data.success) {
-                // Si fue síncrono y terminó inmediatamente, actualizar progreso final
-                if (data.sent !== undefined && data.failed !== undefined && data.total !== undefined) {
-                    setProgress({
-                        sent: data.sent,
-                        failed: data.failed,
-                        total: data.total,
-                        pending: Math.max(0, data.total - data.sent - data.failed),
-                        percentage: data.total > 0 ? Math.round(((data.sent + data.failed) / data.total) * 100) : 100
-                    });
+    const cargaSinCambios = !!uploadedFile && (Number(uploadedFile.nuevas) || 0) + (Number(uploadedFile.actualizadas) || 0) + (Number(uploadedFile.reprogramadas) || 0) === 0;
 
-                    // Esperar un momento para mostrar el resultado final antes de limpiar
-                    setTimeout(() => {
-                        setIsProcessing(false);
-                        setIsPaused(false);
-                        setProgress(null);
-                    }, 3000);
-                } else {
-                    // Si es asíncrono, el polling se encargará de actualizar el progreso
-                    // El estado ya está establecido arriba
-                }
+    // Una carga nueva vuelve a mostrar su fila de resultado y se anuncia (la fila llega ya montada tras la redirección).
+    useEffect(() => {
+        if (!uploadedFile || cargaAnunciada.current === uploadedFile) return;
+        cargaAnunciada.current = uploadedFile;
+        setShowUploadResult(true);
+        anunciar(frasesCarga.join(' '));
+    }, [uploadedFile, frasesCarga, anunciar]);
 
-                // Actualizar estadísticas locales si están disponibles
-                if (data.sent !== undefined && data.failed !== undefined && remindersStats) {
-                    setLocalStats({
-                        sent: remindersStats.sent + (data.sent || 0),
-                        pending: Math.max(0, remindersStats.pending - (data.sent || 0) - (data.failed || 0)),
-                        pending_tomorrow: remindersStats.pending_tomorrow ?? 0,
-                        failed: remindersStats.failed + (data.failed || 0)
-                    });
-                }
+    /* ── Últimas citas: búsqueda en el navegador, sin tildes y por palabras ── */
 
-                // Recargar estadísticas desde el servidor para asegurar precisión
-                router.reload({
-                    only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
-                    onSuccess: (page: any) => {
-                        // Actualizar estadísticas locales con los datos del servidor
-                        if (page.props.remindersStats) {
-                            setLocalStats(page.props.remindersStats as { sent: number; pending: number; pending_tomorrow: number; failed: number });
-                        }
-                    }
-                });
+    const filteredAppointments = useMemo(() => {
+        const palabras = plano(searchTerm.trim()).split(/\s+/).filter(Boolean);
+        if (!palabras.length) return initialAppointments;
+
+        return initialAppointments.filter((cita) => {
+            const texto = plano([cita.nom_paciente, cita.citide, cita.pactel, cita.pactel2, cita.mednom, cita.espnom, cita.citdoc].filter(Boolean).join(' '));
+            return palabras.every((palabra) => texto.includes(palabra));
+        });
+    }, [initialAppointments, searchTerm]);
+
+    /* ── Textos que dependen de las cifras ── */
+
+    const objetivo = stats?.objetivo;
+    const manana = stats?.manana;
+    // Si se envía con un día de anticipación, «Mañana» sería la misma fecha: esa segunda fila no se pinta.
+    const mananaVisible = !!objetivo && !!manana && manana.fecha !== objetivo.fecha;
+    const diasAntes = stats?.days_in_advance ?? 2;
+    const maxPorEnvio = stats?.max_per_day ?? 0;
+    const rotuloObjetivo =
+        diasAntes === 1
+            ? t('appointments.whenTomorrow')
+            : diasAntes === 2
+              ? t('appointments.whenDayAfterTomorrow')
+              : t('appointments.whenInDays', { count: diasAntes });
+
+    const iniciando = accion === 'start' || accion === 'dayBefore';
+    const hayEnvio = isProcessing || isPaused;
+    const estadoEnvio = iniciando ? 'enviando' : isPaused ? 'pausa' : isProcessing ? (sinAvanzar ? 'sin_avanzar' : 'enviando') : 'quieto';
+    const textoEstado = iniciando
+        ? t('appointments.statusStarting')
+        : isPaused
+          ? t('appointments.statusPaused')
+          : isProcessing
+            ? sinAvanzar
+                ? t('appointments.statusStalled')
+                : t('appointments.statusSending')
+            : t('appointments.statusNoActiveProcess');
+    const barra: Progreso | null = isProcessing ? (progress && progress.total > 0 ? progress : null) : barraFinal ? progresoDe(barraFinal) : null;
+    const esFinal = !isProcessing && !!barraFinal;
+
+    // Confirmación de enviar: la tanda de la fila que la abrió (recargada al abrir).
+    const tandaConfirmar = confirmarEnvio === 'dayBefore' ? manana : objetivo;
+    const salen = tandaConfirmar?.salen ?? 0;
+    const quedanOtraTanda = Math.max(0, (tandaConfirmar?.por_enviar ?? 0) - salen);
+    const minutos = Math.max(1, Math.ceil((salen * SEGUNDOS_POR_MENSAJE) / 60));
+    const horaAhora = horaColombia();
+    const deNoche = horaAhora >= 19 || horaAhora < 7;
+
+    const notaEnCurso = t('appointments.sendingInProgressNote');
+
+    /** «Último envío: citas del … · 120 enviados · 3 con error · terminó a las 9:05 · lo inició …». */
+    const lineaUltimo = (u: UltimoEnvio) => {
+        const partes = [t('appointments.lastSendPrefix', { date: fechaTexto(u.fecha_citas) })];
+        partes.push(t('appointments.lastSendSent', { count: u.enviados, value: miles(u.enviados, lng) }));
+        partes.push(t('appointments.lastSendFailed', { value: miles(u.con_error, lng) }));
+        if (u.omitidas > 0) partes.push(t('appointments.lastSendSkipped', { count: u.omitidas, value: miles(u.omitidas, lng) }));
+        if (u.fin) {
+            const hora = horaDe(u.fin);
+            const otroDia = u.fin.slice(0, 10) !== hoyColombia();
+            const dia = fechaCorta(u.fin.slice(0, 10), lng);
+            if (u.estado === 'detenido') {
+                partes.push(otroDia ? t('appointments.lastSendStoppedOn', { date: dia, time: hora }) : t('appointments.lastSendStoppedAt', { time: hora }));
             } else {
-                // Si hay error, limpiar el estado de procesamiento
-                setIsProcessing(false);
-                setProgress(null);
-                // Mostrar información detallada si está disponible
-                let errorMessage = data.message || 'Error al iniciar el envío';
-
-                if (data.debug) {
-                    errorMessage += '\n\nInformación de depuración:';
-                    errorMessage += `\n- Fecha objetivo: ${data.debug.target_date}`;
-                    errorMessage += `\n- Fecha actual: ${data.debug.current_date}`;
-                    errorMessage += `\n- Días de anticipación: ${data.debug.days_in_advance}`;
-                    errorMessage += `\n- Total citas pendientes: ${data.debug.total_pending_appointments}`;
-
-                    if (data.debug.exact_date_count !== undefined) {
-                        errorMessage += `\n- Citas para fecha objetivo (${data.debug.target_date}): ${data.debug.exact_date_count}`;
-                    }
-
-                    if (data.debug.tomorrow_count !== undefined) {
-                        const tomorrow = new Date();
-                        tomorrow.setDate(tomorrow.getDate() + 1);
-                        errorMessage += `\n- Citas para mañana (${tomorrow.toISOString().split('T')[0]}): ${data.debug.tomorrow_count}`;
-                    }
-
-                    if (data.debug.day_after_tomorrow_count !== undefined) {
-                        const dayAfter = new Date();
-                        dayAfter.setDate(dayAfter.getDate() + 2);
-                        errorMessage += `\n- Citas para pasado mañana (${dayAfter.toISOString().split('T')[0]}): ${data.debug.day_after_tomorrow_count}`;
-                    }
-
-                    if (data.debug.dates_with_count && data.debug.dates_with_count.length > 0) {
-                        errorMessage += '\n\nFechas con citas pendientes:';
-                        data.debug.dates_with_count.slice(0, 10).forEach((item: { date: string; count: number }) => {
-                            errorMessage += `\n  - ${item.date}: ${item.count} citas`;
-                        });
-                        if (data.debug.dates_with_count.length > 10) {
-                            errorMessage += `\n  ... y ${data.debug.dates_with_count.length - 10} fechas más`;
-                        }
-                    } else if (data.debug.available_dates && data.debug.available_dates.length > 0) {
-                        errorMessage += `\n- Fechas disponibles: ${data.debug.available_dates.slice(0, 5).join(', ')}`;
-                        if (data.debug.available_dates.length > 5) {
-                            errorMessage += ` y ${data.debug.available_dates.length - 5} más`;
-                        }
-                    }
-                }
-
-                alert(errorMessage);
-                // Limpiar estado si hay error
-                setIsProcessing(false);
-                setProgress(null);
+                partes.push(otroDia ? t('appointments.lastSendFinishedOn', { date: dia, time: hora }) : t('appointments.lastSendFinishedAt', { time: hora }));
             }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error al iniciar el envío de recordatorios');
-            // Limpiar estado si hay error
-            setIsProcessing(false);
-            setProgress(null);
-        } finally {
-            setIsLoading(false);
         }
+        if (u.estado === 'detenido' && u.sin_enviar > 0) partes.push(t('appointments.lastSendLeft', { count: u.sin_enviar, value: miles(u.sin_enviar, lng) }));
+        if (u.iniciado_por) partes.push(t('appointments.lastSendBy', { name: nombrePropio(u.iniciado_por) }));
+        return partes.join(' · ');
     };
 
-    const handlePauseReminders = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch(`${routePrefix}/reminders/pause`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
+    const botonEnviar = (tipo: 'start' | 'dayBefore', tanda: Tanda) => {
+        if (tanda.por_enviar <= 0) return null;
+        const Icono = tipo === 'start' ? Send : CalendarCheck2;
+        // El botón dice lo que sale en ESTA pulsación: el servidor envía como máximo max_per_day.
+        const parcial = tanda.salen < tanda.por_enviar;
+        const propia = accion === tipo;
+        const texto = propia
+            ? t('appointments.starting')
+            : parcial
+              ? t('appointments.sendRemindersPartial', { value: miles(tanda.salen, lng), total: miles(tanda.por_enviar, lng) })
+              : t('appointments.sendRemindersButton', { count: tanda.por_enviar, value: miles(tanda.por_enviar, lng) });
+        const apagado = accion !== null || hayEnvio;
 
-            const data = await response.json();
-
-            if (data.success) {
-                setIsPaused(true);
-                router.reload({ only: ['reminderPaused'] });
-            } else {
-                alert(data.message || 'Error al pausar');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error al pausar el envío de recordatorios');
-        } finally {
-            setIsLoading(false);
-        }
+        return (
+            <button
+                type="button"
+                onClick={() => abrirConfirmacion(tipo)}
+                disabled={apagado}
+                title={hayEnvio ? notaEnCurso : t('appointments.sendAsksConfirmation')}
+                aria-haspopup="dialog"
+                className={apagado ? BOTON_APAGADO : BOTON_PRIMARIO}
+            >
+                {propia ? <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" /> : <Icono strokeWidth={2} aria-hidden="true" />}
+                {texto}
+            </button>
+        );
     };
 
-    const handleResumeReminders = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch(`${routePrefix}/reminders/resume`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
+    /** Una fecha con recordatorios por enviar: cuándo, cuántas (y cuántas sin celular) y su botón. */
+    const filaTanda = ({ tipo, cuando, pista, tanda, final = false }: { tipo: 'start' | 'dayBefore'; cuando: string; pista?: string; tanda: Tanda; final?: boolean }) => (
+        <div
+            className={cn(
+                'grid grid-cols-1 gap-y-2.5 py-3.5 @3xl/hoja:min-h-16 @3xl/hoja:grid-cols-[220px_minmax(0,1fr)_auto] @3xl/hoja:items-center @3xl/hoja:gap-x-8 @3xl/hoja:py-2 @5xl/hoja:grid-cols-[300px_minmax(0,1fr)_auto]',
+                SANGRIA,
+                !final && cn('border-b', FILETE)
+            )}
+        >
+            <div className="flex min-w-0 flex-col gap-[3px]">
+                <span className={cn('text-[13.5px] leading-[18px] font-semibold tracking-[-0.003em]', TEXTO_NAVY)}>{cuando}</span>
+                <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('appointments.appointmentsOfDate', { date: fechaTexto(tanda.fecha) })}</span>
+                {pista && <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{pista}</span>}
+            </div>
+            <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex min-w-0 items-baseline gap-2">
+                    <span className={cn('text-[20px] leading-6 font-medium tracking-[-0.02em] tabular-nums', tanda.por_enviar ? TEXTO_NAVY : TEXTO_SUAVE)}>{miles(tanda.por_enviar, lng)}</span>
+                    <span className={cn('text-[13px] leading-[18px]', TEXTO_SUAVE)}>{t('appointments.rowPendingCount', { count: tanda.por_enviar })}</span>
+                </div>
+                {tanda.sin_celular > 0 && (
+                    <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{t('appointments.rowNoMobile', { count: tanda.sin_celular, value: miles(tanda.sin_celular, lng) })}</span>
+                )}
+            </div>
+            <div className="flex @3xl/hoja:justify-end">{botonEnviar(tipo, tanda)}</div>
+        </div>
+    );
 
-            const data = await response.json();
+    const avisoTope = (cuando: string, tanda: Tanda) =>
+        maxPorEnvio > 0 &&
+        tanda.por_enviar > maxPorEnvio && (
+            <FilaAviso key={`tope-${tanda.fecha}`} etiqueta={t('appointments.warningLabel')}>
+                {t('appointments.warningLimit', {
+                    value: miles(tanda.por_enviar, lng),
+                    when: `${cuando.toLocaleLowerCase(lng)} (${fechaTexto(tanda.fecha)})`,
+                    max: miles(maxPorEnvio, lng),
+                    rest: miles(tanda.por_enviar - maxPorEnvio, lng),
+                })}
+            </FilaAviso>
+        );
 
-            if (data.success) {
-                setIsPaused(false);
-                router.reload({ only: ['reminderPaused'] });
-            } else {
-                alert(data.message || 'Error al reanudar');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error al reanudar el envío de recordatorios');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const accionesEnvio = (
+        <>
+            {isProcessing && !isPaused && (
+                <button type="button" onClick={() => void pausar()} disabled={accion !== null} className={BOTON_SECUNDARIO}>
+                    <Pause strokeWidth={1.9} aria-hidden="true" />
+                    {accion === 'pause' ? t('appointments.pausing') : t('appointments.pauseButton')}
+                </button>
+            )}
+            {isPaused && (
+                <button type="button" onClick={() => setConfirmarReanudar(true)} disabled={accion !== null} aria-haspopup="dialog" className={BOTON_PRIMARIO}>
+                    <Play strokeWidth={2} aria-hidden="true" />
+                    {accion === 'resume'
+                        ? t('appointments.resuming')
+                        : progress
+                          ? t('appointments.resumeButtonCount', { value: miles(progress.pending, lng) })
+                          : t('appointments.resumeButton')}
+                </button>
+            )}
+            <button
+                type="button"
+                onClick={() => setConfirmarDetener(true)}
+                disabled={accion !== null}
+                aria-haspopup="dialog"
+                title={t('appointments.stopAsksConfirmation')}
+                className={BOTON_PELIGRO}
+            >
+                <Square strokeWidth={2} aria-hidden="true" />
+                {accion === 'stop' ? t('appointments.stopping') : t('appointments.stopButton')}
+            </button>
+        </>
+    );
 
-    const handleStartRemindersDayBefore = async () => {
-        setIsLoading(true);
-
-        // Establecer estado de procesamiento inmediatamente para mostrar la barra de progreso
-        setIsProcessing(true);
-        setIsPaused(false);
-
-        // Inicializar progreso con el total de pendientes para mañana
-        if (localStats.pending_tomorrow > 0) {
-            setProgress({
-                sent: 0,
-                failed: 0,
-                total: localStats.pending_tomorrow,
-                pending: localStats.pending_tomorrow,
-                percentage: 0
-            });
-        }
-
-        try {
-            const response = await fetch(`${routePrefix}/reminders/start-day-before`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                // Si fue síncrono y terminó inmediatamente, actualizar progreso final
-                if (data.sent !== undefined && data.failed !== undefined && data.total !== undefined) {
-                    setProgress({
-                        sent: data.sent,
-                        failed: data.failed,
-                        total: data.total,
-                        pending: Math.max(0, data.total - data.sent - data.failed),
-                        percentage: data.total > 0 ? Math.round(((data.sent + data.failed) / data.total) * 100) : 100
-                    });
-
-                    // Esperar un momento para mostrar el resultado final antes de limpiar
-                    setTimeout(() => {
-                        setIsProcessing(false);
-                        setIsPaused(false);
-                        setProgress(null);
-                    }, 3000);
-                }
-
-                // Actualizar estadísticas locales si están disponibles
-                if (data.sent !== undefined && data.failed !== undefined && remindersStats) {
-                    setLocalStats({
-                        sent: remindersStats.sent + (data.sent || 0),
-                        pending: remindersStats.pending,
-                        pending_tomorrow: Math.max(0, remindersStats.pending_tomorrow - (data.sent || 0) - (data.failed || 0)),
-                        failed: remindersStats.failed + (data.failed || 0)
-                    });
-                }
-
-                // Recargar estadísticas desde el servidor
-                router.reload({
-                    only: ['remindersStats', 'reminderProcessing', 'reminderPaused'],
-                    onSuccess: (page: any) => {
-                        if (page.props.remindersStats) {
-                            setLocalStats(page.props.remindersStats as { sent: number; pending: number; pending_tomorrow: number; failed: number });
-                        }
-                    }
-                });
-            } else {
-                setIsProcessing(false);
-                setProgress(null);
-                alert(data.message || 'Error al iniciar el envío para mañana');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error al iniciar el envío de recordatorios para mañana');
-            setIsProcessing(false);
-            setProgress(null);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleStopReminders = async () => {
-        if (!confirm('¿Estás seguro de que deseas detener completamente el envío de recordatorios? Esto cancelará todos los trabajos pendientes.')) {
-            return;
-        }
-
-        setIsLoading(true);
-        try {
-            const response = await fetch(`${routePrefix}/reminders/stop`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                },
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                setIsProcessing(false);
-                setIsPaused(false);
-                router.reload({ only: ['remindersStats', 'reminderProcessing', 'reminderPaused'] });
-                alert('El envío de recordatorios ha sido detenido completamente');
-            } else {
-                alert(data.message || 'Error al detener');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Error al detener el envío de recordatorios');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    const textoTitulo = t('appointments.tabTitle', { scope: nombreAmbito });
 
     return (
         <AdminLayout>
-            <Head title={pageTitle} />
+            <Head title={textoTitulo} />
 
-            <div className="min-h-screen p-4 md:p-6 lg:p-8 bg-background">
-                <div className="max-w-7xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-6">
-                        <h1 className="font-bold settings-title" style={{ fontSize: 'var(--text-3xl)' }}>
-                            {pageTitle}
-                        </h1>
-                        <p className="settings-subtitle" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-xs)' }}>
-                            Carga un archivo Excel con las citas programadas para enviar recordatorios automáticos
-                        </p>
-                    </div>
+            <div className="min-h-screen bg-background px-4 pt-5 pb-8 md:px-7 md:pt-7">
+                <div className="@container/pagina mx-auto flex max-w-7xl flex-col gap-6">
+                    {/* ── Cabecera: título + ámbito (General / Oncología) ── */}
+                    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                        <div className="flex min-w-0 flex-col gap-1">
+                            <div className="flex flex-wrap items-center gap-x-[18px] gap-y-2">
+                                <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('navigation.appointments')}</h1>
+                                {/* El submenú de Citas salió del riel: la sección navega dentro de sí misma. */}
+                                <AppointmentsScopeSwitch />
+                            </div>
+                            <p className="text-[14px] leading-5 text-muted-foreground">{t('appointments.headerSubtitle')}</p>
+                        </div>
 
-                    {/* Mensaje Flash de Éxito/Error */}
+                        {/* Enlace de verdad (se puede abrir en otra pestaña); siempre visible: la lista tiene su propio vacío. */}
+                        <Link href={`${routePrefix}/view`} className={cn(BOTON_SECUNDARIO, 'self-start')}>
+                            <ArrowRight strokeWidth={1.9} aria-hidden="true" />
+                            {t('appointments.viewAllAppointments')}
+                        </Link>
+                    </header>
+
                     {showFlashMessage && (flash?.success || flash?.error) && (
                         <div
-                            className={`mb-6 p-4 rounded-2xl flex items-start gap-3 transition-all duration-300 ${flash?.success
-                                ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300'
-                                : 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                                }`}
-                            style={{
-                                boxShadow: flash?.success
-                                    ? '0 2px 8px -2px rgba(16, 185, 129, 0.15)'
-                                    : '0 2px 8px -2px rgba(239, 68, 68, 0.15)',
-                            }}
+                            role={flash?.error ? 'alert' : 'status'}
+                            className={cn(
+                                'flex items-start gap-3 rounded-xl px-4 py-3 text-[13px] leading-[18px] font-medium',
+                                flash?.success
+                                    ? 'bg-emerald-50 text-emerald-800 shadow-[inset_0_0_0_1px_var(--color-emerald-200)] dark:bg-emerald-500/10 dark:text-emerald-300 dark:shadow-[inset_0_0_0_1px_rgba(16,185,129,0.25)]'
+                                    : 'bg-red-50 text-red-800 shadow-[inset_0_0_0_1px_var(--color-red-200)] dark:bg-red-500/10 dark:text-red-300 dark:shadow-[inset_0_0_0_1px_rgba(239,68,68,0.28)]'
+                            )}
                         >
                             {flash?.success ? (
-                                <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0 text-emerald-600" />
+                                <CircleCheck className="mt-px size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
                             ) : (
-                                <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-red-600" />
+                                <CircleAlert className="mt-px size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
                             )}
-                            <div className="flex-1">
-                                <p className="font-medium">{flash?.success || flash?.error}</p>
-                            </div>
+                            <p className="min-w-0 flex-1">{flash?.success || flash?.error}</p>
                             <button
+                                type="button"
                                 onClick={() => setShowFlashMessage(false)}
-                                className="p-1 hover:bg-black/5 rounded-xl transition-colors"
+                                aria-label={t('appointments.closeNotice')}
+                                title={t('appointments.closeNotice')}
+                                className={cn('-my-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-black/5 dark:hover:bg-white/10', FOCO)}
                             >
-                                <X className="w-4 h-4" />
+                                <X className="size-4" aria-hidden="true" />
                             </button>
                         </div>
                     )}
 
-                    {/* Resumen rápido */}
-                    {(remindersStats || localStats) && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                            {/* Enviados */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                        <Send className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-bold settings-title">
-                                            {localStats.sent.toLocaleString()}
-                                        </p>
-                                        <p className="text-sm settings-subtitle">Recordatorios enviados</p>
-                                    </div>
-                                </div>
-                            </div>
+                    <p className="sr-only" aria-live="polite">
+                        {anuncio}
+                    </p>
 
-                            {/* Pendientes */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                        <Clock className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-bold settings-title">
-                                            {localStats.pending.toLocaleString()}
-                                        </p>
-                                        <p className="text-sm settings-subtitle">Por enviar</p>
-                                    </div>
-                                </div>
-                            </div>
+                    {/* ── Franja de cifras (sin cajas: filetes entre cifras) ── */}
+                    <Deferred data={['appointments', 'totalAppointments', 'remindersStats']} fallback={<AppointmentMetricsSkeleton />}>
+                        {() =>
+                            // Con un servidor sin el contrato nuevo (despliegue a medias) no hay objetivo: la franja no se pinta en vez de romper la página.
+                            stats?.objetivo &&
+                            stats.manana && (
+                                <section aria-label={t('appointments.summaryLabel')} className={FRANJA}>
+                                    <Cifra
+                                        marca={<Calendar className={cn('mt-px size-3.5 shrink-0', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />}
+                                        etiqueta={t('appointments.metricTotalAppointments')}
+                                        valor={miles(totalAppointments, lng)}
+                                        detalle={t('appointments.metricFuture', { value: miles(stats.futuras ?? 0, lng) })}
+                                    />
+                                    <Divisor />
+                                    <Cifra
+                                        marca={<Send className="mt-px size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" strokeWidth={2} aria-hidden="true" />}
+                                        etiqueta={t('appointments.metricSent')}
+                                        valor={miles(stats.sent, lng)}
+                                        detalle={ultimo?.inicio ? t('appointments.metricLastSent', { date: fechaEnvio(ultimo.inicio, lng) }) : t('appointments.metricLastSentNone')}
+                                    />
+                                    <Divisor />
+                                    <Cifra
+                                        marca={<Clock className="mt-px size-3.5 shrink-0 text-amber-600 dark:text-amber-400" strokeWidth={2} aria-hidden="true" />}
+                                        etiqueta={t('appointments.metricPending', { when: rotuloObjetivo.toLocaleLowerCase(lng) })}
+                                        valor={miles(stats.objetivo.por_enviar, lng)}
+                                        detalle={
+                                            mananaVisible
+                                                ? t('appointments.metricForTomorrow', { value: miles(stats.manana.por_enviar, lng) })
+                                                : stats.objetivo.sin_celular > 0
+                                                  ? t('appointments.metricNoMobile', { value: miles(stats.objetivo.sin_celular, lng) })
+                                                  : ''
+                                        }
+                                        puntoDetalle={mananaVisible ? 'bg-amber-600 dark:bg-amber-400' : undefined}
+                                        tonoDetalle={mananaVisible ? 'font-medium text-amber-700 dark:text-amber-400' : undefined}
+                                    />
+                                    <Divisor />
+                                    <Cifra
+                                        marca={<CircleX className="mt-px size-3.5 shrink-0 text-red-600 dark:text-red-400" strokeWidth={2} aria-hidden="true" />}
+                                        etiqueta={t('appointments.metricFailed')}
+                                        valor={miles(stats.failed, lng)}
+                                        detalle={t('appointments.metricFailedDetail')}
+                                    />
+                                </section>
+                            )
+                        }
+                    </Deferred>
 
-                            {/* Fallidos */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                        <XCircle className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-bold settings-title">
-                                            {localStats.failed.toLocaleString()}
-                                        </p>
-                                        <p className="text-sm settings-subtitle">Fallidos</p>
-                                    </div>
-                                </div>
-                            </div>
+                    {/* ── La hoja: envío, carga del Excel y últimas citas, una sección tras otra ── */}
+                    <div className={HOJA}>
+                        {/* ── 1. Envío de recordatorios ── */}
+                        <section aria-labelledby="citas-envio">
+                            <Banda
+                                id="citas-envio"
+                                icon={Send}
+                                titulo={t('appointments.reminderControlTitle')}
+                                estado={<EstadoEnvio tipo={estadoEnvio} texto={textoEstado} />}
+                                texto={t('appointments.reminderBandText')}
+                                acciones={hayEnvio && !iniciando ? accionesEnvio : undefined}
+                                className="rounded-t-2xl"
+                            />
 
-                            {/* Total citas */}
-                            <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                        <CalendarCheck className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <p className="text-2xl font-bold settings-title">
-                                            {totalAppointments.toLocaleString()}
-                                        </p>
-                                        <p className="text-sm settings-subtitle">Total citas</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Upload Section */}
-                    <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
-                    >
-                        <form onSubmit={submit}>
-                            <div className="mb-6">
-                                <h2 className="text-lg font-semibold settings-title mb-4 flex items-center gap-2">
-                                    <FileSpreadsheet className="w-5 h-5" />
-                                    Cargar archivo de citas
-                                </h2>
-
-                                {/* File Upload Area */}
-                                <div
-                                    onDrop={handleDrop}
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                    className={`
-                                    border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
-                                    upload-dropzone
-                                    ${isDragging ? 'border-primary upload-dropzone-active' : 'border-[#d4d8e8] dark:border-[hsl(30,5%,25%)]'}
-                                    hover:border-primary hover:upload-dropzone-active
-                                    transition-all duration-200
-                                `}
-                                >
-                                    {!data.file ? (
-                                        <label htmlFor="appointment-file-upload" className="cursor-pointer block">
-                                            <input
-                                                id="appointment-file-upload"
-                                                name="appointment-file"
-                                                type="file"
-                                                className="hidden"
-                                                accept=".xlsx,.xls,.csv"
-                                                onChange={handleFileChange}
-                                                disabled={processing}
-                                            />
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="w-16 h-16 rounded-full flex items-center justify-center chat-message-sent shadow-[0_2px_8px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)]">
-                                                    <Upload className="w-8 h-8 text-white" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-lg font-medium settings-title mb-1">
-                                                        Arrastra y suelta tu archivo aquí
-                                                    </p>
-                                                    <p className="text-sm settings-subtitle">
-                                                        o <span className="settings-title font-semibold">haz click para seleccionar</span>
-                                                    </p>
-                                                    <p className="text-xs settings-subtitle mt-2">
-                                                        Formatos soportados: .xlsx, .xls, .csv (máx. 10MB)
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    ) : (
-                                        <div className="flex items-center justify-between p-4 card-gradient rounded-2xl border border-white/40 dark:border-white/10 shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_4px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.95)]">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-xl flex items-center justify-center chat-message-sent shadow-[0_2px_6px_rgba(46,63,132,0.15),inset_0_1px_0_rgba(255,255,255,0.15)]">
-                                                    <FileSpreadsheet className="w-6 h-6 text-white" />
-                                                </div>
-                                                <div className="text-left">
-                                                    <p className="font-medium settings-title">{data.file.name}</p>
-                                                    <p className="text-sm settings-subtitle">
-                                                        {formatFileSize(data.file.size)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={removeFile}
-                                                className="p-2 hover:bg-gradient-to-b hover:from-red-50 hover:to-red-100 rounded-xl transition-all duration-200"
-                                                disabled={processing}
-                                            >
-                                                <X className="w-5 h-5 text-red-500" />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {errors.file && (
-                                    <div className="mt-4 flex items-start gap-2 p-4 bg-gradient-to-b from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-900/10 rounded-2xl shadow-[0_1px_2px_rgba(239,68,68,0.1),inset_0_1px_0_rgba(255,255,255,0.5)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.2)]">
-                                        <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                                        <p className="text-sm text-red-600 dark:text-red-400">{errors.file}</p>
+                            {/* Resultado de enviar / pausar / reanudar / detener, y el resumen al terminar. */}
+                            <div aria-live="polite">
+                                {avisoEnvio && (
+                                    <div
+                                        className={cn(
+                                            'flex items-start gap-3 border-b px-4 py-3 @3xl/hoja:px-5',
+                                            avisoEnvio.tipo === 'error'
+                                                ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300'
+                                                : avisoEnvio.tipo === 'aviso'
+                                                  ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200'
+                                                  : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300'
+                                        )}
+                                    >
+                                        <span className="flex w-8 shrink-0 justify-center pt-px">
+                                            {avisoEnvio.tipo === 'error' ? (
+                                                <CircleAlert className="size-[17px]" strokeWidth={2} aria-hidden="true" />
+                                            ) : avisoEnvio.tipo === 'aviso' ? (
+                                                <TriangleAlert className="size-[17px]" strokeWidth={2} aria-hidden="true" />
+                                            ) : (
+                                                <CircleCheck className="size-[17px]" strokeWidth={2} aria-hidden="true" />
+                                            )}
+                                        </span>
+                                        <p className="min-w-0 flex-1 pt-px text-[13px] leading-[19px] font-medium tabular-nums [overflow-wrap:anywhere]">{avisoEnvio.texto}</p>
+                                        <button
+                                            type="button"
+                                            onClick={cerrarAvisoEnvio}
+                                            aria-label={t('appointments.closeNotice')}
+                                            title={t('appointments.closeNotice')}
+                                            className={cn('-my-0.5 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-black/5 dark:hover:bg-white/10', FOCO)}
+                                        >
+                                            <X className="size-4" aria-hidden="true" />
+                                        </button>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Upload Button */}
-                            {data.file && (
-                                <div className="flex justify-end">
-                                    <button
-                                        type="submit"
-                                        disabled={processing}
-                                        className="px-6 py-3 text-white rounded-xl font-medium chat-message-sent shadow-[0_2px_4px_rgba(46,63,132,0.15),0_4px_12px_rgba(46,63,132,0.2),inset_0_1px_0_rgba(255,255,255,0.15)] hover:shadow-[0_4px_8px_rgba(46,63,132,0.2),0_6px_16px_rgba(46,63,132,0.25)] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                            {isProcessing && fallosSondeo >= 2 && <FilaAviso>{t('appointments.progressRefreshFailed')}</FilaAviso>}
+                            {isProcessing && !isPaused && sinAvanzar && <FilaAviso>{t('appointments.stalledText')}</FilaAviso>}
+
+                            {barra && (
+                                <div className={cn('border-b pt-[18px] pb-3.5', SANGRIA, FILETE)}>
+                                    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                                        <div className="flex min-w-0 flex-col gap-1.5">
+                                            <Rotulo
+                                                titulo={esFinal ? t('appointments.progressFinalTitle') : isPaused ? t('appointments.progressPausedTitle') : t('appointments.sendingProgress')}
+                                                apoyo={
+                                                    esFinal
+                                                        ? undefined
+                                                        : sondeoParado
+                                                          ? t('appointments.sessionExpired')
+                                                          : isPaused
+                                                            ? t('appointments.progressPausedHint')
+                                                            : t('appointments.progressAutoRefresh')
+                                                }
+                                            />
+                                            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                                                <span
+                                                    className={cn(
+                                                        'text-[30px] leading-9 font-medium tracking-[-0.03em] whitespace-nowrap tabular-nums',
+                                                        isPaused ? 'text-amber-700 dark:text-amber-400' : TEXTO_NAVY
+                                                    )}
+                                                >
+                                                    {barra.percentage} %
+                                                </span>
+                                                <span className={cn('text-[14px] leading-5 tabular-nums', TEXTO_SUAVE)}>
+                                                    <Trans
+                                                        i18nKey="appointments.progressProcessedRich"
+                                                        values={{ done: miles(barra.total - barra.pending, lng), total: miles(barra.total, lng) }}
+                                                        components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                                    />
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className={cn('flex flex-wrap items-center gap-x-[22px] gap-y-1.5 pb-1.5 text-[13px] leading-[18px] font-medium whitespace-nowrap tabular-nums', TEXTO_NAVY)}>
+                                            <span className="flex items-center gap-2">
+                                                <span className="size-[9px] shrink-0 rounded-[2.5px] bg-emerald-600 dark:bg-emerald-500" aria-hidden="true" />
+                                                {t('appointments.progressSent')} <span className="font-semibold">{miles(barra.sent, lng)}</span>
+                                            </span>
+                                            <span className="flex items-center gap-2">
+                                                <span className="size-[9px] shrink-0 rounded-[2.5px] bg-red-600 dark:bg-red-500" aria-hidden="true" />
+                                                {t('appointments.progressFailed')} <span className="font-semibold">{miles(barra.failed, lng)}</span>
+                                            </span>
+                                            {barra.skipped > 0 && (
+                                                <span className="flex items-center gap-2" title={t('appointments.progressSkippedHint')}>
+                                                    <span className="size-[9px] shrink-0 rounded-[2.5px] bg-slate-400 dark:bg-neutral-500" aria-hidden="true" />
+                                                    {t('appointments.progressSkipped')} <span className="font-semibold">{miles(barra.skipped, lng)}</span>
+                                                </span>
+                                            )}
+                                            <span className="flex items-center gap-2">
+                                                <span className="size-[9px] shrink-0 rounded-[2.5px] bg-[#2e3f84]/8 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.32)] dark:bg-white/10 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.3)]" aria-hidden="true" />
+                                                {t('appointments.progressPending')} <span className="font-semibold">{miles(barra.pending, lng)}</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div
+                                        role="progressbar"
+                                        aria-label={esFinal ? t('appointments.progressFinalTitle') : isPaused ? t('appointments.progressPausedTitle') : t('appointments.sendingProgress')}
+                                        aria-valuemin={0}
+                                        aria-valuemax={100}
+                                        aria-valuenow={Math.min(barra.percentage, 100)}
+                                        aria-valuetext={t('appointments.progressValueText', {
+                                            done: miles(barra.total - barra.pending, lng),
+                                            total: miles(barra.total, lng),
+                                            failed: miles(barra.failed, lng),
+                                        })}
+                                        className="mt-3.5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-[#2e3f84]/8 forced-colors:border dark:bg-white/10"
                                     >
-                                        {processing ? 'Subiendo...' : 'Subir archivo'}
+                                        <div
+                                            className="h-full bg-emerald-600 transition-[width] duration-500 ease-out forced-color-adjust-none forced-colors:bg-[Highlight] dark:bg-emerald-500"
+                                            style={{ width: `${Math.min((barra.sent / barra.total) * 100, 100)}%` }}
+                                        />
+                                        {barra.failed > 0 && (
+                                            <div
+                                                className="h-full min-w-[3px] bg-red-600 transition-[width] duration-500 ease-out forced-color-adjust-none forced-colors:bg-[CanvasText] dark:bg-red-500"
+                                                style={{ width: `${Math.min((barra.failed / barra.total) * 100, 100)}%` }}
+                                            />
+                                        )}
+                                        {barra.skipped > 0 && (
+                                            <div
+                                                className="h-full min-w-[3px] bg-slate-400 transition-[width] duration-500 ease-out forced-color-adjust-none forced-colors:bg-[GrayText] dark:bg-neutral-500"
+                                                style={{ width: `${Math.min((barra.skipped / barra.total) * 100, 100)}%` }}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Sin envío en curso: cómo fue el último (o, si se cortó, por qué). */}
+                            {!hayEnvio &&
+                                !iniciando &&
+                                !barraFinal &&
+                                ultimo &&
+                                ultimo.estado !== 'en_curso' &&
+                                (ultimo.estado === 'cortado' ? (
+                                    <FilaAviso>{textoCorte(ultimo)}</FilaAviso>
+                                ) : (
+                                    <div className={cn('flex min-h-11 items-center gap-3 border-b px-4 py-2.5 @3xl/hoja:px-5', FILETE)}>
+                                        <span className={cn('flex w-8 shrink-0 justify-center', TEXTO_SUAVE)}>
+                                            <History className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
+                                        </span>
+                                        <p className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{lineaUltimo(ultimo)}</p>
+                                    </div>
+                                ))}
+
+                            <Deferred data="remindersStats" fallback={<RemindersRowsSkeleton />}>
+                                {() =>
+                                    objetivo &&
+                                    manana && (
+                                        <>
+                                            {avisoTope(rotuloObjetivo, objetivo)}
+                                            {mananaVisible && avisoTope(t('appointments.dayBeforeLabel'), manana)}
+
+                                            <div className={cn('flex min-h-10 flex-wrap items-end gap-x-2.5 gap-y-0.5 pt-4 pb-2', SANGRIA)}>
+                                                <h3 className={cn('text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE)}>{t('appointments.toSendTitle')}</h3>
+                                                <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{hayEnvio ? t('appointments.toSendHint') : t('appointments.toSendHintConfirm')}</p>
+                                            </div>
+
+                                            {filaTanda({ tipo: 'start', cuando: rotuloObjetivo, tanda: objetivo, final: !mananaVisible })}
+                                            {mananaVisible &&
+                                                filaTanda({ tipo: 'dayBefore', cuando: t('appointments.dayBeforeLabel'), pista: t('appointments.dayBeforeHint'), tanda: manana, final: true })}
+
+                                            {(hayEnvio || (objetivo.por_enviar === 0 && (!mananaVisible || manana.por_enviar === 0))) && (
+                                                <div className={cn('flex min-h-12 items-center gap-3 border-t px-4 py-3 @3xl/hoja:px-5', FILETE)}>
+                                                    <span className={cn('flex w-8 shrink-0 justify-center', TEXTO_SUAVE)}>
+                                                        <Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
+                                                    </span>
+                                                    <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{hayEnvio ? notaEnCurso : t('appointments.noPendingReminders')}</p>
+                                                </div>
+                                            )}
+                                        </>
+                                    )
+                                }
+                            </Deferred>
+                        </section>
+
+                        {/* ── 2. Cargar archivo de citas ── */}
+                        <form onSubmit={submit} aria-labelledby="citas-carga">
+                            <Banda id="citas-carga" icon={FileSpreadsheet} titulo={t('appointments.uploadFileTitle')} texto={t('appointments.uploadFileSubtitle')} className="border-t" />
+
+                            <div className={cn('grid grid-cols-1 gap-5 border-b py-5 @5xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,380px)] @5xl/hoja:gap-x-7 @6xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,440px)]', SANGRIA, FILETE)}>
+                                <div className="flex min-w-0 flex-col">
+                                    <div
+                                        onDrop={handleDrop}
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        className={cn(
+                                            'relative rounded-xl border-[1.5px] border-dashed transition-colors',
+                                            isDragging
+                                                ? 'border-[#2e3f84] bg-[#2e3f84]/8 dark:border-[#8b9ae0] dark:bg-white/8'
+                                                : 'border-[#2e3f84]/35 bg-[#2e3f84]/[0.035] hover:border-[#2e3f84]/60 dark:border-white/25 dark:bg-white/[0.03] dark:hover:border-white/40'
+                                        )}
+                                    >
+                                        {!data.file ? (
+                                            <label
+                                                htmlFor="appointment-file-upload"
+                                                className="flex min-h-[136px] cursor-pointer flex-wrap items-center gap-x-[18px] gap-y-4 rounded-xl px-5 py-5 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-[#2e3f84]/40 @3xl/hoja:flex-nowrap @3xl/hoja:px-6 dark:has-[input:focus-visible]:ring-[#8b9ae0]/60"
+                                            >
+                                                <input
+                                                    ref={campoArchivo}
+                                                    id="appointment-file-upload"
+                                                    name="appointment-file"
+                                                    type="file"
+                                                    className="sr-only"
+                                                    accept=".xlsx,.xls"
+                                                    onChange={handleFileChange}
+                                                    disabled={processing}
+                                                    aria-invalid={avisoArchivo ? true : undefined}
+                                                    aria-describedby={avisoArchivo ? 'appointment-file-error' : undefined}
+                                                />
+                                                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#2e3f84] text-white shadow-[0_1px_2px_rgba(46,63,132,0.3),0_6px_14px_-6px_rgba(46,63,132,0.5)] dark:bg-[#4e5fa4]">
+                                                    <Upload className="size-5" strokeWidth={2} aria-hidden="true" />
+                                                </span>
+                                                <span className="flex min-w-0 flex-[1_1_14rem] flex-col gap-1">
+                                                    <span className={cn('text-[14px] leading-5 font-semibold', TEXTO_NAVY)}>{t('appointments.dropzoneTitle')}</span>
+                                                    <span className={cn('text-[13px] leading-[18px]', TEXTO_SUAVE)}>{t('appointments.dropzoneHint')}</span>
+                                                    <span className={cn('mt-1 text-[12px] leading-4', TEXTO_SUAVE)}>{t('appointments.dropzoneSupportedFormats')}</span>
+                                                </span>
+                                                <span className={cn(BOTON_SECUNDARIO, 'pointer-events-none')} aria-hidden="true">
+                                                    <FileSpreadsheet strokeWidth={1.9} />
+                                                    {t('appointments.selectFile')}
+                                                </span>
+                                            </label>
+                                        ) : (
+                                            <div className="flex min-h-[136px] flex-wrap items-center gap-x-4 gap-y-4 px-5 py-5 @3xl/hoja:flex-nowrap @3xl/hoja:px-6">
+                                                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#2e3f84]/10 text-[#2e3f84] dark:bg-white/8 dark:text-neutral-100">
+                                                    <FileSpreadsheet className="size-5" strokeWidth={1.9} aria-hidden="true" />
+                                                </span>
+                                                <div className="flex min-w-0 flex-[1_1_12rem] flex-col gap-1">
+                                                    <p className={cn('truncate text-[14px] leading-5 font-semibold', MONO, TEXTO_NAVY)} title={data.file.name}>
+                                                        {data.file.name}
+                                                    </p>
+                                                    <p className={cn('text-[13px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{tamanoArchivo(data.file.size, lng)}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={removeFile}
+                                                        disabled={processing}
+                                                        aria-label={t('appointments.removeFile')}
+                                                        title={t('appointments.removeFile')}
+                                                        className={cn(
+                                                            'flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-[10px] text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-500/10',
+                                                            FOCO
+                                                        )}
+                                                    >
+                                                        <X className="size-4" aria-hidden="true" />
+                                                    </button>
+                                                    <button ref={botonCargar} type="submit" disabled={processing} className={BOTON_PRIMARIO}>
+                                                        {processing ? (
+                                                            <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" />
+                                                        ) : (
+                                                            <Upload strokeWidth={2} aria-hidden="true" />
+                                                        )}
+                                                        {processing
+                                                            ? subida?.percentage !== undefined && subida.percentage < 100
+                                                                ? t('appointments.uploadingPercent', { value: subida.percentage })
+                                                                : t('appointments.uploadingChecking')
+                                                            : t('appointments.uploadFileButton')}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <AvisoCampo id="appointment-file-error" texto={avisoArchivo} />
+                                    </div>
+
+                                    {processing && <p className={cn('mt-3 text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('appointments.uploadingWait')}</p>}
+
+                                    {!processing && !errorCargaOculto && errorCarga && (
+                                        <p role="alert" className="mt-3 flex items-start gap-2 text-[13px] leading-[18px] font-medium text-red-700 dark:text-red-400">
+                                            <CircleAlert className="mt-px size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                            <span className="min-w-0 [overflow-wrap:anywhere]">{errorCarga}</span>
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div className="hidden w-px self-stretch bg-[#2e3f84]/8 @5xl/hoja:block dark:bg-white/8" aria-hidden="true" />
+
+                                <div className="flex min-w-0 flex-col gap-3">
+                                    <Rotulo titulo={t('appointments.excelColumnsTitle')} />
+                                    <dl className="grid grid-cols-2 gap-x-[18px] gap-y-2.5 @xl/hoja:grid-cols-3">
+                                        {COLUMNAS_EXCEL.map(([columna, clave, obligatoria]) => (
+                                            <div key={columna} className="flex min-w-0 flex-col gap-px">
+                                                <dt className={cn('flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12.5px] leading-[17px] font-semibold tracking-[0.01em]', TEXTO_NAVY)}>
+                                                    <span className={MONO}>{columna}</span>
+                                                    {obligatoria && (
+                                                        <span className="rounded-[5px] bg-[#2e3f84]/8 px-1.5 text-[10.5px] leading-4 font-semibold tracking-[0.02em] forced-colors:border dark:bg-white/10 dark:text-neutral-200">
+                                                            {t('appointments.columnRequired')}
+                                                        </span>
+                                                    )}
+                                                </dt>
+                                                <dd className={cn('line-clamp-2 text-[12px] leading-4', TEXTO_SUAVE)} title={t(clave)}>
+                                                    {t(clave)}
+                                                </dd>
+                                            </div>
+                                        ))}
+                                    </dl>
+                                    <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('appointments.excelColumnsNote')}</p>
+                                </div>
+                            </div>
+
+                            {uploadedFile && showUploadResult && frasesCarga.length > 0 && (
+                                <div className={cn('flex items-start gap-3 border-b px-4 py-3 @3xl/hoja:min-h-[60px] @3xl/hoja:items-center @3xl/hoja:px-5', FILETE)}>
+                                    <span className={cn('flex w-8 shrink-0 justify-center', cargaSinCambios ? TONO_TEXTO.aviso : TONO_TEXTO.ok)}>
+                                        {cargaSinCambios ? (
+                                            <CircleAlert className="size-[18px]" strokeWidth={2} aria-hidden="true" />
+                                        ) : (
+                                            <CircleCheck className="size-[18px]" strokeWidth={2} aria-hidden="true" />
+                                        )}
+                                    </span>
+                                    <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+                                        <p className={cn('text-[13px] leading-[18px] font-medium tabular-nums', TEXTO_NAVY)}>
+                                            <span className={cn('font-semibold', cargaSinCambios ? TONO_TEXTO.aviso : TONO_TEXTO.ok)}>{frasesCarga[0]}</span>
+                                            {frasesCarga.length > 1 && ` ${frasesCarga.slice(1).join(' ')}`}
+                                        </p>
+                                        <p className={cn('flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>
+                                            <span className={cn('max-w-full truncate text-[12px]', MONO, TEXTO_NAVY)} title={uploadedFile.name}>
+                                                {uploadedFile.name}
+                                            </span>
+                                            <span aria-hidden="true">·</span>
+                                            <span>{tamanoArchivo(Number(uploadedFile.size) || 0, lng)}</span>
+                                            <span aria-hidden="true">·</span>
+                                            <span>{fechaEnvio(uploadedFile.uploaded_at, lng)}</span>
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowUploadResult(false)}
+                                        aria-label={t('appointments.closeNotice')}
+                                        title={t('appointments.closeNotice')}
+                                        className={cn(
+                                            'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+                                            FOCO
+                                        )}
+                                    >
+                                        <X className="size-4" strokeWidth={2} aria-hidden="true" />
                                     </button>
                                 </div>
                             )}
                         </form>
-                    </div>
 
-                    {/* Uploaded File Info */}
-                    {uploadedFile && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6"
-                        >
-                            <div className="flex items-start gap-4">
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-b from-emerald-400 to-emerald-500 shadow-[0_2px_8px_rgba(16,185,129,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]">
-                                    <CheckCircle2 className="w-6 h-6 text-white" />
-                                </div>
-                                <div className="flex-1">
-                                    <h3 className="font-semibold settings-title mb-2">
-                                        Archivo cargado exitosamente
-                                    </h3>
-                                    <div className="space-y-1 text-sm settings-subtitle">
-                                        <p><span className="font-semibold settings-title">Nombre:</span> {uploadedFile.name}</p>
-                                        <p><span className="font-semibold settings-title">Tamaño:</span> {formatFileSize(uploadedFile.size)}</p>
-                                        <p><span className="font-semibold settings-title">Registros:</span> {uploadedFile.total_rows || initialAppointments.length} citas</p>
-                                        <p><span className="font-semibold settings-title">Fecha:</span> {new Date(uploadedFile.uploaded_at).toLocaleString('es-CO')}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                        {/* ── 3. Últimas citas cargadas ── */}
+                        <Deferred data="appointments" fallback={<AppointmentsTableSkeleton />}>
+                            <section aria-labelledby="citas-ultimas">
+                                <Banda
+                                    id="citas-ultimas"
+                                    icon={CalendarClock}
+                                    titulo={t('appointments.latestTitle')}
+                                    texto={
+                                        initialAppointments.length > 0
+                                            ? t('appointments.latestText', { shown: miles(initialAppointments.length, lng), total: miles(totalAppointments, lng) })
+                                            : t('appointments.noAppointmentsYet')
+                                    }
+                                    acciones={
+                                        initialAppointments.length > 0 && (
+                                            <Buscador
+                                                id="appointment-search"
+                                                etiqueta={t('appointments.searchAppointmentsLabel')}
+                                                placeholder={t('appointments.searchPlaceholderRecent', { shown: miles(initialAppointments.length, lng) })}
+                                                value={searchTerm}
+                                                onChange={setSearchTerm}
+                                                className="w-full @3xl/hoja:w-[300px]"
+                                            />
+                                        )
+                                    }
+                                    accionesClassName="@3xl/hoja:w-auto"
+                                    className={initialAppointments.length === 0 ? 'rounded-b-2xl border-b-0' : undefined}
+                                />
 
-                    {/* Control de Recordatorios */}
-                    {(remindersStats || localStats) && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-lg shadow-[#2e3f84]/5 mb-6 transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10">
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                <div>
-                                    <h2 className="text-lg font-semibold settings-title mb-1 flex items-center gap-2">
-                                        <Send className="w-5 h-5" />
-                                        Control de envío de recordatorios
-                                    </h2>
-                                    <div className="text-sm space-y-1 settings-subtitle">
-                                        {localStats.pending > 0 ? (
-                                            <p>
-                                                <strong className="settings-title">{localStats.pending}</strong> recordatorios pendientes para <strong>pasado mañana</strong> (2 días)
-                                                {isProcessing && !isPaused && (
-                                                    <span className="ml-2 inline-flex items-center gap-1 text-emerald-600 font-medium">
-                                                        <RefreshCw className="w-3 h-3 animate-spin" />
-                                                        Enviando...
-                                                    </span>
-                                                )}
-                                                {isProcessing && isPaused && (
-                                                    <span className="ml-2 inline-flex items-center gap-1 text-amber-600 font-medium">
-                                                        <Pause className="w-3 h-3" />
-                                                        Pausado
-                                                    </span>
-                                                )}
-                                            </p>
-                                        ) : (
-                                            <p className="text-amber-600">
-                                                No hay citas pendientes para pasado mañana.
-                                            </p>
-                                        )}
-                                        {localStats.pending_tomorrow > 0 && (
-                                            <p className="text-amber-600">
-                                                <CalendarCheck className="w-4 h-4 inline mr-1" />
-                                                <strong>{localStats.pending_tomorrow}</strong> citas para <strong>mañana</strong> sin recordatorio enviado (usa "Enviar Día Antes")
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* Barra de progreso en tiempo real */}
-                                    {isProcessing && progress && progress.total > 0 && (
-                                        <div className="mt-4 space-y-2">
-                                            <div className="flex items-center justify-between text-xs settings-subtitle">
-                                                <span>Progreso del envío</span>
-                                                <span className="font-medium settings-title">
-                                                    {progress.percentage}% ({progress.sent + progress.failed} / {progress.total})
-                                                </span>
-                                            </div>
-                                            <div className="w-full bg-[#e5e7f0] dark:bg-[hsl(30,4%,20%)] rounded-full h-2.5 overflow-hidden">
-                                                <div
-                                                    className="h-full bg-gradient-to-r from-[#22c55e] to-[#16a34a] transition-all duration-500 ease-out rounded-full"
-                                                    style={{ width: `${Math.min(progress.percentage, 100)}%` }}
-                                                />
-                                            </div>
-                                            <div className="flex items-center justify-between text-xs">
-                                                <div className="flex items-center gap-4 flex-wrap">
-                                                    <span className="text-emerald-600 font-medium">
-                                                        ✓ Enviados: {progress.sent}
-                                                    </span>
-                                                    {progress.failed > 0 && (
-                                                        <span className="text-red-600 font-medium">
-                                                            ✗ Fallidos: {progress.failed}
-                                                        </span>
-                                                    )}
-                                                    <span className="settings-subtitle">
-                                                        ⏳ Pendientes: {progress.pending}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                {initialAppointments.length > 0 && (
+                                    <>
+                                        <div
+                                            aria-hidden="true"
+                                            className={cn(
+                                                'hidden h-9 border-b bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] lg:sticky lg:top-0 lg:z-[2] @3xl/hoja:grid dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]',
+                                                COLUMNAS_CITA,
+                                                FILETE
+                                            )}
+                                        >
+                                            <Th className="text-right">#</Th>
+                                            <Th>{t('appointments.columnPatient')}</Th>
+                                            <Th>{t('appointments.columnAppointment')}</Th>
+                                            <Th>{t('appointments.columnProfessional')}</Th>
+                                            <Th>{t('appointments.columnReminder')}</Th>
+                                            <Th>{t('appointments.columnResponse')}</Th>
                                         </div>
-                                    )}
-                                </div>
-                                <div className="flex gap-3 flex-wrap">
-                                    {/* Botón para enviar citas de pasado mañana */}
-                                    {!isProcessing && !isPaused && localStats.pending > 0 && (
-                                        <Button
-                                            onClick={handleStartReminders}
-                                            disabled={isLoading || isProcessing}
-                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                            style={{
-                                                backgroundColor: 'var(--primary-base)',
-                                                boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                padding: '0 var(--space-lg)',
-                                                fontSize: 'var(--text-sm)',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!isLoading && !isProcessing) {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                            }}
-                                        >
-                                            <Play className="w-4 h-4 mr-2" />
-                                            {isLoading || isProcessing ? 'Iniciando...' : `Comenzar Envío (${localStats.pending})`}
-                                        </Button>
-                                    )}
-                                    {/* Botón para enviar citas de mañana - independiente */}
-                                    {!isProcessing && !isPaused && localStats.pending_tomorrow > 0 && (
-                                        <Button
-                                            onClick={handleStartRemindersDayBefore}
-                                            disabled={isLoading || isProcessing}
-                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                            style={{
-                                                backgroundColor: 'var(--primary-base)',
-                                                boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                padding: '0 var(--space-lg)',
-                                                fontSize: 'var(--text-sm)',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!isLoading && !isProcessing) {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                            }}
-                                        >
-                                            <CalendarCheck className="w-4 h-4 mr-2" />
-                                            Enviar Día Antes ({localStats.pending_tomorrow})
-                                        </Button>
-                                    )}
-                                    {isProcessing && !isPaused && (
-                                        <>
-                                            <Button
-                                                onClick={handlePauseReminders}
-                                                disabled={isLoading}
-                                                className="font-semibold text-white transition-all duration-200 border-0"
-                                                style={{
-                                                    backgroundColor: 'var(--primary-base)',
-                                                    boxShadow: 'var(--shadow-md)',
-                                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                    padding: '0 var(--space-lg)',
-                                                    fontSize: 'var(--text-sm)',
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                }}
+
+                                        {filteredAppointments.length > 0 ? (
+                                            <ul aria-label={t('appointments.latestTitle')}>
+                                                {filteredAppointments.map((appointment, index) => (
+                                                    <FilaCita key={appointment.id} cita={appointment} indice={index + 1} />
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p className={cn('border-b px-4 py-10 text-center text-[13px] leading-[18px]', FILETE, TEXTO_SUAVE)}>{t('appointments.noSearchResults')}</p>
+                                        )}
+
+                                        <div className={cn('flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 rounded-b-2xl py-3 @3xl/hoja:min-h-[52px]', SANGRIA)}>
+                                            <p className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)} aria-live="polite">
+                                                <Trans
+                                                    i18nKey={searchTerm.trim() ? 'appointments.showingSearchRich' : 'appointments.showingLastAppointmentsRich'}
+                                                    values={{ shown: miles(initialAppointments.length, lng), filtered: miles(filteredAppointments.length, lng) }}
+                                                    components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                                />
+                                            </p>
+                                            <Link
+                                                href={`${routePrefix}/view`}
+                                                className={cn(
+                                                    'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[13px] leading-[18px] font-semibold transition-colors hover:bg-[#2e3f84]/6 dark:hover:bg-white/8',
+                                                    TEXTO_NAVY,
+                                                    FOCO
+                                                )}
                                             >
-                                                <Pause className="w-4 h-4 mr-2" />
-                                                {isLoading ? 'Pausando...' : 'Pausar'}
-                                            </Button>
-                                            <Button
-                                                onClick={handleStopReminders}
-                                                disabled={isLoading}
-                                                className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                                style={{
-                                                    backgroundColor: '#EF4444',
-                                                    boxShadow: 'var(--shadow-md)',
-                                                    height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                    padding: '0 var(--space-lg)',
-                                                    fontSize: 'var(--text-sm)',
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.backgroundColor = '#DC2626';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.backgroundColor = '#EF4444';
-                                                    e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                    e.currentTarget.style.transform = 'translateY(0)';
-                                                }}
-                                            >
-                                                <Square className="w-4 h-4 mr-2" />
-                                                {isLoading ? 'Deteniendo...' : 'Detener'}
-                                            </Button>
-                                        </>
-                                    )}
-                                    {isProcessing && isPaused && (
-                                        <Button
-                                            onClick={handleResumeReminders}
-                                            disabled={isLoading}
-                                            className="font-semibold text-white transition-all duration-200 border-0 rounded-xl"
-                                            style={{
-                                                backgroundColor: '#10B981',
-                                                boxShadow: 'var(--shadow-md)',
-                                                height: 'clamp(2.25rem, 2.25rem + 0.15vw, 2.5rem)',
-                                                padding: '0 var(--space-lg)',
-                                                fontSize: 'var(--text-sm)',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.backgroundColor = '#059669';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                                e.currentTarget.style.transform = 'translateY(-2px)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = '#10B981';
-                                                e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                            }}
-                                        >
-                                            <Play className="w-4 h-4 mr-2" />
-                                            {isLoading ? 'Reanudando...' : 'Reanudar'}
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                            {localStats.pending > 2000 && (
-                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl">
-                                    <p className="text-sm text-amber-800 dark:text-amber-300">
-                                        <AlertCircle className="w-4 h-4 inline mr-1" />
-                                        <strong>Advertencia:</strong> Tienes {localStats.pending} recordatorios pendientes para pasado mañana.
-                                        El sistema respetará el límite de 2,000 mensajes por día según las políticas de Meta.
-                                    </p>
-                                </div>
-                            )}
-                            {localStats.pending_tomorrow > 2000 && (
-                                <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl">
-                                    <p className="text-sm text-amber-800 dark:text-amber-300">
-                                        <AlertCircle className="w-4 h-4 inline mr-1" />
-                                        <strong>Advertencia:</strong> Tienes {localStats.pending_tomorrow} citas para mañana sin recordatorio.
-                                        El sistema respetará el límite de 2,000 mensajes por día.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Tabla de Citas */}
-                    {initialAppointments.length > 0 && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10 mb-6">
-                            {/* Header con búsqueda */}
-                            <div className="mb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                <div>
-                                    <h2 className="text-lg font-semibold settings-title">
-                                        Citas en base de datos ({totalAppointments})
-                                    </h2>
-                                    <p className="text-sm settings-subtitle">
-                                        Mostrando últimas {initialAppointments.length} citas (filtradas: {filteredAppointments.length})
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    {/* Buscador */}
-                                    <div className="relative">
-                                        <label htmlFor="appointment-search" className="sr-only">Buscar citas</label>
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 settings-subtitle" />
-                                        <input
-                                            id="appointment-search"
-                                            name="appointment-search"
-                                            type="text"
-                                            placeholder="Buscar por paciente, teléfono, médico..."
-                                            value={searchTerm}
-                                            onChange={(e) => handleSearch(e.target.value)}
-                                            className="pl-10 pr-4 py-2 rounded-xl settings-input focus:ring-2 focus:ring-primary/10 outline-none transition-all duration-200 w-full md:w-80 text-sm settings-title"
-                                        />
-                                    </div>
-
-                                    {/* Botón para abrir página dedicada */}
-                                    <Button
-                                        onClick={() => router.visit(`${routePrefix}/view`)}
-                                        className="font-semibold text-white transition-all duration-200 border-0 flex items-center gap-2 rounded-xl"
-                                        style={{
-                                            backgroundColor: 'var(--primary-base)',
-                                            boxShadow: 'var(--shadow-md)',
-                                            padding: '0.5rem 1rem',
-                                            fontSize: 'var(--text-sm)',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--primary-darker)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                                            e.currentTarget.style.transform = 'translateY(-2px)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'var(--primary-base)';
-                                            e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                        }}
-                                    >
-                                        <ExternalLink className="w-4 h-4" />
-                                        Ver todas las citas
-                                    </Button>
-                                </div>
-                            </div>
-
-                            {/* Tabla agilizada sin tanto scroll horizontal */}
-                            <div className="overflow-x-auto rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)]">
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="bg-black/5 dark:bg-white/5 border-b border-border dark:border-[hsl(30,5%,20%)]">
-                                        <tr>
-                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                #
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Paciente
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Detalles de Cita
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Profesional
-                                            </th>
-                                            <th className="px-4 py-3 font-semibold settings-title whitespace-nowrap" style={{ fontSize: 'var(--text-sm)' }}>
-                                                Estado Envío
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-border dark:divide-[hsl(30,5%,20%)]">
-                                        {paginatedAppointments.map((appointment, index) => (
-                                            <tr
-                                                key={appointment.id}
-                                                className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors duration-200"
-                                            >
-                                                {/* Índice */}
-                                                <td className="px-4 py-4 whitespace-nowrap align-top settings-subtitle font-medium" style={{ fontSize: 'var(--text-sm)' }}>
-                                                    {(currentPage - 1) * itemsPerPage + index + 1}
-                                                </td>
-
-                                                {/* Paciente y Teléfono */}
-                                                <td className="px-4 py-4 align-top w-[25%] min-w-[200px]">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold settings-title truncate" style={{ fontSize: 'var(--text-md)' }}>
-                                                            {appointment.nom_paciente || '-'}
-                                                        </span>
-                                                        <span className="settings-subtitle flex items-center gap-1.5 mt-1" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            {appointment.pactel ? (
-                                                                <>
-                                                                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                                                                        <Phone className="w-3 h-3 text-primary" />
-                                                                    </div>
-                                                                    {appointment.pactel}
-                                                                </>
-                                                            ) : '-'}
-                                                        </span>
-                                                    </div>
-                                                </td>
-
-                                                {/* Fecha y Hora */}
-                                                <td className="px-4 py-4 whitespace-nowrap align-top">
-                                                    <div className="flex flex-col gap-1.5">
-                                                        <div className="inline-flex items-center gap-1.5 settings-title font-medium bg-black/5 dark:bg-white/5 px-2.5 py-1 rounded-md w-fit" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            <CalendarCheck className="w-4 h-4 text-primary" />
-                                                            {appointment.citfc || '-'}
-                                                        </div>
-                                                        <div className="inline-flex items-center gap-1.5 settings-subtitle pl-1" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            <Clock className="w-3.5 h-3.5" />
-                                                            {appointment.cithor || '-'}
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                {/* Médico y Especialidad */}
-                                                <td className="px-4 py-4 align-top w-[30%] min-w-[220px]">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-semibold settings-title line-clamp-2 leading-tight" style={{ fontSize: 'var(--text-sm)' }}>
-                                                            Dr(a). {appointment.mednom || '-'}
-                                                        </span>
-                                                        <span className="settings-subtitle mt-1 inline-flex items-center gap-1.5" style={{ fontSize: 'var(--text-xs)' }}>
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 flex-shrink-0" />
-                                                            {appointment.espnom || '-'}
-                                                        </span>
-                                                    </div>
-                                                </td>
-
-                                                {/* Estado Integrado */}
-                                                <td className="px-4 py-4 whitespace-nowrap align-top">
-                                                    <div className="flex flex-col gap-2">
-                                                        {appointment.reminder_sent ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-semibold w-fit">
-                                                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                                                Enviado
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-semibold w-fit">
-                                                                <Clock className="w-3.5 h-3.5" />
-                                                                Pendiente
-                                                            </span>
-                                                        )}
-
-                                                        {appointment.reminder_sent && (
-                                                            <>
-                                                                {appointment.reminder_status === 'confirmed' ? (
-                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-semibold w-fit">
-                                                                        <CalendarCheck className="w-3.5 h-3.5" /> Confirmada
-                                                                    </span>
-                                                                ) : appointment.reminder_status === 'cancelled' ? (
-                                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-semibold w-fit">
-                                                                        <CalendarX className="w-3.5 h-3.5" /> Cancelada
-                                                                    </span>
-                                                                ) : appointment.reminder_status === 'failed' ? (
-                                                                    <span className="inline-flex items-center gap-1 text-red-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <XCircle className="w-3 h-3" /> Error
-                                                                    </span>
-                                                                ) : appointment.reminder_status && ['delivered', 'read'].includes(appointment.reminder_status) ? (
-                                                                    <span className="inline-flex items-center gap-1 text-emerald-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <CheckCircle2 className="w-3 h-3" /> Recibido
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="inline-flex items-center gap-1 text-blue-500 font-medium ml-1" style={{ fontSize: 'var(--text-xs)' }}>
-                                                                        <Clock className="w-3 h-3" /> En camino
-                                                                    </span>
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Paginación */}
-                            {totalPages > 1 && (
-                                <div className="mt-4 flex items-center justify-between">
-                                    <p className="text-sm settings-subtitle">
-                                        Página {currentPage} de {totalPages}
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                            disabled={currentPage === 1}
-                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(30,4%,18%)] dark:hover:to-[hsl(30,4%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
-                                        >
-                                            <ChevronLeft className="w-4 h-4" />
-                                            Anterior
-                                        </button>
-                                        <button
-                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                            disabled={currentPage === totalPages}
-                                            className="px-3 py-2 rounded-xl border border-[#d4d8e8] dark:border-[hsl(30,5%,22%)] settings-title hover:bg-gradient-to-b hover:from-[#f8f9fc] hover:to-[#f4f5f9] dark:hover:from-[hsl(30,4%,18%)] dark:hover:to-[hsl(30,4%,16%)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
-                                        >
-                                            Siguiente
-                                            <ChevronRight className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Instructions */}
-                    {initialAppointments.length === 0 && (
-                        <div className="card-gradient rounded-2xl border border-white/40 dark:border-white/10 p-5 shadow-[0_1px_3px_rgba(46,63,132,0.06),0_2px_6px_rgba(46,63,132,0.08),0_6px_16px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.8)] transition-all duration-300 hover:shadow-xl hover:shadow-[#2e3f84]/10"
-                        >
-                            <h3 className="font-semibold settings-title mb-4">
-                                Formato del archivo excel
-                            </h3>
-                            <div className="space-y-3 text-sm settings-subtitle">
-                                <p className="settings-title font-medium">El archivo debe contener las siguientes columnas:</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-3">
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Citead</strong> - Código admisión
-                                    </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Nom_paciente</strong> - Nombre paciente
-                                    </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Pactel</strong> - Teléfono
-                                    </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Citfc</strong> - Fecha cita
-                                    </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Cithor</strong> - Hora cita
-                                    </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Mednom</strong> - Nombre médico
-                                    </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Espnom</strong> - Especialidad
-                                    </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Citdoc</strong> - Documento
-                                    </div>
-                                    <div className="text-xs bg-gradient-to-b from-[#f8f9fc] to-[#f4f5f9] dark:from-[hsl(30,4%,16%)] dark:to-[hsl(30,4%,14%)] p-2 rounded-xl settings-subtitle">
-                                        <strong className="settings-title">Citobsobs</strong> - Observaciones
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                                                {t('appointments.viewAllAppointments')}
+                                                <ArrowRight className="size-[15px]" strokeWidth={2} aria-hidden="true" />
+                                            </Link>
+                                        </div>
+                                    </>
+                                )}
+                            </section>
+                        </Deferred>
+                    </div>
                 </div>
             </div>
+
+            {/* ── Confirmación antes de enviar: fecha, cuántos, de qué ámbito, cuánto tarda y si es de noche ── */}
+            <Confirmacion
+                abierto={confirmarEnvio !== null}
+                onCancelar={() => setConfirmarEnvio(null)}
+                onConfirmar={aceptarEnvio}
+                icono={Send}
+                titulo={t('appointments.confirmSendTitle', {
+                    count: salen,
+                    value: miles(salen, lng),
+                    scope: t(esOncologia ? 'appointments.scopeInSentence.oncology' : 'appointments.scopeInSentence.general'),
+                })}
+                textoSeguro={t('common.cancel')}
+                iconoSeguro={X}
+                textoConfirmar={recalculando ? t('appointments.confirmSendRefreshing') : t('appointments.confirmSendYes', { value: miles(salen, lng) })}
+                confirmarDesactivado={recalculando || salen <= 0}
+                respaldoFoco="citas-envio"
+            >
+                <p>{t('appointments.confirmSendText', { date: fechaTexto(tandaConfirmar?.fecha) })}</p>
+                <p>{t('appointments.confirmSendDuration', { count: minutos })}</p>
+                {(tandaConfirmar?.sin_celular ?? 0) > 0 && (
+                    <p>{t('appointments.confirmSendNoMobile', { count: tandaConfirmar?.sin_celular ?? 0, value: miles(tandaConfirmar?.sin_celular ?? 0, lng) })}</p>
+                )}
+                {quedanOtraTanda > 0 && (
+                    <p>
+                        <Trans
+                            i18nKey="appointments.confirmSendRemaining"
+                            values={{ max: miles(maxPorEnvio, lng), rest: miles(quedanOtraTanda, lng), total: miles(tandaConfirmar?.por_enviar ?? 0, lng) }}
+                            components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                        />
+                    </p>
+                )}
+                {deNoche && (
+                    <p className={cn('flex items-start gap-2 font-medium', TONO_TEXTO.aviso)}>
+                        <TriangleAlert className="mt-0.5 size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                        <span>{t('appointments.confirmSendNight', { time: ahoraColombia(lng) })}</span>
+                    </p>
+                )}
+            </Confirmacion>
+
+            {/* ── Confirmación de reanudar: dice cuántos van a salir ── */}
+            <Confirmacion
+                abierto={confirmarReanudar}
+                onCancelar={() => setConfirmarReanudar(false)}
+                onConfirmar={aceptarReanudar}
+                icono={Play}
+                titulo={t('appointments.confirmResumeTitle')}
+                textoSeguro={t('appointments.confirmStopKeepPaused')}
+                iconoSeguro={Pause}
+                textoConfirmar={t('appointments.confirmResumeYes')}
+                iconoConfirmar={Play}
+                respaldoFoco="citas-envio"
+            >
+                <p>{progress ? t('appointments.confirmResumeText', { count: progress.pending, value: miles(progress.pending, lng) }) : t('appointments.confirmResumeGeneric')}</p>
+            </Confirmacion>
+
+            {/* ── Confirmación de detener ── */}
+            <Confirmacion
+                abierto={confirmarDetener}
+                onCancelar={() => setConfirmarDetener(false)}
+                onConfirmar={aceptarDetener}
+                icono={Square}
+                peligro
+                titulo={t('appointments.confirmStopTitle')}
+                textoSeguro={isPaused ? t('appointments.confirmStopKeepPaused') : t('appointments.confirmStopKeep')}
+                iconoSeguro={isPaused ? Pause : Play}
+                textoConfirmar={t('appointments.confirmStopYes')}
+                respaldoFoco="citas-envio"
+            >
+                <p>
+                    {progress && progress.total > 0 ? (
+                        <Trans
+                            i18nKey="appointments.confirmStopPending"
+                            values={{ pending: miles(progress.pending, lng), done: miles(progress.sent, lng) }}
+                            components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                        />
+                    ) : (
+                        t('appointments.confirmStopGeneric')
+                    )}
+                </p>
+                <p>{t('appointments.confirmStopAfter')}</p>
+            </Confirmacion>
         </AdminLayout>
+    );
+}
+
+// Skeletons que imitan el layout real mientras Inertia trae las props diferidas
+// (appointments, totalAppointments, remindersStats) en la segunda petición.
+function AppointmentMetricsSkeleton() {
+    return (
+        <section className={FRANJA} aria-hidden="true">
+            {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex flex-col gap-2 @5xl/pagina:col-span-2 @5xl/pagina:last:col-span-1">
+                    <Skeleton className="h-4 w-32 rounded-md" />
+                    <Skeleton className="h-8 w-24 rounded-md" />
+                    <Skeleton className="h-4 w-36 rounded-md" />
+                </div>
+            ))}
+        </section>
+    );
+}
+
+function RemindersRowsSkeleton() {
+    return (
+        <div aria-hidden="true">
+            <div className={cn('flex min-h-10 items-end pt-4 pb-2', SANGRIA)}>
+                <Skeleton className="h-3.5 w-40 rounded-md" />
+            </div>
+            {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className={cn('flex min-h-16 items-center gap-8 py-3', SANGRIA, i === 0 && cn('border-b', FILETE))}>
+                    <div className="flex w-[220px] flex-col gap-1.5">
+                        <Skeleton className="h-4 w-28 rounded-md" />
+                        <Skeleton className="h-3.5 w-44 rounded-md" />
+                    </div>
+                    <Skeleton className="hidden h-5 w-56 rounded-md @3xl/hoja:block" />
+                    <Skeleton className="ml-auto h-9 w-48 rounded-[10px]" />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function AppointmentsTableSkeleton() {
+    return (
+        <section aria-hidden="true">
+            <div className={cn('flex min-h-16 items-center gap-3 border-b px-4 @3xl/hoja:px-5', BANDA, FILETE)}>
+                <Skeleton className="size-5 rounded-md" />
+                <div className="flex flex-col gap-1.5">
+                    <Skeleton className="h-4 w-44 rounded-md" />
+                    <Skeleton className="h-3.5 w-72 rounded-md" />
+                </div>
+            </div>
+            <div className="flex flex-col gap-2 px-4 py-4 @3xl/hoja:px-5">
+                {Array.from({ length: 8 }).map((_, i) => (
+                    <Skeleton key={i} className="h-11 w-full rounded-lg" />
+                ))}
+            </div>
+        </section>
     );
 }

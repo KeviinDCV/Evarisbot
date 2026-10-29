@@ -54,11 +54,11 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::resource('users', UserController::class);
     Route::post('users/{user}/toggle-bulk-send', [UserController::class, 'toggleBulkSend'])->name('users.toggle-bulk-send');
     
-    // Plantillas para envíos masivos
-    Route::resource('templates', TemplateController::class);
+    // Plantillas: respuestas rápidas del chat («/»). Sin show (renderizaba una página que no existe) y sin
+    // "enviar a contactos" (retirado: nunca llegó a enviar y WhatsApp solo entrega texto libre en la ventana
+    // de 24 h; para enviar a muchos está Envío masivo, con plantillas de Meta).
+    Route::resource('templates', TemplateController::class)->except(['show']);
     Route::post('templates/{template}/toggle', [TemplateController::class, 'toggleStatus'])->name('templates.toggle');
-    Route::get('templates/{template}/send-form', [TemplateController::class, 'sendForm'])->name('templates.send-form');
-    Route::post('templates/{template}/send', [TemplateController::class, 'sendMassive'])->name('templates.send');
     
     // Flujos de bienvenida (menú automático)
     Route::post('welcome-flows', [WelcomeFlowController::class, 'store'])->name('welcome-flows.store');
@@ -72,14 +72,12 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/view', 'view')->name('view');
         Route::get('/export', 'export')->name('export');
         Route::post('/upload', 'upload')->name('upload');
-        Route::post('/process', 'process')->name('process');
         Route::post('/reminders/start', 'startReminders')->name('reminders.start');
         Route::post('/reminders/start-day-before', 'startRemindersDayBefore')->name('reminders.start-day-before');
         Route::post('/reminders/pause', 'pauseReminders')->name('reminders.pause');
         Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
         Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
-        Route::post('/update-pending-phones', 'updatePendingPhones')->name('update-pending-phones');
     });
     
     // Gestión de Citas de Oncología
@@ -88,24 +86,27 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/view', 'view')->name('view');
         Route::get('/export', 'export')->name('export');
         Route::post('/upload', 'upload')->name('upload');
-        Route::post('/process', 'process')->name('process');
         Route::post('/reminders/start', 'startReminders')->name('reminders.start');
         Route::post('/reminders/start-day-before', 'startRemindersDayBefore')->name('reminders.start-day-before');
         Route::post('/reminders/pause', 'pauseReminders')->name('reminders.pause');
         Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
         Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
-        Route::post('/update-pending-phones', 'updatePendingPhones')->name('update-pending-phones');
     });
     
     // Configuración del sistema
     Route::controller(\App\Http\Controllers\Admin\SettingsController::class)->group(function () {
         Route::get('/settings', 'index')->name('settings.index');
-        Route::post('/settings/whatsapp', 'updateWhatsApp')->name('settings.whatsapp');
-        Route::post('/settings/test-whatsapp', 'testWhatsAppConnection')->name('settings.test-whatsapp');
-        Route::get('/settings/business-profile', 'getBusinessProfile')->name('settings.business-profile');
+        // Las claves de WhatsApp y Groq ya no se guardan desde la web: solo se comprueban.
+        Route::post('/settings/whatsapp/check', 'checkWhatsApp')->middleware('throttle:6,1,ajustes-whatsapp')->name('settings.whatsapp.check');
+        Route::post('/settings/groq/check', 'checkGroq')->middleware('throttle:6,1,ajustes-groq')->name('settings.groq.check');
         Route::post('/settings/on-duty-advisors', 'updateOnDutyAdvisors')->name('settings.on-duty-advisors');
-        Route::post('/settings/groq', 'updateGroq')->name('settings.groq');
+        Route::post('/settings/equipos', 'guardarEquipo')->name('settings.equipos.store');
+        Route::put('/settings/equipos/{equipo}', 'guardarEquipo')->name('settings.equipos.update');
+        Route::delete('/settings/equipos/{equipo}', 'eliminarEquipo')->name('settings.equipos.destroy');
+        Route::post('/settings/auto-release', 'updateAutoRelease')->name('settings.auto-release');
+        Route::get('/settings/auto-release/preview', 'previewAutoRelease')->name('settings.auto-release.preview');
+        Route::post('/settings/weekend-notice', 'updateWeekendNotice')->name('settings.weekend-notice');
     });
     
     // Estadísticas
@@ -136,8 +137,15 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     Route::controller(\App\Http\Controllers\Admin\InternalChatController::class)->prefix('internal-chat')->name('internal-chat.')->group(function () {
         Route::get('/', 'index')->name('index');          Route::get('/list', 'chatList')->name('list');        Route::get('/unread-count', 'unreadCount')->name('unread-count');
         Route::post('/create', 'create')->name('create');
+        // Anuncios de lectura obligatoria
+        Route::post('/anuncios/{anuncio}/leido', 'leerAnuncio')->name('anuncios.leido');
+        Route::post('/anuncios/{anuncio}/retirar', 'retirarAnuncio')->name('anuncios.retirar');
+        Route::post('/{chat}/messages/{message}/anunciar', 'anunciar')->name('anunciar');
         Route::get('/{chat}/messages', 'messages')->name('messages');
         Route::post('/{chat}/send', 'send')->name('send');
+        Route::post('/{chat}/ai-reply', 'aiReply')->name('ai-reply');
+        Route::post('/{chat}/react', 'react')->name('react');
+        Route::post('/{chat}/edit', 'editMessage')->name('edit');
         Route::post('/{chat}/read', 'markRead')->name('read');
         Route::get('/{chat}/poll', 'poll')->name('poll');
         Route::put('/{chat}/rename', 'rename')->name('rename');          Route::get('/{chat}/read-receipts', 'readReceipts')->name('read-receipts');        Route::delete('/{chat}', 'destroy')->name('destroy');
@@ -154,10 +162,13 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         // Operaciones masivas
         Route::post('/bulk-assign', 'bulkAssign')->name('chat.bulk-assign');
         Route::post('/bulk-status', 'bulkUpdateStatus')->name('chat.bulk-status');
+        Route::post('/clear-advisor/{user}', 'clearAdvisor')->name('chat.clear-advisor'); // Quitar asesor de todas sus conversaciones (solo admin)
         
         Route::get('/{conversation}', 'show')->name('chat.show');
+        Route::post('/{conversation}/linea-general', 'pasarALineaGeneral')->name('chat.linea-general');
         Route::get('/{conversation}/poll-messages', 'pollMessages')->name('chat.poll-messages');
         Route::post('/{conversation}/send', 'sendMessage')->name('chat.send');
+        Route::post('/{conversation}/react', 'react')->name('chat.react');
         Route::post('/{conversation}/send-template', 'sendWhatsappTemplate')->name('chat.send-template');
         Route::post('/{conversation}/assign', 'assign')->name('chat.assign');
         Route::post('/{conversation}/status', 'updateStatus')->name('chat.status');
@@ -185,13 +196,22 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     
     // Plantillas - Solo lectura para asesores
     Route::get('templates', [\App\Http\Controllers\Admin\TemplateController::class, 'index'])->name('templates.index');
+
+    // Plantillas personales: cada asesor crea las suyas y sólo él las ve.
+    //
+    // Van en ESTE grupo (auth + verified) y no en el de role:admin de arriba, porque el
+    // destinatario es el asesor. Devuelven JSON y se llaman con axios desde el chat, para
+    // no re-renderizar una página que lleva mucho estado en memoria.
+    Route::controller(\App\Http\Controllers\PersonalTemplateController::class)
+        ->prefix('my-templates')->name('my-templates.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::put('/{template}', 'update')->name('update');
+            Route::delete('/{template}', 'destroy')->name('destroy');
+        });
 });
 
-// Webhook de WhatsApp (sin autenticación)
-Route::controller(\App\Http\Controllers\WhatsAppWebhookController::class)->prefix('webhook')->group(function () {
-    Route::get('/whatsapp', 'verify')->name('webhook.whatsapp.verify');
-    Route::post('/whatsapp', 'handle')->name('webhook.whatsapp.handle');
-});
+// Webhook de WhatsApp: está en routes/webhook.php (fuera del grupo 'web'; ver bootstrap/app.php).
 
 // Descarga segura de archivos de media (requiere autenticación)
 Route::get('/media/download', function (\Illuminate\Http\Request $request) {
@@ -215,15 +235,23 @@ Route::get('/media/download', function (\Illuminate\Http\Request $request) {
         abort(404);
     }
 
+    // Un asesor solo descarga archivos de conversaciones a las que tiene acceso (misma regla que la bandeja).
+    $user = $request->user();
+    if ($user->isAdvisor()) {
+        $conversationId = \App\Models\Message::where('media_url', '/storage/' . $path)->value('conversation_id');
+        $conversation = $conversationId ? \App\Models\Conversation::find($conversationId) : null;
+        // Misma regla que abrir el chat (incluye equipos: Conversation::visiblePara).
+        abort_unless($conversation && $conversation->visiblePara($user), 403);
+    }
+
     $fullPath = \Storage::disk('public')->path($path);
-    $mimeType = mime_content_type($fullPath) ?: 'application/octet-stream';
 
-    // Usar el nombre original si se proporcionó, si no usar el nombre del archivo
-    $downloadName = $name ?: basename($path);
+    // Usar el nombre original si se proporcionó, si no usar el nombre del archivo.
+    // Sin comillas, barras ni saltos de línea: iba tal cual dentro de la cabecera Content-Disposition.
+    $downloadName = preg_replace('/[\x00-\x1f\x7f]/', '_', str_replace(['\\', '/', '%', '"'], '_', (string) ($name ?: basename($path))));
 
-    return response()->file($fullPath, [
-        'Content-Type' => $mimeType,
-        'Content-Disposition' => 'attachment; filename="' . $downloadName . '"',
+    return response()->download($fullPath, $downloadName, [
+        'X-Content-Type-Options' => 'nosniff',
     ]);
 })->middleware(['auth', 'verified'])->name('media.download');
 
@@ -234,4 +262,6 @@ Route::get('/media/download', function (\Illuminate\Http\Request $request) {
 // });
 
 require __DIR__.'/settings.php';
+// Recuperación de contraseña por correo: las rutas siguen registradas (la parte visual las importa
+// al compilar) pero los controladores responden 404. Ver PasswordResetLinkController.
 require __DIR__.'/auth.php';

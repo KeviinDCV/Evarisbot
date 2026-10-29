@@ -4,14 +4,15 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="robots" content="noindex, nofollow">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ config('app.name', 'Evarisbot') }}</title>
 
         <link rel="icon" href="/images/favicon.png" type="image/png">
         <link rel="apple-touch-icon" href="/images/favicon.png">
 
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
+        {{-- Fuente auto-hospedada en /public/fonts (declarada en app.css); precargamos la principal --}}
+        <link rel="preload" href="/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 
         {{-- Aplicar tema antes de que se cargue el contenido para evitar flash --}}
         <script>

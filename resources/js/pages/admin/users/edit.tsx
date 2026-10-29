@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from '@inertiajs/react';
+import CapsLockWarning, { useCapsLock } from '@/components/caps-lock-warning';
 import InputError from '@/components/input-error';
 import { useTranslation } from 'react-i18next';
 
@@ -28,6 +29,7 @@ interface EditUserProps {
 
 export default function EditUser({ user }: EditUserProps) {
     const { t } = useTranslation();
+    const mayus = useCapsLock();
     const { data, setData, put, processing, errors } = useForm({
         name: user.name,
         email: user.email,
@@ -131,7 +133,9 @@ export default function EditUser({ user }: EditUserProps) {
                                     onChange={(e) => setData('password', e.target.value)}
                                     placeholder={t('users.newPasswordPlaceholder')}
                                     className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
+                                    {...mayus.props}
                                 />
+                                <CapsLockWarning visible={mayus.activo} />
                                 <InputError message={errors.password} />
                             </div>
 

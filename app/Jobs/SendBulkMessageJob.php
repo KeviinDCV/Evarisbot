@@ -15,6 +15,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -26,10 +27,53 @@ class SendBulkMessageJob implements ShouldQueue
     public $maxExceptions = 3;
     public $backoff = [5, 10, 30];
 
+    /**
+     * $encadenado: el envío va en cadena. En la cola hay UN trabajo de este envío a la vez y cada uno, al empezar, deja
+     * en la fila al siguiente destinatario. Así, si hay varios envíos a la vez, los mensajes se turnan (uno de cada
+     * envío) en vez de salir un envío entero detrás de otro. Los trabajos de antes de esto (sin la propiedad) no
+     * encadenan: ya estaban todos en la cola.
+     */
     public function __construct(
         public int $recipientId,
-        public int $bulkSendId
+        public int $bulkSendId,
+        public bool $encadenado = false
     ) {}
+
+    /**
+     * Deja en la fila al siguiente destinatario pendiente de este envío (al final: detrás de lo que haya de otros
+     * envíos). Una sola vez por destinatario aunque el trabajo se reintente, y también si falla o se vence (failed),
+     * para que la cadena no se corte.
+     */
+    private function encolarSiguiente(): void
+    {
+        if (!$this->encadenado) {
+            return;
+        }
+        try {
+            $batch = $this->batch();
+            if (!$batch || $batch->cancelled()) {
+                return;
+            }
+            if (!Cache::add("masivo:{$this->bulkSendId}:cadena:{$this->recipientId}", 1, now()->addDays(3))) {
+                return;
+            }
+            $siguiente = BulkSendRecipient::where('bulk_send_id', $this->bulkSendId)
+                ->where('id', '>', $this->recipientId)
+                ->where('status', 'pending')
+                ->min('id');
+            if ($siguiente) {
+                $batch->add([new self((int) $siguiente, $this->bulkSendId, true)]);
+            }
+        } catch (\Throwable $e) {
+            // Si no se pudo, al cerrar el lote los pendientes quedan como vencidos (masivo:reintentar-vencidos).
+            Cache::forget("masivo:{$this->bulkSendId}:cadena:{$this->recipientId}");
+            Log::error('No se pudo encolar el siguiente mensaje del envío masivo', [
+                'bulk_send_id' => $this->bulkSendId,
+                'recipient_id' => $this->recipientId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
 
     /**
      * Rate limiting: evitar enviar demasiados mensajes al mismo tiempo
@@ -41,13 +85,33 @@ class SendBulkMessageJob implements ShouldQueue
         ];
     }
 
+    /**
+     * Plazo para que salga este mensaje (se calcula al crear el envío y viaja con el trabajo).
+     *
+     * Antes era fijo: 3 h desde que se creaba el envío. Como los mensajes salen uno cada ~4 s (unos 15 por minuto), en
+     * 3 h solo alcanzaban unos 2.700: el 19/10/2026 el masivo #288 (4.649 destinatarios) dejó 2.082 sin intentar
+     * («has been attempted too many times») al vencerse el plazo. Ahora crece con el tamaño del envío (6 s por
+     * destinatario, con margen) más las 3 h de antes, con un tope de 48 h: así tampoco sale un aviso viejo si el worker
+     * estuvo detenido días.
+     */
     public function retryUntil(): \DateTime
     {
-        return now()->addHours(3);
+        static $totales = [];
+        if (!array_key_exists($this->bulkSendId, $totales)) {
+            try {
+                $totales[$this->bulkSendId] = (int) BulkSend::whereKey($this->bulkSendId)->value('total_recipients');
+            } catch (\Throwable) {
+                $totales[$this->bulkSendId] = 0;
+            }
+        }
+
+        return now()->addSeconds(min(3 * 3600 + $totales[$this->bulkSendId] * 6, 48 * 3600));
     }
 
     public function handle(): void
     {
+        $this->encolarSiguiente();
+
         // Rate limiting: 3 segundos entre mensajes
         sleep(3);
 
@@ -199,6 +263,27 @@ class SendBulkMessageJob implements ShouldQueue
                         ]
                     );
 
+                    // Si lo envía alguien de un equipo (Teleconsulta…), el chat pasa a ese equipo, sin asignar, con
+                    // todo su historial: las respuestas del paciente les llegan a ellos y la línea general deja de verlo.
+                    // Solo chats de la línea general: el de otro equipo se queda donde está (como en «Nuevo chat»). El
+                    // equipo es el del envío (el de quien lo creó, al crearlo); el cambio es condicional por si otro
+                    // proceso movió el chat entre medias, y si el equipo ya no existe no se mueve nada.
+                    $equipoEnvio = $bulkSend->equipo_id;
+                    $nombreEquipo = $equipoEnvio && is_null($conversation->equipo_id) ? \App\Models\Equipo::whereKey($equipoEnvio)->value('nombre') : null;
+                    if ($nombreEquipo !== null && Conversation::whereKey($conversation->id)->whereNull('equipo_id')
+                        ->update(['equipo_id' => $equipoEnvio, 'assigned_to' => null, 'assigned_at' => null]) > 0) {
+                        if (!\App\Models\Equipo::whereKey($equipoEnvio)->exists()) {
+                            // Eliminaron el equipo en ese mismo instante: el chat se queda en la línea general.
+                            Conversation::whereKey($conversation->id)->where('equipo_id', $equipoEnvio)->update(['equipo_id' => null]);
+                        } else {
+                            \App\Models\ConversationActivity::log($conversation->id, 'equipo_entrada', $bulkSend->created_by ? (int) $bulkSend->created_by : null, [
+                                'equipo' => $nombreEquipo,
+                            ]);
+                        }
+                        $conversation->refresh();
+                        \App\Support\TiempoReal::conversacion('conversacion', $conversation->id);
+                    }
+
                     // Obtener el preview_text del template para mostrar en el chat
                     $previewText = $template?->preview_text ?? '';
 
@@ -224,6 +309,15 @@ class SendBulkMessageJob implements ShouldQueue
                         'status' => 'sent',
                         'sent_by' => $bulkSend->created_by,
                     ]);
+
+                    // Poner al día la fecha de última actividad.
+                    //
+                    // El firstOrCreate de arriba solo aplica 'last_message_at' cuando CREA
+                    // la conversación; si ya existía —el caso normal— se quedaba con la
+                    // fecha antigua. La lista ORDENA por este campo pero MUESTRA la hora del
+                    // último mensaje, así que un envío masivo salía con la hora de hoy pero
+                    // colocado semanas atrás, y los asesores no lo encontraban.
+                    $conversation->forceFill(['last_message_at' => now()])->save();
                 } catch (\Exception $localErr) {
                     Log::warning('Mensaje masivo enviado pero error al registrar localmente', [
                         'recipient_id' => $this->recipientId,
@@ -232,6 +326,15 @@ class SendBulkMessageJob implements ShouldQueue
                         'error' => $localErr->getMessage(),
                     ]);
                 }
+
+                // Si era una cancelación, dejar la cita en 'cancelled'. Sin esto el mensaje
+                // salía pero la cita seguía "confirmada" y el bot contradecía al asesor.
+                \App\Services\AppointmentCancellationSync::fromTemplate(
+                    $phoneNumber,
+                    $bulkSend->template_name,
+                    $paramValues,
+                    'envío masivo #' . $bulkSend->id
+                );
 
                 Log::info('Mensaje masivo enviado', [
                     'recipient_id' => $this->recipientId,
@@ -262,10 +365,16 @@ class SendBulkMessageJob implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
+        // Vencido sin llegar a handle (worker detenido mucho tiempo): la cadena sigue con el siguiente.
+        $this->encolarSiguiente();
+
         $recipient = BulkSendRecipient::find($this->recipientId);
         // No marcar como fallido si ya fue enviado exitosamente
         if ($recipient && $recipient->status !== 'failed' && $recipient->status !== 'sent') {
-            $recipient->markAsFailed($exception->getMessage());
+            // Con plazo (retryUntil) este error solo sale cuando el plazo venció antes de llegar su turno: no se intentó.
+            $recipient->markAsFailed($exception instanceof \Illuminate\Queue\MaxAttemptsExceededException
+                ? 'No alcanzó a enviarse: venció el plazo del envío masivo (no se intentó).'
+                : $exception->getMessage());
             
             $bulkSend = BulkSend::find($this->bulkSendId);
             if ($bulkSend) {
@@ -319,7 +428,12 @@ class SendBulkMessageJob implements ShouldQueue
         ]);
 
         if (!$response->successful()) {
-            throw new \Exception('Error en API de WhatsApp (Status: ' . $response->status() . '): ' . $response->body());
+            $err = $response->json()['error'] ?? [];
+            throw new \Exception(\App\Support\WhatsAppErrorTranslator::human(
+                $err['code'] ?? null,
+                $err['message'] ?? null,
+                $err['error_data']['details'] ?? null
+            ));
         }
 
         return $response->json();

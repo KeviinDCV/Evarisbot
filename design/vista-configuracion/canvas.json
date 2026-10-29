@@ -1,0 +1,12 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",     "title": "Al entrar",       "x": 0,    "y": 0, "w": 1440, "h": 900 },
+    { "file": "Completa.dc.html", "title": "Página completa", "x": 1560, "y": 0, "w": 1190, "h": 1924 }
+  ],
+  "annotations": [
+    { "id": "resumen", "x": 0, "y": -260, "w": 2750, "text": "Paso 3: la pantalla de Configuración, en el mismo estilo que Usuarios.\nA la izquierda, cómo se ve al entrar. A la derecha, la página entera de arriba abajo, con «Probar conexión» y «Perfil del negocio» ya pulsados.\nTodos los datos son de ejemplo: ningún token, clave ni identificador es real.\nUna sola pregunta: ¿seguimos con esta pantalla?" },
+    { "id": "nota-main", "x": 0, "y": 940, "w": 1440, "text": "Qué cambia:\n• Arriba, una franja con el estado de las tres cosas: WhatsApp, el corrector y los asesores de turno.\n• Una sola hoja con las tres secciones seguidas. A la izquierda de cada campo se explica qué es y qué acepta.\n• Los tokens y claves nunca se ven completos. El campo queda vacío para pegar uno nuevo y debajo se ve lo guardado, tapado. Si lo dejas vacío, se conserva, igual que hoy.\n• No cambia cómo se guarda nada: solo cómo se ve." },
+    { "id": "nota-completa", "x": 2810, "y": 0, "w": 560, "text": "Más abajo:\n• El resultado de «Probar conexión» y el perfil del negocio aparecen dentro de la sección de WhatsApp, cuando se pulsan.\n• «Transcripción de audio» pasa a llamarse «Transcripción y corrector», porque esa misma clave la usan los dos.\n• El turno ya no es una lista con barra de desplazamiento: se ven todos los asesores en tres columnas y marcar a alguien no lo cambia de sitio.\n• Junto a «Guardar cambios» se explica lo que hace: quedan de turno solo los marcados y los demás salen del turno." }
+  ],
+  "launch": { "view": "canvas" }
+}

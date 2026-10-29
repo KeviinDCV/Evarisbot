@@ -62,8 +62,12 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            // Equipo (Teleconsulta…) de quien entra: el menú lo muestra en lugar del turno, que en un equipo no aplica.
+            'equipo' => fn () => $request->user()?->equipo_id ? \App\Models\Equipo::whereKey($request->user()->equipo_id)->value('nombre') : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'unreadConversationsCount' => $unreadConversationsCount,
+            // Alertas de la vigilancia del webhook (franja roja): solo para administradores.
+            'alertasSeguridad' => fn () => $request->user()?->isAdmin() ? \App\Services\WebhookWatchdog::current() : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

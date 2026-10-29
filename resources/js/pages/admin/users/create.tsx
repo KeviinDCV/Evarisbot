@@ -12,11 +12,13 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from '@inertiajs/react';
+import CapsLockWarning, { useCapsLock } from '@/components/caps-lock-warning';
 import InputError from '@/components/input-error';
 import { useTranslation } from 'react-i18next';
 
 export default function CreateUser() {
     const { t } = useTranslation();
+    const mayus = useCapsLock();
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         email: '',
@@ -121,7 +123,9 @@ export default function CreateUser() {
                                     placeholder={t('users.passwordPlaceholder')}
                                     className="settings-input rounded-xl border-gray-200 dark:border-gray-800 transition-all duration-200 focus:ring-2 focus:ring-[#2e3f84]/30"
                                     required
+                                    {...mayus.props}
                                 />
+                                <CapsLockWarning visible={mayus.activo} />
                                 <InputError message={errors.password} />
                             </div>
 
