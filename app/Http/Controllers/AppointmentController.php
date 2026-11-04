@@ -6,6 +6,7 @@ use App\Jobs\SendAppointmentReminderJob;
 use App\Models\Appointment;
 use App\Models\Setting;
 use App\Support\EnvioRecordatorios;
+use App\Support\LibroExcel;
 use App\Support\Recordatorios;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
@@ -16,13 +17,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
-use PhpOffice\PhpSpreadsheet\Cell\Cell;
-use PhpOffice\PhpSpreadsheet\Cell\DefaultValueBinder;
-use PhpOffice\PhpSpreadsheet\Cell\StringValueBinder;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
-use PhpOffice\PhpSpreadsheet\Style\Conditional;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 
 class AppointmentController extends Controller
 {
@@ -33,7 +29,8 @@ class AppointmentController extends Controller
     protected string $inertiaViewPage = 'admin/appointments/view';
 
     /** Más citas que esto no se exportan de una vez (el libro se arma entero en memoria): hay que filtrar por fechas. */
-    public const LIMITE_EXPORTAR = 40000;
+    /** Máximo de citas por exportación: el de filas de una hoja de Excel (sin el encabezado). */
+    public const LIMITE_EXPORTAR = LibroExcel::MAX_FILAS - 1;
 
     /** Columnas del Excel de agendas que se leen (citfci se guarda como citfc). */
     private const COLUMNAS_EXCEL = [
@@ -362,7 +359,8 @@ class AppointmentController extends Controller
      */
     public function export(Request $request)
     {
-        set_time_limit(300);
+        set_time_limit(600);
+        $inicio = microtime(true);
 
         $query = $this->serviceQuery()->select([
             'id', 'citead', 'cianom', 'citdoc', 'nom_paciente', 'cittid', 'citide', 'pactel', 'citfc', 'cithor',
@@ -371,132 +369,100 @@ class AppointmentController extends Controller
         ]);
         $this->aplicarFiltros($query, $request);
 
-        // Tope: el libro se arma entero en memoria. Es una navegación (enlace), así que se vuelve con un aviso.
+        // Solo el máximo de filas de una hoja de Excel (el libro se escribe fila por fila, sin armarlo en memoria).
         if ((clone $query)->reorder()->count() > self::LIMITE_EXPORTAR) {
             return redirect()->back(302, [], $this->urlPrefix.'/view')
-                ->with('error', 'Son más de 40.000 citas: filtre por fechas para exportar.');
+                ->with('error', 'Son más citas de las que caben en una hoja de Excel: filtre por fechas para exportar.');
         }
 
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('Citas');
-
-        $headings = [
+        $carpeta = LibroExcel::carpeta();
+        $libro = new LibroExcel('Citas', [
+            'A' => 12, 'B' => 20, 'C' => 12, 'D' => 30, 'E' => 10, 'F' => 15, 'G' => 15, 'H' => 14, 'I' => 8, 'J' => 25,
+            'K' => 20, 'L' => 24, 'M' => 12, 'N' => 18, 'O' => 40, 'P' => 18, 'Q' => 18, 'R' => 24, 'S' => 40, 'T' => 40, 'U' => 15, 'V' => 16,
+        ], $carpeta);
+        $libro->encabezados([
             'Admisión', 'IPS', 'N.º de cita', 'Paciente', 'Tipo de documento', 'Documento', 'Teléfono',
             'Fecha de la cita', 'Hora', 'Médico', 'Especialidad', 'Consultorio', 'Cód. consultorio', 'EPS',
             'Observaciones', 'Recordatorio', 'Fecha de envío (hora Colombia)', 'Respuesta del paciente',
             'Motivo del error', 'Notas', 'Teléfono 2', 'Recordatorio enviado a',
-        ];
-        $sheet->fromArray($headings, null, 'A1');
-        $sheet->getStyle('A1:V1')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 12, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '2e3f84']],
-        ]);
+        ], '2e3f84');
 
-        $widths = [
-            'A' => 12, 'B' => 20, 'C' => 12, 'D' => 30, 'E' => 10, 'F' => 15, 'G' => 15, 'H' => 14, 'I' => 8, 'J' => 25,
-            'K' => 20, 'L' => 24, 'M' => 12, 'N' => 18, 'O' => 40, 'P' => 18, 'Q' => 18, 'R' => 24, 'S' => 40, 'T' => 40, 'U' => 15, 'V' => 16,
-        ];
-        foreach ($widths as $col => $w) {
-            $sheet->getColumnDimension($col)->setWidth($w);
-        }
-
-        // Todo como texto: documentos y teléfonos sin notación científica ni ceros perdidos, y nada se toma por fórmula.
-        Cell::setValueBinder(new StringValueBinder());
         $hoy = Recordatorios::hoy();
-        $row = 2;
-
-        try {
-            $bloque = [];
-            foreach ($query->lazy(1000) as $appt) {
-                $estado = Recordatorios::estadoFila($appt, $hoy);
-                $respuesta = Recordatorios::respuesta($appt);
-                $motivo = $estado === 'con_error' ? (Recordatorios::motivo($appt->reminder_error) ?? 'otro') : null;
-                $bloque[] = [
-                    $appt->citead ?? '',
-                    $appt->cianom ?? '',
-                    $appt->citdoc ?? '',
-                    $appt->nom_paciente ?? '',
-                    $appt->cittid ?? '',
-                    $appt->citide ?? '',
-                    $appt->pactel ?? '',
-                    Recordatorios::fechaDe($appt->getAttributes()['citfc'] ?? null) ?? '',
-                    Recordatorios::horaDe($appt->getAttributes()['cithor'] ?? null) ?? '',
-                    $appt->mednom ?? '',
-                    $appt->espnom ?? '',
-                    $appt->connom ?? '',
-                    $appt->citcon ?? '',
-                    $appt->citres ?? '',
-                    $appt->citobsobs ?? '',
-                    Recordatorios::ETIQUETAS_ESTADO[$estado],
-                    Recordatorios::horaCol($appt->reminder_sent_at) ?? '',
-                    $respuesta ? Recordatorios::ETIQUETAS_RESPUESTA[$respuesta] : '',
-                    $motivo ? Recordatorios::ETIQUETAS_MOTIVO[$motivo] : '',
-                    $appt->notes ?? '',
-                    $appt->pactel2 ?? '',
-                    match ((int) $appt->reminder_numero) { 1 => 'Teléfono', 2 => 'Teléfono 2', default => '' },
-                ];
-                if (count($bloque) >= 1000) {
-                    $sheet->fromArray($bloque, null, "A{$row}");
-                    $row += count($bloque);
-                    $bloque = [];
-                }
-            }
-            if ($bloque) {
-                $sheet->fromArray($bloque, null, "A{$row}");
-                $row += count($bloque);
-            }
-        } finally {
-            Cell::setValueBinder(new DefaultValueBinder());
+        // Una sola consulta con el orden de la pantalla (cursor): por páginas, cada una volvía a ordenar toda la tabla.
+        foreach ($query->cursor() as $appt) {
+            $estado = Recordatorios::estadoFila($appt, $hoy);
+            $respuesta = Recordatorios::respuesta($appt);
+            $motivo = $estado === 'con_error' ? (Recordatorios::motivo($appt->reminder_error) ?? 'otro') : null;
+            $libro->fila([
+                $appt->citead,
+                $appt->cianom,
+                $appt->citdoc,
+                $appt->nom_paciente,
+                $appt->cittid,
+                $appt->citide,
+                $appt->pactel,
+                Recordatorios::fechaDe($appt->getAttributes()['citfc'] ?? null),
+                Recordatorios::horaDe($appt->getAttributes()['cithor'] ?? null),
+                $appt->mednom,
+                $appt->espnom,
+                $appt->connom,
+                $appt->citcon,
+                $appt->citres,
+                $appt->citobsobs,
+                Recordatorios::ETIQUETAS_ESTADO[$estado],
+                Recordatorios::horaCol($appt->reminder_sent_at),
+                $respuesta ? Recordatorios::ETIQUETAS_RESPUESTA[$respuesta] : null,
+                $motivo ? Recordatorios::ETIQUETAS_MOTIVO[$motivo] : null,
+                $appt->notes,
+                $appt->pactel2,
+                match ((int) $appt->reminder_numero) { 1 => 'Teléfono', 2 => 'Teléfono 2', default => null },
+            ]);
         }
 
         // Colores por formato condicional (una regla por estado sobre toda la columna).
-        $ultima = max(2, $row - 1);
         $verde = ['C6EFCE', '006100'];
         $rojo = ['FFC7CE', '9C0006'];
         $ambar = ['FFEB9C', '9C6500'];
         $gris = ['F2F2F2', '7F7F7F'];
-        $this->colorearColumna($sheet, 'P', $ultima, [
+        $libro->colorear('P', [
             'Enviado' => $verde, 'Con error' => $rojo, 'Por enviar' => $ambar, 'No se envió' => $gris,
             'Sin celular válido' => $gris, 'Sin fecha' => $gris, 'No hacía falta' => $gris,
         ]);
-        $this->colorearColumna($sheet, 'R', $ultima, [
+        $libro->colorear('R', [
             'Confirmada' => $verde, 'Cancelada' => $rojo, 'Cancelada por el hospital' => $rojo, 'Sin respuesta' => $ambar,
         ]);
 
-        // Guardar a archivo temporal y descargar
         $fileName = 'citas_'.($this->service === 'oncology' ? 'oncologia' : 'generales').'_'.now(Recordatorios::ZONA)->format('Y-m-d_Hi').'.xlsx';
-        $temp = tempnam(sys_get_temp_dir(), 'citas_export_');
+        $temp = tempnam($carpeta, 'cit');
+        try {
+            $libro->guardar($temp);
+        } catch (\Throwable $e) {
+            @unlink($temp);
+            throw $e;
+        }
 
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        $writer->setPreCalculateFormulas(false);
-        $writer->save($temp);
+        // Un clic saca todas las citas de los pacientes: queda quién lo hizo y cuántas (de los filtros, solo sus nombres:
+        // la búsqueda puede llevar datos de un paciente).
+        Log::info('Citas exportadas', [
+            'citas' => $libro->filas() - 1,
+            'servicio' => $this->service,
+            'filtros' => array_keys(array_filter($request->except('descarga'), fn ($v) => $v !== null && $v !== '' && $v !== 'all')),
+            'segundos' => round(microtime(true) - $inicio, 1),
+            'memoria_mb' => round(memory_get_peak_usage(true) / 1048576),
+            'user_id' => auth()->id(),
+        ]);
 
-        // Liberar memoria
-        $spreadsheet->disconnectWorksheets();
-        unset($spreadsheet);
-
-        return response()->download($temp, $fileName, [
+        $respuesta = response()->download($temp, $fileName, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ])->deleteFileAfterSend(true);
-    }
 
-    /** Formato condicional: celda igual a «texto» → fondo y letra de ese color. */
-    private function colorearColumna($sheet, string $columna, int $ultima, array $colores): void
-    {
-        $reglas = [];
-        foreach ($colores as $texto => [$fondo, $letra]) {
-            $regla = new Conditional();
-            $regla->setConditionType(Conditional::CONDITION_CELLIS)
-                ->setOperatorType(Conditional::OPERATOR_EQUAL)
-                ->addCondition('"'.$texto.'"');
-            $regla->getStyle()->getFont()->setBold(true)->getColor()->setRGB($letra);
-            $regla->getStyle()->getFill()->setFillType(Fill::FILL_SOLID);
-            $regla->getStyle()->getFill()->getStartColor()->setRGB($fondo);
-            $regla->getStyle()->getFill()->getEndColor()->setRGB($fondo);
-            $reglas[] = $regla;
+        // La pantalla vigila esta cookie para saber que el archivo ya salió y quitar «Preparando…» (solo mira el nombre).
+        $marca = $request->query('descarga');
+        if (is_string($marca) && preg_match('/^[a-z0-9]{6,32}$/i', $marca)) {
+            $respuesta->headers->setCookie(cookie('citas_export_'.$marca, '1', 5, '/', null, false, false));
         }
-        $sheet->getStyle("{$columna}2:{$columna}{$ultima}")->setConditionalStyles($reglas);
+
+        return $respuesta;
     }
 
     /**

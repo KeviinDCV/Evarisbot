@@ -113,7 +113,7 @@ export default function AppointmentsView({
     stats,
     ambito,
     routePrefix = '/admin/appointments',
-    limite_exportar: limiteExportar = 40000,
+    limite_exportar: limiteExportar = 1048575,
 }: AppointmentsViewProps) {
     const { t, i18n } = useTranslation();
     const lng = i18n.language;
@@ -140,6 +140,8 @@ export default function AppointmentsView({
     const [sortDirection, setSortDirection] = useState<Sentido>(servidor.direction);
     const [cargando, setCargando] = useState(false);
     const [preparando, setPreparando] = useState(false);
+    // Marca de la descarga: al responder, el servidor deja una cookie con ella y así se sabe que el archivo ya salió.
+    const [marcaDescarga, setMarcaDescarga] = useState(() => Math.random().toString(36).slice(2, 12));
     const [showFlash, setShowFlash] = useState(true);
 
     const temporizador = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -237,15 +239,29 @@ export default function AppointmentsView({
     // Paginación y exportación salen de lo que el servidor listó (no de un texto a medio escribir).
     const delServidor = limpiar(servidor);
     const irAPagina = (pagina: number) => visitar({ ...delServidor, page: pagina }, false);
-    const exportHref = `${routePrefix}/export?${new URLSearchParams(delServidor).toString()}`;
+    const exportHref = `${routePrefix}/export?${new URLSearchParams({ ...delServidor, descarga: marcaDescarga }).toString()}`;
     const demasiadas = appointments.total > limiteExportar;
     const exportarApagado = demasiadas || appointments.total === 0;
 
-    const exportar = () => {
-        // La descarga tarda unos segundos en empezar: así no se pide dos veces.
-        setPreparando(true);
-        window.setTimeout(() => setPreparando(false), 6000);
-    };
+    // La descarga tarda en empezar (unos 20 s con ~110.000 citas): «Preparando…» hasta que llega, para no pedirla dos veces.
+    const exportar = () => setPreparando(true);
+
+    useEffect(() => {
+        if (!preparando) return;
+        const cookie = `citas_export_${marcaDescarga}`;
+        const inicio = Date.now();
+        const vigilar = window.setInterval(() => {
+            const lista = document.cookie.split('; ').some((c) => c.startsWith(`${cookie}=`));
+            // Respaldo: si nunca llega (se cortó la conexión), el botón no se queda apagado para siempre.
+            if (lista || Date.now() - inicio > 300000) {
+                document.cookie = `${cookie}=; Max-Age=0; path=/`;
+                setPreparando(false);
+                setMarcaDescarga(Math.random().toString(36).slice(2, 12));
+            }
+        }, 500);
+
+        return () => window.clearInterval(vigilar);
+    }, [preparando, marcaDescarga]);
 
     const hayFiltros = servidor.filter !== 'all' || !!servidor.search || !!servidor.date_from || !!servidor.date_to;
     const rangoInvertido = !!dateFrom && !!dateTo && dateTo < dateFrom;

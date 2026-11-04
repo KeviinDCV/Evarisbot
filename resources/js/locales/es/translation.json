@@ -2564,7 +2564,7 @@
         "exportCount_one": "Exportar {{value}} cita a Excel",
         "exportCount_other": "Exportar {{value}} citas a Excel",
         "exportPreparing": "Preparando…",
-        "exportTooMany": "Son más de {{max}} citas: filtra por fechas para exportar.",
+        "exportTooMany": "Son más de {{max}} citas, el máximo de una hoja de Excel: filtra por fechas para exportar.",
         "exportNone": "No hay citas para exportar.",
         "filterFailed": "Con error",
         "filterNone": "Sin filtro",

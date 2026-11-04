@@ -2564,7 +2564,7 @@
         "exportCount_one": "Export {{value}} appointment to Excel",
         "exportCount_other": "Export {{value}} appointments to Excel",
         "exportPreparing": "Preparing…",
-        "exportTooMany": "Over {{max}} appointments: filter by dates to export.",
+        "exportTooMany": "Over {{max}} appointments, the most an Excel sheet holds: filter by dates to export.",
         "exportNone": "No appointments to export.",
         "filterFailed": "Failed",
         "filterNone": "No filter",

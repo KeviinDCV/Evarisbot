@@ -2192,9 +2192,12 @@ tr.table-row-hover:hover {
     /* LA ISLA. Absoluta dentro del marco y NO fixed: un fixed abriría su propio
        contexto de apilamiento y los modales no portaleados de las páginas (z-50,
        z-[100]) quedarían por debajo del menú. Tampoco transform/filter/contain:
-       romperían los position: fixed de las páginas. overflow: hidden sólo recorta
+       romperían los position: fixed de las páginas. overflow: clip sólo recorta
        lo que cuelga de la isla; los fixed de las páginas se refieren a la ventana
-       y no se recortan. */
+       y no se recortan. Clip y no hidden: una caja hidden se puede desplazar por
+       código, y un scrollIntoView (p. ej. «Menú de bienvenida» en Plantillas, con
+       ventanas bajas) movía la isla entera hacia arriba sin forma de volver.
+       hidden queda solo para navegadores sin clip. */
     .marco-isla {
         position: absolute;
         top: 10px;
@@ -2203,6 +2206,7 @@ tr.table-row-hover:hover {
         left: var(--marco-izq, 72px);
         border-radius: 22px;
         overflow: hidden;
+        overflow: clip;
         background-color: var(--background);
         box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.14), 0 20px 44px -22px rgba(0, 0, 0, 0.6);
         transition: left 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
