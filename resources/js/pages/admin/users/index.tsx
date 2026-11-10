@@ -451,7 +451,7 @@ function avataresVisibles(total: number, huecos: number) {
 }
 
 export default function UsersIndex({ users }: UsersIndexProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     // Quien está usando la página: no ve «Eliminar» en su fila ni puede cambiar su propio rol.
     const yoId = usePage<{ auth: { user: { id: number } | null } }>().props.auth.user?.id;
 
@@ -466,6 +466,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [userToEdit, setUserToEdit] = useState<User | null>(null);
+    // La ventana de edición abierta desde «Restablecer contraseña»: título, explicación y botón hablan de la clave.
+    const [modoClave, setModoClave] = useState(false);
 
     const origenFoco = useRef<{ el: HTMLElement | null; userId?: number; vecino?: number } | null>(null);
     const recordarOrigen = (origen: HTMLElement | null, userId?: number, vecino?: number) => {
@@ -618,6 +620,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     };
     const copiarClave = async (clave: string) => {
         if (await copiarTexto(clave)) toast.success(t('users.passwordCopied'));
+        else toast.error(t('users.copyFailed'));
     };
 
     const stats = useMemo(() => {
@@ -660,6 +663,16 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         [filteredUsers]
     );
 
+    // ¿Hay búsqueda o filtro de rol? Cambian el recuento («3 de 16 usuarios») y el mensaje de lista vacía.
+    const busqueda = search.trim();
+    const filtrando = busqueda !== '' || roleFilter !== 'all';
+    const quitarFiltros = () => {
+        setSearch('');
+        setRoleFilter('all');
+        // El botón desaparece con la lista vacía: el foco va al buscador, no al principio de la página.
+        document.getElementById('user-search')?.focus({ preventScroll: true });
+    };
+
     const roleOptions: { value: RoleFilter; label: string }[] = [
         { value: 'all', label: t('common.all') },
         { value: 'admin', label: t('users.roleFilter.admins') },
@@ -670,37 +683,59 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         return role === 'admin' ? t('users.roles.admin') : t('users.roles.advisor');
     };
 
-    const formatLastActivity = (lastActivity: string | null) => {
-        if (!lastActivity) return t('users.neverConnected');
+    // Fechas en el idioma de la interfaz, como en el resto de la app (antes siempre es-ES, también en inglés).
+    const enIngles = i18n.language?.startsWith('en');
 
-        const date = new Date(lastActivity);
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-
-        if (diffMins < 1) return t('users.justNow');
-        if (diffMins < 60) return t('users.minutesAgo', { count: diffMins });
-        if (diffHours < 24) return t('users.hoursAgo', { count: diffHours });
-        if (diffDays === 1) return t('users.yesterday');
-        if (diffDays < 7) return t('users.daysAgo', { count: diffDays });
-
-        return date.toLocaleDateString('es-ES', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
+    /** «5 nov 2026» (sin el año si es de este año); en inglés, «Nov 5, 2026». */
+    const fechaCorta = (fecha: Date, conAnio = fecha.getFullYear() !== new Date().getFullYear()) => {
+        const opciones: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', ...(conAnio ? { year: 'numeric' } : {}) };
+        if (enIngles) return fecha.toLocaleDateString('en-US', opciones);
+        // es-CO escribe «5 de nov. de 2026»; en columnas estrechas queda «5 nov 2026».
+        return new Intl.DateTimeFormat('es-CO', opciones)
+            .formatToParts(fecha)
+            .filter((parte) => parte.type !== 'literal')
+            .map((parte) => parte.value.replace(/\.$/, ''))
+            .join(' ');
     };
 
-    const formatCreatedAt = (createdAt: string) => {
-        return new Date(createdAt).toLocaleDateString('es-ES', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-        });
+    /** Fecha y hora completas, para el tooltip: «5 de noviembre de 2026, 5:40 p. m.». */
+    const fechaLarga = (fecha: Date) =>
+        fecha.toLocaleString(enIngles ? 'en-US' : 'es-CO', { day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+    /** Cuánto hace: «Justo ahora», «Hace 26 min», «Hace 3 h», «Ayer», «Hace 3 días», «5 nov». */
+    const haceCuanto = (fecha: Date) => {
+        const minutos = Math.floor((Date.now() - fecha.getTime()) / 60000);
+        if (minutos < 1) return t('users.justNow');
+        if (minutos < 60) return t('users.minutesAgo', { count: minutos });
+        const horas = Math.floor(minutos / 60);
+        if (horas < 24) return t('users.hoursAgo', { count: horas });
+        const dias = Math.floor(horas / 24);
+        if (dias === 1) return t('users.yesterday');
+        if (dias < 7) return t('users.daysAgo', { count: dias });
+        return fechaCorta(fecha);
+    };
+
+    /**
+     * La columna Estado. En línea: «En línea» y hace cuánto fue su última actividad (antes, «Justo ahora» para
+     * todos). Desconectado: solo hace cuánto (la banda ya dice «Desconectados»; antes repetía «Desconectado» en
+     * cada fila). De turno y sin conexión: «Sin conexión» en ámbar, porque el reparto del turno no mira la
+     * conexión (WhatsAppService) y le pueden llegar pacientes sin estar.
+     */
+    const estadoDe = (user: User) => {
+        const ultima = user.last_activity_at ? new Date(user.last_activity_at) : null;
+        const deTurnoSinConexion = user.role === 'advisor' && !!user.is_on_duty && !user.is_online;
+
+        return {
+            principal: user.is_online
+                ? { texto: t('users.online'), clase: 'text-emerald-700 dark:text-emerald-400', pista: undefined }
+                : deTurnoSinConexion
+                  ? { texto: t('users.onDutyOffline'), clase: 'text-amber-700 dark:text-amber-400', pista: t('users.onDutyOfflineHint') }
+                  : null,
+            detalle: ultima ? haceCuanto(ultima) : t('users.neverConnected'),
+            exacta: ultima ? t('users.lastActivityAt', { fecha: fechaLarga(ultima) }) : undefined,
+            // Para el lector de pantalla: «Última actividad: hace 26 min».
+            prefijo: ultima ? `${t('users.lastActivity')}:` : undefined,
+        };
     };
 
     const handleDelete = () => {
@@ -721,7 +756,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 if (error) toast.error(error);
                 else toast.success(t('users.toastDeletedName', { name: nombre }));
             },
-            onError: () => toast.error(t('users.toastDeleteError')),
+            onError: () => toast.error(t('users.toastDeleteErrorName', { name: nombre })),
             onFinish: () => {
                 setEliminando(false);
                 alTerminarEnvio();
@@ -732,13 +767,14 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     const handleCreate = (event: FormEvent) => {
         event.preventDefault();
         avisosCrear.alEnviar();
+        const nombre = nombrePropio(createForm.data.name);
         createForm.post('/admin/users', {
             onStart: alEmpezarEnvio,
             onFinish: alTerminarEnvio,
             onSuccess: () => {
                 setShowCreateModal(false);
                 createForm.reset();
-                toast.success(t('users.toastCreated'));
+                toast.success(t('users.toastCreatedName', { name: nombre }));
             },
         });
     };
@@ -747,13 +783,15 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         event.preventDefault();
         if (!userToEdit) return;
         avisosEditar.alEnviar();
+        const nombre = nombrePropio(editForm.data.name);
+        const cambioClave = modoClave && !!editForm.data.password;
 
         editForm.put(`/admin/users/${userToEdit.id}`, {
             onStart: alEmpezarEnvio,
             onFinish: alTerminarEnvio,
             onSuccess: () => {
                 setShowEditModal(false);
-                toast.success(t('users.toastUpdated'));
+                toast.success(t(cambioClave ? 'users.toastPasswordChanged' : 'users.toastUpdatedName', { name: nombre }));
             },
         });
     };
@@ -773,6 +811,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         editForm.clearErrors();
         setVerClaveEditar(generar);
         setGeneradaEditar(generar);
+        setModoClave(generar);
         setShowEditModal(true);
     };
 
@@ -862,23 +901,48 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 onToggle={() => toggleBulkSend(user)}
             />
         ) : (
-            <span title={t('users.onlyAdvisors')} className="text-[13px] leading-[18px] text-muted-foreground">
-                —
+            // Los administradores siempre pueden (CheckBulkSendAccess): antes era un «—» que solo se explicaba
+            // en el tooltip.
+            <span title={t('users.bulkAlwaysHint')} className="text-[13px] leading-[18px] text-muted-foreground">
+                <span aria-hidden="true">{t('users.bulkAlways')}</span>
+                <span className="sr-only">{t('users.bulkAlwaysHint')}</span>
             </span>
         );
 
-    const statusWord = (user: User) => (
-        <span
-            className={cn(
-                'text-[13px] leading-[18px] font-medium whitespace-nowrap',
-                user.is_online ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-neutral-300'
-            )}
-        >
-            {user.is_online ? t('users.online') : t('users.offline')}
-        </span>
-    );
+    /** Lo principal del estado (En línea / Sin conexión), si lo hay. */
+    const estadoPrincipal = (user: User, className?: string) => {
+        const { principal } = estadoDe(user);
+        if (!principal) return null;
 
-    const lastActivityText = (user: User) => (user.is_online ? t('users.justNow') : formatLastActivity(user.last_activity_at));
+        return (
+            <span title={principal.pista} className={cn('text-[13px] leading-[18px] font-medium', principal.clase, className)}>
+                {principal.texto}
+                {principal.pista && <span className="sr-only">. {principal.pista}</span>}
+            </span>
+        );
+    };
+
+    /**
+     * Hace cuánto fue su última actividad; si no hay estado principal, va como dato principal. En la tarjeta
+     * de celular no hay encabezado «Actividad»: ahí la etiqueta se ve («Última actividad: 15 oct»).
+     */
+    const estadoDetalle = (user: User, className?: string, conEtiqueta = false) => {
+        const { principal, detalle, exacta, prefijo } = estadoDe(user);
+        const etiquetaVisible = conEtiqueta && !principal;
+
+        return (
+            <span
+                title={exacta}
+                className={cn(
+                    principal ? 'text-[12px] leading-4 text-muted-foreground' : 'text-[13px] leading-[18px] font-medium text-slate-600 dark:text-neutral-300',
+                    className
+                )}
+            >
+                {prefijo && <span className={etiquetaVisible ? 'font-normal text-muted-foreground' : 'sr-only'}>{prefijo} </span>}
+                {detalle}
+            </span>
+        );
+    };
 
     const nameBlock = (user: User) => (
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -1062,11 +1126,20 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </div>
 
                             <span className="ml-auto text-[12.5px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums" aria-live="polite">
-                                <Trans
-                                    i18nKey="users.directoryCountRich"
-                                    values={{ filtered: filteredUsers.length, total: users.length }}
-                                    components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
-                                />
+                                {filtrando ? (
+                                    <Trans
+                                        i18nKey="users.directoryCountRich"
+                                        values={{ filtered: filteredUsers.length, total: users.length }}
+                                        components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                    />
+                                ) : (
+                                    <Trans
+                                        i18nKey="users.directoryCountAllRich"
+                                        count={users.length}
+                                        values={{ count: users.length }}
+                                        components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                    />
+                                )}
                             </span>
                         </div>
 
@@ -1105,7 +1178,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                     </h2>
                                                 </div>
                                                 <Th className="hidden @3xl/hoja:block">{t('users.role')}</Th>
-                                                <Th className="hidden @3xl/hoja:block">{t('users.tableStatus')}</Th>
+                                                {/* «Actividad», no «Estado»: en los desconectados la celda es solo cuándo fue su última actividad. */}
+                                                <Th className="hidden @3xl/hoja:block">{t('users.tableActivity')}</Th>
                                                 <Th className="hidden @3xl/hoja:block">{t('users.tableBulkSend')}</Th>
                                                 <Th className="hidden @3xl/hoja:block">{t('users.tableRegistered')}</Th>
                                                 <Th className="hidden text-right @3xl/hoja:block">{t('users.tableActions')}</Th>
@@ -1134,16 +1208,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                             <RolYTurno user={user} etiqueta={getRoleLabel(user.role)} turno={t('users.onDuty')} />
                                                         </div>
                                                         <div className="flex min-w-0 flex-col gap-0.5">
-                                                            {statusWord(user)}
-                                                            <span title={t('users.lastActivity')} className="truncate text-[12px] leading-4 text-muted-foreground">
-                                                                <span className="sr-only">{t('users.lastActivity')}: </span>
-                                                                {lastActivityText(user)}
-                                                            </span>
+                                                            {estadoPrincipal(user, 'truncate')}
+                                                            {estadoDetalle(user, 'truncate')}
                                                         </div>
                                                         <div className="flex items-center">{bulkCell(user)}</div>
                                                         <span className="truncate text-[12.5px] leading-[18px] whitespace-nowrap text-muted-foreground tabular-nums">
                                                             <span className="sr-only">{t('users.tableRegistered')}: </span>
-                                                            {formatCreatedAt(user.created_at)}
+                                                            {fechaCorta(new Date(user.created_at), true)}
                                                         </span>
                                                         <Acciones
                                                             etiquetas={actionLabels}
@@ -1179,13 +1250,15 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                             <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                                                                 <RolYTurno user={user} etiqueta={getRoleLabel(user.role)} turno={t('users.onDuty')} />
                                                                 <span className="flex min-w-0 items-baseline gap-1.5">
-                                                                    {statusWord(user)}
-                                                                    <span className="text-[12px] leading-4 text-muted-foreground" aria-hidden="true">
-                                                                        ·
-                                                                    </span>
-                                                                    <span title={t('users.lastActivity')} className="truncate text-[12px] leading-4 text-muted-foreground">
-                                                                        {lastActivityText(user)}
-                                                                    </span>
+                                                                    {estadoPrincipal(user) && (
+                                                                        <>
+                                                                            {estadoPrincipal(user, 'whitespace-nowrap')}
+                                                                            <span className="text-[12px] leading-4 text-muted-foreground" aria-hidden="true">
+                                                                                ·
+                                                                            </span>
+                                                                        </>
+                                                                    )}
+                                                                    {estadoDetalle(user, 'truncate', true)}
                                                                 </span>
                                                             </div>
                                                             <div className="mt-2.5 flex items-center justify-between gap-3">
@@ -1194,7 +1267,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                                     {bulkCell(user)}
                                                                 </div>
                                                                 <span className="text-[12px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums">
-                                                                    {t('users.registeredOn')} {formatCreatedAt(user.created_at)}
+                                                                    {t('users.registeredOnDate', { fecha: fechaCorta(new Date(user.created_at), true) })}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -1206,10 +1279,34 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 );
                             })
                         ) : (
+                            // Sin resultados: dice qué se buscó y deja quitarlo (antes, «No hay usuarios» aunque los hubiera).
                             <div className="px-4 py-14 text-center">
-                                <UserCircle className="mx-auto mb-3 size-12 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
-                                <h2 className={cn('text-[15px] leading-5 font-semibold', TEXTO_NAVY)}>{t('users.noUsers')}</h2>
-                                <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-[18px] text-muted-foreground">{t('users.noUsersFiltered')}</p>
+                                {busqueda ? (
+                                    <Search className="mx-auto mb-3 size-10 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
+                                ) : (
+                                    <UserCircle className="mx-auto mb-3 size-12 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
+                                )}
+                                <h2 className={cn('mx-auto max-w-md text-[15px] leading-5 font-semibold break-words', TEXTO_NAVY)}>
+                                    {busqueda ? t('users.noMatchTitle', { search: busqueda }) : filtrando ? t('users.noRoleTitle') : t('users.noUsers')}
+                                </h2>
+                                {busqueda && (
+                                    <p className="mx-auto mt-1.5 max-w-md text-[13px] leading-[18px] text-pretty text-muted-foreground">
+                                        {t(roleFilter === 'admin' ? 'users.noMatchInAdmins' : roleFilter === 'advisor' ? 'users.noMatchInAdvisors' : 'users.noMatchText')}
+                                    </p>
+                                )}
+                                {filtrando && (
+                                    <button
+                                        type="button"
+                                        onClick={quitarFiltros}
+                                        className={cn(
+                                            'mt-4 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8',
+                                            FOCO
+                                        )}
+                                    >
+                                        <X className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                        {busqueda && roleFilter !== 'all' ? t('users.clearAll') : busqueda ? t('users.clearSearch') : t('users.showAll')}
+                                    </button>
+                                )}
                             </div>
                         )}
                     </section>
@@ -1418,7 +1515,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         {t('users.role')}
                                     </Label>
                                     <Select value={createForm.data.role} onValueChange={(value) => createForm.setData('role', value as User['role'])}>
-                                        <SelectTrigger id="create-role" className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
+                                        <SelectTrigger
+                                            id="create-role"
+                                            aria-describedby="create-role-ayuda"
+                                            className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2"
+                                        >
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
                                         <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
@@ -1426,6 +1527,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                    {/* Qué puede hacer cada rol: es una decisión de acceso y antes no se explicaba. */}
+                                    <p id="create-role-ayuda" className="text-[12.5px] leading-[18px] text-pretty text-muted-foreground">
+                                        {t(createForm.data.role === 'admin' ? 'users.roleHelpAdmin' : 'users.roleHelpAdvisor')}
+                                    </p>
                                     <InputError message={createForm.errors.role} />
                                 </div>
                             </div>
@@ -1445,12 +1550,22 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
                     <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
                         <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
+                            {/* Desde «Restablecer contraseña» la ventana habla de la clave (antes decía «Editar usuario»
+                                igual). La explicación dice la consecuencia de guardar, no repite el título. */}
                             <DialogTitle className="flex items-center gap-2 text-xl settings-title">
-                                <Edit3 className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
-                                {t('users.editTitle')}
+                                {modoClave ? (
+                                    <KeyRound className="h-5 w-5 shrink-0 text-[#2e3f84] dark:text-neutral-100" aria-hidden="true" />
+                                ) : (
+                                    <Edit3 className="h-5 w-5 shrink-0 text-[#2e3f84] dark:text-neutral-100" aria-hidden="true" />
+                                )}
+                                {userToEdit
+                                    ? t(modoClave ? 'users.resetTitleFor' : 'users.editFor', { name: nombrePropio(userToEdit.name) })
+                                    : t('users.editTitle')}
                             </DialogTitle>
                             <DialogDescription className="text-xs settings-subtitle">
-                                {t('users.editSubtitleFor', { name: userToEdit ? nombrePropio(userToEdit.name) : '' })}
+                                {modoClave
+                                    ? t(userToEdit?.id === yoId ? 'users.resetSubtitleSelf' : 'users.resetSubtitle')
+                                    : t(userToEdit?.id === yoId ? 'users.editSubtitleEmailSelf' : 'users.editSubtitleEmail')}
                             </DialogDescription>
                         </DialogHeader>
 
@@ -1503,7 +1618,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 <div className={cn('space-y-1.5')}>
                                     <Label htmlFor="edit-password" className="flex items-center gap-2 text-xs font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
-                                        {t('users.newPassword')}
+                                        {/* Al restablecer, la contraseña es el propósito de la ventana: no «(opcional)». */}
+                                        {modoClave ? t('users.newPasswordLabel') : t('users.newPassword')}
                                     </Label>
                                     <div className="relative">
                                         <Input
@@ -1611,7 +1727,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     >
                                         <SelectTrigger
                                             id="edit-role"
-                                            aria-describedby={userToEdit?.id === yoId ? 'edit-role-propio' : undefined}
+                                            aria-describedby={userToEdit?.id === yoId ? 'edit-role-propio' : 'edit-role-ayuda'}
                                             className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2"
                                         >
                                             <SelectValue placeholder={t('users.selectRole')} />
@@ -1621,9 +1737,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    {userToEdit?.id === yoId && (
+                                    {userToEdit?.id === yoId ? (
                                         <p id="edit-role-propio" className="text-[12.5px] leading-[18px] text-muted-foreground">
                                             {t('users.ownRoleHint')}
+                                        </p>
+                                    ) : (
+                                        <p id="edit-role-ayuda" className="text-[12.5px] leading-[18px] text-pretty text-muted-foreground">
+                                            {t(editForm.data.role === 'admin' ? 'users.roleHelpAdmin' : 'users.roleHelpAdvisor')}
                                         </p>
                                     )}
                                     <InputError message={editForm.errors.role} />
@@ -1635,7 +1755,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     {t('common.cancel')}
                                 </Button>
                                 <Button type="submit" disabled={editForm.processing} className="rounded-xl text-sm settings-btn-primary disabled:opacity-50">
-                                    {editForm.processing ? t('common.saving') : t('users.saveChanges')}
+                                    {editForm.processing ? t('common.saving') : modoClave ? t('users.savePassword') : t('users.saveChanges')}
                                 </Button>
                             </div>
                         </form>
