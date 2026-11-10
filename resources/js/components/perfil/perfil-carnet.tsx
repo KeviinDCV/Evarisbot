@@ -81,6 +81,8 @@ function Guardado({ visible, texto }: { visible: boolean; texto: string }) {
 
 /** Un requisito de la contraseña: verde si se cumple; rojo si se intentó guardar sin cumplirlo. */
 function Regla({ cumple, falta, children }: { cumple: boolean; falta: boolean; children: ReactNode }) {
+    const { t } = useTranslation();
+
     return (
         <li
             className={cn(
@@ -96,7 +98,7 @@ function Regla({ cumple, falta, children }: { cumple: boolean; falta: boolean; c
                 <span aria-hidden="true" className="h-4 w-4 rounded-full border-[1.5px] border-[#888fb5] dark:border-[hsl(30,4%,42%)]" />
             )}
             {children}
-            <span className="sr-only">{cumple ? '✓' : ''}</span>
+            <span className="sr-only">{` — ${cumple ? t('perfilCarnet.ruleMet') : t('perfilCarnet.ruleMissing')}`}</span>
         </li>
     );
 }
@@ -356,7 +358,12 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
 
                                             <div className="flex flex-wrap items-center justify-end gap-3">
                                                 <Guardado visible={recentlySuccessful} texto={t('perfilCarnet.saved')} />
-                                                <button type="submit" disabled={processing || !hayCambios || fallasDatos.bloqueado} className={cn(BOTON, 'tabular-nums', fallasDatos.bloqueado && BOTON_ESPERA)}>
+                                                <button
+                                                    type="submit"
+                                                    disabled={processing || !hayCambios || fallasDatos.bloqueado}
+                                                    title={!hayCambios && !processing ? t('perfilCarnet.noChanges') : undefined}
+                                                    className={cn(BOTON, 'tabular-nums', fallasDatos.bloqueado && BOTON_ESPERA)}
+                                                >
                                                     {fallasDatos.bloqueado ? (
                                                         <>
                                                             <Clock className="h-4 w-4" aria-hidden="true" />
