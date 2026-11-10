@@ -1013,7 +1013,7 @@
         },
         "whatsapp": {
             "title": "Configuración del sistema",
-            "subtitle": "Ajustes que valen para todo Evarisbot: WhatsApp, audios, liberación de chats, fin de semana y turnos.",
+            "subtitle": "Ajustes que valen para todo Evarisbot: turnos, equipos, liberación de chats, fin de semana, WhatsApp y audios.",
             "apiTitle": "Conexión con WhatsApp",
             "accessToken": "Clave de acceso de Meta",
             "phoneId": "ID del número",
@@ -1041,12 +1041,9 @@
                 "error_meta": "Meta respondió con un error al consultar el número. Avisa al equipo de sistemas.",
                 "sin_config": "WhatsApp no está configurado en el servidor. Avisa al equipo de sistemas.",
                 "rechazada": "Meta rechazó la clave de acceso; puede haber vencido. Avisa al equipo de sistemas.",
-                "desviado": "Meta está entregando los mensajes en otra dirección. Avisa al equipo de sistemas de inmediato.",
+                "desviado": "Meta está entregando los mensajes en otra dirección. Avisa de inmediato al equipo de sistemas.",
                 "sin_respuesta": "No se pudo hablar con Meta en este momento. Inténtalo de nuevo en unos minutos."
             },
-            "otherAlerts": "La vigilancia también avisa:",
-            "alertsRowLabel": "Alertas",
-            "alertsRowHelp": "Lo que encontró la vigilancia en su última revisión.",
             "showDetails": "Ver claves e identificadores",
             "hideDetails": "Ocultar claves e identificadores",
             "quality": {
@@ -1066,7 +1063,7 @@
                 "exigida": "Exigida: se rechaza lo que no venga firmado"
             },
             "lineMismatch": "Los recordatorios y envíos masivos salen por otro número ({{id}}). Avisa al equipo de sistemas.",
-            "webhookDiverted": "Meta está entregando en otra dirección",
+            "webhookDiverted": "Meta está entregando los mensajes en otra dirección. Avisa de inmediato al equipo de sistemas.",
             "serverNote": "Por seguridad, estos datos solo los cambia el equipo de sistemas en el servidor.",
             "profileRowLabel": "Línea de WhatsApp",
             "profileRowHelp": "Lo que Meta tiene registrado de este número, consultado {{time}}. El límite solo cuenta los mensajes que inicia el hospital (recordatorios y envíos masivos); responder a quien escribió no cuenta."
@@ -1112,7 +1109,36 @@
         "alerts": {
             "title": "Avisos del sistema",
             "count_one": "{{count}} aviso",
-            "count_other": "{{count}} avisos"
+            "count_other": "{{count}} avisos",
+            "text": "Lo que encontró la revisión automática, que Evarisbot hace cada 10 minutos.",
+            "forIt": "Para sistemas:",
+            "genericAction": "Avisa al equipo de sistemas.",
+            "codes": {
+                "silencio": {
+                    "title": "No están entrando mensajes de pacientes",
+                    "action": "Mira Conversaciones: si tampoco llega nada nuevo, avisa de inmediato al equipo de sistemas."
+                },
+                "worker": {
+                    "title": "Hay envíos detenidos en la cola",
+                    "action": "Avisa al equipo de sistemas: lo que espera en la cola, como los envíos masivos, no sale hasta que se resuelva."
+                },
+                "fallidos": {
+                    "title": "Fallaron muchos envíos en la última hora",
+                    "action": "Avisa al equipo de sistemas para que revise la causa."
+                },
+                "respaldo": {
+                    "title": "La copia de seguridad está atrasada",
+                    "action": "Avisa al equipo de sistemas: lo que entró después de la última copia todavía no tiene respaldo."
+                },
+                "disco": {
+                    "title": "Queda poco espacio en el disco del servidor",
+                    "action": "Avisa al equipo de sistemas antes de que se llene: sin espacio, Evarisbot puede dejar de funcionar."
+                },
+                "meta_plantillas": {
+                    "title": "Aparecieron plantillas que no se crearon en Evarisbot",
+                    "action": "Avisa de inmediato al equipo de sistemas: puede ser alguien ajeno usando la cuenta de WhatsApp del hospital."
+                }
+            }
         },
         "strip": {
             "label": "Estado de la configuración",
@@ -1154,7 +1180,7 @@
             "cuantos_one": "{{count}} equipo",
             "cuantos_other": "{{count}} equipos",
             "ninguno": "Ninguno",
-            "bandaTexto": "Grupos que atienden aparte de la línea general (por ejemplo, Teleconsulta). Sus miembros ven y responden solo los chats de su equipo, y la línea general no los ve.",
+            "bandaTexto": "Grupos que atienden aparte de la línea general, como Teleconsulta. Sus miembros solo ven los chats de su equipo, y el resto de asesores no ve esos chats.",
             "nuevo": "Nuevo equipo",
             "vacio": "Todavía no hay equipos. Todos los asesores atienden la línea general.",
             "sinMiembros": "Sin miembros",
@@ -1162,31 +1188,34 @@
             "chatsAbiertos_other": "{{count}} chats abiertos",
             "nuevoTitulo": "Nuevo equipo",
             "editarTitulo": "Editar equipo",
-            "editorAyuda": "Los miembros solo verán los chats que ellos inicien o se les pasen, y los de sus compañeros. No reciben chats de la línea general, aunque estén de turno.",
+            "editorAyuda": "Sus miembros solo ven los chats del equipo (los que inician ellos o sus compañeros y los que se les pasan) y no reciben los de la línea general.",
             "nombre": "Nombre",
             "nombreEjemplo": "Teleconsulta",
             "nombreFalta": "Escribe el nombre del equipo.",
             "miembros_one": "Miembros ({{count}})",
             "miembros_other": "Miembros ({{count}})",
-            "enOtro": "hoy en {{equipo}}",
-            "notaMiembros": "Al entrar al equipo, los chats que la persona tenga asignados en la línea general vuelven a la bandeja general. Al salir, los del equipo que tenía quedan sin asignar para sus compañeros.",
+            "enOtro": "hoy en {{equipo}}; al marcarlo, se cambia a este equipo",
+            "notaMiembros": "Quien entra al equipo sale del turno, y sus chats de la línea general vuelven a esa bandeja sin asignar. Quien sale deja sus chats del equipo sin asignar para sus compañeros y vuelve a la línea general, sin turno.",
             "guardado": "Equipo guardado",
             "errorGuardar": "No se pudo guardar el equipo",
             "eliminarTitulo": "¿Eliminar el equipo {{equipo}}?",
-            "eliminarTexto_one": "Su chat abierto vuelve a la línea general, sin asignar, y sus miembros vuelven a atender la línea general.",
-            "eliminarTexto_other": "Sus {{count}} chats abiertos vuelven a la línea general, sin asignar, y sus miembros vuelven a atender la línea general.",
-            "eliminarBoton": "Sí, eliminar",
+            "eliminarTexto_one": "Sus chats, incluido el que está abierto, pasan a la línea general sin asignar, igual que sus envíos masivos. Sus miembros vuelven a la línea general, sin turno. No se puede deshacer.",
+            "eliminarTexto_other": "Sus chats, incluidos los {{count}} abiertos, pasan a la línea general sin asignar, igual que sus envíos masivos. Sus miembros vuelven a la línea general, sin turno. No se puede deshacer.",
+            "eliminarBoton": "Eliminar equipo",
             "eliminado": "Equipo eliminado: sus chats volvieron a la línea general",
-            "errorEliminar": "No se pudo eliminar el equipo"
+            "errorEliminar": "No se pudo eliminar el equipo",
+            "eliminarTextoSinAbiertos": "No tiene chats abiertos. Sus chats anteriores y sus envíos masivos pasan a la línea general, y sus miembros vuelven a ella, sin turno. No se puede deshacer.",
+            "editarA": "Editar el equipo {{equipo}}",
+            "eliminarA": "Eliminar el equipo {{equipo}}"
         },
         "onDutyAdvisors": {
-            "savedSuccess": "Asesores de turno actualizados",
-            "saveError": "Error al guardar los asesores",
+            "savedSuccess": "Turno guardado",
+            "saveError": "No se pudo guardar el turno",
             "title": "Asesores de turno",
             "noneSelected": "Nadie de turno",
-            "searchPlaceholder": "Buscar asesor...",
+            "searchPlaceholder": "Buscar asesor…",
             "emptyTitle": "No hay asesores registrados",
-            "emptyDescription": "Crea asesores en la sección de usuarios.",
+            "emptyDescription": "Créalos en Usuarios, en el menú de la izquierda.",
             "noResults": "No hay coincidencias para la búsqueda.",
             "bandText": "Ven los chats sin asignar y reciben, al azar, a los pacientes que piden asesor desde el menú.",
             "onDutyCount": "{{count}} de turno",
@@ -1195,8 +1224,8 @@
             "saveNote": "Al guardar, quedan de turno solo los marcados y los demás salen del turno.",
             "noneWarning": "Nadie quedará de turno: ningún asesor verá los chats sin asignar y los pacientes que pidan asesor recibirán el aviso de alto flujo.",
             "teamMember": "Está en el equipo {{equipo}}: recibe siempre los chats de su equipo, así que no entra en el turno de la línea general.",
-            "confirmNoneTitle": "¿Dejar a nadie de turno?",
-            "confirmNoneButton": "Dejar sin turno"
+            "confirmNoneTitle": "¿Dejar el turno vacío?",
+            "confirmNoneButton": "Dejar el turno vacío"
         },
         "autoRelease": {
             "title": "Liberación automática",
@@ -1234,7 +1263,8 @@
             "confirmUnknown": "No se pudo calcular cuántas conversaciones se liberarán. Puede que algunas vuelvan a la bandeja sin asignar en el próximo minuto.",
             "confirmButton": "Activar y guardar",
             "confirmTitleShorten": "¿Acortar el tiempo de la liberación automática?",
-            "confirmButtonShorten": "Acortar y guardar"
+            "confirmButtonShorten": "Acortar y guardar",
+            "previewOff": "Con la liberación desactivada, siguen con su asesor."
         },
         "weekendNotice": {
             "title": "Mensaje de fin de semana",
@@ -1255,7 +1285,8 @@
             "saveNote": "No cambia a quién está asignado el chat ni su estado; el aviso queda en la conversación.",
             "savedSuccess": "Mensaje de fin de semana guardado",
             "saveError": "No se pudo guardar el mensaje de fin de semana",
-            "tooLong": "El mensaje pasa del máximo de {{max}} caracteres."
+            "tooLong": "El mensaje pasa del máximo de {{max}} caracteres.",
+            "previewOff": "No se envía mientras esté desactivado."
         },
         "twoFactorAuth": "Autenticación de dos factores",
         "description": "Gestiona tu perfil y la configuración de tu cuenta",

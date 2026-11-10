@@ -1013,7 +1013,7 @@
         },
         "whatsapp": {
             "title": "System Settings",
-            "subtitle": "Settings that apply to all of Evarisbot: WhatsApp, voice notes, chat release, weekend message and shifts.",
+            "subtitle": "Settings that apply to all of Evarisbot: shifts, teams, chat release, weekend message, WhatsApp and voice notes.",
             "apiTitle": "WhatsApp connection",
             "accessToken": "Meta access key",
             "phoneId": "Phone number ID",
@@ -1044,9 +1044,6 @@
                 "desviado": "Meta is delivering messages to another address. Tell the IT team right away.",
                 "sin_respuesta": "Couldn't reach Meta right now. Try again in a few minutes."
             },
-            "otherAlerts": "The monitor also reports:",
-            "alertsRowLabel": "Alerts",
-            "alertsRowHelp": "What the monitor found in its last check.",
             "showDetails": "Show keys and identifiers",
             "hideDetails": "Hide keys and identifiers",
             "quality": {
@@ -1066,7 +1063,7 @@
                 "exigida": "Required: unsigned messages are rejected"
             },
             "lineMismatch": "Reminders and bulk sends go out through a different number ({{id}}). Tell the IT team.",
-            "webhookDiverted": "Meta is delivering to another address",
+            "webhookDiverted": "Meta is delivering messages to another address. Tell the IT team right away.",
             "serverNote": "For security, only the IT team can change these, on the server.",
             "profileRowLabel": "WhatsApp line",
             "profileRowHelp": "What Meta has on record for this number, checked {{time}}. The limit only counts hospital-initiated messages (reminders and bulk sends); replying to patients who wrote doesn't count."
@@ -1112,7 +1109,36 @@
         "alerts": {
             "title": "System alerts",
             "count_one": "{{count}} alert",
-            "count_other": "{{count}} alerts"
+            "count_other": "{{count}} alerts",
+            "text": "What the automatic check found. Evarisbot runs it every 10 minutes.",
+            "forIt": "For IT:",
+            "genericAction": "Tell the IT team.",
+            "codes": {
+                "silencio": {
+                    "title": "Patient messages aren’t coming in",
+                    "action": "Check Conversations: if nothing new is arriving there either, tell the IT team right away."
+                },
+                "worker": {
+                    "title": "Sends are stuck in the queue",
+                    "action": "Tell the IT team: whatever is waiting in the queue, such as bulk sends, won’t go out until it’s fixed."
+                },
+                "fallidos": {
+                    "title": "Many sends failed in the last hour",
+                    "action": "Tell the IT team so they can find the cause."
+                },
+                "respaldo": {
+                    "title": "The backup is overdue",
+                    "action": "Tell the IT team: anything that came in after the last backup isn’t backed up yet."
+                },
+                "disco": {
+                    "title": "The server disk is running out of space",
+                    "action": "Tell the IT team before it fills up: without space, Evarisbot may stop working."
+                },
+                "meta_plantillas": {
+                    "title": "Templates appeared that weren’t created in Evarisbot",
+                    "action": "Tell the IT team right away: someone outside the hospital may be using its WhatsApp account."
+                }
+            }
         },
         "strip": {
             "label": "Configuration status",
@@ -1154,7 +1180,7 @@
             "cuantos_one": "{{count}} team",
             "cuantos_other": "{{count}} teams",
             "ninguno": "None",
-            "bandaTexto": "Groups that work apart from the general line (for example, Teleconsultation). Their members only see and answer their team's chats, and the general line doesn't see them.",
+            "bandaTexto": "Groups that work apart from the general line, such as Teleconsultation. Their members only see their team’s chats, and other advisors don’t see those chats.",
             "nuevo": "New team",
             "vacio": "There are no teams yet. Every agent works the general line.",
             "sinMiembros": "No members",
@@ -1162,31 +1188,34 @@
             "chatsAbiertos_other": "{{count}} open chats",
             "nuevoTitulo": "New team",
             "editarTitulo": "Edit team",
-            "editorAyuda": "Members will only see the chats they start or are handed, and their teammates'. They get no general line chats, even when on duty.",
+            "editorAyuda": "Members only see the team’s chats (the ones they or their teammates start and the ones handed to them) and get no general line chats.",
             "nombre": "Name",
             "nombreEjemplo": "Teleconsultation",
             "nombreFalta": "Type the team name.",
             "miembros_one": "Members ({{count}})",
             "miembros_other": "Members ({{count}})",
-            "enOtro": "currently in {{equipo}}",
-            "notaMiembros": "When someone joins the team, the general line chats assigned to them go back to the general inbox. When they leave, their team chats stay unassigned for their teammates.",
+            "enOtro": "currently in {{equipo}}; checking them moves them to this team",
+            "notaMiembros": "Whoever joins the team leaves the shift, and their general line chats go back to that inbox, unassigned. Whoever leaves leaves their team chats unassigned for their teammates and returns to the general line, off shift.",
             "guardado": "Team saved",
             "errorGuardar": "Couldn't save the team",
             "eliminarTitulo": "Delete the {{equipo}} team?",
-            "eliminarTexto_one": "Its open chat goes back to the general line, unassigned, and its members go back to the general line.",
-            "eliminarTexto_other": "Its {{count}} open chats go back to the general line, unassigned, and its members go back to the general line.",
-            "eliminarBoton": "Yes, delete",
+            "eliminarTexto_one": "Its chats, including the open one, move to the general line unassigned, and so do its bulk sends. Its members return to the general line, off shift. This can’t be undone.",
+            "eliminarTexto_other": "Its chats, including the {{count}} open ones, move to the general line unassigned, and so do its bulk sends. Its members return to the general line, off shift. This can’t be undone.",
+            "eliminarBoton": "Delete team",
             "eliminado": "Team deleted: its chats went back to the general line",
-            "errorEliminar": "Couldn't delete the team"
+            "errorEliminar": "Couldn't delete the team",
+            "eliminarTextoSinAbiertos": "It has no open chats. Its past chats and bulk sends move to the general line, and its members return to it, off shift. This can’t be undone.",
+            "editarA": "Edit the {{equipo}} team",
+            "eliminarA": "Delete the {{equipo}} team"
         },
         "onDutyAdvisors": {
-            "savedSuccess": "On-duty advisors updated",
-            "saveError": "Failed to save advisors",
+            "savedSuccess": "Shift saved",
+            "saveError": "Couldn’t save the shift",
             "title": "On-duty advisors",
             "noneSelected": "No one on duty",
-            "searchPlaceholder": "Search advisor...",
+            "searchPlaceholder": "Search advisor…",
             "emptyTitle": "No advisors registered",
-            "emptyDescription": "Create advisors in the users section.",
+            "emptyDescription": "Create them in Users, in the left-hand menu.",
             "noResults": "No matches for your search.",
             "bandText": "They see unassigned chats and get, at random, the patients who ask for an advisor in the menu.",
             "onDutyCount": "{{count}} on duty",
@@ -1195,8 +1224,8 @@
             "saveNote": "When you save, only the checked advisors stay on duty and everyone else goes off duty.",
             "noneWarning": "No one will be on duty: no advisor will see unassigned chats, and patients who ask for an advisor will get the high-demand notice.",
             "teamMember": "On the {{equipo}} team: always gets their team’s chats, so they aren’t part of the general line’s shift.",
-            "confirmNoneTitle": "Leave no one on duty?",
-            "confirmNoneButton": "Leave no one on duty"
+            "confirmNoneTitle": "Leave the shift empty?",
+            "confirmNoneButton": "Leave the shift empty"
         },
         "autoRelease": {
             "title": "Automatic release",
@@ -1234,7 +1263,8 @@
             "confirmUnknown": "We couldn't work out how many conversations will be released. Some may go back to the unassigned queue within a minute.",
             "confirmButton": "Turn on and save",
             "confirmTitleShorten": "Shorten the automatic release time?",
-            "confirmButtonShorten": "Shorten and save"
+            "confirmButtonShorten": "Shorten and save",
+            "previewOff": "With auto-release off, they stay with their advisor."
         },
         "weekendNotice": {
             "title": "Weekend message",
@@ -1255,7 +1285,8 @@
             "saveNote": "It doesn't change who the chat is assigned to or its status; the notice stays in the conversation.",
             "savedSuccess": "Weekend message saved",
             "saveError": "Couldn't save the weekend message",
-            "tooLong": "The message is over the {{max}}-character limit."
+            "tooLong": "The message is over the {{max}}-character limit.",
+            "previewOff": "Not sent while it’s off."
         },
         "twoFactorAuth": "Two-Factor Auth",
         "description": "Manage your profile and account settings",

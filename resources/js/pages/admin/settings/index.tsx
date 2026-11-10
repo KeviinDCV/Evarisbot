@@ -25,6 +25,7 @@ import {
     PlugZap,
     Plus,
     Search,
+    Split,
     ShieldCheck,
     Trash2,
     TriangleAlert,
@@ -153,6 +154,9 @@ const esAlertaDeConexion = (codigo: string) =>
     codigo === 'meta_config' || codigo === 'meta_token' || codigo === 'meta_error' || codigo === 'meta_override' || codigo.startsWith('meta_webhook_');
 const esDesvio = (codigo: string) => codigo === 'meta_override' || codigo.startsWith('meta_webhook_');
 
+// Avisos de la vigilancia con titular y «qué hacer» propios (el texto del servidor va como detalle para sistemas).
+const AVISOS_CONOCIDOS = ['silencio', 'worker', 'fallidos', 'respaldo', 'disco', 'meta_plantillas'];
+
 // La vigilancia corre cada 10 minutos mientras se usa la app; sus alertas caducan a los 30.
 const REVISION_RECIENTE_MS = 30 * 60 * 1000;
 
@@ -172,6 +176,13 @@ const FOCO = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ri
 // Monoespaciada del diseño (Cascadia Mono en Windows 11; Consolas si no está).
 const MONO = "[font-family:ui-monospace,'Cascadia_Mono','SF_Mono',Consolas,monospace]";
 const BANDA = 'bg-[#2e3f84]/[0.028] dark:bg-white/[0.03]';
+
+// Tipos por función, no por tamaño. La ayuda y las consecuencias («al guardar, …», «quien entra al equipo…»)
+// iban a 12–12,5 px y eran más de la mitad del texto de la página: lo más importante, en lo más pequeño.
+// Ahora 13 px, a un paso de la etiqueta (13,5 px seminegrita navy) por peso y tinta, no por tamaño.
+const TIPO_AYUDA = 'text-[13px] leading-[18px]';
+// Metadatos y estados de una palabra (correos, «2 de turno», «Cambios sin guardar», contadores).
+const TIPO_META = 'text-[12.5px] leading-4';
 
 // Rejilla de las filas de ajuste: etiqueta + ayuda a la izquierda, campo a la derecha. En hojas
 // estrechas (< 768 px) se apilan. El texto arranca a 64 px (20 de sangría + 32 de la ranura del
@@ -232,12 +243,33 @@ const TONO_PUNTO: Record<Tono, string> = {
 /** Estado en línea: punto + palabra. */
 function Estado({ tono, children }: { tono: Tono; children: ReactNode }) {
     return (
-        <span className={cn('inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-medium whitespace-nowrap', TONO_TEXTO[tono])}>
+        <span className={cn('inline-flex items-center gap-1.5 font-medium whitespace-nowrap', TIPO_META, TONO_TEXTO[tono])}>
             <span className={cn('size-[7px] shrink-0 rounded-full', TONO_PUNTO[tono])} aria-hidden="true" />
             {children}
         </span>
     );
 }
+
+/** Casilla dibujada (la real va sr-only al lado): marcada navy con visto blanco; vacía con contorno pizarra 500 (4,76:1). */
+function Casilla({ marcada, apagada = false }: { marcada: boolean; apagada?: boolean }) {
+    return (
+        <span
+            className={cn(
+                'flex size-[18px] shrink-0 items-center justify-center rounded-[5px] forced-colors:border forced-colors:border-[CanvasText]',
+                apagada && 'opacity-40',
+                marcada
+                    ? 'bg-[#2e3f84] text-white dark:bg-[#596bcf]'
+                    : 'bg-white shadow-[inset_0_0_0_1.5px_var(--color-slate-500)] dark:bg-transparent dark:shadow-[inset_0_0_0_1.5px_var(--color-neutral-400)]'
+            )}
+            aria-hidden="true"
+        >
+            {marcada && <Check className="size-3" strokeWidth={3} />}
+        </span>
+    );
+}
+
+// Anillo de foco en la fila cuando la casilla (sr-only) lo tiene.
+const FOCO_FILA = 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#2e3f84]/40 has-[:focus-visible]:outline-hidden dark:has-[:focus-visible]:ring-[#8b9ae0]/60';
 
 /** Avatar de iniciales en tinta navy (los asesores). */
 function Iniciales({ name, className }: { name: string; className?: string }) {
@@ -254,8 +286,7 @@ function Iniciales({ name, className }: { name: string; className?: string }) {
     );
 }
 
-/** Un estado de la franja: marca + etiqueta arriba; punto, valor grande y detalle debajo. */
-/** Un estado de la franja; es un enlace a su sección (antes no llevaba a ningún lado). */
+/** Un estado de la franja (marca + etiqueta; punto, valor y detalle). Es un enlace a su sección. */
 function EstadoFranja({
     icon: Icon,
     etiqueta,
@@ -339,7 +370,7 @@ function Banda({
                     {estado}
                 </div>
                 {/* Hasta dos líneas; si aún no cabe, el texto completo queda en el title. */}
-                <p title={texto} className={cn('text-[12.5px] leading-[17px] text-pretty @3xl/hoja:line-clamp-2', TEXTO_SUAVE)}>
+                <p title={texto} className={cn('text-pretty @3xl/hoja:line-clamp-2', TIPO_AYUDA, TEXTO_SUAVE)}>
                     {texto}
                 </p>
             </div>
@@ -354,7 +385,7 @@ function Subgrupo({ titulo, texto }: { titulo: string; texto: string }) {
     return (
         <div className={cn('flex min-h-10 flex-wrap items-end gap-x-2.5 gap-y-0.5 pt-4 pb-2', SANGRIA)}>
             <h3 className={cn('text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE)}>{titulo}</h3>
-            <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{texto}</p>
+            <p className={cn(TIPO_AYUDA, TEXTO_SUAVE)}>{texto}</p>
         </div>
     );
 }
@@ -387,7 +418,7 @@ function Fila({
                 ) : (
                     <span className={claseEtiqueta}>{etiqueta}</span>
                 )}
-                <span id={ayudaId} className={cn('text-[12px] leading-[17px] whitespace-pre-line', TEXTO_SUAVE)}>
+                <span id={ayudaId} className={cn('whitespace-pre-line', TIPO_AYUDA, TEXTO_SUAVE)}>
                     {ayuda}
                 </span>
             </div>
@@ -524,17 +555,17 @@ function Pie({
             <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
                 {children}
                 {pendiente && (
-                    <span className={cn('inline-flex items-center gap-1.5 text-[12px] leading-4 font-medium', TONO_TEXTO.aviso)}>
+                    <span className={cn('inline-flex items-center gap-1.5 font-medium', TIPO_META, TONO_TEXTO.aviso)}>
                         <span className={cn('size-[7px] shrink-0 rounded-full', TONO_PUNTO.aviso)} aria-hidden="true" />
                         {pendiente}
                     </span>
                 )}
                 {aviso ? (
-                    <span aria-hidden="true" className={cn('text-[12px] leading-4 font-medium', TONO_TEXTO.aviso)}>
+                    <span aria-hidden="true" className={cn('font-medium', TIPO_AYUDA, TONO_TEXTO.aviso)}>
                         {aviso}
                     </span>
                 ) : (
-                    nota && <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{nota}</span>
+                    nota && <span className={cn(TIPO_AYUDA, TEXTO_SUAVE)}>{nota}</span>
                 )}
                 {/* La región existe siempre (vacía sin aviso): si apareciera ya con el texto, el lector podría no decirlo. */}
                 <span role="status" className="sr-only">
@@ -1102,7 +1133,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
 
     const dato = (etiqueta: string, valor: ReactNode, titulo?: string) => (
         <div className="flex min-w-0 flex-col gap-0.5">
-            <dt className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{etiqueta}</dt>
+            <dt className={cn(TIPO_META, TEXTO_SUAVE)}>{etiqueta}</dt>
             <dd title={titulo} className={cn('text-[13.5px] leading-5 font-medium [overflow-wrap:anywhere] @3xl/hoja:truncate', TEXTO_NAVY)}>
                 {valor}
             </dd>
@@ -1232,13 +1263,31 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                     icon={TriangleAlert}
                                     titulo={t('settings.alerts.title')}
                                     estado={<Estado tono="aviso">{t('settings.alerts.count', { count: otrasAlertas.length })}</Estado>}
-                                    texto={t('settings.whatsapp.alertsRowHelp')}
+                                    texto={t('settings.alerts.text')}
                                 />
                                 <div className={cn('border-b py-4', SANGRIA, FILETE)}>
-                                    <ul className={cn('list-disc space-y-1.5 pl-5 text-[13px] leading-[19px] font-medium', TONO_TEXTO.aviso)}>
-                                        {otrasAlertas.map(([codigo, texto]) => (
-                                            <li key={codigo}>{texto}</li>
-                                        ))}
+                                    <ul className="space-y-3.5">
+                                        {otrasAlertas.map(([codigo, texto]) => {
+                                            const conocido = AVISOS_CONOCIDOS.includes(codigo);
+                                            return (
+                                                <li key={codigo} className="flex gap-2.5">
+                                                    <span className={cn('mt-[5.5px] size-[7px] shrink-0 rounded-full', TONO_PUNTO.aviso)} aria-hidden="true" />
+                                                    <div className="flex min-w-0 flex-col gap-0.5">
+                                                        <p className={cn('text-[13.5px] leading-[18px] font-semibold', TONO_TEXTO.aviso)}>
+                                                            {conocido ? t(`settings.alerts.codes.${codigo}.title`) : texto}
+                                                        </p>
+                                                        <p className={cn(TIPO_AYUDA, 'text-foreground')}>
+                                                            {conocido ? t(`settings.alerts.codes.${codigo}.action`) : t('settings.alerts.genericAction')}
+                                                        </p>
+                                                        {conocido && (
+                                                            <p className={cn('text-[12.5px] leading-[17px]', TEXTO_SUAVE)}>
+                                                                <span className="font-medium">{t('settings.alerts.forIt')}</span> {texto}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 </div>
                             </section>
@@ -1354,7 +1403,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                             }
                                                             className={cn(
                                                                 'relative flex h-full min-h-[52px] min-w-0 items-center gap-3 rounded-[10px] px-3 py-1.5 transition-colors',
-                                                                'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#2e3f84]/40 has-[:focus-visible]:outline-hidden dark:has-[:focus-visible]:ring-[#8b9ae0]/60',
+                                                                FOCO_FILA,
                                                                 enEquipo
                                                                     ? 'cursor-default'
                                                                     : selected
@@ -1369,27 +1418,23 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                                 disabled={enEquipo}
                                                                 onChange={() => !enEquipo && toggleAdvisor(advisor.id)}
                                                             />
-                                                            {/* Casilla: marcada navy con visto blanco; vacía con contorno pizarra 500 (4,76:1). */}
-                                                            <span
-                                                                className={cn(
-                                                                    'flex size-[18px] shrink-0 items-center justify-center rounded-[5px] forced-colors:border forced-colors:border-[CanvasText]',
-                                                                    enEquipo && 'opacity-40',
-                                                                    selected
-                                                                        ? 'bg-[#2e3f84] text-white dark:bg-[#596bcf]'
-                                                                        : 'bg-white shadow-[inset_0_0_0_1.5px_var(--color-slate-500)] dark:bg-transparent dark:shadow-[inset_0_0_0_1.5px_var(--color-neutral-400)]'
-                                                                )}
-                                                                aria-hidden="true"
-                                                            >
-                                                                {selected && <Check className="size-3" strokeWidth={3} />}
-                                                            </span>
+                                                            <Casilla marcada={selected} apagada={enEquipo} />
                                                             <Iniciales name={advisor.name} className="size-[30px]" />
                                                             <span className="flex min-w-0 flex-col gap-px">
                                                                 {/* Hasta dos líneas: los apellidos largos no se cortan a media palabra. */}
                                                                 <span className={cn('line-clamp-2 text-[13px] leading-[18px] font-semibold break-words', TEXTO_NAVY)}>{nombre}</span>
                                                                 {enEquipo ? (
-                                                                    <span className="w-fit max-w-full truncate rounded-full border border-violet-200 bg-violet-50 px-1.5 text-[11px] leading-4 font-medium text-violet-700 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300">
-                                                                        {equipoDe(advisor.equipo_id)}
-                                                                    </span>
+                                                                    <>
+                                                                        <span
+                                                                            aria-hidden="true"
+                                                                            className="w-fit max-w-full truncate rounded-full border border-violet-200 bg-violet-50 px-1.5 text-[11px] leading-4 font-medium text-violet-700 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300"
+                                                                        >
+                                                                            {equipoDe(advisor.equipo_id)}
+                                                                        </span>
+                                                                        <span className="sr-only">
+                                                                            {t('settings.onDutyAdvisors.teamMember', { nombre, equipo: equipoDe(advisor.equipo_id) })}
+                                                                        </span>
+                                                                    </>
                                                                 ) : (
                                                                     <span className={cn('truncate text-[12px] leading-4', TEXTO_SUAVE)}>{advisor.email}</span>
                                                                 )}
@@ -1425,7 +1470,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                         <section aria-labelledby="settings-equipos" className={cn(SECCION, 'border-t', FILETE)}>
                             <Banda
                                 id="settings-equipos"
-                                icon={Users}
+                                icon={Split}
                                 titulo={t('settings.equipos.titulo')}
                                 estado={
                                     <Estado tono={equipos.length > 0 ? 'ok' : 'neutro'}>
@@ -1454,7 +1499,12 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <button type="button" onClick={() => abrirEquipo(equipo)} className={BOTON_SECUNDARIO}>
+                                            <button
+                                                type="button"
+                                                onClick={() => abrirEquipo(equipo)}
+                                                aria-label={t('settings.equipos.editarA', { equipo: equipo.nombre })}
+                                                className={BOTON_SECUNDARIO}
+                                            >
                                                 <Pencil className="size-3.5" strokeWidth={2} aria-hidden="true" />
                                                 {t('common.edit')}
                                             </button>
@@ -1464,6 +1514,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                     recordarFoco('settings-equipos');
                                                     setEquipoABorrar(equipo);
                                                 }}
+                                                aria-label={t('settings.equipos.eliminarA', { equipo: equipo.nombre })}
                                                 className={cn(BOTON_SECUNDARIO, 'text-red-700 dark:text-red-400')}
                                             >
                                                 <Trash2 className="size-3.5" strokeWidth={2} aria-hidden="true" />
@@ -1593,7 +1644,9 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                             ? releaseChanged
                                                 ? t('settings.autoRelease.previewWillRelease')
                                                 : t('settings.autoRelease.previewReleasingSoon')
-                                            : null;
+                                            : releasePreview && !releasePreview.error && releasePreview.count && !releaseEnabled
+                                              ? t('settings.autoRelease.previewOff')
+                                              : null;
 
                                     return (
                                         <>
@@ -1615,7 +1668,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                 ) : (
                                                     <span className="min-w-0">
                                                         <span className="font-semibold">{frase}</span>
-                                                        {nota && <span className={cn('mt-0.5 block text-[12px] leading-4', TEXTO_SUAVE)}>{nota}</span>}
+                                                        {nota && <span className={cn('mt-0.5 block', TIPO_AYUDA, TEXTO_SUAVE)}>{nota}</span>}
                                                     </span>
                                                 )}
                                             </p>
@@ -1700,7 +1753,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                         <span
                                             id="weekend-text-count"
                                             className={cn(
-                                                'text-[12px] leading-4 tabular-nums',
+                                                cn(TIPO_META, 'tabular-nums'),
                                                 weekendSobran > 0 ? cn('font-semibold', TONO_TEXTO.error) : TEXTO_SUAVE
                                             )}
                                         >
@@ -1711,7 +1764,13 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                             </Fila>
 
                             <Fila etiqueta={t('settings.weekendNotice.previewLabel')} ayuda={t('settings.weekendNotice.previewHelp')}>
-                                <div className="w-full max-w-[420px] rounded-[12px] bg-[#efeae2] p-3 dark:bg-white/[0.04]">
+                                {!weekendEnabled && (
+                                    <p className={cn('mb-2 flex items-center gap-1.5', TIPO_AYUDA, TONO_TEXTO.neutro)}>
+                                        <span className={cn('size-[7px] shrink-0 rounded-full', TONO_PUNTO.neutro)} aria-hidden="true" />
+                                        {t('settings.weekendNotice.previewOff')}
+                                    </p>
+                                )}
+                                <div className={cn('w-full max-w-[420px] rounded-[12px] bg-[#efeae2] p-3 transition-opacity dark:bg-white/[0.04]', !weekendEnabled && 'opacity-70')}>
                                     <p className="max-w-[92%] rounded-[10px] rounded-tl-[3px] bg-white px-3 py-2 text-[13px] leading-[19px] whitespace-pre-wrap text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] [overflow-wrap:anywhere] dark:bg-[#202c33] dark:text-neutral-100">
                                         {/* Como se guarda: sin líneas en blanco al principio ni al final. */}
                                         {weekendTextTrim ? <TextoWhatsApp texto={weekendTextTrim} /> : <span className={TEXTO_SUAVE}>—</span>}
@@ -1829,7 +1888,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                         {valorId(settings.whatsapp.phone_id)}
                                     </CajaSoloLectura>
                                     {lineaDistinta && (
-                                        <p className={cn('mt-2 flex items-start gap-1.5 text-[12.5px] leading-[18px] font-medium', TONO_TEXTO.aviso)}>
+                                        <p className={cn('mt-2 flex items-start gap-1.5 font-medium', TIPO_AYUDA, TONO_TEXTO.aviso)}>
                                             <CircleAlert className="mt-px size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
                                             {t('settings.whatsapp.lineMismatch', { id: settings.whatsapp.phone_number_id })}
                                         </p>
@@ -1847,7 +1906,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                         <span className={cn(MONO, 'text-[12.5px] select-all', TEXTO_NAVY)}>{settings.whatsapp.webhook_url}</span>
                                     </CajaSoloLectura>
                                     {desviado && (
-                                        <p className={cn('mt-2 flex items-start gap-1.5 text-[12.5px] leading-[18px] font-medium', TONO_TEXTO.error)}>
+                                        <p className={cn('mt-2 flex items-start gap-1.5 font-medium', TIPO_AYUDA, TONO_TEXTO.error)}>
                                             <CircleAlert className="mt-px size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
                                             {t('settings.whatsapp.webhookDiverted')}
                                         </p>
@@ -1901,12 +1960,12 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
             {/* Crear / editar un equipo */}
             <Dialog open={!!editorEquipo} onOpenChange={(abierto) => !abierto && !guardandoEquipo && setEditorEquipo(null)}>
                 <DialogContent
-                    className="card-gradient flex max-h-[min(720px,calc(100svh-2rem))] flex-col rounded-2xl shadow-2xl sm:max-w-lg sm:rounded-2xl"
+                    className="ajustes-pagina card-gradient flex max-h-[min(720px,calc(100svh-2rem))] flex-col rounded-2xl shadow-2xl sm:max-w-lg sm:rounded-2xl"
                     onCloseAutoFocus={devolverFoco}
                 >
                     <DialogHeader>
                         <DialogTitle className="settings-title">{editorEquipo?.id ? t('settings.equipos.editarTitulo') : t('settings.equipos.nuevoTitulo')}</DialogTitle>
-                        <DialogDescription>{t('settings.equipos.editorAyuda')}</DialogDescription>
+                        <DialogDescription className="text-[14px] leading-5">{t('settings.equipos.editorAyuda')}</DialogDescription>
                     </DialogHeader>
                     {editorEquipo && (
                         <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -1948,7 +2007,13 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                         const otro = a.equipo_id && a.equipo_id !== editorEquipo.id ? equipoDe(a.equipo_id) : '';
                                         return (
                                             <li key={a.id}>
-                                                <label className={cn('flex cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-2', marcado ? 'bg-[#2e3f84]/[0.05] dark:bg-white/[0.06]' : 'hover:bg-[#2e3f84]/[0.03]')}>
+                                                <label
+                                                    className={cn(
+                                                        'flex cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-2 transition-colors',
+                                                        FOCO_FILA,
+                                                        marcado ? 'bg-[#2e3f84]/[0.05] dark:bg-white/[0.06]' : 'hover:bg-[#2e3f84]/[0.03] dark:hover:bg-white/[0.03]'
+                                                    )}
+                                                >
                                                     <input
                                                         type="checkbox"
                                                         checked={marcado}
@@ -1958,8 +2023,9 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                                 miembros: marcado ? editorEquipo.miembros.filter((id) => id !== a.id) : [...editorEquipo.miembros, a.id],
                                                             })
                                                         }
-                                                        className="size-4 accent-[#2e3f84]"
+                                                        className="sr-only"
                                                     />
+                                                    <Casilla marcada={marcado} />
                                                     <span className="flex min-w-0 flex-col">
                                                         <span className={cn('truncate text-[13px] font-semibold', TEXTO_NAVY)}>{nombrePropio(a.name)}</span>
                                                         <span className={cn('truncate text-[12px]', TEXTO_SUAVE)}>
@@ -1972,9 +2038,9 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                         );
                                     })}
                             </ul>
-                            <p className={cn('text-[12px] leading-[17px]', TEXTO_SUAVE)}>{t('settings.equipos.notaMiembros')}</p>
+                            <p className={cn(TIPO_AYUDA, TEXTO_SUAVE)}>{t('settings.equipos.notaMiembros')}</p>
                             {errorEquipo && (
-                                <p role="alert" className="text-[12.5px] text-red-700 dark:text-red-400">
+                                <p role="alert" className={cn(TIPO_AYUDA, 'text-red-700 dark:text-red-400')}>
                                     {errorEquipo}
                                 </p>
                             )}
@@ -1996,7 +2062,11 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                 <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
                     <DialogHeader>
                         <DialogTitle className="settings-title">{t('settings.equipos.eliminarTitulo', { equipo: equipoABorrar?.nombre ?? '' })}</DialogTitle>
-                        <DialogDescription>{t('settings.equipos.eliminarTexto', { count: equipoABorrar?.chats_abiertos ?? 0 })}</DialogDescription>
+                        <DialogDescription className="text-[14px] leading-5">
+                            {equipoABorrar?.chats_abiertos
+                                ? t('settings.equipos.eliminarTexto', { count: equipoABorrar.chats_abiertos })
+                                : t('settings.equipos.eliminarTextoSinAbiertos')}
+                        </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setEquipoABorrar(null)} className="rounded-xl">
@@ -2016,7 +2086,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                         <DialogTitle className="settings-title">
                             {t(autoRelease.enabled ? 'settings.autoRelease.confirmTitleShorten' : 'settings.autoRelease.confirmTitle')}
                         </DialogTitle>
-                        <DialogDescription className="settings-subtitle">
+                        <DialogDescription className="settings-subtitle text-[14px] leading-5">
                             {confirmarLiberacion?.count != null
                                 ? t('settings.autoRelease.confirmText', { count: confirmarLiberacion.count })
                                 : t('settings.autoRelease.confirmUnknown')}
@@ -2038,7 +2108,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                 <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
                     <DialogHeader>
                         <DialogTitle className="settings-title">{t('settings.onDutyAdvisors.confirmNoneTitle')}</DialogTitle>
-                        <DialogDescription className="settings-subtitle">{t('settings.onDutyAdvisors.noneWarning')}</DialogDescription>
+                        <DialogDescription className="settings-subtitle text-[14px] leading-5">{t('settings.onDutyAdvisors.noneWarning')}</DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setConfirmarSinTurno(false)} className="rounded-xl">
