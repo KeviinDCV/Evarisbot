@@ -2,7 +2,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AvisoCampo } from '@/components/avisos-campo';
+import { AvisoBajoCampo, AvisoCampo } from '@/components/avisos-campo';
 import { cn } from '@/lib/utils';
 import { iniciales, nombrePropio } from '@/lib/nombres';
 import { plano } from '@/lib/texto';
@@ -307,7 +307,7 @@ function Banda({
             </span>
             <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-[3px]">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <h2 id={id} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em]', TEXTO_NAVY)}>
+                    <h2 id={id} tabIndex={-1} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em] outline-none', TEXTO_NAVY)}>
                         {titulo}
                     </h2>
                     {estado}
@@ -504,10 +504,16 @@ function Pie({
                     </span>
                 )}
                 {aviso ? (
-                    <span className={cn('text-[12px] leading-4 font-medium', TONO_TEXTO.aviso)}>{aviso}</span>
+                    <span aria-hidden="true" className={cn('text-[12px] leading-4 font-medium', TONO_TEXTO.aviso)}>
+                        {aviso}
+                    </span>
                 ) : (
                     nota && <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{nota}</span>
                 )}
+                {/* La región existe siempre (vacía sin aviso): si apareciera ya con el texto, el lector podría no decirlo. */}
+                <span role="status" className="sr-only">
+                    {aviso ?? ''}
+                </span>
             </div>
         </div>
     );
@@ -542,6 +548,53 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
         [alertasSeguridad]
     );
     const codigosAlerta = Object.keys(alertas);
+
+    // Al cerrar un diálogo el foco vuelve al botón que lo abrió: se abren por estado (sin Trigger) y Radix lo
+    // dejaba en el cuerpo, al inicio de una página de ~3100 px. Si el botón ya no está o quedó desactivado
+    // (p. ej. «Guardar» después de guardar, o «Eliminar» de un equipo borrado), va al título de su sección.
+    const focoAlCerrar = useRef<{ boton: HTMLElement | null; seccion: string } | null>(null);
+    const recordarFoco = (seccion: string) => {
+        focoAlCerrar.current = { boton: document.activeElement instanceof HTMLElement ? document.activeElement : null, seccion };
+    };
+    const devolverFoco = (event: Event) => {
+        event.preventDefault();
+        const destino = focoAlCerrar.current;
+        focoAlCerrar.current = null;
+        if (!destino) return;
+        const { boton, seccion } = destino;
+        if (boton && boton.isConnected && !(boton instanceof HTMLButtonElement && boton.disabled)) boton.focus();
+        else document.getElementById(seccion)?.focus();
+    };
+
+    // Guardados de esta página: si el servidor responde con su página de error (500, 419, 429, 503) o no hay
+    // red, Inertia abría su ventana con la página en inglés. Se cancela y se avisa con un toast propio.
+    const guardando = useRef(0);
+    const alEmpezarGuardado = () => {
+        guardando.current += 1;
+    };
+    const alTerminarGuardado = () => {
+        guardando.current = Math.max(0, guardando.current - 1);
+    };
+    useEffect(() => {
+        const offInvalid = router.on('invalid', (event) => {
+            if (guardando.current === 0) return;
+            event.preventDefault();
+            const status = event.detail.response.status;
+            if (status === 419) axios.get('/csrf-refresh').catch(() => {});
+            toast.error(
+                t(status === 419 ? 'fallasEnvio.expired' : status === 429 ? 'settings.saveTooMany' : status === 503 ? 'fallasEnvio.maintenance' : 'fallasEnvio.server')
+            );
+        });
+        const offException = router.on('exception', (event) => {
+            if (guardando.current === 0) return;
+            event.preventDefault();
+            toast.error(t('fallasEnvio.offline'));
+        });
+        return () => {
+            offInvalid();
+            offException();
+        };
+    }, [t]);
 
     // Reloj para los "hace N minutos" (se refresca cada minuto).
     const [ahora, setAhora] = useState(() => Date.now());
@@ -703,7 +756,11 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
             { enabled: releaseEnabled, minutes: releaseValid ? releaseMinutes : null },
             {
                 preserveScroll: true,
-                onFinish: () => setSavingRelease(false),
+                onStart: alEmpezarGuardado,
+                onFinish: () => {
+                    setSavingRelease(false);
+                    alTerminarGuardado();
+                },
                 onSuccess: (page) => {
                     // El campo vuelve a mostrar lo que de verdad quedó guardado.
                     const guardado = page.props.autoRelease as AutoReleaseConfig;
@@ -726,6 +783,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
         }
         if (necesitaConfirmar) {
             // El conteo se fija al abrir: si la vista previa llega después, el diálogo no cambia.
+            recordarFoco('settings-auto-release');
             setConfirmarLiberacion({ count: vistaPreviaVigente && !vistaPreviaVigente.error ? vistaPreviaVigente.count : null });
             return;
         }
@@ -765,7 +823,11 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
             { enabled: weekendEnabled, text: weekendTextValid ? weekendText : null },
             {
                 preserveScroll: true,
-                onFinish: () => setSavingWeekend(false),
+                onStart: alEmpezarGuardado,
+                onFinish: () => {
+                    setSavingWeekend(false);
+                    alTerminarGuardado();
+                },
                 onSuccess: (page) => {
                     // Si se apagó con el texto vacío, el servidor conservó el anterior: se vuelve a mostrar.
                     const guardado = page.props.weekendNotice as WeekendNoticeConfig;
@@ -785,18 +847,23 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
         advisors.filter((advisor) => advisor.is_on_duty).map((advisor) => advisor.id)
     );
     const [savingAdvisors, setSavingAdvisors] = useState(false);
+    const [confirmarSinTurno, setConfirmarSinTurno] = useState(false);
 
     /* ── Equipos (Teleconsulta…): crear, cambiar miembros y eliminar ── */
     const [editorEquipo, setEditorEquipo] = useState<{ id: number | null; nombre: string; miembros: number[] } | null>(null);
     const [buscarEnEquipo, setBuscarEnEquipo] = useState('');
     const [guardandoEquipo, setGuardandoEquipo] = useState(false);
     const [errorEquipo, setErrorEquipo] = useState('');
+    const [errorNombreEquipo, setErrorNombreEquipo] = useState('');
+    const campoNombreEquipo = useRef<HTMLInputElement>(null);
     const [equipoABorrar, setEquipoABorrar] = useState<EquipoAjuste | null>(null);
     const nombreDe = (id: number) => nombrePropio(advisors.find((a) => a.id === id)?.name ?? '');
     const equipoDe = (id?: number | null) => equipos.find((e) => e.id === id)?.nombre ?? '';
 
     const abrirEquipo = (equipo: EquipoAjuste | null) => {
+        recordarFoco('settings-equipos');
         setErrorEquipo('');
+        setErrorNombreEquipo('');
         setBuscarEnEquipo('');
         setEditorEquipo(equipo ? { id: equipo.id, nombre: equipo.nombre, miembros: equipo.miembros } : { id: null, nombre: '', miembros: [] });
     };
@@ -804,21 +871,36 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
     const guardarEquipo = () => {
         if (!editorEquipo || guardandoEquipo) return;
         if (!editorEquipo.nombre.trim()) {
-            setErrorEquipo(t('settings.equipos.nombreFalta'));
+            setErrorNombreEquipo(t('settings.equipos.nombreFalta'));
+            campoNombreEquipo.current?.focus();
             return;
         }
+        setErrorEquipo('');
+        setErrorNombreEquipo('');
         setGuardandoEquipo(true);
         const datos = { nombre: editorEquipo.nombre.trim(), miembros: editorEquipo.miembros };
         const opciones = {
             preserveScroll: true,
-            onFinish: () => setGuardandoEquipo(false),
+            onStart: alEmpezarGuardado,
+            onFinish: () => {
+                setGuardandoEquipo(false);
+                alTerminarGuardado();
+            },
             onSuccess: () => {
                 setEditorEquipo(null);
                 // El servidor les quita el turno a quienes entran: que no queden marcados (y «Sin guardar») aquí.
                 setSelectedAdvisors((prev) => prev.filter((id) => !datos.miembros.includes(id)));
                 toast.success(t('settings.equipos.guardado'));
             },
-            onError: (errores: Record<string, string>) => setErrorEquipo(errores.nombre || t('settings.equipos.errorGuardar')),
+            onError: (errores: Record<string, string>) => {
+                // El del nombre (p. ej. repetido) va junto a su campo, con el foco ahí; cualquier otro, al pie.
+                if (errores.nombre) {
+                    setErrorNombreEquipo(errores.nombre);
+                    campoNombreEquipo.current?.focus();
+                } else {
+                    setErrorEquipo(t('settings.equipos.errorGuardar'));
+                }
+            },
         };
         if (editorEquipo.id) router.put(`/admin/settings/equipos/${editorEquipo.id}`, datos, opciones);
         else router.post('/admin/settings/equipos', datos, opciones);
@@ -830,6 +912,8 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
         setEquipoABorrar(null);
         router.delete(`/admin/settings/equipos/${id}`, {
             preserveScroll: true,
+            onStart: alEmpezarGuardado,
+            onFinish: alTerminarGuardado,
             onSuccess: () => toast.success(t('settings.equipos.eliminado')),
             onError: () => toast.error(t('settings.equipos.errorEliminar')),
         });
@@ -864,23 +948,40 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
         );
     };
 
-    const saveOnDutyAdvisors = () => {
-        if (!advisorsChanged || savingAdvisors) return;
+    const enviarTurno = () => {
+        setConfirmarSinTurno(false);
         setSavingAdvisors(true);
         router.post(
             '/admin/settings/on-duty-advisors',
             { advisor_ids: marcados },
             {
                 preserveScroll: true,
-                onFinish: () => setSavingAdvisors(false),
+                onStart: alEmpezarGuardado,
+                onFinish: () => {
+                    setSavingAdvisors(false);
+                    alTerminarGuardado();
+                },
                 onSuccess: () => toast.success(t('settings.onDutyAdvisors.savedSuccess')),
                 onError: () => toast.error(t('settings.onDutyAdvisors.saveError')),
             }
         );
     };
 
+    const saveOnDutyAdvisors = () => {
+        if (!advisorsChanged || savingAdvisors) return;
+        // Dejar a nadie de turno es tan delicado como acortar la liberación (que ya pedía confirmar): todos los
+        // pacientes que pidan asesor reciben el aviso de alto flujo. Antes se guardaba directo.
+        if (marcados.length === 0) {
+            recordarFoco('settings-duty');
+            setConfirmarSinTurno(true);
+            return;
+        }
+        enviarTurno();
+    };
+
     /* ── Cambios sin guardar: aviso al salir de la página ── */
-    const hayCambios = releaseChanged || weekendChanged || advisorsChanged;
+    // releaseTocado y no releaseChanged: un tiempo inválido (p. ej. «3 minutos») también es un cambio sin guardar.
+    const hayCambios = releaseTocado || weekendChanged || advisorsChanged;
 
     useEffect(() => {
         if (!hayCambios) return;
@@ -1392,7 +1493,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                 })()}
                             </Fila>
 
-                            <Pie nota={t('settings.autoRelease.saveNote')} pendiente={releaseChanged && t('settings.unsaved')}>
+                            <Pie nota={t('settings.autoRelease.saveNote')} pendiente={releaseTocado && t('settings.unsaved')}>
                                 <Button
                                     type="button"
                                     onClick={saveAutoRelease}
@@ -1710,7 +1811,14 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                 <Pencil className="size-3.5" strokeWidth={2} aria-hidden="true" />
                                                 {t('common.edit')}
                                             </button>
-                                            <button type="button" onClick={() => setEquipoABorrar(equipo)} className={cn(BOTON_SECUNDARIO, 'text-red-700 dark:text-red-400')}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    recordarFoco('settings-equipos');
+                                                    setEquipoABorrar(equipo);
+                                                }}
+                                                className={cn(BOTON_SECUNDARIO, 'text-red-700 dark:text-red-400')}
+                                            >
                                                 <Trash2 className="size-3.5" strokeWidth={2} aria-hidden="true" />
                                                 {t('common.delete')}
                                             </button>
@@ -1725,7 +1833,10 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
 
             {/* Crear / editar un equipo */}
             <Dialog open={!!editorEquipo} onOpenChange={(abierto) => !abierto && !guardandoEquipo && setEditorEquipo(null)}>
-                <DialogContent className="card-gradient flex max-h-[min(720px,calc(100svh-2rem))] flex-col rounded-2xl shadow-2xl sm:max-w-lg sm:rounded-2xl">
+                <DialogContent
+                    className="card-gradient flex max-h-[min(720px,calc(100svh-2rem))] flex-col rounded-2xl shadow-2xl sm:max-w-lg sm:rounded-2xl"
+                    onCloseAutoFocus={devolverFoco}
+                >
                     <DialogHeader>
                         <DialogTitle className="settings-title">{editorEquipo?.id ? t('settings.equipos.editarTitulo') : t('settings.equipos.nuevoTitulo')}</DialogTitle>
                         <DialogDescription>{t('settings.equipos.editorAyuda')}</DialogDescription>
@@ -1735,14 +1846,21 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                             <label className="flex flex-col gap-1.5">
                                 <span className={cn('text-[13px] font-semibold', TEXTO_NAVY)}>{t('settings.equipos.nombre')}</span>
                                 <input
+                                    ref={campoNombreEquipo}
                                     type="text"
                                     value={editorEquipo.nombre}
                                     maxLength={80}
-                                    onChange={(e) => setEditorEquipo({ ...editorEquipo, nombre: e.target.value })}
+                                    aria-invalid={!!errorNombreEquipo || undefined}
+                                    aria-describedby={errorNombreEquipo ? 'error-nombre-equipo' : undefined}
+                                    onChange={(e) => {
+                                        setEditorEquipo({ ...editorEquipo, nombre: e.target.value });
+                                        if (errorNombreEquipo) setErrorNombreEquipo('');
+                                    }}
                                     placeholder={t('settings.equipos.nombreEjemplo')}
                                     className={cn('h-9 rounded-[10px] bg-[#2e3f84]/[0.035] px-3 text-[13.5px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]', FOCO)}
                                 />
                             </label>
+                            <AvisoBajoCampo id="error-nombre-equipo" texto={errorNombreEquipo} />
                             <div className="flex items-center justify-between gap-2">
                                 <span className={cn('text-[13px] font-semibold', TEXTO_NAVY)}>{t('settings.equipos.miembros', { count: editorEquipo.miembros.length })}</span>
                                 <input
@@ -1788,7 +1906,11 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                     })}
                             </ul>
                             <p className={cn('text-[12px] leading-[17px]', TEXTO_SUAVE)}>{t('settings.equipos.notaMiembros')}</p>
-                            {errorEquipo && <p className="text-[12.5px] text-red-700 dark:text-red-400">{errorEquipo}</p>}
+                            {errorEquipo && (
+                                <p role="alert" className="text-[12.5px] text-red-700 dark:text-red-400">
+                                    {errorEquipo}
+                                </p>
+                            )}
                         </div>
                     )}
                     <DialogFooter>
@@ -1804,7 +1926,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
 
             {/* Eliminar un equipo: sus chats vuelven a la línea general */}
             <Dialog open={!!equipoABorrar} onOpenChange={(abierto) => !abierto && setEquipoABorrar(null)}>
-                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl">
+                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
                     <DialogHeader>
                         <DialogTitle className="settings-title">{t('settings.equipos.eliminarTitulo', { equipo: equipoABorrar?.nombre ?? '' })}</DialogTitle>
                         <DialogDescription>{t('settings.equipos.eliminarTexto', { count: equipoABorrar?.chats_abiertos ?? 0 })}</DialogDescription>
@@ -1822,7 +1944,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
 
             {/* Confirmación al activar la liberación (o acortar su tiempo): puede desasignar muchas de golpe. */}
             <Dialog open={!!confirmarLiberacion} onOpenChange={(abierto) => !abierto && setConfirmarLiberacion(null)}>
-                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl">
+                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
                     <DialogHeader>
                         <DialogTitle className="settings-title">
                             {t(autoRelease.enabled ? 'settings.autoRelease.confirmTitleShorten' : 'settings.autoRelease.confirmTitle')}
@@ -1839,6 +1961,24 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                         </Button>
                         <Button type="button" onClick={enviarLiberacion} className="settings-btn-primary rounded-xl">
                             {t(autoRelease.enabled ? 'settings.autoRelease.confirmButtonShorten' : 'settings.autoRelease.confirmButton')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Confirmación al dejar a nadie de turno: todos los que pidan asesor recibirán el aviso de alto flujo. */}
+            <Dialog open={confirmarSinTurno} onOpenChange={(abierto) => !abierto && setConfirmarSinTurno(false)}>
+                <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
+                    <DialogHeader>
+                        <DialogTitle className="settings-title">{t('settings.onDutyAdvisors.confirmNoneTitle')}</DialogTitle>
+                        <DialogDescription className="settings-subtitle">{t('settings.onDutyAdvisors.noneWarning')}</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setConfirmarSinTurno(false)} className="rounded-xl">
+                            {t('common.cancel')}
+                        </Button>
+                        <Button type="button" onClick={enviarTurno} className="settings-btn-primary rounded-xl">
+                            {t('settings.onDutyAdvisors.confirmNoneButton')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
