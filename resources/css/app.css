@@ -1833,8 +1833,10 @@ tr.table-row-hover:hover {
     --lh-label: #3a3f63;
     --lh-input-bg: #f7f8fc;
     --lh-input-borde: #dfe2ef;
+    --lh-input-borde-hover: #c3c8e0;
     --lh-input-borde-foco: #2e3f84;
     --lh-anillo: rgba(46, 63, 132, 0.12);
+    --lh-seleccion: rgba(46, 63, 132, 0.16);
     --lh-icono: #7c82a6;
     --lh-placeholder: #6b7192;
     --lh-acento: #2e3f84;
@@ -1845,7 +1847,6 @@ tr.table-row-hover:hover {
     --lh-estado-bg: rgba(46, 63, 132, 0.07);
     --lh-error: #c62828;
     --lh-error-anillo: rgba(198, 40, 40, 0.12);
-    --lh-error-borde: #f3c6c6;
     background:
         radial-gradient(ellipse 70% 55% at 50% 0%, var(--lh-luz) 0%, transparent 70%),
         var(--lh-fondo);
@@ -1859,8 +1860,10 @@ tr.table-row-hover:hover {
     --lh-label: hsl(30, 5%, 85%);
     --lh-input-bg: hsl(30, 4%, 15%);
     --lh-input-borde: hsl(30, 4%, 24%);
+    --lh-input-borde-hover: hsl(30, 4%, 32%);
     --lh-input-borde-foco: hsl(231, 55%, 62%);
     --lh-anillo: hsla(231, 55%, 58%, 0.18);
+    --lh-seleccion: hsla(231, 55%, 58%, 0.34);
     --lh-icono: hsl(30, 5%, 58%);
     --lh-placeholder: hsl(30, 5%, 55%);
     --lh-acento: hsl(231, 55%, 58%);
@@ -1871,7 +1874,6 @@ tr.table-row-hover:hover {
     --lh-estado-bg: hsla(231, 55%, 58%, 0.14);
     --lh-error: #f87171;
     --lh-error-anillo: rgba(248, 113, 113, 0.18);
-    --lh-error-borde: rgba(248, 113, 113, 0.45);
 }
 /* El fondo usa overflow: clip (no hidden): el edificio sobresale por abajo y, con hidden, el navegador
    desplazaba el fondo 90 px al enfocar un campo con error y toda la página "saltaba" hacia arriba. */
@@ -1883,26 +1885,20 @@ tr.table-row-hover:hover {
     .lh-tarjeta { padding-top: 24px; padding-bottom: 24px; gap: 14px; }
     .lh-logo { height: 64px; }
 }
+/* Lo que de verdad queda en un portátil de 1366 × 768: Chrome y la barra de tareas dejan ~640 px de alto.
+   Ahí la tarjeta se cortaba y el lema y el pie quedaban debajo (107 px de scroll). Se aprietan los
+   espacios, el logo, los campos y el botón, sin quitar nada: cabe justo en 641 px. */
+@media (max-height: 700px) {
+    .lh-raiz { padding-top: 66px; padding-bottom: 10px; gap: 8px; }
+    .lh-barra { padding-top: 11px; padding-bottom: 11px; }
+    .lh-tarjeta { padding-top: 18px; padding-bottom: 18px; gap: 9px; }
+    .lh-logo { height: 46px; }
+    .lh-input { height: 44px; }
+    .lh-boton { height: 48px; }
+}
 
-/* Globo de error flotante bajo el campo (no empuja la tarjeta). La flechita apunta al campo. */
-.lh-burbuja {
-    background: var(--lh-tarjeta);
-    color: var(--lh-error);
-    border: 1px solid var(--lh-error-borde);
-    box-shadow: 0 14px 30px -12px rgba(15, 20, 60, 0.38), 0 2px 6px -2px rgba(15, 20, 60, 0.12);
-}
-.lh-burbuja::before {
-    content: '';
-    position: absolute;
-    top: -6px;
-    left: 18px;
-    width: 10px;
-    height: 10px;
-    background: var(--lh-tarjeta);
-    border-left: 1px solid var(--lh-error-borde);
-    border-top: 1px solid var(--lh-error-borde);
-    transform: rotate(45deg);
-}
+/* Los globos de error del login son los de avisos-campo (.aviso-flotante, más abajo). El de Bloq Mayús
+   flota con esta sombra. */
 .lh-flotante-sombra {
     box-shadow: 0 10px 24px -12px rgba(15, 20, 60, 0.35);
 }
@@ -1944,7 +1940,6 @@ tr.table-row-hover:hover {
     .aviso-flotante { animation: lh-aparecer 0.16s ease-out both; }
 }
 @media (prefers-reduced-motion: no-preference) {
-    .lh-burbuja,
     .lh-flotante-sombra { animation: lh-aparecer 0.16s ease-out both; }
 }
 .lh-input[aria-invalid='true'],
@@ -1958,16 +1953,52 @@ tr.table-row-hover:hover {
     background: var(--lh-input-bg);
     border: 1.5px solid var(--lh-input-borde);
     color: var(--lh-texto);
+    caret-color: var(--lh-acento);
     transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
 }
 .lh-input::placeholder {
     color: var(--lh-placeholder);
+}
+.lh-input:hover:not(:focus):not([aria-invalid='true']) {
+    border-color: var(--lh-input-borde-hover);
 }
 .lh-input:focus {
     outline: none;
     background: var(--lh-tarjeta);
     border-color: var(--lh-input-borde-foco);
     box-shadow: 0 0 0 4px var(--lh-anillo);
+}
+/* Autocompletado del navegador (correo y clave guardados, lo normal en los equipos del hospital): Chrome
+   pinta su propio fondo celeste y texto negro con !important, que en oscuro dejaba una caja clara en la
+   tarjeta. La sombra interior tapa ese fondo con el del campo y -webkit-text-fill-color recupera el texto.
+   Sin transición de sombra: animaría el relleno de 0 a 1000 px. */
+.lh-input:-webkit-autofill {
+    -webkit-text-fill-color: var(--lh-texto);
+    box-shadow: inset 0 0 0 1000px var(--lh-input-bg);
+    transition: border-color 0.15s;
+}
+.lh-input:-webkit-autofill:focus {
+    box-shadow: inset 0 0 0 1000px var(--lh-tarjeta), 0 0 0 4px var(--lh-anillo);
+}
+.lh-input[aria-invalid='true']:-webkit-autofill:focus {
+    box-shadow: inset 0 0 0 1000px var(--lh-tarjeta), 0 0 0 4px var(--lh-error-anillo);
+}
+/* Firefox tiñe el autocompletado con un filtro. */
+.lh-input:autofill {
+    filter: none;
+}
+/* Selección de texto con la paleta: blanca sobre el navy, del acento dentro de la tarjeta. */
+.lh-raiz ::selection {
+    background: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+.lh-tarjeta ::selection {
+    background: var(--lh-seleccion);
+    color: var(--lh-texto);
+}
+.lh-check:focus-visible {
+    outline: 2px solid var(--lh-input-borde-foco);
+    outline-offset: 2px;
 }
 .lh-boton {
     background: var(--lh-acento);

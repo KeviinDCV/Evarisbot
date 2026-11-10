@@ -1,38 +1,15 @@
+import { AvisoCampo, useAvisosCampo } from '@/components/avisos-campo';
 import CapsLockWarning, { useCapsLock } from '@/components/caps-lock-warning';
 import { LanguageSelector } from '@/components/language-selector';
 import { Spinner } from '@/components/ui/spinner';
 import { useAppearance } from '@/hooks/use-appearance';
 import { store } from '@/routes/login';
 import { Form, Head } from '@inertiajs/react';
-import { ArrowRight, CalendarCheck, Check, CheckCheck, CircleAlert, Eye, EyeOff, Lock, Mail, Moon, ShieldCheck, Sun } from 'lucide-react';
-import { type CSSProperties, type InvalidEvent, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { ArrowRight, CalendarCheck, Check, CheckCheck, Eye, EyeOff, Lock, Mail, Moon, ShieldCheck, Sun } from 'lucide-react';
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type Campo = 'email' | 'password';
-
-/**
- * Avisos de un campo (error y Bloq Mayús) FLOTANDO bajo él, encima del contenido: no empujan la
- * tarjeta ni crean scroll. Va dentro del contenedor `relative` del input.
- */
-function Flotantes({ children }: { children: ReactNode }) {
-    return <div className="pointer-events-none absolute left-0 top-[calc(100%+9px)] z-30 flex flex-col items-start gap-1.5">{children}</div>;
-}
-
-/** Globo de error propio (reemplaza al "Completa este campo" del navegador). */
-function Burbuja({ id, texto }: { id: string; texto?: string }) {
-    if (!texto) return null;
-
-    return (
-        <p
-            id={id}
-            role="alert"
-            className="lh-burbuja relative flex w-max max-w-[min(400px,calc(100vw-64px))] items-start gap-2 rounded-xl px-3 py-2 text-[13px] font-medium leading-snug"
-        >
-            <CircleAlert aria-hidden="true" className="mt-px h-4 w-4 shrink-0" />
-            {texto}
-        </p>
-    );
-}
 
 /**
  * Login "Tarjeta sobre el hospital" (design/login, artboard Tarjeta): fondo navy con el edificio
@@ -46,32 +23,25 @@ export default function LoginHospital({ status }: { status?: string }) {
     const [verClave, setVerClave] = useState(false);
     const mayus = useCapsLock();
 
-    // Validación propia: los campos siguen siendo `required`/`type=email` (el navegador no deja enviar),
-    // pero al cancelar el evento `invalid` no sale su globo y mostramos nuestro mensaje bajo el campo.
-    const [erroresLocales, setErroresLocales] = useState<Partial<Record<Campo, string>>>({});
-    const ultimoInvalido = useRef(0);
-
-    const alInvalidar = (campo: Campo) => (e: InvalidEvent<HTMLInputElement>) => {
-        e.preventDefault();
-        const validez = e.currentTarget.validity;
-        const texto = validez.valueMissing
-            ? t(campo === 'email' ? 'loginHospital.errorEmailEmpty' : 'loginHospital.errorPasswordEmpty')
-            : validez.typeMismatch
-              ? t('loginHospital.errorEmailFormat')
-              : e.currentTarget.validationMessage;
-        setErroresLocales((a) => ({ ...a, [campo]: texto }));
-
-        // Varios campos fallan en el mismo intento: el cursor va solo al primero.
-        const ahora = Date.now();
-        if (ahora - ultimoInvalido.current > 300) e.currentTarget.focus();
-        ultimoInvalido.current = ahora;
-    };
+    // Validación propia, la misma del resto de formularios (avisos-campo): los campos siguen siendo
+    // `required`/`type=email`, pero sin el globo del navegador y con UN solo globo a la vez, el del primer
+    // campo pendiente; los demás quedan en rojo y, al corregir uno, el globo pasa al siguiente. Antes salían
+    // los dos juntos y el del correo tapaba la etiqueta «Contraseña» y el de la clave, la casilla.
+    const validacion = useAvisosCampo({
+        email: { vacio: t('loginHospital.errorEmailEmpty'), formato: t('loginHospital.errorEmailFormat') },
+        password: { vacio: t('loginHospital.errorPasswordEmpty') },
+    });
     // Los errores del servidor ("credenciales no coinciden") se esconden en cuanto la persona vuelve a
-    // escribir, para que el globo no quede flotando encima mientras corrige; vuelven si al enviar persisten.
+    // escribir en CUALQUIER campo (casi siempre corrige la clave y el globo del correo flotaría sobre ella);
+    // vuelven si al enviar persisten.
     const [ocultarServidor, setOcultarServidor] = useState(false);
     const alEscribir = (campo: Campo) => () => {
-        setErroresLocales((a) => (a[campo] ? { ...a, [campo]: undefined } : a));
+        validacion.alEscribir(campo)();
         setOcultarServidor(true);
+    };
+    const alEnviar = () => {
+        validacion.alEnviar();
+        setOcultarServidor(false);
     };
 
     const oscuro =
@@ -137,7 +107,7 @@ export default function LoginHospital({ status }: { status?: string }) {
                 </div>
             ))}
 
-            <div className="lh-barra absolute inset-x-0 top-0 flex items-center justify-between gap-3 px-4 py-5 sm:px-8 sm:py-6">
+            <header className="lh-barra absolute inset-x-0 top-0 flex items-center justify-between gap-3 px-4 py-5 sm:px-8 sm:py-6">
                 <p className="text-[15px] font-semibold tracking-[0.04em] text-white/90">EVARISBOT</p>
                 <div className="flex items-center gap-2.5">
                     <button
@@ -151,144 +121,146 @@ export default function LoginHospital({ status }: { status?: string }) {
                     </button>
                     <LanguageSelector variant="translucido" />
                 </div>
-            </div>
+            </header>
 
-            <Form
-                {...store.form()}
-                resetOnSuccess={['password']}
-                className="lh-tarjeta relative flex w-full max-w-[440px] flex-col gap-[18px] rounded-[26px] px-6 pb-7 pt-8 sm:px-9"
-                style={{ background: 'var(--lh-tarjeta)', color: 'var(--lh-texto)', boxShadow: 'var(--lh-sombra)' }}
-                onSubmitCapture={() => setOcultarServidor(false)}
-            >
-                {({ processing, errors }) => {
-                    const errorCorreo = erroresLocales.email ?? (ocultarServidor ? undefined : errors.email);
-                    const errorClave = erroresLocales.password ?? (ocultarServidor ? undefined : errors.password);
-                    const describeClave = [mayus.activo ? 'aviso-mayus' : null, errorClave ? 'error-clave' : null].filter(Boolean).join(' ') || undefined;
+            {/* `contents`: el <main> marca la región principal sin entrar en el flex de la raíz. */}
+            <main className="contents">
+                <Form
+                    {...store.form()}
+                    resetOnSuccess={['password']}
+                    className="lh-tarjeta relative flex w-full max-w-[440px] flex-col gap-[18px] rounded-[26px] px-6 pb-7 pt-8 sm:px-9"
+                    style={{ background: 'var(--lh-tarjeta)', color: 'var(--lh-texto)', boxShadow: 'var(--lh-sombra)' }}
+                    onSubmitCapture={alEnviar}
+                >
+                    {({ processing, errors }) => {
+                        const delServidor = (error?: string) => (ocultarServidor ? undefined : error);
+                        const errorCorreo = validacion.error('email', delServidor(errors.email));
+                        const errorClave = validacion.error('password', delServidor(errors.password));
+                        const describeClave = [mayus.activo ? 'aviso-mayus' : null, errorClave ? 'error-clave' : null].filter(Boolean).join(' ') || undefined;
 
-                    return (
-                    <>
-                        <div className="flex flex-col items-center gap-3 text-center">
-                            <img src="/images/logo.png" alt="Hospital Universitario del Valle" className="auth-logo lh-logo h-[92px] w-auto" />
-                            <div className="flex flex-col gap-1">
-                                <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em]">{t('loginHospital.welcome')}</h1>
-                                <p className="text-[14.5px]" style={{ color: 'var(--lh-sub)' }}>
-                                    {t('loginHospital.tagline')}
+                        return (
+                        <>
+                            <div className="flex flex-col items-center gap-3 text-center">
+                                <img src="/images/logo.png" alt="Hospital Universitario del Valle" className="auth-logo lh-logo h-[92px] w-auto" />
+                                <div className="flex flex-col gap-1">
+                                    <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em]">{t('loginHospital.welcome')}</h1>
+                                    <p className="text-[14.5px]" style={{ color: 'var(--lh-sub)' }}>
+                                        {t('loginHospital.tagline')}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {status && (
+                                <div
+                                    role="status"
+                                    className="rounded-xl px-4 py-2.5 text-center text-sm font-medium text-pretty"
+                                    style={{ background: 'var(--lh-estado-bg)', color: 'var(--lh-acento)' }}
+                                >
+                                    {status}
+                                </div>
+                            )}
+
+                            <div className="flex flex-col gap-2">
+                                <label htmlFor="email" className="text-[13.5px] font-semibold" style={{ color: 'var(--lh-label)' }}>
+                                    {t('loginHospital.email')}
+                                </label>
+                                <div className="relative flex items-center">
+                                    <Mail aria-hidden="true" className="pointer-events-none absolute left-4 h-[18px] w-[18px]" style={{ color: 'var(--lh-icono)' }} />
+                                    <input
+                                        id="email"
+                                        type="email"
+                                        name="email"
+                                        required
+                                        autoFocus
+                                        autoComplete="email"
+                                        placeholder={t('loginHospital.emailPlaceholder')}
+                                        aria-invalid={validacion.invalido('email', delServidor(errors.email)) || undefined}
+                                        aria-describedby={errorCorreo ? 'error-correo' : undefined}
+                                        onInvalid={validacion.alInvalidar('email')}
+                                        onInput={alEscribir('email')}
+                                        className="lh-input h-[50px] w-full rounded-[14px] pl-[46px] pr-4 text-[15px]"
+                                    />
+                                    <AvisoCampo id="error-correo" texto={errorCorreo} />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <label htmlFor="password" className="text-[13.5px] font-semibold" style={{ color: 'var(--lh-label)' }}>
+                                    {t('loginHospital.password')}
+                                </label>
+                                <div className="relative flex items-center">
+                                    <Lock aria-hidden="true" className="pointer-events-none absolute left-4 h-[18px] w-[18px]" style={{ color: 'var(--lh-icono)' }} />
+                                    <input
+                                        id="password"
+                                        type={verClave ? 'text' : 'password'}
+                                        name="password"
+                                        required
+                                        autoComplete="current-password"
+                                        placeholder={t('loginHospital.passwordPlaceholder')}
+                                        className="lh-input h-[50px] w-full rounded-[14px] pl-[46px] pr-[52px] text-[15px]"
+                                        {...mayus.props}
+                                        aria-invalid={validacion.invalido('password', delServidor(errors.password)) || undefined}
+                                        aria-describedby={describeClave}
+                                        onInvalid={validacion.alInvalidar('password')}
+                                        onInput={alEscribir('password')}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setVerClave((v) => !v)}
+                                        className="lh-ojo absolute right-[3px] flex h-11 w-11 items-center justify-center rounded-[10px] transition-colors hover:bg-[var(--lh-anillo)]"
+                                        style={{ color: 'var(--lh-placeholder)' }}
+                                        aria-label={verClave ? t('auth.hidePassword', 'Ocultar contraseña') : t('auth.showPassword', 'Mostrar contraseña')}
+                                        aria-pressed={verClave}
+                                    >
+                                        {verClave ? <EyeOff className="h-[19px] w-[19px]" aria-hidden="true" /> : <Eye className="h-[19px] w-[19px]" aria-hidden="true" />}
+                                    </button>
+                                    <AvisoCampo
+                                        id="error-clave"
+                                        texto={errorClave}
+                                        extra={
+                                            mayus.activo && (
+                                                <span className="lh-flotante-sombra rounded-lg">
+                                                    <CapsLockWarning visible />
+                                                </span>
+                                            )
+                                        }
+                                    />
+                                </div>
+                            </div>
+
+                            <label className="flex min-h-10 cursor-pointer items-center gap-2.5 text-sm" style={{ color: 'var(--lh-sub)' }}>
+                                <input type="checkbox" name="remember" value="1" className="lh-check h-[18px] w-[18px] cursor-pointer" style={{ accentColor: 'var(--lh-acento)' }} />
+                                {t('loginHospital.keepSession')}
+                            </label>
+
+                            <button
+                                type="submit"
+                                disabled={processing}
+                                className="lh-boton mt-1 flex h-[54px] items-center justify-center gap-2.5 rounded-[14px] text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                                {processing && <Spinner />}
+                                {t('loginHospital.submit')}
+                                {!processing && <ArrowRight className="h-[18px] w-[18px]" aria-hidden="true" />}
+                            </button>
+
+                            <div
+                                className="flex items-start gap-2.5 border-t pt-4 text-[13px] leading-normal"
+                                style={{ borderColor: 'var(--lh-separador)', color: 'var(--lh-sub)' }}
+                            >
+                                <ShieldCheck aria-hidden="true" className="mt-px h-[18px] w-[18px] shrink-0" style={{ color: 'var(--lh-escudo)' }} />
+                                <p className="text-pretty">
+                                    {t('loginHospital.securityNote')} {t('loginHospital.forgotHelp')}
                                 </p>
                             </div>
-                        </div>
+                        </>
+                        );
+                    }}
+                </Form>
 
-                        {status && (
-                            <div
-                                className="rounded-xl px-4 py-2.5 text-center text-sm font-medium"
-                                style={{ background: 'var(--lh-estado-bg)', color: 'var(--lh-acento)' }}
-                            >
-                                {status}
-                            </div>
-                        )}
+                <p className="relative text-center text-[15px] font-medium text-balance text-white/90">{t('loginHospital.motto')}</p>
+            </main>
 
-                        <div className="flex flex-col gap-2">
-                            <label htmlFor="email" className="text-[13.5px] font-semibold" style={{ color: 'var(--lh-label)' }}>
-                                {t('loginHospital.email')}
-                            </label>
-                            <div className="relative flex items-center">
-                                <Mail aria-hidden="true" className="pointer-events-none absolute left-4 h-[18px] w-[18px]" style={{ color: 'var(--lh-icono)' }} />
-                                <input
-                                    id="email"
-                                    type="email"
-                                    name="email"
-                                    required
-                                    autoFocus
-                                    autoComplete="email"
-                                    placeholder={t('loginHospital.emailPlaceholder')}
-                                    aria-invalid={errorCorreo ? true : undefined}
-                                    aria-describedby={errorCorreo ? 'error-correo' : undefined}
-                                    onInvalid={alInvalidar('email')}
-                                    onInput={alEscribir('email')}
-                                    className="lh-input h-[50px] w-full rounded-[14px] pl-[46px] pr-4 text-[15px]"
-                                />
-                                {errorCorreo && (
-                                    <Flotantes>
-                                        <Burbuja id="error-correo" texto={errorCorreo} />
-                                    </Flotantes>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                            <label htmlFor="password" className="text-[13.5px] font-semibold" style={{ color: 'var(--lh-label)' }}>
-                                {t('loginHospital.password')}
-                            </label>
-                            <div className="relative flex items-center">
-                                <Lock aria-hidden="true" className="pointer-events-none absolute left-4 h-[18px] w-[18px]" style={{ color: 'var(--lh-icono)' }} />
-                                <input
-                                    id="password"
-                                    type={verClave ? 'text' : 'password'}
-                                    name="password"
-                                    required
-                                    autoComplete="current-password"
-                                    placeholder={t('loginHospital.passwordPlaceholder')}
-                                    className="lh-input h-[50px] w-full rounded-[14px] pl-[46px] pr-[52px] text-[15px]"
-                                    {...mayus.props}
-                                    aria-invalid={errorClave ? true : undefined}
-                                    aria-describedby={describeClave}
-                                    onInvalid={alInvalidar('password')}
-                                    onInput={alEscribir('password')}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setVerClave((v) => !v)}
-                                    className="lh-ojo absolute right-[3px] flex h-11 w-11 items-center justify-center rounded-[10px] transition-colors hover:bg-[var(--lh-anillo)]"
-                                    style={{ color: 'var(--lh-placeholder)' }}
-                                    aria-label={verClave ? t('auth.hidePassword', 'Ocultar contraseña') : t('auth.showPassword', 'Mostrar contraseña')}
-                                    aria-pressed={verClave}
-                                >
-                                    {verClave ? <EyeOff className="h-[19px] w-[19px]" aria-hidden="true" /> : <Eye className="h-[19px] w-[19px]" aria-hidden="true" />}
-                                </button>
-                                {(errorClave || mayus.activo) && (
-                                    <Flotantes>
-                                        <Burbuja id="error-clave" texto={errorClave} />
-                                        {mayus.activo && (
-                                            <span className="lh-flotante-sombra rounded-lg">
-                                                <CapsLockWarning visible />
-                                            </span>
-                                        )}
-                                    </Flotantes>
-                                )}
-                            </div>
-                        </div>
-
-                        <label className="flex min-h-10 cursor-pointer items-center gap-2.5 text-sm" style={{ color: 'var(--lh-sub)' }}>
-                            <input type="checkbox" name="remember" value="1" className="h-[18px] w-[18px] cursor-pointer" style={{ accentColor: 'var(--lh-acento)' }} />
-                            {t('loginHospital.keepSession')}
-                        </label>
-
-                        <button
-                            type="submit"
-                            disabled={processing}
-                            className="lh-boton mt-1 flex h-[54px] items-center justify-center gap-2.5 rounded-[14px] text-base font-semibold text-white disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                            {processing && <Spinner />}
-                            {t('loginHospital.submit')}
-                            {!processing && <ArrowRight className="h-[18px] w-[18px]" aria-hidden="true" />}
-                        </button>
-
-                        <div
-                            className="flex items-start gap-2.5 border-t pt-4 text-[13px] leading-normal"
-                            style={{ borderColor: 'var(--lh-separador)', color: 'var(--lh-sub)' }}
-                        >
-                            <ShieldCheck aria-hidden="true" className="mt-px h-[18px] w-[18px] shrink-0" style={{ color: 'var(--lh-escudo)' }} />
-                            <p>
-                                {t('loginHospital.securityNote')} {t('loginHospital.forgotHelp')}
-                            </p>
-                        </div>
-                    </>
-                    );
-                }}
-            </Form>
-
-            <p className="relative text-center text-[15px] font-medium text-white/90">{t('loginHospital.motto')}</p>
-
-            <p className="relative text-center text-xs text-white/70">{t('loginHospital.footer')}</p>
+            <footer className="relative text-center text-xs text-balance text-white/70">{t('loginHospital.footer')}</footer>
         </div>
     );
 }

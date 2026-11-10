@@ -172,7 +172,7 @@
         "errorEmailFormat": "That email doesn't look valid.",
         "errorPasswordEmpty": "Enter your password.",
         "motto": "Every message, a patient cared for.",
-        "footer": "Hospital Universitario del Valle Evaristo García E.S.E. · Innovation & Development",
+        "footer": "Hospital Universitario del Valle Evaristo\u00a0García\u00a0E.S.E. · Innovation & Development",
         "chipConfirmed": "Appointment confirmed · Cardiology",
         "chipDelivered": "Reminder delivered · 6:02 p.m.",
         "chipNewMessage": "New message · Cartago site",
