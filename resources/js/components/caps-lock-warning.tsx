@@ -58,6 +58,26 @@ export function useCapsLock() {
     };
 }
 
+/**
+ * Bloq Mayús DENTRO del campo, a la derecha (antes del ojo si lo hay): no flota debajo tapando lo que sigue.
+ * El campo necesita padding derecho para que el texto no pase por debajo. id="aviso-mayus" para aria-describedby.
+ */
+export function IndicadorMayus({ className }: { className?: string }) {
+    const { t } = useTranslation();
+
+    return (
+        <span
+            id="aviso-mayus"
+            role="status"
+            className={`indicador-mayus pointer-events-none absolute flex items-center gap-1 rounded-md px-1.5 py-1 text-[11.5px] font-semibold leading-none ${className ?? ''}`}
+        >
+            <ArrowBigUp aria-hidden="true" className="h-3.5 w-3.5" />
+            <span aria-hidden="true">{t('auth.capsLockShort', 'Bloq Mayús')}</span>
+            <span className="sr-only">{t('auth.capsLockOn', 'Bloq Mayús está activado')}</span>
+        </span>
+    );
+}
+
 export default function CapsLockWarning({ visible }: { visible: boolean }) {
     const { t } = useTranslation();
     if (!visible) return null;

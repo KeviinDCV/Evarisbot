@@ -70,6 +70,22 @@ export function useAvisosCampo(textos: TextosCampo) {
     return { alInvalidar, alEscribir, alEnviar, error, invalido, mensaje };
 }
 
+/**
+ * El aviso EN EL FLUJO, debajo del campo (no flota): para formularios donde el globo taparía algo importante
+ * (en el perfil tapaba los requisitos de la contraseña y, en el celular, la etiqueta del campo siguiente).
+ * Sin role="alert": al enviar, el foco va al primer campo con aviso y el lector lo lee por aria-describedby.
+ */
+export function AvisoBajoCampo({ id, texto }: { id: string; texto?: string }) {
+    if (!texto) return null;
+
+    return (
+        <p id={id} className="aviso-bajo-campo flex items-start gap-1.5 text-[12.5px] font-medium leading-snug">
+            <CircleAlert aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
+            {texto}
+        </p>
+    );
+}
+
 /** El globo; va dentro del contenedor `relative` del input. */
 export function AvisoCampo({ id, texto, extra }: { id: string; texto?: string; extra?: ReactNode }) {
     if (!texto && !extra) return null;

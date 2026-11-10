@@ -1,30 +1,52 @@
 import PasswordController from '@/actions/App/Http/Controllers/Settings/PasswordController';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import { AvisoCampo, useAvisosCampo } from '@/components/avisos-campo';
-import CapsLockWarning, { useCapsLock } from '@/components/caps-lock-warning';
+import { AvisoBajoCampo, useAvisosCampo } from '@/components/avisos-campo';
+import { AvisoEnvio } from '@/components/aviso-envio';
+import { IndicadorMayus, useCapsLock } from '@/components/caps-lock-warning';
 import { Spinner } from '@/components/ui/spinner';
 import { type Appearance, useAppearance } from '@/hooks/use-appearance';
 import { useInitials } from '@/hooks/use-initials';
 import AdminLayout from '@/layouts/admin-layout';
+import { minutosYSegundos, useFallasEnvio } from '@/lib/fallas-envio';
 import { cn } from '@/lib/utils';
 import { logout } from '@/routes';
 import { send } from '@/routes/verification';
 import { type SharedData } from '@/types';
 import { Transition } from '@headlessui/react';
 import { Form, Head, Link, usePage } from '@inertiajs/react';
-import { Check, LogOut, ShieldCheck } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { Check, CircleAlert, Clock, Headset, LogOut, ShieldCheck, UserRound } from 'lucide-react';
+import { type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 // Piezas visuales compartidas por las tarjetas (design/perfil, artboard Main).
 const TARJETA = 'rounded-[18px] border border-[#e3e6f0] bg-card p-5 sm:px-6 sm:py-[22px] dark:border-border';
 const ETIQUETA = 'text-[13px] font-semibold text-[#3a3f63] dark:text-foreground/85';
+// Bordes de campo y círculos de requisito a ≥3:1 sobre la tarjeta en los dos temas (WCAG 1.4.11): #888fb5 en
+// claro (3,16:1) y hsl(30,4%,42%) en oscuro (3,04:1; antes 1,9). Texto de ejemplo ≥4,5:1.
 const CAMPO =
-    'h-[46px] w-full rounded-xl border-[1.5px] border-[#dfe2ef] bg-[#f7f8fc] px-3.5 text-[15px] text-foreground outline-none transition placeholder:text-[#6b7192] focus:border-primary focus:bg-card focus:ring-4 focus:ring-primary/10 aria-[invalid=true]:border-red-600 dark:border-border dark:bg-muted/40 dark:aria-[invalid=true]:border-red-400';
+    'h-[46px] w-full rounded-xl border-[1.5px] border-[#888fb5] bg-[#f7f8fc] px-3.5 text-[16px] text-foreground outline-none transition placeholder:text-[#676d8e] focus:border-primary focus:bg-card focus:ring-4 focus:ring-primary/10 aria-[invalid=true]:border-red-600 dark:border-[hsl(30,4%,42%)] dark:bg-muted/40 dark:placeholder:text-[hsl(30,5%,58%)] dark:aria-[invalid=true]:border-red-400';
 const BOTON =
     'inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-[14.5px] font-semibold text-white transition-colors hover:bg-[#26356f] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-primary/90';
+// El botón durante el bloqueo por intentos: desactivado pero legible (con la opacidad de siempre el blanco quedaba
+// en ~3,4:1 justo cuando dice cuánto falta). 6,6:1 en claro.
+const BOTON_ESPERA = 'disabled:opacity-100 bg-[#56639c] hover:bg-[#56639c] dark:bg-[hsl(231,30%,38%)] dark:hover:bg-[hsl(231,30%,38%)]';
 const SECUNDARIO =
-    'inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dfe2ef] bg-card px-4 text-sm font-semibold text-primary transition-colors hover:bg-[#f4f6fc] dark:border-border dark:hover:bg-muted/50';
+    'inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dfe2ef] bg-card px-4 text-sm font-semibold text-primary transition-colors hover:bg-[#f4f6fc] dark:border-border dark:text-[hsl(231,85%,84%)] dark:hover:bg-muted/50';
+
+type CampoClave = 'current_password' | 'password' | 'password_confirmation';
+
+/** Requisitos de Password::defaults() (AppServiceProvider): 5 caracteres, letras y números. */
+const REGLAS = {
+    largo: (v: string) => v.length >= 5,
+    letras: (v: string) => /\p{L}/u.test(v),
+    numeros: (v: string) => /\d/.test(v),
+};
+const cumpleReglas = (v: string) => REGLAS.largo(v) && REGLAS.letras(v) && REGLAS.numeros(v);
+
+// El servidor puede responder con la clave cruda («validation.confirmed») o con el texto traducido; se reconoce
+// por el contenido para mostrar uno propio, en el idioma de la pantalla y en el campo que corresponde.
+const esConfirmacion = (m?: string) => !!m && /confirm|coincid/i.test(m);
+const esCorreoUsado = (m?: string) => !!m && /unique|registrad|taken/i.test(m);
 
 function Encabezado({ id, titulo, ayuda }: { id: string; titulo: string; ayuda: string }) {
     return (
@@ -37,24 +59,41 @@ function Encabezado({ id, titulo, ayuda }: { id: string; titulo: string; ayuda: 
     );
 }
 
+/**
+ * «Guardado» visible 2 s. El anuncio va en una región `role="status"` que existe SIEMPRE (vacía hasta que se
+ * guarda): si la región aparece ya con el texto, como antes, el lector de pantalla puede no decirlo.
+ */
 function Guardado({ visible, texto }: { visible: boolean; texto: string }) {
     return (
-        <Transition show={visible} enter="transition duration-200" enterFrom="opacity-0" leave="transition duration-500" leaveTo="opacity-0">
-            <span role="status" className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-                <Check className="h-4 w-4" aria-hidden="true" />
-                {texto}
+        <>
+            <span role="status" className="sr-only">
+                {visible ? texto : ''}
             </span>
-        </Transition>
+            <Transition show={visible} enter="transition duration-200" enterFrom="opacity-0" leave="transition duration-500" leaveTo="opacity-0">
+                <span aria-hidden="true" className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                    {texto}
+                </span>
+            </Transition>
+        </>
     );
 }
 
-function Regla({ cumple, children }: { cumple: boolean; children: ReactNode }) {
+/** Un requisito de la contraseña: verde si se cumple; rojo si se intentó guardar sin cumplirlo. */
+function Regla({ cumple, falta, children }: { cumple: boolean; falta: boolean; children: ReactNode }) {
     return (
-        <li className={cn('flex items-center gap-1.5', cumple ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground')}>
+        <li
+            className={cn(
+                'flex items-center gap-1.5',
+                cumple ? 'font-semibold text-emerald-700 dark:text-emerald-400' : falta ? 'aviso-bajo-campo font-semibold' : 'text-muted-foreground',
+            )}
+        >
             {cumple ? (
                 <Check className="h-4 w-4" strokeWidth={2.4} aria-hidden="true" />
+            ) : falta ? (
+                <CircleAlert className="h-4 w-4" aria-hidden="true" />
             ) : (
-                <span aria-hidden="true" className="h-4 w-4 rounded-full border-[1.5px] border-[#c3c7da] dark:border-border" />
+                <span aria-hidden="true" className="h-4 w-4 rounded-full border-[1.5px] border-[#888fb5] dark:border-[hsl(30,4%,42%)]" />
             )}
             {children}
             <span className="sr-only">{cumple ? '✓' : ''}</span>
@@ -66,6 +105,11 @@ function Regla({ cumple, children }: { cumple: boolean; children: ReactNode }) {
  * Perfil "Carnet y ajustes" (design/perfil, opción A): a la izquierda el carnet de la persona; a la
  * derecha sus datos, la contraseña con los requisitos a la vista y la apariencia/idioma. Los formularios
  * son los mismos de siempre. (La verificación en dos pasos se quitó del perfil a pedido del usuario.)
+ *
+ * Errores: cada aviso va en el flujo, bajo su campo (los globos flotantes tapaban los requisitos y, en el
+ * celular, la etiqueta del campo siguiente). Lo que el navegador puede comprobar antes de enviar se comprueba
+ * (requisitos, que «Repetir» coincida, que la nueva sea distinta); lo que solo sabe el servidor (la contraseña
+ * actual, un correo repetido) llega traducido en el campo correcto, y el foco va a ese campo.
  */
 export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEmail: boolean; status?: string }) {
     const { t, i18n } = useTranslation();
@@ -75,12 +119,26 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
     const { appearance, updateAppearance } = useAppearance();
     const mayus = useCapsLock();
     const [nueva, setNueva] = useState('');
+    const [verClaves, setVerClaves] = useState(false);
+    const [focoClave, setFocoClave] = useState<CampoClave | null>(null);
+    const fallasDatos = useFallasEnvio();
+    const fallasClave = useFallasEnvio();
+
+    // «Guardar cambios» solo cuando hay algo que guardar (antes decía «Guardado» aunque nada cambiara). El
+    // servidor guarda el correo en minúsculas: se compara igual.
+    const [datos, setDatos] = useState({ name: usuario.name, email: usuario.email });
+    const hayCambios = datos.name.trim() !== usuario.name || datos.email.trim().toLowerCase() !== String(usuario.email).toLowerCase();
+
+    const refActual = useRef<HTMLInputElement>(null);
+    const refNueva = useRef<HTMLInputElement>(null);
+    const refRepetir = useRef<HTMLInputElement>(null);
 
     const idioma = i18n.language?.startsWith('en') ? 'en' : 'es';
     const desde = usuario.created_at
         ? new Date(usuario.created_at).toLocaleDateString(idioma === 'en' ? 'en-US' : 'es-CO', { month: 'long', year: 'numeric' })
         : null;
     const rol = t(`users.roles.${usuario.role}`, String(usuario.role ?? ''));
+    const IconoRol = usuario.role === 'admin' ? ShieldCheck : usuario.role === 'advisor' ? Headset : UserRound;
     const temas: { valor: Appearance; texto: string }[] = [
         { valor: 'light', texto: t('perfilCarnet.themeLight') },
         { valor: 'dark', texto: t('perfilCarnet.themeDark') },
@@ -108,14 +166,38 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
         password_confirmation: { vacio: t('perfilCarnet.errorRepeat') },
     });
 
+    // Lo que se puede saber antes de enviar va como validación del navegador (setCustomValidity): el formulario
+    // no se envía y el aviso sale en su campo, como «Escribe…». Se recalcula al escribir en cualquiera de los tres.
+    const validarClaves = () => {
+        const actual = refActual.current;
+        const campoNueva = refNueva.current;
+        const repetir = refRepetir.current;
+        if (!actual || !campoNueva || !repetir) return;
+        const v = campoNueva.value;
+        campoNueva.setCustomValidity(
+            v && !cumpleReglas(v) ? t('perfilCarnet.errorRules') : v && actual.value && v === actual.value ? t('perfilCarnet.errorSame') : '',
+        );
+        repetir.setCustomValidity(repetir.value && repetir.value !== v ? t('perfilCarnet.errorMismatch') : '');
+    };
+
+    // Bloq Mayús en los TRES campos (antes solo en «Actual»: en «Nueva» es donde más daño hace, porque se guarda
+    // en mayúsculas y al día siguiente no se puede entrar). El aviso va dentro del campo enfocado.
+    // El campo se marca al enfocarlo y también al teclear en él (el foco no siempre dispara evento, p. ej. si la
+    // ventana no tiene el foco del sistema; la tecla siempre llega al campo correcto).
+    const propsMayus = (campo: CampoClave) => ({
+        ...mayus.combinar({ onFocus: () => setFocoClave(campo) }),
+        onKeyDownCapture: () => setFocoClave(campo),
+    });
+    const mayusEn = (campo: CampoClave) => mayus.activo && focoClave === campo;
+
     return (
         <AdminLayout>
             <Head title={t('perfilCarnet.title')} />
 
             <div className="p-4 md:p-6 lg:p-8">
-                <div className="mx-auto grid max-w-[1180px] items-start gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+                <div className="mx-auto grid max-w-[1104px] items-start gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
                     {/* ═══ Carnet ═══ */}
-                    <aside
+                    <section
                         aria-label={t('perfilCarnet.carnetLabel')}
                         className="overflow-hidden rounded-[22px] border border-[#e3e6f0] bg-card shadow-[0_18px_40px_-26px_rgba(46,63,132,0.45)] lg:sticky lg:top-6 dark:border-border"
                     >
@@ -136,24 +218,25 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                 <img
                                     src={usuario.avatar}
                                     alt=""
-                                    className="relative z-10 -mt-12 h-24 w-24 rounded-full border-4 border-card object-cover shadow-[0_10px_24px_-10px_rgba(46,63,132,0.7)]"
+                                    className="relative z-10 -mt-12 h-24 w-24 rounded-full border-4 border-card object-cover shadow-[0_10px_24px_-10px_rgba(46,63,132,0.7)] dark:shadow-[0_10px_24px_-10px_rgba(0,0,0,0.7)]"
                                 />
                             ) : (
                                 <span
                                     aria-hidden="true"
-                                    className="relative z-10 -mt-12 flex h-24 w-24 items-center justify-center rounded-full border-4 border-card text-[32px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(46,63,132,0.7)]"
+                                    className="relative z-10 -mt-12 flex h-24 w-24 items-center justify-center rounded-full border-4 border-card text-[32px] font-semibold text-white shadow-[0_10px_24px_-10px_rgba(46,63,132,0.7)] dark:shadow-[0_10px_24px_-10px_rgba(0,0,0,0.7)]"
                                     style={{ background: 'linear-gradient(135deg, #4e5fa4, #2e3f84)' }}
                                 >
                                     {iniciales(usuario.name)}
                                 </span>
                             )}
-                            <div className="flex flex-col items-center gap-1.5">
-                                <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground">{usuario.name}</h1>
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef1fb] px-2.5 py-1 text-[12.5px] font-semibold text-primary dark:bg-primary/15">
-                                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                            <div className="flex min-w-0 flex-col items-center gap-1.5">
+                                <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground [overflow-wrap:anywhere]">{usuario.name}</h1>
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef1fb] px-2.5 py-1 text-[12.5px] font-semibold text-primary dark:bg-primary/15 dark:text-[hsl(231,85%,84%)]">
+                                    <IconoRol className="h-3.5 w-3.5" aria-hidden="true" />
                                     {rol}
                                 </span>
-                                <p className="break-all text-sm text-muted-foreground">{usuario.email}</p>
+                                {/* Un correo largo se parte en el @ o los puntos si cabe; nunca a mitad de palabra sin necesidad. */}
+                                <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{usuario.email}</p>
                             </div>
                             <dl className="flex w-full flex-col gap-2.5 border-t border-[#eceef6] pt-4 text-left text-[13.5px] dark:border-border">
                                 {desde && (
@@ -174,7 +257,7 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                 {t('perfilCarnet.logout')}
                             </Link>
                         </div>
-                    </aside>
+                    </section>
 
                     <div className="flex min-w-0 max-w-[760px] flex-col gap-[18px]">
                         {/* ═══ Tus datos ═══ */}
@@ -182,56 +265,77 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                             <Form
                                 {...ProfileController.update.form()}
                                 options={{ preserveScroll: true }}
-                                onSubmitCapture={avisosDatos.alEnviar}
+                                onSubmitCapture={() => {
+                                    avisosDatos.alEnviar();
+                                    fallasDatos.alReintentar();
+                                }}
+                                onStart={fallasDatos.alEmpezar}
+                                onFinish={fallasDatos.alTerminar}
+                                onError={(errores) => {
+                                    // El foco al primer campo con error (antes se quedaba en el botón).
+                                    const campo = errores.name ? 'name' : errores.email ? 'email' : null;
+                                    if (campo) document.getElementById(campo)?.focus();
+                                }}
                                 className="flex flex-col gap-4"
                             >
-                                {({ processing, recentlySuccessful, errors }) => {
-                                    const errorNombre = avisosDatos.error('name', errors.name);
-                                    const errorCorreo = avisosDatos.error('email', errors.email);
+                                {({ processing, recentlySuccessful, errors: erroresServidor }) => {
+                                    // Con un aviso de falla (bloqueo, red…), el error del intento ANTERIOR ya no aplica: Inertia
+                                    // lo conserva porque la respuesta no traía errores nuevos.
+                                    const errors = fallasDatos.falla ? {} as typeof erroresServidor : erroresServidor;
+                                    const errorNombre = avisosDatos.mensaje('name', errors.name);
+                                    const correoServidor = esCorreoUsado(errors.email) ? t('perfilCarnet.errorEmailTaken') : errors.email;
+                                    const errorCorreo = avisosDatos.mensaje('email', correoServidor);
                                     return (
                                         <>
                                             <Encabezado id="perfil-datos" titulo={t('perfilCarnet.dataTitle')} ayuda={t('perfilCarnet.dataHelp')} />
+                                            {fallasDatos.falla && <AvisoEnvio falla={fallasDatos.falla} />}
                                             <div className="grid gap-x-3.5 gap-y-5 sm:grid-cols-2">
                                                 <div className="flex flex-col gap-1.5">
                                                     <label htmlFor="name" className={ETIQUETA}>
                                                         {t('perfilCarnet.name')}
                                                     </label>
-                                                    <div className="relative">
-                                                        <input
-                                                            id="name"
-                                                            name="name"
-                                                            required
-                                                            autoComplete="name"
-                                                            defaultValue={usuario.name}
-                                                            aria-invalid={avisosDatos.invalido('name', errors.name) || undefined}
-                                                            aria-describedby={errorNombre ? 'error-nombre' : undefined}
-                                                            onInvalid={avisosDatos.alInvalidar('name')}
-                                                            onInput={avisosDatos.alEscribir('name')}
-                                                            className={CAMPO}
-                                                        />
-                                                        <AvisoCampo id="error-nombre" texto={errorNombre} />
-                                                    </div>
+                                                    <input
+                                                        id="name"
+                                                        name="name"
+                                                        required
+                                                        maxLength={255}
+                                                        autoComplete="name"
+                                                        defaultValue={usuario.name}
+                                                        aria-invalid={avisosDatos.invalido('name', errors.name) || undefined}
+                                                        aria-describedby={errorNombre ? 'error-nombre' : undefined}
+                                                        onInvalid={avisosDatos.alInvalidar('name')}
+                                                        onInput={(e) => {
+                                                            avisosDatos.alEscribir('name')();
+                                                            const valor = e.currentTarget.value;
+                                                            setDatos((d) => ({ ...d, name: valor }));
+                                                        }}
+                                                        className={CAMPO}
+                                                    />
+                                                    <AvisoBajoCampo id="error-nombre" texto={errorNombre} />
                                                 </div>
                                                 <div className="flex flex-col gap-1.5">
                                                     <label htmlFor="email" className={ETIQUETA}>
                                                         {t('perfilCarnet.email')}
                                                     </label>
-                                                    <div className="relative">
-                                                        <input
-                                                            id="email"
-                                                            type="email"
-                                                            name="email"
-                                                            required
-                                                            autoComplete="username"
-                                                            defaultValue={usuario.email}
-                                                            aria-invalid={avisosDatos.invalido('email', errors.email) || undefined}
-                                                            aria-describedby={errorCorreo ? 'error-correo' : 'ayuda-correo'}
-                                                            onInvalid={avisosDatos.alInvalidar('email')}
-                                                            onInput={avisosDatos.alEscribir('email')}
-                                                            className={CAMPO}
-                                                        />
-                                                        <AvisoCampo id="error-correo" texto={errorCorreo} />
-                                                    </div>
+                                                    <input
+                                                        id="email"
+                                                        type="email"
+                                                        name="email"
+                                                        required
+                                                        maxLength={255}
+                                                        autoComplete="username"
+                                                        defaultValue={usuario.email}
+                                                        aria-invalid={avisosDatos.invalido('email', correoServidor) || undefined}
+                                                        aria-describedby={errorCorreo ? 'error-correo ayuda-correo' : 'ayuda-correo'}
+                                                        onInvalid={avisosDatos.alInvalidar('email')}
+                                                        onInput={(e) => {
+                                                            avisosDatos.alEscribir('email')();
+                                                            const valor = e.currentTarget.value;
+                                                            setDatos((d) => ({ ...d, email: valor }));
+                                                        }}
+                                                        className={CAMPO}
+                                                    />
+                                                    <AvisoBajoCampo id="error-correo" texto={errorCorreo} />
                                                     <p id="ayuda-correo" className="text-[12.5px] text-muted-foreground">
                                                         {t('perfilCarnet.emailHelp')}
                                                     </p>
@@ -252,9 +356,18 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
 
                                             <div className="flex flex-wrap items-center justify-end gap-3">
                                                 <Guardado visible={recentlySuccessful} texto={t('perfilCarnet.saved')} />
-                                                <button type="submit" disabled={processing} className={BOTON}>
-                                                    {processing && <Spinner />}
-                                                    {processing ? t('perfilCarnet.saving') : t('perfilCarnet.save')}
+                                                <button type="submit" disabled={processing || !hayCambios || fallasDatos.bloqueado} className={cn(BOTON, 'tabular-nums', fallasDatos.bloqueado && BOTON_ESPERA)}>
+                                                    {fallasDatos.bloqueado ? (
+                                                        <>
+                                                            <Clock className="h-4 w-4" aria-hidden="true" />
+                                                            {t('fallasEnvio.lockedButton', { tiempo: minutosYSegundos(fallasDatos.faltan) })}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            {processing && <Spinner />}
+                                                            {processing ? t('perfilCarnet.saving') : t('perfilCarnet.save')}
+                                                        </>
+                                                    )}
                                                 </button>
                                             </div>
                                         </>
@@ -268,104 +381,174 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                             <Form
                                 {...PasswordController.update.form()}
                                 options={{ preserveScroll: true }}
-                                resetOnError={['password', 'password_confirmation', 'current_password']}
+                                // Solo se borra la actual (si falla, es la que hay que reescribir); antes se borraban
+                                // las tres aunque la nueva estuviera bien, y los requisitos quedaban en verde con el
+                                // campo vacío.
+                                resetOnError={['current_password']}
                                 resetOnSuccess
-                                onSuccess={() => setNueva('')}
-                                onSubmitCapture={avisosClave.alEnviar}
+                                onSuccess={() => {
+                                    setNueva('');
+                                    setVerClaves(false);
+                                }}
+                                onSubmitCapture={() => {
+                                    avisosClave.alEnviar();
+                                    fallasClave.alReintentar();
+                                }}
+                                onStart={fallasClave.alEmpezar}
+                                onFinish={fallasClave.alTerminar}
+                                onError={(errores) => {
+                                    const campo: CampoClave | null = errores.current_password
+                                        ? 'current_password'
+                                        : errores.password && !esConfirmacion(errores.password)
+                                          ? 'password'
+                                          : errores.password || errores.password_confirmation
+                                            ? 'password_confirmation'
+                                            : null;
+                                    if (campo) document.getElementById(campo)?.focus();
+                                }}
                                 className="flex flex-col gap-4"
                             >
-                                {({ processing, recentlySuccessful, errors }) => {
-                                    const errorActual = avisosClave.error('current_password', errors.current_password);
-                                    const errorNueva = avisosClave.error('password', errors.password);
-                                    const errorRepetir = avisosClave.error('password_confirmation', errors.password_confirmation);
+                                {({ processing, recentlySuccessful, errors: erroresServidor }) => {
+                                    const errors = fallasClave.falla ? {} as typeof erroresServidor : erroresServidor;
+                                    // Lo que solo sabe el servidor, traducido y en su campo. «No coinciden» va en
+                                    // «Repetir» (Laravel lo pone en «password»).
+                                    const servidorActual = errors.current_password ? t('perfilCarnet.errorCurrentWrong') : undefined;
+                                    const servidorNueva = errors.password && !esConfirmacion(errors.password) ? t('perfilCarnet.errorRules') : undefined;
+                                    const servidorRepetir =
+                                        esConfirmacion(errors.password) || errors.password_confirmation ? t('perfilCarnet.errorMismatch') : undefined;
+                                    const errorActual = avisosClave.mensaje('current_password', servidorActual);
+                                    const errorNueva = avisosClave.mensaje('password', servidorNueva);
+                                    const errorRepetir = avisosClave.mensaje('password_confirmation', servidorRepetir);
+                                    const faltanReglas = errorNueva === t('perfilCarnet.errorRules');
+                                    const describe = (...ids: (string | false | undefined)[]) => ids.filter(Boolean).join(' ') || undefined;
+                                    const campoClave = (campo: CampoClave) =>
+                                        cn(CAMPO, mayusEn(campo) && 'pr-[104px]');
+
                                     return (
                                         <>
                                             <Encabezado id="perfil-clave" titulo={t('perfilCarnet.passwordTitle')} ayuda={t('perfilCarnet.passwordHelp')} />
+                                            {fallasClave.falla && <AvisoEnvio falla={fallasClave.falla} />}
                                             <div className="grid gap-x-3.5 gap-y-5 sm:grid-cols-3">
                                                 <div className="flex flex-col gap-1.5">
                                                     <label htmlFor="current_password" className={ETIQUETA}>
                                                         {t('perfilCarnet.currentPassword')}
                                                     </label>
-                                                    <div className="relative">
+                                                    <div className="relative flex items-center">
                                                         <input
+                                                            ref={refActual}
                                                             id="current_password"
                                                             name="current_password"
-                                                            type="password"
+                                                            type={verClaves ? 'text' : 'password'}
                                                             required
                                                             autoComplete="current-password"
                                                             placeholder={t('perfilCarnet.currentPasswordPlaceholder')}
-                                                            className={CAMPO}
-                                                            {...mayus.props}
-                                                            aria-invalid={avisosClave.invalido('current_password', errors.current_password) || undefined}
-                                                            aria-describedby={errorActual ? 'error-actual' : undefined}
+                                                            className={campoClave('current_password')}
+                                                            {...propsMayus('current_password')}
+                                                            aria-invalid={avisosClave.invalido('current_password', servidorActual) || undefined}
+                                                            aria-describedby={describe(errorActual && 'error-actual', mayusEn('current_password') && 'aviso-mayus')}
                                                             onInvalid={avisosClave.alInvalidar('current_password')}
-                                                            onInput={avisosClave.alEscribir('current_password')}
+                                                            onInput={() => {
+                                                                avisosClave.alEscribir('current_password')();
+                                                                validarClaves();
+                                                            }}
                                                         />
-                                                        <AvisoCampo
-                                                            id="error-actual"
-                                                            texto={errorActual}
-                                                            extra={mayus.activo ? <CapsLockWarning visible /> : undefined}
-                                                        />
+                                                        {mayusEn('current_password') && <IndicadorMayus className="right-2.5" />}
                                                     </div>
+                                                    <AvisoBajoCampo id="error-actual" texto={errorActual} />
                                                 </div>
                                                 <div className="flex flex-col gap-1.5">
                                                     <label htmlFor="password" className={ETIQUETA}>
                                                         {t('perfilCarnet.newPassword')}
                                                     </label>
-                                                    <div className="relative">
+                                                    <div className="relative flex items-center">
                                                         <input
+                                                            ref={refNueva}
                                                             id="password"
                                                             name="password"
-                                                            type="password"
+                                                            type={verClaves ? 'text' : 'password'}
                                                             required
                                                             autoComplete="new-password"
                                                             placeholder={t('perfilCarnet.newPasswordPlaceholder')}
-                                                            aria-invalid={avisosClave.invalido('password', errors.password) || undefined}
-                                                            aria-describedby={errorNueva ? 'error-nueva reglas-clave' : 'reglas-clave'}
+                                                            className={campoClave('password')}
+                                                            {...propsMayus('password')}
+                                                            aria-invalid={avisosClave.invalido('password', servidorNueva) || undefined}
+                                                            aria-describedby={describe(errorNueva && 'error-nueva', mayusEn('password') && 'aviso-mayus', 'reglas-clave')}
                                                             onInvalid={avisosClave.alInvalidar('password')}
                                                             onInput={(e) => {
                                                                 avisosClave.alEscribir('password')();
                                                                 setNueva(e.currentTarget.value);
+                                                                validarClaves();
                                                             }}
-                                                            className={CAMPO}
                                                         />
-                                                        <AvisoCampo id="error-nueva" texto={errorNueva} />
+                                                        {mayusEn('password') && <IndicadorMayus className="right-2.5" />}
                                                     </div>
+                                                    <AvisoBajoCampo id="error-nueva" texto={errorNueva} />
                                                 </div>
                                                 <div className="flex flex-col gap-1.5">
                                                     <label htmlFor="password_confirmation" className={ETIQUETA}>
                                                         {t('perfilCarnet.repeatPassword')}
                                                     </label>
-                                                    <div className="relative">
+                                                    <div className="relative flex items-center">
                                                         <input
+                                                            ref={refRepetir}
                                                             id="password_confirmation"
                                                             name="password_confirmation"
-                                                            type="password"
+                                                            type={verClaves ? 'text' : 'password'}
                                                             required
                                                             autoComplete="new-password"
                                                             placeholder={t('perfilCarnet.repeatPasswordPlaceholder')}
-                                                            aria-invalid={avisosClave.invalido('password_confirmation', errors.password_confirmation) || undefined}
-                                                            aria-describedby={errorRepetir ? 'error-repetir' : undefined}
+                                                            className={campoClave('password_confirmation')}
+                                                            {...propsMayus('password_confirmation')}
+                                                            aria-invalid={avisosClave.invalido('password_confirmation', servidorRepetir) || undefined}
+                                                            aria-describedby={describe(errorRepetir && 'error-repetir', mayusEn('password_confirmation') && 'aviso-mayus')}
                                                             onInvalid={avisosClave.alInvalidar('password_confirmation')}
-                                                            onInput={avisosClave.alEscribir('password_confirmation')}
-                                                            className={CAMPO}
+                                                            onInput={() => {
+                                                                avisosClave.alEscribir('password_confirmation')();
+                                                                validarClaves();
+                                                            }}
                                                         />
-                                                        <AvisoCampo id="error-repetir" texto={errorRepetir} />
+                                                        {mayusEn('password_confirmation') && <IndicadorMayus className="right-2.5" />}
                                                     </div>
+                                                    <AvisoBajoCampo id="error-repetir" texto={errorRepetir} />
                                                 </div>
                                             </div>
                                             <div className="flex flex-wrap items-center justify-between gap-3">
-                                                {/* Requisitos de Password::defaults() (AppServiceProvider): 5 caracteres, letras y números. */}
-                                                <ul id="reglas-clave" className="m-0 flex list-none flex-wrap gap-x-4 gap-y-2 p-0 text-[13px]">
-                                                    <Regla cumple={nueva.length >= 5}>{t('perfilCarnet.ruleLength')}</Regla>
-                                                    <Regla cumple={/\p{L}/u.test(nueva)}>{t('perfilCarnet.ruleLetters')}</Regla>
-                                                    <Regla cumple={/\d/.test(nueva)}>{t('perfilCarnet.ruleNumbers')}</Regla>
-                                                </ul>
+                                                <div className="flex flex-col gap-2.5">
+                                                    <ul id="reglas-clave" className="m-0 flex list-none flex-wrap gap-x-4 gap-y-2 p-0 text-[13px]">
+                                                        <Regla cumple={REGLAS.largo(nueva)} falta={faltanReglas}>
+                                                            {t('perfilCarnet.ruleLength')}
+                                                        </Regla>
+                                                        <Regla cumple={REGLAS.letras(nueva)} falta={faltanReglas}>
+                                                            {t('perfilCarnet.ruleLetters')}
+                                                        </Regla>
+                                                        <Regla cumple={REGLAS.numeros(nueva)} falta={faltanReglas}>
+                                                            {t('perfilCarnet.ruleNumbers')}
+                                                        </Regla>
+                                                    </ul>
+                                                    <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] text-muted-foreground">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={verClaves}
+                                                            onChange={(e) => setVerClaves(e.currentTarget.checked)}
+                                                            className="h-4 w-4 cursor-pointer accent-primary"
+                                                        />
+                                                        {t('perfilCarnet.showPasswords')}
+                                                    </label>
+                                                </div>
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     <Guardado visible={recentlySuccessful} texto={t('perfilCarnet.passwordChanged')} />
-                                                    <button type="submit" disabled={processing} className={BOTON}>
-                                                        {processing && <Spinner />}
-                                                        {t('perfilCarnet.changePassword')}
+                                                    <button type="submit" disabled={processing || fallasClave.bloqueado} className={cn(BOTON, 'tabular-nums', fallasClave.bloqueado && BOTON_ESPERA)}>
+                                                        {fallasClave.bloqueado ? (
+                                                            <>
+                                                                <Clock className="h-4 w-4" aria-hidden="true" />
+                                                                {t('fallasEnvio.lockedButton', { tiempo: minutosYSegundos(fallasClave.faltan) })}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                {processing && <Spinner />}
+                                                                {processing ? t('perfilCarnet.changingPassword') : t('perfilCarnet.changePassword')}
+                                                            </>
+                                                        )}
                                                     </button>
                                                 </div>
                                             </div>
@@ -387,10 +570,10 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                             aria-pressed={appearance === tema.valor}
                                             onClick={() => updateAppearance(tema.valor)}
                                             className={cn(
-                                                'h-9 rounded-[9px] px-3.5 text-[13.5px] transition-colors',
+                                                'h-11 rounded-[9px] px-3.5 text-[13.5px] transition-colors sm:h-9',
                                                 appearance === tema.valor
-                                                    ? 'bg-card font-semibold text-primary shadow-[0_1px_3px_rgba(46,63,132,0.18)]'
-                                                    : 'font-medium text-[#4a4f73] hover:text-foreground dark:text-muted-foreground',
+                                                    ? 'bg-card font-semibold text-primary shadow-[0_1px_3px_rgba(46,63,132,0.18)] dark:bg-[hsl(30,4%,26%)] dark:text-foreground'
+                                                    : 'font-medium text-[#4a4f73] hover:text-foreground dark:text-[hsl(30,5%,72%)]',
                                             )}
                                         >
                                             {tema.texto}
@@ -406,10 +589,10 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                             aria-pressed={idioma === codigo}
                                             onClick={() => cambiarIdioma(codigo)}
                                             className={cn(
-                                                'h-9 rounded-[9px] px-3.5 text-[13.5px] transition-colors',
+                                                'h-11 rounded-[9px] px-3.5 text-[13.5px] transition-colors sm:h-9',
                                                 idioma === codigo
-                                                    ? 'bg-card font-semibold text-primary shadow-[0_1px_3px_rgba(46,63,132,0.18)]'
-                                                    : 'font-medium text-[#4a4f73] hover:text-foreground dark:text-muted-foreground',
+                                                    ? 'bg-card font-semibold text-primary shadow-[0_1px_3px_rgba(46,63,132,0.18)] dark:bg-[hsl(30,4%,26%)] dark:text-foreground'
+                                                    : 'font-medium text-[#4a4f73] hover:text-foreground dark:text-[hsl(30,5%,72%)]',
                                             )}
                                         >
                                             {codigo === 'es' ? 'Español' : 'English'}

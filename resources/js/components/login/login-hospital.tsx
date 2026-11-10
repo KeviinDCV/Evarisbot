@@ -287,7 +287,7 @@ export default function LoginHospital({ status }: { status?: string }) {
                                             aria-describedby={mensajeCorreo ? 'error-correo' : undefined}
                                             onInvalid={validacion.alInvalidar('email')}
                                             onInput={alEscribir('email')}
-                                            className="lh-input h-[50px] w-full rounded-[14px] pl-[46px] pr-4 text-base"
+                                            className="lh-input h-[50px] w-full rounded-[14px] pl-[46px] pr-4 text-[16px]"
                                         />
                                     </div>
                                 </div>
@@ -308,7 +308,7 @@ export default function LoginHospital({ status }: { status?: string }) {
                                             required
                                             autoComplete="current-password"
                                             placeholder={t('loginHospital.passwordPlaceholder')}
-                                            className={`lh-input h-[50px] w-full rounded-[14px] pl-[46px] text-base ${mayus.activo ? 'pr-[148px]' : 'pr-[52px]'}`}
+                                            className={`lh-input h-[50px] w-full rounded-[14px] pl-[46px] text-[16px] ${mayus.activo ? 'pr-[148px]' : 'pr-[52px]'}`}
                                             {...mayus.props}
                                             aria-invalid={validacion.invalido('password') || undefined}
                                             aria-describedby={describeClave}

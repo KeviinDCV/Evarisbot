@@ -1865,8 +1865,9 @@ tr.table-row-hover:hover {
     --lh-sub: hsl(30, 5%, 66%);
     --lh-label: hsl(30, 5%, 85%);
     --lh-input-bg: hsl(30, 4%, 13%);
-    --lh-input-borde: hsl(30, 4%, 30%);
-    --lh-input-borde-hover: hsl(30, 4%, 38%);
+    /* Mismo borde que los campos del perfil en oscuro: ≥3:1 (3,31 sobre la tarjeta, 3,04 sobre el relleno). */
+    --lh-input-borde: hsl(30, 4%, 42%);
+    --lh-input-borde-hover: hsl(30, 4%, 50%);
     --lh-input-borde-foco: hsl(231, 55%, 62%);
     --lh-anillo: hsla(231, 55%, 58%, 0.18);
     --lh-seleccion: hsla(231, 55%, 58%, 0.34);
@@ -1971,6 +1972,23 @@ tr.table-row-hover:hover {
 }
 @media (prefers-reduced-motion: no-preference) {
     .aviso-flotante { animation: lh-aparecer 0.16s ease-out both; }
+}
+/* Aviso en el flujo, bajo el campo (avisos-campo AvisoBajoCampo): 6,5:1 en claro, 5,6:1 en oscuro. */
+.aviso-bajo-campo { color: #b91c1c; }
+.dark .aviso-bajo-campo { color: #f87171; }
+/* Bloq Mayús dentro del campo (caps-lock-warning IndicadorMayus). */
+.indicador-mayus { background: #fef3c7; color: #92400e; }
+.dark .indicador-mayus { background: rgba(251, 191, 36, 0.16); color: #fcd34d; }
+/* Aviso de un formulario cuando el envío falla fuera de la validación (components/aviso-envio.tsx). */
+.aviso-envio { border: 1px solid; }
+.aviso-envio-error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.dark .aviso-envio-error { background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.32); color: #fca5a5; }
+.aviso-envio-info { background: rgba(46, 63, 132, 0.06); border-color: rgba(46, 63, 132, 0.16); color: #2e3f84; }
+.dark .aviso-envio-info { background: hsla(231, 55%, 58%, 0.14); border-color: hsla(231, 55%, 58%, 0.32); color: hsl(231, 85%, 84%); }
+@media (prefers-reduced-motion: no-preference) {
+    .aviso-bajo-campo,
+    .indicador-mayus,
+    .aviso-envio { animation: lh-aparecer 0.16s ease-out both; }
 }
 .lh-input[aria-invalid='true'],
 .lh-input[aria-invalid='true']:focus {

@@ -114,7 +114,8 @@
         "verifyEmailDescription": "Verifica tu dirección de correo electrónico haciendo clic en el enlace que te acabamos de enviar.",
         "verifyEmailHeadTitle": "Verificación de correo electrónico",
         "verificationLinkSent": "Se ha enviado un nuevo enlace de verificación a la dirección de correo electrónico que proporcionaste durante el registro.",
-        "capsLockOn": "Bloq Mayús está activado"
+        "capsLockOn": "Bloq Mayús está activado",
+        "capsLockShort": "Bloq Mayús"
     },
     "perfilCarnet": {
         "title": "Mi perfil",
@@ -123,10 +124,10 @@
         "themeLanguage": "Tema e idioma",
         "themeLight": "Claro",
         "themeDark": "Oscuro",
-        "themeSystem": "Como el equipo",
+        "themeSystem": "Como el computador",
         "logout": "Cerrar sesión",
         "dataTitle": "Tus datos",
-        "dataHelp": "Así te ven tus compañeros en Evarisbot.",
+        "dataHelp": "Así te ven tus compañeros. Los pacientes ven tu primer nombre cuando los saludas por WhatsApp.",
         "name": "Nombre",
         "email": "Correo",
         "emailHelp": "Es el correo con el que entras a Evarisbot.",
@@ -134,7 +135,7 @@
         "saving": "Guardando…",
         "saved": "Guardado",
         "passwordTitle": "Contraseña",
-        "passwordHelp": "Al cambiarla se cierran tus sesiones abiertas en otros equipos.",
+        "passwordHelp": "Al cambiarla se cierran tus sesiones abiertas en otros computadores.",
         "currentPassword": "Actual",
         "currentPasswordPlaceholder": "Tu contraseña actual",
         "newPassword": "Nueva",
@@ -147,15 +148,22 @@
         "changePassword": "Cambiar contraseña",
         "passwordChanged": "Contraseña cambiada",
         "appearanceTitle": "Apariencia e idioma",
-        "appearanceHelp": "Solo cambia cómo ves Evarisbot en este equipo.",
+        "appearanceHelp": "Solo cambia cómo ves Evarisbot en este computador.",
         "themeGroup": "Tema",
         "languageGroup": "Idioma",
         "errorName": "Escribe tu nombre.",
         "errorEmail": "Escribe tu correo.",
-        "errorEmailFormat": "Ese correo no parece válido.",
+        "errorEmailFormat": "Escribe el correo completo, con la @.",
         "errorCurrent": "Escribe tu contraseña actual.",
         "errorNew": "Escribe la contraseña nueva.",
-        "errorRepeat": "Repite la contraseña nueva."
+        "errorRepeat": "Repite la contraseña nueva.",
+        "errorEmailTaken": "Ese correo ya lo usa otra cuenta.",
+        "errorCurrentWrong": "La contraseña actual no es correcta.",
+        "errorRules": "No cumple los requisitos de abajo.",
+        "errorSame": "Debe ser distinta de la actual.",
+        "errorMismatch": "No coincide con la contraseña nueva.",
+        "changingPassword": "Cambiando…",
+        "showPasswords": "Mostrar contraseñas"
     },
     "loginHospital": {
         "welcome": "Bienvenido a Evarisbot",
@@ -2652,5 +2660,13 @@
         "thanks": "Gracias",
         "more": "Más emojis",
         "removeYours": "pulsa para quitar la tuya"
+    },
+    "fallasEnvio": {
+        "locked": "Demasiados intentos seguidos. Por seguridad, espera a que termine la cuenta del botón para volver a intentarlo.",
+        "lockedButton": "Espera {{tiempo}}",
+        "expired": "La página llevaba mucho tiempo abierta y caducó. Vuelve a intentarlo.",
+        "server": "No pudimos guardar por un problema en el servidor. Intenta de nuevo en un momento; si sigue fallando, avisa a un administrador.",
+        "maintenance": "Evarisbot se está actualizando. Intenta de nuevo en unos minutos.",
+        "offline": "No hay conexión con Evarisbot. Revisa tu red e intenta de nuevo."
     }
 }

@@ -114,7 +114,8 @@
         "verifyEmailDescription": "Please verify your email address by clicking on the link we just emailed to you.",
         "verifyEmailHeadTitle": "Email verification",
         "verificationLinkSent": "A new verification link has been sent to the email address you provided during registration.",
-        "capsLockOn": "Caps Lock is on"
+        "capsLockOn": "Caps Lock is on",
+        "capsLockShort": "Caps Lock"
     },
     "perfilCarnet": {
         "title": "My profile",
@@ -126,7 +127,7 @@
         "themeSystem": "Same as device",
         "logout": "Log out",
         "dataTitle": "Your details",
-        "dataHelp": "This is how your teammates see you in Evarisbot.",
+        "dataHelp": "This is how your teammates see you. Patients see your first name when you greet them on WhatsApp.",
         "name": "Name",
         "email": "Email",
         "emailHelp": "The email you use to sign in to Evarisbot.",
@@ -152,10 +153,17 @@
         "languageGroup": "Language",
         "errorName": "Enter your name.",
         "errorEmail": "Enter your email.",
-        "errorEmailFormat": "That email doesn't look valid.",
+        "errorEmailFormat": "Enter the full email, including the @.",
         "errorCurrent": "Enter your current password.",
         "errorNew": "Enter the new password.",
-        "errorRepeat": "Repeat the new password."
+        "errorRepeat": "Repeat the new password.",
+        "errorEmailTaken": "Another account already uses that email.",
+        "errorCurrentWrong": "Your current password isn’t correct.",
+        "errorRules": "It doesn’t meet the requirements below.",
+        "errorSame": "It must be different from the current one.",
+        "errorMismatch": "It doesn’t match the new password.",
+        "changingPassword": "Changing…",
+        "showPasswords": "Show passwords"
     },
     "loginHospital": {
         "welcome": "Welcome to Evarisbot",
@@ -2652,5 +2660,13 @@
         "thanks": "Thanks",
         "more": "More emojis",
         "removeYours": "click to remove yours"
+    },
+    "fallasEnvio": {
+        "locked": "Too many attempts in a row. For security, wait until the button’s countdown ends to try again.",
+        "lockedButton": "Wait {{tiempo}}",
+        "expired": "This page was open for too long and expired. Try again.",
+        "server": "We couldn’t save because of a server problem. Try again in a moment; if it keeps failing, tell an administrator.",
+        "maintenance": "Evarisbot is being updated. Try again in a few minutes.",
+        "offline": "Can’t reach Evarisbot. Check your network and try again."
     }
 }
