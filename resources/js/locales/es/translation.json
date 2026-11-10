@@ -1034,7 +1034,9 @@
         "roleHelpAdmin": "Acceso completo: además gestiona usuarios, citas, plantillas, estadísticas y configuración, y siempre puede hacer envíos masivos.",
         "tableActivity": "Actividad",
         "editSubtitleEmailSelf": "Si cambias tu correo, tendrás que entrar con el nuevo.",
-        "newPasswordLabel": "Nueva contraseña"
+        "newPasswordLabel": "Nueva contraseña",
+        "bulkRatioRich_one": "<strong>{{con}}</strong> de {{count}} asesor con envío masivo",
+        "bulkRatioRich_other": "<strong>{{con}}</strong> de {{count}} asesores con envío masivo"
     },
     "settings": {
         "title": "Configuración",

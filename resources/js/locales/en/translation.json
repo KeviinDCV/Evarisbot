@@ -1034,7 +1034,9 @@
         "roleHelpAdmin": "Full access: also manages users, appointments, templates, statistics and settings, and can always send bulk messages.",
         "tableActivity": "Activity",
         "editSubtitleEmailSelf": "If you change your email, you’ll have to sign in with the new one.",
-        "newPasswordLabel": "New password"
+        "newPasswordLabel": "New password",
+        "bulkRatioRich_one": "<strong>{{con}}</strong> of {{count}} advisor with bulk send",
+        "bulkRatioRich_other": "<strong>{{con}}</strong> of {{count}} advisors with bulk send"
     },
     "settings": {
         "title": "Settings",

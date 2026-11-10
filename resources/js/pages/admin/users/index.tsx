@@ -50,7 +50,6 @@ import {
     Trash2,
     UserCircle,
     UserPlus,
-    Users,
     X,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -400,55 +399,10 @@ function Acciones({
     );
 }
 
-/** Una cifra de la franja: marca + etiqueta arriba, número grande debajo (con su añadido). */
-function Cifra({
-    marca,
-    etiqueta,
-    valor,
-    extra,
-    base = false,
-    className,
-}: {
-    marca: ReactNode;
-    etiqueta: string;
-    valor: number;
-    extra?: ReactNode;
-    base?: boolean;
-    className?: string;
-}) {
-    return (
-        <div className={cn('flex min-w-0 flex-col gap-1.5', className)}>
-            <div className="flex h-4 items-center gap-2">
-                {marca}
-                <span className="truncate text-[12px] leading-4 font-medium text-muted-foreground">{etiqueta}</span>
-            </div>
-            <div className={cn('flex h-[34px] min-w-0', base ? 'items-baseline gap-2' : 'items-center gap-3.5')}>
-                <span className={cn('text-[30px] leading-[34px] font-medium tracking-[-0.03em] tabular-nums', TEXTO_NAVY)}>{valor}</span>
-                {extra}
-            </div>
-        </div>
-    );
-}
-
-// Filete vertical neutro entre cifras (no un borde de tarjeta). Solo cuando la franja va en una fila.
-const Divisor = () => <div className="hidden w-px self-stretch bg-[#2e3f84]/12 @5xl/pagina:block dark:bg-white/10" aria-hidden="true" />;
-
 // Nombres de columna de las bandas.
 const Th = ({ children, className }: { children: ReactNode; className?: string }) => (
     <span className={cn('truncate text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE, className)}>{children}</span>
 );
-
-// Avatares de "En línea ahora", tocándose (sin solaparse: no se muerden iniciales). Caben 7 huecos
-// con ≥ 1120 px de contenido y 6 por debajo (1366 con el menú fijado); si hay más gente, el último
-// hueco es "+N". Se pintan las dos variantes y cada una se ve en su ancho.
-const HUECOS_ANCHO = 7;
-const HUECOS_ESTRECHO = 6;
-const SOLO_ANCHO = 'hidden @min-[1120px]/pagina:flex';
-const SOLO_ESTRECHO = 'flex @min-[1120px]/pagina:hidden';
-
-function avataresVisibles(total: number, huecos: number) {
-    return total > huecos ? huecos - 1 : total;
-}
 
 export default function UsersIndex({ users }: UsersIndexProps) {
     const { t, i18n } = useTranslation();
@@ -626,14 +580,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     const stats = useMemo(() => {
         const admins = users.filter((user) => user.role === 'admin').length;
         const advisors = users.filter((user) => user.role === 'advisor').length;
-        const online = users.filter((user) => user.is_online).length;
         const bulkEnabled = users.filter((user) => user.role === 'advisor' && user.can_bulk_send).length;
 
-        return { admins, advisors, online, bulkEnabled };
+        return { admins, advisors, bulkEnabled };
     }, [users]);
-
-    // Quién está en línea ahora (todos, sin filtros), en el orden del servidor.
-    const onlineUsers = useMemo(() => users.filter((user) => user.is_online), [users]);
 
     const filteredUsers = useMemo(() => {
         const searchTerm = plano(search.trim());
@@ -673,10 +623,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         document.getElementById('user-search')?.focus({ preventScroll: true });
     };
 
-    const roleOptions: { value: RoleFilter; label: string }[] = [
-        { value: 'all', label: t('common.all') },
-        { value: 'admin', label: t('users.roleFilter.admins') },
-        { value: 'advisor', label: t('users.roleFilter.advisors') },
+    // Cada opción lleva cuántos hay (antes eran tres cifras grandes de la franja de arriba).
+    const roleOptions: { value: RoleFilter; label: string; count: number }[] = [
+        { value: 'all', label: t('common.all'), count: users.length },
+        { value: 'admin', label: t('users.roleFilter.admins'), count: stats.admins },
+        { value: 'advisor', label: t('users.roleFilter.advisors'), count: stats.advisors },
     ];
 
     const getRoleLabel = (role: User['role']) => {
@@ -951,114 +902,37 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         </div>
     );
 
-    const enPilaAncho = avataresVisibles(onlineUsers.length, HUECOS_ANCHO);
-    const enPilaEstrecho = avataresVisibles(onlineUsers.length, HUECOS_ESTRECHO);
-    const pila = onlineUsers.slice(0, enPilaAncho);
-
-    const chipResto = (resto: number, visibilidad: string) =>
-        resto > 0 && (
-            <li
-                title={t('users.moreOnline', { count: resto })}
-                className={cn(
-                    'size-7 shrink-0 items-center justify-center rounded-full bg-card text-[11px] leading-none font-semibold text-[#2e3f84] tabular-nums shadow-[inset_0_0_0_1px_rgba(46,63,132,0.14)] ring-2 ring-background dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]',
-                    visibilidad
-                )}
-            >
-                <span aria-hidden="true">+{resto}</span>
-                <span className="sr-only">{t('users.moreOnline', { count: resto })}</span>
-            </li>
-        );
-
     return (
         <AdminLayout>
             <Head title={t('users.title')} />
 
             <div className="min-h-screen bg-background px-4 pt-5 pb-8 md:px-7 md:pt-7">
                 <div className="@container/pagina mx-auto flex max-w-7xl flex-col gap-6">
-                    {/* ── Cabecera ── */}
-                    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-                        <div className="flex flex-col gap-1">
-                            <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('users.title')}</h1>
-                            <p className="text-[14px] leading-5 text-muted-foreground">{t('users.subtitle')}</p>
-                        </div>
-
+                    {/* ── Cabecera: título y botón en la misma fila (también en el celular, donde el botón iba
+                        solo en otra); la explicación debajo del título. Sin franja de cifras: repetía el filtro
+                        y la banda «En línea», y bajaba la primera persona al 46 % de una pantalla de 1366×641. ── */}
+                    <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 sm:items-start sm:gap-x-6">
+                        <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('users.title')}</h1>
                         <Button
                             onClick={(event) => openCreateModal(event.currentTarget)}
-                            className="h-[38px] gap-2 self-start rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary has-[>svg]:pr-4 has-[>svg]:pl-3.5"
+                            className="h-[38px] gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary has-[>svg]:pr-4 has-[>svg]:pl-3.5 sm:row-span-2"
                         >
                             <UserPlus className="size-4" strokeWidth={2} aria-hidden="true" />
                             {t('users.newUser')}
                         </Button>
+                        <p className="col-span-2 text-[14px] leading-5 text-pretty text-muted-foreground sm:col-span-1">{t('users.subtitle')}</p>
                     </header>
 
-                    {/* ── Franja de cifras (sin cajas: filetes entre cifras) ── */}
-                    <section
-                        aria-label={t('users.summaryLabel')}
-                        className="grid grid-flow-dense grid-cols-2 gap-x-6 gap-y-5 @xl/pagina:grid-cols-3 @5xl/pagina:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.55fr)_1px_minmax(0,1fr)_1px_minmax(0,1fr)_1px_minmax(0,1.3fr)] @5xl/pagina:gap-y-0"
-                    >
-                        <Cifra
-                            marca={<Users className={cn('size-3.5', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />}
-                            etiqueta={t('users.metricUsers')}
-                            valor={users.length}
-                        />
-                        <Divisor />
-                        <Cifra
-                            className="col-span-2 @5xl/pagina:col-span-1"
-                            marca={
-                                <span className="flex w-3.5 justify-center">
-                                    <PuntoEstado online />
-                                </span>
-                            }
-                            etiqueta={t('users.metricOnlineNow')}
-                            valor={stats.online}
-                            extra={
-                                pila.length > 0 && (
-                                    <ul aria-label={t('users.whoIsOnline')} className="flex min-w-0 items-center">
-                                        {pila.map((user, i) => (
-                                            <li
-                                                key={user.id}
-                                                title={nombrePropio(user.name)}
-                                                className={cn('shrink-0 rounded-full', i < enPilaEstrecho ? 'flex' : SOLO_ANCHO)}
-                                            >
-                                                <Avatar user={user} size={28} className="ring-2 ring-background" />
-                                                <span className="sr-only">{nombrePropio(user.name)}</span>
-                                            </li>
-                                        ))}
-                                        {chipResto(onlineUsers.length - enPilaEstrecho, SOLO_ESTRECHO)}
-                                        {chipResto(onlineUsers.length - enPilaAncho, SOLO_ANCHO)}
-                                    </ul>
-                                )
-                            }
-                        />
-                        <Divisor />
-                        <Cifra
-                            marca={<ShieldCheck className={cn('size-3.5', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />}
-                            etiqueta={t('users.metricAdmins')}
-                            valor={stats.admins}
-                        />
-                        <Divisor />
-                        <Cifra
-                            marca={<Headphones className="size-3.5 text-sky-700 dark:text-sky-300" strokeWidth={2} aria-hidden="true" />}
-                            etiqueta={t('users.metricAdvisors')}
-                            valor={stats.advisors}
-                        />
-                        <Divisor />
-                        <Cifra
-                            marca={<Send className={cn('size-3.5', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />}
-                            etiqueta={t('users.metricBulk')}
-                            valor={stats.bulkEnabled}
-                            base
-                            extra={
-                                <span className="truncate text-[13px] leading-4 text-muted-foreground">
-                                    {t('users.metricBulkOf', { count: stats.advisors })}
-                                </span>
-                            }
-                        />
-                    </section>
-
-                    {/* ── La hoja: barra (buscar, rol, recuento) + lista agrupada ── */}
+                    {/* ── La hoja: barra (buscar, rol con sus cifras, resumen) + lista agrupada ── */}
                     <section className="@container/hoja rounded-2xl bg-card shadow-[0_0_0_1px_rgba(46,63,132,0.07),0_1px_2px_rgba(46,63,132,0.05),0_14px_32px_-18px_rgba(46,63,132,0.22)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.07),0_14px_32px_-18px_rgba(0,0,0,0.6)]">
-                        <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-2.5 border-b px-4 py-3 @3xl/hoja:h-[60px] @3xl/hoja:flex-nowrap @3xl/hoja:px-5 @3xl/hoja:py-0', FILETE)}>
+                        {/* Desde lg (el scroll es el de la isla) y con la barra en una fila, se queda arriba al
+                            desplazarse: el buscador ya no se pierde; las bandas se pegan justo debajo (top 60 px). */}
+                        <div
+                            className={cn(
+                                'flex flex-wrap items-center gap-x-3 gap-y-2.5 rounded-t-2xl border-b bg-card px-4 py-3 @3xl/hoja:h-[60px] @3xl/hoja:flex-nowrap @3xl/hoja:px-5 @3xl/hoja:py-0 lg:@3xl/hoja:sticky lg:@3xl/hoja:top-0 lg:@3xl/hoja:z-[3]',
+                                FILETE
+                            )}
+                        >
                             <div className="relative w-full @3xl/hoja:w-[300px] @3xl/hoja:shrink-0">
                                 <Label htmlFor="user-search" className="sr-only">
                                     {t('common.search')}
@@ -1096,7 +970,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 )}
                             </div>
 
-                            {/* Segmentado: la opción elegida en blanco. Las cifras de cada rol ya están arriba. */}
+                            {/* Segmentado: la opción elegida en blanco, con cuántos hay de cada rol (si cabe). */}
                             <div
                                 role="group"
                                 aria-label={t('users.roleFilterLabel')}
@@ -1119,28 +993,50 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                     : cn(TEXTO_SUAVE, 'hover:text-[#2e3f84] dark:hover:text-neutral-100')
                                             )}
                                         >
-                                            {option.label}
+                                            {/* El espacio separa también el nombre accesible («Asesores 12», no «Asesores12»). */}
+                                            {option.label}{' '}
+                                            <span className="ml-0.5 hidden font-normal tabular-nums @md/hoja:inline">{option.count}</span>
                                         </button>
                                     );
                                 })}
                             </div>
 
-                            <span className="ml-auto text-[12.5px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums" aria-live="polite">
-                                {filtrando ? (
-                                    <Trans
-                                        i18nKey="users.directoryCountRich"
-                                        values={{ filtered: filteredUsers.length, total: users.length }}
-                                        components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
-                                    />
-                                ) : (
-                                    <Trans
-                                        i18nKey="users.directoryCountAllRich"
-                                        count={users.length}
-                                        values={{ count: users.length }}
-                                        components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
-                                    />
-                                )}
+                            {/* El resultado de la búsqueda se anuncia al lector de pantalla (la cifra visible va al lado). */}
+                            <span className="sr-only" aria-live="polite">
+                                {busqueda ? t('users.directoryCount', { filtered: filteredUsers.length, total: users.length }) : ''}
                             </span>
+                            {/* A la derecha: con búsqueda, cuántos coinciden; sin ella y si cabe, cuántos asesores
+                                tienen envío masivo (lo único de la antigua franja que la lista no decía ya). */}
+                            <div
+                                className={cn(
+                                    'ml-auto items-center gap-1.5 text-[12.5px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums',
+                                    // Sin búsqueda, solo donde cabe: en la segunda línea de la barra (hoja de 672 a
+                                    // 767 px) o con la barra en una fila desde 1024 px; entre medias no alcanza.
+                                    busqueda ? 'flex' : stats.advisors > 0 ? 'hidden @2xl/hoja:flex @3xl/hoja:hidden @5xl/hoja:flex' : 'hidden'
+                                )}
+                            >
+                                {busqueda ? (
+                                    <span aria-hidden="true">
+                                        <Trans
+                                            i18nKey="users.directoryCountRich"
+                                            values={{ filtered: filteredUsers.length, total: users.length }}
+                                            components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                        />
+                                    </span>
+                                ) : (
+                                    <>
+                                        <Send className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                        <span>
+                                            <Trans
+                                                i18nKey="users.bulkRatioRich"
+                                                count={stats.advisors}
+                                                values={{ con: stats.bulkEnabled, count: stats.advisors }}
+                                                components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                            />
+                                        </span>
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         {groups.length > 0 ? (
@@ -1150,11 +1046,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
                                 return (
                                     // Cada grupo envuelve su banda: al desplazarse (desde lg, el scroll es el de
-                                    // la isla) la banda se queda pegada arriba mientras dure su grupo.
+                                    // la isla) la banda se queda pegada bajo la barra mientras dure su grupo.
                                     <section key={groupId} aria-labelledby={groupId}>
                                         <div
                                             className={cn(
-                                                'flex h-9 items-center border-b bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] px-4 lg:sticky lg:top-0 lg:z-[2] @3xl/hoja:grid dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]',
+                                                'flex h-9 items-center border-b bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] px-4 lg:sticky lg:top-0 lg:z-[2] @3xl/hoja:grid lg:@3xl/hoja:top-[60px] dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]',
                                                 COLUMNAS,
                                                 FILETE
                                             )}
