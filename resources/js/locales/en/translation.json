@@ -1186,7 +1186,8 @@
             "searchLabel": "Search advisor",
             "selectedOfTotal": "<strong>{{selected}}</strong> of {{total}} checked",
             "saveNote": "When you save, only the checked advisors stay on duty and everyone else goes off duty.",
-            "noneWarning": "No one will be on duty: no advisor will see unassigned chats, and patients who ask for an advisor will get the high-demand notice."
+            "noneWarning": "No one will be on duty: no advisor will see unassigned chats, and patients who ask for an advisor will get the high-demand notice.",
+            "teamMember": "On the {{equipo}} team: always gets their team’s chats, so they aren’t part of the general line’s shift."
         },
         "autoRelease": {
             "title": "Automatic release",

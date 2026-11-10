@@ -1186,7 +1186,8 @@
             "searchLabel": "Buscar asesor",
             "selectedOfTotal": "<strong>{{selected}}</strong> de {{total}} marcados",
             "saveNote": "Al guardar, quedan de turno solo los marcados y los demás salen del turno.",
-            "noneWarning": "Nadie quedará de turno: ningún asesor verá los chats sin asignar y los pacientes que pidan asesor recibirán el aviso de alto flujo."
+            "noneWarning": "Nadie quedará de turno: ningún asesor verá los chats sin asignar y los pacientes que pidan asesor recibirán el aviso de alto flujo.",
+            "teamMember": "Está en el equipo {{equipo}}: recibe siempre los chats de su equipo, así que no entra en el turno de la línea general."
         },
         "autoRelease": {
             "title": "Liberación automática",

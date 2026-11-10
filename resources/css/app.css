@@ -1973,6 +1973,16 @@ tr.table-row-hover:hover {
 @media (prefers-reduced-motion: no-preference) {
     .aviso-flotante { animation: lh-aparecer 0.16s ease-out both; }
 }
+/* Configuración (admin/settings) en pantallas táctiles: los controles medían 28–36 px (fichas de tiempo,
+   interruptores, «Comprobar», «Editar»…), poco para el dedo. 44 px solo con puntero táctil: en escritorio
+   queda como el diseño aprobado. */
+@media (pointer: coarse) {
+    .ajustes-pagina button,
+    .ajustes-pagina select,
+    .ajustes-pagina input:not([type='checkbox']):not([type='radio']):not(.sr-only) {
+        min-height: 44px;
+    }
+}
 /* Aviso en el flujo, bajo el campo (avisos-campo AvisoBajoCampo): 6,5:1 en claro, 5,6:1 en oscuro. */
 .aviso-bajo-campo { color: #b91c1c; }
 .dark .aviso-bajo-campo { color: #f87171; }

@@ -253,7 +253,10 @@ class WebhookWatchdog
             return [];
         }
 
-        return ['silencio' => "Hace {$minutes} minutos no entra ningún mensaje de pacientes en horario de atención. Revise que el webhook siga recibiendo (desvío en Meta, Tailscale o Apache caídos)."];
+        // En la unidad que se entiende: «Hace 17093 minutos» era «Hace 11 días».
+        $hace = $minutes < 120 ? "{$minutes} minutos" : ($minutes < 2880 ? intdiv($minutes, 60).' horas' : intdiv($minutes, 1440).' días');
+
+        return ['silencio' => "Hace {$hace} no entra ningún mensaje de pacientes en horario de atención. Revise que el webhook siga recibiendo (desvío en Meta, Tailscale o Apache caídos)."];
     }
 
     private function checkQueue(): array

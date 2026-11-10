@@ -1025,7 +1025,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
 
             {/* Con alertas, la franja roja flota abajo: el relleno evita que tape el último «Guardar». */}
             <div className={cn('min-h-screen bg-background px-4 pt-5 md:px-7 md:pt-7', codigosAlerta.length > 0 ? 'pb-48' : 'pb-8')}>
-                <div className="@container/pagina mx-auto flex max-w-7xl flex-col gap-6">
+                <div className="ajustes-pagina @container/pagina mx-auto flex max-w-7xl flex-col gap-6">
                     {/* ── Cabecera ── */}
                     <header className="flex flex-col gap-1">
                         <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('settings.whatsapp.title')}</h1>
@@ -1599,12 +1599,16 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                 return (
                                                     <li key={advisor.id} className="min-w-0">
                                                         <label
-                                                            title={`${nombre} · ${enEquipo ? equipoDe(advisor.equipo_id) : advisor.email}`}
+                                                            title={
+                                                                enEquipo
+                                                                    ? t('settings.onDutyAdvisors.teamMember', { nombre, equipo: equipoDe(advisor.equipo_id) })
+                                                                    : `${nombre} · ${advisor.email}`
+                                                            }
                                                             className={cn(
                                                                 'relative flex h-full min-h-[52px] min-w-0 items-center gap-3 rounded-[10px] px-3 py-1.5 transition-colors',
                                                                 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#2e3f84]/40 has-[:focus-visible]:outline-hidden dark:has-[:focus-visible]:ring-[#8b9ae0]/60',
                                                                 enEquipo
-                                                                    ? 'cursor-default opacity-60'
+                                                                    ? 'cursor-default'
                                                                     : selected
                                                                       ? 'cursor-pointer bg-[#2e3f84]/[0.045] dark:bg-white/[0.06]'
                                                                       : 'cursor-pointer hover:bg-[#2e3f84]/[0.025] dark:hover:bg-white/[0.03]'
@@ -1621,6 +1625,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                             <span
                                                                 className={cn(
                                                                     'flex size-[18px] shrink-0 items-center justify-center rounded-[5px] forced-colors:border forced-colors:border-[CanvasText]',
+                                                                    enEquipo && 'opacity-40',
                                                                     selected
                                                                         ? 'bg-[#2e3f84] text-white dark:bg-[#596bcf]'
                                                                         : 'bg-white shadow-[inset_0_0_0_1.5px_var(--color-slate-500)] dark:bg-transparent dark:shadow-[inset_0_0_0_1.5px_var(--color-neutral-400)]'
@@ -1633,9 +1638,13 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                             <span className="flex min-w-0 flex-col gap-px">
                                                                 {/* Hasta dos líneas: los apellidos largos no se cortan a media palabra. */}
                                                                 <span className={cn('line-clamp-2 text-[13px] leading-[18px] font-semibold break-words', TEXTO_NAVY)}>{nombre}</span>
-                                                                <span className={cn('truncate text-[12px] leading-4', TEXTO_SUAVE)}>
-                                                                    {enEquipo ? equipoDe(advisor.equipo_id) : advisor.email}
-                                                                </span>
+                                                                {enEquipo ? (
+                                                                    <span className="w-fit max-w-full truncate rounded-full border border-violet-200 bg-violet-50 px-1.5 text-[11px] leading-4 font-medium text-violet-700 dark:border-violet-800 dark:bg-violet-900/30 dark:text-violet-300">
+                                                                        {equipoDe(advisor.equipo_id)}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className={cn('truncate text-[12px] leading-4', TEXTO_SUAVE)}>{advisor.email}</span>
+                                                                )}
                                                             </span>
                                                         </label>
                                                     </li>
