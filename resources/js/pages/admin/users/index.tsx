@@ -168,6 +168,8 @@ const TEXTO_SUAVE = 'text-muted-foreground dark:text-neutral-400';
 // Foco: el contorno global de la app (navy sólido de 2 px con separación, app.css). Antes era un anillo
 // navy al 40 % (2,1:1 contra la hoja, por debajo de 3:1) que además apagaba el global con outline-none.
 const FOCO = 'focus-visible:outline-offset-2';
+// Con puntero táctil (pointer-coarse:) los controles suben a 40–44 px y los campos a 16 px de letra: con menos,
+// iOS acerca la página al enfocarlos. Con ratón todo queda como el diseño.
 
 // Columnas de la lista. Medio (hoja ≥ 768 px): compactas. Ancho (hoja ≥ 1024 px): las del diseño.
 // Por debajo de 768 px de hoja, cada persona es una tarjeta apilada (otra plantilla).
@@ -290,6 +292,8 @@ function InterruptorEnvio({
             onClick={() => !ocupado && onToggle()}
             className={cn(
                 'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-[background-color,opacity] duration-200 aria-disabled:cursor-wait aria-disabled:opacity-60',
+                // Con el dedo, 20 × 36 px es poco: un área invisible de 12 px alrededor (44 × 60 px).
+                'pointer-coarse:after:absolute pointer-coarse:after:-inset-3',
                 FOCO,
                 activo
                     ? 'bg-[#2e3f84] shadow-[inset_0_1px_1px_rgba(0,0,0,0.2)] dark:bg-[#596bcf]'
@@ -312,7 +316,7 @@ function InterruptorEnvio({
 }
 
 const BOTON_FANTASMA = cn(
-    'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+    'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] pointer-coarse:size-10 dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
     'aria-expanded:bg-[#2e3f84]/8 aria-expanded:text-[#2e3f84] aria-expanded:shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:aria-expanded:bg-white/8 dark:aria-expanded:text-neutral-100 dark:aria-expanded:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]',
     FOCO
 );
@@ -347,6 +351,8 @@ function Acciones({
             <button
                 type="button"
                 data-accion="editar"
+                // Repite «Editar» del menú «…»: fuera del orden de Tab para no sumar 16 paradas a la lista.
+                tabIndex={-1}
                 onClick={(event) => onEdit(event.currentTarget)}
                 className={BOTON_FANTASMA}
                 title={etiquetas.edit}
@@ -369,14 +375,14 @@ function Acciones({
                 >
                     <DropdownMenuItem
                         onSelect={() => onEdit(disparador.current)}
-                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100"
+                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 pointer-coarse:h-11 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100"
                     >
                         <Edit3 className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
                         {etiquetas.edit}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         onSelect={() => onResetPassword(disparador.current)}
-                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100"
+                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 pointer-coarse:h-11 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100"
                     >
                         <KeyRound className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
                         {etiquetas.reset}
@@ -386,7 +392,7 @@ function Acciones({
                     <DropdownMenuSeparator className="mx-1.5 my-0 bg-[#2e3f84]/8 dark:bg-white/8" />
                     <DropdownMenuItem
                         onSelect={() => onDelete(disparador.current)}
-                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-red-600 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:focus:bg-red-500/10 dark:focus:text-red-300"
+                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 pointer-coarse:h-11 text-[13px] leading-[18px] font-medium text-red-600 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:focus:bg-red-500/10 dark:focus:text-red-300"
                     >
                         <Trash2 className="size-4 text-red-600 dark:text-red-400" strokeWidth={1.75} aria-hidden="true" />
                         {etiquetas.delete}
@@ -488,6 +494,22 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         };
     }, [t]);
     const [search, setSearch] = useState('');
+
+    // Teclado: «/» lleva al buscador, salvo que ya se esté escribiendo en un campo o haya una ventana o menú abierto.
+    useEffect(() => {
+        const alTeclear = (event: KeyboardEvent) => {
+            if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return;
+            const origen = event.target instanceof HTMLElement ? event.target : null;
+            if (origen?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
+            if (document.querySelector('[role="dialog"], [role="menu"]')) return;
+            const buscador = document.getElementById('user-search');
+            if (!buscador) return;
+            event.preventDefault();
+            buscador.focus();
+        };
+        document.addEventListener('keydown', alTeclear);
+        return () => document.removeEventListener('keydown', alTeclear);
+    }, []);
     const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
 
     /**
@@ -860,15 +882,15 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             </span>
         );
 
-    /** Lo principal del estado (En línea / Sin conexión), si lo hay. */
-    const estadoPrincipal = (user: User, className?: string) => {
+    /** Lo principal del estado (En línea / Sin conexión), si lo hay. conPista: su explicación para el lector. */
+    const estadoPrincipal = (user: User, className?: string, conPista = true) => {
         const { principal } = estadoDe(user);
         if (!principal) return null;
 
         return (
             <span title={principal.pista} className={cn('text-[13px] leading-[18px] font-medium', principal.clase, className)}>
                 {principal.texto}
-                {principal.pista && <span className="sr-only">. {principal.pista}</span>}
+                {conPista && principal.pista && <span className="sr-only">. {principal.pista}</span>}
             </span>
         );
     };
@@ -915,7 +937,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('users.title')}</h1>
                         <Button
                             onClick={(event) => openCreateModal(event.currentTarget)}
-                            className="h-[38px] gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary has-[>svg]:pr-4 has-[>svg]:pl-3.5 sm:row-span-2"
+                            className="h-[38px] gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary has-[>svg]:pr-4 has-[>svg]:pl-3.5 pointer-coarse:h-11 sm:row-span-2"
                         >
                             <UserPlus className="size-4" strokeWidth={2} aria-hidden="true" />
                             {t('users.newUser')}
@@ -948,9 +970,19 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     type="text"
                                     value={search}
                                     onChange={(event) => setSearch(event.target.value)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Escape' && search) {
+                                            event.preventDefault();
+                                            setSearch('');
+                                        }
+                                    }}
+                                    aria-keyshortcuts="/"
                                     placeholder={t('users.searchPlaceholder')}
                                     className={cn(
-                                        'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                                        // Con el dedo no hay pista «/»: sin texto, el campo usa todo el ancho (a 320 px el
+                                        // ejemplo «Buscar por nombre o correo» se cortaba); con texto, deja sitio al botón ×.
+                                        search ? 'pointer-coarse:pr-12' : 'pointer-coarse:pr-3',
+                                        'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground pointer-coarse:h-11 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
                                         FOCO
                                     )}
                                 />
@@ -959,7 +991,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         type="button"
                                         onClick={() => setSearch('')}
                                         className={cn(
-                                            'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100',
+                                            'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md pointer-coarse:right-1 pointer-coarse:size-9 text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100',
                                             FOCO
                                         )}
                                         aria-label={t('users.clearSearch')}
@@ -968,13 +1000,22 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         <X className="size-3.5" aria-hidden="true" />
                                     </button>
                                 )}
+                                {/* Pista del atajo «/» (solo con ratón y con el campo vacío; el lector lo sabe por aria-keyshortcuts). */}
+                                {!search && (
+                                    <kbd
+                                        aria-hidden="true"
+                                        className="pointer-events-none absolute top-1/2 right-2.5 hidden h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-[5px] px-1 font-sans text-[11px] leading-none font-medium text-muted-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16)] pointer-fine:flex dark:text-neutral-400 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)]"
+                                    >
+                                        /
+                                    </kbd>
+                                )}
                             </div>
 
                             {/* Segmentado: la opción elegida en blanco, con cuántos hay de cada rol (si cabe). */}
                             <div
                                 role="group"
                                 aria-label={t('users.roleFilterLabel')}
-                                className="flex items-center gap-0.5 rounded-[11px] bg-[#2e3f84]/[0.055] p-[3px] dark:bg-white/5"
+                                className="flex w-full items-center gap-0.5 rounded-[11px] bg-[#2e3f84]/[0.055] p-[3px] @md/hoja:w-auto dark:bg-white/5"
                             >
                                 {roleOptions.map((option) => {
                                     const activa = roleFilter === option.value;
@@ -986,7 +1027,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-pressed={activa}
                                             onClick={() => setRoleFilter(option.value)}
                                             className={cn(
-                                                'h-[30px] cursor-pointer rounded-lg px-3 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors @md/hoja:px-3.5',
+                                                'h-[30px] flex-1 cursor-pointer rounded-lg px-1.5 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors pointer-coarse:h-10 @xs/hoja:px-3 @md/hoja:flex-none @md/hoja:px-3.5',
                                                 FOCO,
                                                 activa
                                                     ? 'bg-white text-[#2e3f84] shadow-[0_0_0_1px_rgba(46,63,132,0.08),0_1px_2px_rgba(46,63,132,0.12),0_2px_6px_-2px_rgba(46,63,132,0.12)] dark:bg-white/12 dark:text-neutral-100 dark:shadow-none'
@@ -1148,7 +1189,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                                 <span className="flex min-w-0 items-baseline gap-1.5">
                                                                     {estadoPrincipal(user) && (
                                                                         <>
-                                                                            {estadoPrincipal(user, 'whitespace-nowrap')}
+                                                                            {estadoPrincipal(user, 'whitespace-nowrap', false)}
                                                                             <span className="text-[12px] leading-4 text-muted-foreground" aria-hidden="true">
                                                                                 ·
                                                                             </span>
@@ -1157,9 +1198,16 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                                     {estadoDetalle(user, 'truncate', true)}
                                                                 </span>
                                                             </div>
-                                                            <div className="mt-2.5 flex items-center justify-between gap-3">
+                                                            {/* Sin ratón no hay tooltip: la explicación de «Sin conexión» se ve aquí. */}
+                                                            {estadoDe(user).principal?.pista && (
+                                                                <p className="mt-1.5 text-[12px] leading-4 text-pretty text-amber-800 dark:text-amber-300">
+                                                                    {estadoDe(user).principal?.pista}
+                                                                </p>
+                                                            )}
+                                                            {/* En pantallas muy angostas (320 px) la fecha baja a otra línea en vez de salirse. */}
+                                                            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
                                                                 <div className="flex items-center gap-2.5">
-                                                                    <span className="text-[12px] leading-4 font-medium text-muted-foreground">{t('users.tableBulkSend')}</span>
+                                                                    <span className="text-[12px] leading-4 font-medium whitespace-nowrap text-muted-foreground">{t('users.tableBulkSend')}</span>
                                                                     {bulkCell(user)}
                                                                 </div>
                                                                 <span className="text-[12px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums">
@@ -1182,7 +1230,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 ) : (
                                     <UserCircle className="mx-auto mb-3 size-12 text-muted-foreground" strokeWidth={1.5} aria-hidden="true" />
                                 )}
-                                <h2 className={cn('mx-auto max-w-md text-[15px] leading-5 font-semibold break-words', TEXTO_NAVY)}>
+                                <h2 className={cn('mx-auto max-w-md text-[15px] leading-5 font-semibold text-balance break-words', TEXTO_NAVY)}>
                                     {busqueda ? t('users.noMatchTitle', { search: busqueda }) : filtrando ? t('users.noRoleTitle') : t('users.noUsers')}
                                 </h2>
                                 {busqueda && (
@@ -1195,7 +1243,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         type="button"
                                         onClick={quitarFiltros}
                                         className={cn(
-                                            'mt-4 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8',
+                                            'mt-4 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold pointer-coarse:h-11 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8',
                                             FOCO
                                         )}
                                     >
@@ -1213,13 +1261,14 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     Estadísticas; se borran sus mensajes del chat interno y los anuncios que publicó (CASCADE), y
                     User::booted() borra sus plantillas no globales, también las que asignó a otros. */}
                 <Dialog open={abiertoBorrar} onOpenChange={(open) => !open && !eliminando && setAbiertoBorrar(false)}>
-                    <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
-                        <DialogHeader>
-                            <DialogTitle className="settings-title">
+                    <DialogContent className="card-gradient max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl shadow-2xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
+                        {/* A la izquierda y sin pasar bajo la ✕ de cerrar (en el celular el nombre largo la tapaba). */}
+                        <DialogHeader className="pr-8 text-left">
+                            <DialogTitle className="text-[17px] leading-[22px] tracking-[-0.01em] text-balance settings-title">
                                 {t('users.deleteTitle', { name: userToDelete ? nombrePropio(userToDelete.name) : '' })}
                             </DialogTitle>
                             <DialogDescription asChild>
-                                <div className="settings-subtitle flex flex-col gap-2 text-[14px] leading-5">
+                                <div className="settings-subtitle flex flex-col gap-2 text-[14px] leading-5 text-pretty">
                                     {!!userToDelete?.chats_abiertos && (
                                         <p className="font-semibold text-foreground">{t('users.deleteChats', { count: userToDelete.chats_abiertos })}</p>
                                     )}
@@ -1234,7 +1283,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </DialogHeader>
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button variant="outline" aria-disabled={eliminando || undefined} className="rounded-xl font-medium settings-btn-secondary aria-disabled:opacity-60">
+                                <Button variant="outline" aria-disabled={eliminando || undefined} className="rounded-xl text-[13px] font-semibold settings-btn-secondary aria-disabled:opacity-60 pointer-coarse:h-11">
                                     {t('common.cancel')}
                                 </Button>
                             </DialogClose>
@@ -1242,7 +1291,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 onClick={handleDelete}
                                 aria-disabled={eliminando || undefined}
                                 aria-busy={eliminando || undefined}
-                                className="gap-2 rounded-xl border-0 bg-red-600 font-medium text-white hover:bg-red-700 aria-disabled:cursor-wait aria-disabled:opacity-70"
+                                className="gap-2 rounded-xl border-0 bg-red-600 text-[13px] font-semibold text-white hover:bg-red-700 aria-disabled:cursor-wait aria-disabled:opacity-70 pointer-coarse:h-11"
                             >
                                 {eliminando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
                                 {eliminando
@@ -1254,13 +1303,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </Dialog>
 
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-                    <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
-                        <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
-                            <DialogTitle className="flex items-center gap-2 text-xl settings-title">
-                                <UserCircle className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
+                    <DialogContent className="card-gradient max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
+                        <DialogHeader className="border-b border-[#d4d8e8]/80 py-4 pr-12 pl-5 text-left dark:border-white/10">
+                            <DialogTitle className="flex items-start gap-2 text-[17px] leading-[22px] font-semibold tracking-[-0.01em] text-balance settings-title">
+                                <UserCircle className="mt-px size-5 shrink-0 text-[#2e3f84] dark:text-neutral-100" aria-hidden="true" />
                                 {t('users.createTitle')}
                             </DialogTitle>
-                            <DialogDescription className="text-xs settings-subtitle">
+                            <DialogDescription className="text-[14px] leading-5 text-pretty settings-subtitle">
                                 {t('users.createSubtitle')}
                             </DialogDescription>
                         </DialogHeader>
@@ -1268,7 +1317,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         <form onSubmit={handleCreate} className="space-y-4 px-5 py-5">
                             <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="create-name" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-name" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <UserCircle className="h-3.5 w-3.5" />
                                         {t('users.fullName')}
                                     </Label>
@@ -1284,13 +1333,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosCrear.invalido('name', createForm.errors.name) || undefined}
                                             onInvalid={avisosCrear.alInvalidar('name')}
                                             onInput={avisosCrear.alEscribir('name')}
-                                            className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <AvisoCampo id="create-name-error" texto={avisosCrear.error('name', createForm.errors.name)} />
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="create-email" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-email" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <Mail className="h-3.5 w-3.5" />
                                         {t('auth.email')}
                                     </Label>
@@ -1306,13 +1355,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosCrear.invalido('email', createForm.errors.email) || undefined}
                                             onInvalid={avisosCrear.alInvalidar('email')}
                                             onInput={avisosCrear.alEscribir('email')}
-                                            className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <AvisoCampo id="create-email-error" texto={avisosCrear.error('email', createForm.errors.email)} />
                                     </div>
                                 </div>
                                 <div className={cn('space-y-1.5')}>
-                                    <Label htmlFor="create-password" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-password" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
                                         {t('auth.password')}
                                     </Label>
@@ -1328,7 +1377,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosCrear.invalido('password', createForm.errors.password) || undefined}
                                             onInvalid={avisosCrear.alInvalidar('password')}
                                             onInput={avisosCrear.alEscribir('password')}
-                                            className="rounded-xl pr-[72px] text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl pr-[72px] text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:pr-[92px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
                                             {createForm.data.password && (
@@ -1351,7 +1400,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     </div>
                                 </div>
                                 <div className={cn('space-y-1.5')}>
-                                    <Label htmlFor="create-password-confirm" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-password-confirm" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
                                         {t('users.confirmPassword')}
                                     </Label>
@@ -1367,7 +1416,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosCrear.invalido('password_confirmation', createForm.errors.password_confirmation) || undefined}
                                             onInvalid={avisosCrear.alInvalidar('password_confirmation')}
                                             onInput={avisosCrear.alEscribir('password_confirmation')}
-                                            className="rounded-xl pr-[72px] text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl pr-[72px] text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:pr-[92px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
                                             {createForm.data.password_confirmation && (
@@ -1394,19 +1443,19 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     <button
                                         type="button"
                                         onClick={generarParaCrear}
-                                        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8"
+                                        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold pointer-coarse:h-11 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8"
                                     >
                                         <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
                                         {t('users.generatePassword')}
                                     </button>
                                 </div>
                                 {generadaCrear && (
-                                    <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] leading-snug text-emerald-900 md:col-span-2 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                    <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] leading-[18px] text-pretty text-emerald-900 md:col-span-2 dark:bg-emerald-500/10 dark:text-emerald-300">
                                         {t('users.generatedHint')}
                                     </p>
                                 )}
                                 <div className="space-y-1.5 md:col-span-2">
-                                    <Label htmlFor="create-role" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="create-role" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <ShieldCheck className="h-3.5 w-3.5" />
                                         {t('users.role')}
                                     </Label>
@@ -1414,13 +1463,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         <SelectTrigger
                                             id="create-role"
                                             aria-describedby="create-role-ayuda"
-                                            className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2"
+                                            className="h-10 w-full rounded-xl text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2"
                                         >
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
                                         <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
-                                            <SelectItem value="advisor" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
-                                            <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
+                                            <SelectItem value="advisor" className="cursor-pointer rounded-md text-[13.5px] focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
+                                            <SelectItem value="admin" className="cursor-pointer rounded-md text-[13.5px] focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     {/* Qué puede hacer cada rol: es una decisión de acceso y antes no se explicaba. */}
@@ -1432,10 +1481,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </div>
 
                             <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
-                                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)} className="rounded-xl text-sm settings-btn-secondary">
+                                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)} className="rounded-xl text-[13px] font-semibold settings-btn-secondary pointer-coarse:h-11">
                                     {t('common.cancel')}
                                 </Button>
-                                <Button type="submit" disabled={createForm.processing} className="rounded-xl text-sm settings-btn-primary disabled:opacity-50">
+                                <Button type="submit" disabled={createForm.processing} className="rounded-xl text-[13px] font-semibold settings-btn-primary disabled:opacity-50 pointer-coarse:h-11">
                                     {createForm.processing ? t('users.creating') : t('users.createUser')}
                                 </Button>
                             </div>
@@ -1444,21 +1493,21 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </Dialog>
 
                 <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-                    <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
-                        <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
+                    <DialogContent className="card-gradient max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
+                        <DialogHeader className="border-b border-[#d4d8e8]/80 py-4 pr-12 pl-5 text-left dark:border-white/10">
                             {/* Desde «Restablecer contraseña» la ventana habla de la clave (antes decía «Editar usuario»
                                 igual). La explicación dice la consecuencia de guardar, no repite el título. */}
-                            <DialogTitle className="flex items-center gap-2 text-xl settings-title">
+                            <DialogTitle className="flex items-start gap-2 text-[17px] leading-[22px] font-semibold tracking-[-0.01em] text-balance settings-title">
                                 {modoClave ? (
-                                    <KeyRound className="h-5 w-5 shrink-0 text-[#2e3f84] dark:text-neutral-100" aria-hidden="true" />
+                                    <KeyRound className="mt-px size-5 shrink-0 text-[#2e3f84] dark:text-neutral-100" aria-hidden="true" />
                                 ) : (
-                                    <Edit3 className="h-5 w-5 shrink-0 text-[#2e3f84] dark:text-neutral-100" aria-hidden="true" />
+                                    <Edit3 className="mt-px size-5 shrink-0 text-[#2e3f84] dark:text-neutral-100" aria-hidden="true" />
                                 )}
                                 {userToEdit
                                     ? t(modoClave ? 'users.resetTitleFor' : 'users.editFor', { name: nombrePropio(userToEdit.name) })
                                     : t('users.editTitle')}
                             </DialogTitle>
-                            <DialogDescription className="text-xs settings-subtitle">
+                            <DialogDescription className="text-[14px] leading-5 text-pretty settings-subtitle">
                                 {modoClave
                                     ? t(userToEdit?.id === yoId ? 'users.resetSubtitleSelf' : 'users.resetSubtitle')
                                     : t(userToEdit?.id === yoId ? 'users.editSubtitleEmailSelf' : 'users.editSubtitleEmail')}
@@ -1468,7 +1517,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         <form onSubmit={handleEdit} className="space-y-4 px-5 py-5">
                             <div className="grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="edit-name" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="edit-name" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <UserCircle className="h-3.5 w-3.5" />
                                         {t('users.fullName')}
                                     </Label>
@@ -1484,13 +1533,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosEditar.invalido('name', editForm.errors.name) || undefined}
                                             onInvalid={avisosEditar.alInvalidar('name')}
                                             onInput={avisosEditar.alEscribir('name')}
-                                            className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <AvisoCampo id="edit-name-error" texto={avisosEditar.error('name', editForm.errors.name)} />
                                     </div>
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="edit-email" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="edit-email" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <Mail className="h-3.5 w-3.5" />
                                         {t('auth.email')}
                                     </Label>
@@ -1506,13 +1555,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosEditar.invalido('email', editForm.errors.email) || undefined}
                                             onInvalid={avisosEditar.alInvalidar('email')}
                                             onInput={avisosEditar.alEscribir('email')}
-                                            className="rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <AvisoCampo id="edit-email-error" texto={avisosEditar.error('email', editForm.errors.email)} />
                                     </div>
                                 </div>
                                 <div className={cn('space-y-1.5')}>
-                                    <Label htmlFor="edit-password" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="edit-password" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
                                         {/* Al restablecer, la contraseña es el propósito de la ventana: no «(opcional)». */}
                                         {modoClave ? t('users.newPasswordLabel') : t('users.newPassword')}
@@ -1532,7 +1581,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosEditar.invalido('password', editForm.errors.password) || undefined}
                                             onInvalid={avisosEditar.alInvalidar('password')}
                                             onInput={avisosEditar.alEscribir('password')}
-                                            className="rounded-xl pr-[72px] text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl pr-[72px] text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:pr-[92px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
                                             {editForm.data.password && (
@@ -1555,7 +1604,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     </div>
                                 </div>
                                 <div className={cn('space-y-1.5', 'transition-opacity', !editForm.data.password && 'pointer-events-none opacity-35')}>
-                                    <Label htmlFor="edit-password-confirm" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="edit-password-confirm" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <KeyRound className="h-3.5 w-3.5" />
                                         {t('users.confirmNewPassword')}
                                     </Label>
@@ -1572,7 +1621,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosEditar.invalido('password_confirmation', editForm.errors.password_confirmation) || undefined}
                                             onInvalid={avisosEditar.alInvalidar('password_confirmation')}
                                             onInput={avisosEditar.alEscribir('password_confirmation')}
-                                            className="rounded-xl pr-[72px] text-sm settings-input disabled:opacity-100 focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl pr-[72px] text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:pr-[92px] pointer-coarse:h-11 pointer-coarse:text-[16px] disabled:opacity-100 focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
                                             {editForm.data.password_confirmation && (
@@ -1600,19 +1649,19 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     <button
                                         type="button"
                                         onClick={generarParaEditar}
-                                        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8"
+                                        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold pointer-coarse:h-11 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8"
                                     >
                                         <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
                                         {t('users.generatePassword')}
                                     </button>
                                 </div>
                                 {generadaEditar && (
-                                    <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] leading-snug text-emerald-900 md:col-span-2 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                    <p className="rounded-lg bg-emerald-50 px-3 py-2 text-[12.5px] leading-[18px] text-pretty text-emerald-900 md:col-span-2 dark:bg-emerald-500/10 dark:text-emerald-300">
                                         {t('users.generatedHint')}
                                     </p>
                                 )}
                                 <div className="space-y-1.5 md:col-span-2">
-                                    <Label htmlFor="edit-role" className="flex items-center gap-2 text-xs font-semibold settings-label">
+                                    <Label htmlFor="edit-role" className="flex items-center gap-2 text-[13px] leading-[18px] font-semibold settings-label">
                                         <ShieldCheck className="h-3.5 w-3.5" />
                                         {t('users.role')}
                                     </Label>
@@ -1624,13 +1673,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         <SelectTrigger
                                             id="edit-role"
                                             aria-describedby={userToEdit?.id === yoId ? 'edit-role-propio' : 'edit-role-ayuda'}
-                                            className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2"
+                                            className="h-10 w-full rounded-xl text-[13.5px] settings-input md:text-[13.5px] pointer-coarse:h-11 pointer-coarse:text-[16px] focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2"
                                         >
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
                                         <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
-                                            <SelectItem value="advisor" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
-                                            <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
+                                            <SelectItem value="advisor" className="cursor-pointer rounded-md text-[13.5px] focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
+                                            <SelectItem value="admin" className="cursor-pointer rounded-md text-[13.5px] focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     {userToEdit?.id === yoId ? (
@@ -1647,10 +1696,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                             </div>
 
                             <div className="flex justify-end gap-2 border-t border-[#d4d8e8]/80 pt-4 dark:border-white/10">
-                                <Button type="button" variant="outline" onClick={() => setShowEditModal(false)} className="rounded-xl text-sm settings-btn-secondary">
+                                <Button type="button" variant="outline" onClick={() => setShowEditModal(false)} className="rounded-xl text-[13px] font-semibold settings-btn-secondary pointer-coarse:h-11">
                                     {t('common.cancel')}
                                 </Button>
-                                <Button type="submit" disabled={editForm.processing} className="rounded-xl text-sm settings-btn-primary disabled:opacity-50">
+                                <Button type="submit" disabled={editForm.processing} className="rounded-xl text-[13px] font-semibold settings-btn-primary disabled:opacity-50 pointer-coarse:h-11">
                                     {editForm.processing ? t('common.saving') : modoClave ? t('users.savePassword') : t('users.saveChanges')}
                                 </Button>
                             </div>
