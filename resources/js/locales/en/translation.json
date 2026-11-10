@@ -1047,6 +1047,8 @@
             "otherAlerts": "The monitor also reports:",
             "alertsRowLabel": "Alerts",
             "alertsRowHelp": "What the monitor found in its last check.",
+            "showDetails": "Show keys and identifiers",
+            "hideDetails": "Hide keys and identifiers",
             "quality": {
                 "GREEN": "High",
                 "YELLOW": "Medium",
@@ -1107,6 +1109,11 @@
         "active": "Active",
         "configured": "Configured",
         "readOnly": "Read only",
+        "alerts": {
+            "title": "System alerts",
+            "count_one": "{{count}} alert",
+            "count_other": "{{count}} alerts"
+        },
         "strip": {
             "label": "Configuration status",
             "whatsapp": "WhatsApp",

@@ -1047,6 +1047,8 @@
             "otherAlerts": "La vigilancia también avisa:",
             "alertsRowLabel": "Alertas",
             "alertsRowHelp": "Lo que encontró la vigilancia en su última revisión.",
+            "showDetails": "Ver claves e identificadores",
+            "hideDetails": "Ocultar claves e identificadores",
             "quality": {
                 "GREEN": "Alta",
                 "YELLOW": "Media",
@@ -1107,6 +1109,11 @@
         "active": "Activo",
         "configured": "Configurado",
         "readOnly": "Solo lectura",
+        "alerts": {
+            "title": "Avisos del sistema",
+            "count_one": "{{count}} aviso",
+            "count_other": "{{count}} avisos"
+        },
         "strip": {
             "label": "Estado de la configuración",
             "whatsapp": "WhatsApp",
