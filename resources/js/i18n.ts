@@ -67,10 +67,19 @@ i18n
         },
     });
 
+// <html lang> sigue al idioma de la interfaz (el servidor siempre lo pinta en "es"): sin esto, en inglés el
+// lector de pantalla leía todo con pronunciación española.
+function marcarIdiomaDelDocumento(lng: string | undefined): void {
+    if (typeof document === 'undefined') return;
+    document.documentElement.lang = (lng ?? '').split('-')[0] === 'en' ? 'en' : 'es';
+}
+
 // Al cambiar de idioma (selector) y al arrancar (si el detector ya dice 'en').
 i18n.on('languageChanged', (lng) => {
+    marcarIdiomaDelDocumento(lng);
     void ensureLanguage(lng);
 });
+marcarIdiomaDelDocumento(i18n.language);
 void ensureLanguage(i18n.language);
 
 export default i18n;

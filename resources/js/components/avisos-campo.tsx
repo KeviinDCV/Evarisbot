@@ -63,7 +63,11 @@ export function useAvisosCampo(textos: TextosCampo) {
     // El borde rojo: cualquier campo con aviso, tenga o no el globo.
     const invalido = (campo: string, delServidor?: string) => Boolean(locales[campo] || delServidorVisible(campo, delServidor));
 
-    return { alInvalidar, alEscribir, alEnviar, error, invalido };
+    // Para avisos que no se tapan entre sí (p. ej. en la fila de la etiqueta, como el login): el de CADA campo,
+    // sin turnos.
+    const mensaje = (campo: string, delServidor?: string) => locales[campo] ?? delServidorVisible(campo, delServidor);
+
+    return { alInvalidar, alEscribir, alEnviar, error, invalido, mensaje };
 }
 
 /** El globo; va dentro del contenedor `relative` del input. */

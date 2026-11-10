@@ -1832,13 +1832,15 @@ tr.table-row-hover:hover {
     --lh-sub: #5b6088;
     --lh-label: #3a3f63;
     --lh-input-bg: #f7f8fc;
-    --lh-input-borde: #dfe2ef;
-    --lh-input-borde-hover: #c3c8e0;
+    /* Borde de los campos a 3,16:1 sobre la tarjeta (antes #dfe2ef, 1,29:1: en monitores de poca calidad el
+       campo no se distinguía). Al pasar el mouse, 4,4:1. */
+    --lh-input-borde: #888fb5;
+    --lh-input-borde-hover: #6e769f;
     --lh-input-borde-foco: #2e3f84;
     --lh-anillo: rgba(46, 63, 132, 0.12);
     --lh-seleccion: rgba(46, 63, 132, 0.16);
     --lh-icono: #7c82a6;
-    --lh-placeholder: #6b7192;
+    --lh-placeholder: #676d8e;
     --lh-acento: #2e3f84;
     --lh-acento-hover: #26356f;
     --lh-separador: #eceef6;
@@ -1851,16 +1853,20 @@ tr.table-row-hover:hover {
         radial-gradient(ellipse 70% 55% at 50% 0%, var(--lh-luz) 0%, transparent 70%),
         var(--lh-fondo);
 }
+/* En oscuro, la misma relación que la app tras entrar: marco navy (--marco-a oscuro) y la tarjeta en el negro
+   cálido de la isla (--background), con los campos en el tono de las tarjetas (--card). Antes el fondo era un
+   navy más hundido (#161c40) con la MISMA luminosidad que la tarjeta (1,00:1): no se separaban. Ahora 1,33:1,
+   más un filo de luz de 1 px en el borde de la tarjeta. */
 .dark .lh-raiz {
-    --lh-fondo: #161c40;
-    --lh-luz: #2e3a75;
-    --lh-tarjeta: hsl(30, 4%, 12%);
+    --lh-fondo: #232c5e;
+    --lh-luz: #34428a;
+    --lh-tarjeta: hsl(30, 4%, 10%);
     --lh-texto: hsl(30, 5%, 92%);
     --lh-sub: hsl(30, 5%, 66%);
     --lh-label: hsl(30, 5%, 85%);
-    --lh-input-bg: hsl(30, 4%, 15%);
-    --lh-input-borde: hsl(30, 4%, 24%);
-    --lh-input-borde-hover: hsl(30, 4%, 32%);
+    --lh-input-bg: hsl(30, 4%, 13%);
+    --lh-input-borde: hsl(30, 4%, 30%);
+    --lh-input-borde-hover: hsl(30, 4%, 38%);
     --lh-input-borde-foco: hsl(231, 55%, 62%);
     --lh-anillo: hsla(231, 55%, 58%, 0.18);
     --lh-seleccion: hsla(231, 55%, 58%, 0.34);
@@ -1868,9 +1874,9 @@ tr.table-row-hover:hover {
     --lh-placeholder: hsl(30, 5%, 55%);
     --lh-acento: hsl(231, 55%, 58%);
     --lh-acento-hover: hsl(231, 55%, 64%);
-    --lh-separador: hsl(30, 4%, 20%);
+    --lh-separador: hsl(30, 4%, 18%);
     --lh-escudo: hsl(231, 60%, 72%);
-    --lh-sombra: 0 40px 80px -30px rgba(0, 0, 0, 0.8);
+    --lh-sombra: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 40px 80px -30px rgba(0, 0, 0, 0.8);
     --lh-estado-bg: hsla(231, 55%, 58%, 0.14);
     --lh-error: #f87171;
     --lh-error-anillo: rgba(248, 113, 113, 0.18);
@@ -1878,29 +1884,56 @@ tr.table-row-hover:hover {
 /* El fondo usa overflow: clip (no hidden): el edificio sobresale por abajo y, con hidden, el navegador
    desplazaba el fondo 90 px al enfocar un campo con error y toda la página "saltaba" hacia arriba. */
 
+/* Ritmo de la tarjeta: entre grupos (cabecera, aviso, campos, botón, notas) más aire que dentro de cada uno
+   (correo, contraseña y la casilla van juntos). Antes todo iba a 18 px y nada se agrupaba. */
+.lh-raiz {
+    --lh-g-grupo: 22px;
+    --lh-g-campo: 14px;
+}
+.lh-tarjeta { gap: var(--lh-g-grupo); }
+.lh-campos { gap: var(--lh-g-campo); }
+.lh-notas { gap: 8px; padding-top: 16px; }
+
 /* Pantallas bajas (portátiles de 768 px de alto): todo el login cabe sin scroll. */
 @media (max-height: 860px) {
-    .lh-raiz { padding-top: 80px; padding-bottom: 24px; gap: 12px; }
+    .lh-raiz { padding-top: 80px; padding-bottom: 24px; gap: 12px; --lh-g-grupo: 16px; --lh-g-campo: 12px; }
     .lh-barra { padding-top: 16px; padding-bottom: 16px; }
-    .lh-tarjeta { padding-top: 24px; padding-bottom: 24px; gap: 14px; }
+    .lh-tarjeta { padding-top: 24px; padding-bottom: 24px; }
     .lh-logo { height: 64px; }
 }
 /* Lo que de verdad queda en un portátil de 1366 × 768: Chrome y la barra de tareas dejan ~640 px de alto.
    Ahí la tarjeta se cortaba y el lema y el pie quedaban debajo (107 px de scroll). Se aprietan los
-   espacios, el logo, los campos y el botón, sin quitar nada: cabe justo en 641 px. */
+   espacios, el logo, los campos y el botón, sin quitar nada: cabe en 641 px. */
 @media (max-height: 700px) {
-    .lh-raiz { padding-top: 66px; padding-bottom: 10px; gap: 8px; }
+    .lh-raiz { padding-top: 64px; padding-bottom: 8px; gap: 8px; --lh-g-grupo: 12px; --lh-g-campo: 8px; }
     .lh-barra { padding-top: 11px; padding-bottom: 11px; }
-    .lh-tarjeta { padding-top: 18px; padding-bottom: 18px; gap: 9px; }
-    .lh-logo { height: 46px; }
+    .lh-tarjeta { padding-top: 18px; padding-bottom: 18px; }
+    .lh-logo { height: 42px; }
     .lh-input { height: 44px; }
     .lh-boton { height: 48px; }
+    .lh-notas { gap: 4px; padding-top: 9px; }
 }
 
-/* Los globos de error del login son los de avisos-campo (.aviso-flotante, más abajo). El de Bloq Mayús
-   flota con esta sombra. */
-.lh-flotante-sombra {
-    box-shadow: 0 10px 24px -12px rgba(15, 20, 60, 0.35);
+/* Aviso de un campo, en la fila de su etiqueta (no flota: ahí no tapa nada). */
+.lh-error-campo {
+    color: var(--lh-error);
+}
+/* Bloq Mayús, dentro del campo de la contraseña junto al ojo (antes flotaba debajo y tapaba «Entrar»). */
+.lh-raiz {
+    --lh-mayus-bg: #fef3c7;
+    --lh-mayus-texto: #92400e;
+}
+.dark .lh-raiz {
+    --lh-mayus-bg: rgba(251, 191, 36, 0.16);
+    --lh-mayus-texto: #fcd34d;
+}
+.lh-mayus {
+    background: var(--lh-mayus-bg);
+    color: var(--lh-mayus-texto);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .lh-error-campo,
+    .lh-mayus { animation: lh-aparecer 0.16s ease-out both; }
 }
 @keyframes lh-aparecer {
     from { opacity: 0; transform: translateY(-4px); }
@@ -1938,9 +1971,6 @@ tr.table-row-hover:hover {
 }
 @media (prefers-reduced-motion: no-preference) {
     .aviso-flotante { animation: lh-aparecer 0.16s ease-out both; }
-}
-@media (prefers-reduced-motion: no-preference) {
-    .lh-flotante-sombra { animation: lh-aparecer 0.16s ease-out both; }
 }
 .lh-input[aria-invalid='true'],
 .lh-input[aria-invalid='true']:focus {
@@ -1999,6 +2029,50 @@ tr.table-row-hover:hover {
 .lh-check:focus-visible {
     outline: 2px solid var(--lh-input-borde-foco);
     outline-offset: 2px;
+}
+/* Aviso de la tarjeta cuando el envío falla (bloqueo por intentos, página caducada, servidor, sin red). Rojo
+   para lo que impide entrar; navy para lo que se resuelve solo. En oscuro el texto info no usa --lh-acento
+   (3,4:1 sobre la tarjeta): un navy claro que pasa 4,5:1. */
+.lh-raiz {
+    --lh-falla-error-bg: #fdf2f2;
+    --lh-falla-error-borde: #f3c6c6;
+    --lh-falla-error-texto: #a61d24;
+    --lh-falla-info-bg: rgba(46, 63, 132, 0.07);
+    --lh-falla-info-borde: rgba(46, 63, 132, 0.16);
+    --lh-falla-info-texto: #2e3f84;
+}
+.dark .lh-raiz {
+    --lh-falla-error-bg: rgba(248, 113, 113, 0.1);
+    --lh-falla-error-borde: rgba(248, 113, 113, 0.32);
+    --lh-falla-error-texto: #fca5a5;
+    --lh-falla-info-bg: hsla(231, 55%, 58%, 0.14);
+    --lh-falla-info-borde: hsla(231, 55%, 58%, 0.32);
+    --lh-falla-info-texto: hsl(231, 85%, 84%);
+}
+.lh-falla {
+    border: 1px solid;
+}
+.lh-falla-error {
+    background: var(--lh-falla-error-bg);
+    border-color: var(--lh-falla-error-borde);
+    color: var(--lh-falla-error-texto);
+}
+.lh-falla-info {
+    background: var(--lh-falla-info-bg);
+    border-color: var(--lh-falla-info-borde);
+    color: var(--lh-falla-info-texto);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .lh-falla { animation: lh-aparecer 0.16s ease-out both; }
+}
+/* «Entrar» durante el bloqueo: desactivado pero legible (con la opacidad de siempre el blanco quedaba en
+   4,2:1 justo cuando el botón dice cuánto falta). */
+.lh-raiz { --lh-boton-espera: #56639c; }
+.dark .lh-raiz { --lh-boton-espera: hsl(231, 30%, 38%); }
+.lh-boton.lh-boton-espera:disabled {
+    opacity: 1;
+    background: var(--lh-boton-espera);
+    box-shadow: none;
 }
 .lh-boton {
     background: var(--lh-acento);
