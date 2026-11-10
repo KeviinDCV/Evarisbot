@@ -185,14 +185,13 @@ const FONDO_FILA =
 /* ── Piezas ─────────────────────────────────────────────────────────────────────────────────────── */
 
 /** Avatar de iniciales: navy sólido para administradores, tinta navy para asesores. */
-function Avatar({ user, size = 32, className }: { user: User; size?: 28 | 32; className?: string }) {
+function Avatar({ user, className }: { user: User; className?: string }) {
     const admin = user.role === 'admin';
 
     return (
         <span
             className={cn(
-                'flex shrink-0 items-center justify-center rounded-full font-semibold leading-none tracking-[0.02em]',
-                size === 32 ? 'size-8 text-[12px]' : 'size-7 text-[11px]',
+                'flex size-8 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold leading-none tracking-[0.02em]',
                 admin
                     ? 'bg-[#2e3f84] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:bg-[#4e5fa4]'
                     : 'bg-[#2e3f84]/10 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.06)] dark:bg-white/8 dark:text-neutral-200 dark:shadow-none',
@@ -226,8 +225,7 @@ function PuntoEstado({ online }: { online: boolean }) {
     );
 }
 
-/** Rol: etiqueta tintada, sin borde duro. */
-/** El rol y, si es un asesor de turno, la etiqueta «De turno» (antes no se veía en ningún lado). */
+/** El rol (etiqueta tintada, sin borde duro) y, si es un asesor de turno, la etiqueta «De turno» (antes no se veía en ningún lado). */
 function RolYTurno({ user, etiqueta, turno }: { user: User; etiqueta: string; turno: string }) {
     return (
         <span className="flex flex-wrap items-center gap-1.5">
@@ -291,7 +289,7 @@ function InterruptorEnvio({
             title={pista}
             onClick={() => !ocupado && onToggle()}
             className={cn(
-                'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-[background-color,opacity] duration-200 aria-disabled:cursor-wait aria-disabled:opacity-60',
+                'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-[background-color,opacity] duration-200 aria-disabled:cursor-wait aria-disabled:opacity-60 lg:scroll-mt-28',
                 // Con el dedo, 20 × 36 px es poco: un área invisible de 12 px alrededor (44 × 60 px).
                 'pointer-coarse:after:absolute pointer-coarse:after:-inset-3',
                 FOCO,
@@ -316,7 +314,7 @@ function InterruptorEnvio({
 }
 
 const BOTON_FANTASMA = cn(
-    'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] pointer-coarse:size-10 dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+    'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] pointer-coarse:size-10 lg:scroll-mt-28 dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
     'aria-expanded:bg-[#2e3f84]/8 aria-expanded:text-[#2e3f84] aria-expanded:shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:aria-expanded:bg-white/8 dark:aria-expanded:text-neutral-100 dark:aria-expanded:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]',
     FOCO
 );
@@ -389,14 +387,14 @@ function Acciones({
                     </DropdownMenuItem>
                     {puedeEliminar && (
                         <>
-                    <DropdownMenuSeparator className="mx-1.5 my-0 bg-[#2e3f84]/8 dark:bg-white/8" />
-                    <DropdownMenuItem
-                        onSelect={() => onDelete(disparador.current)}
-                        className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 pointer-coarse:h-11 text-[13px] leading-[18px] font-medium text-red-600 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:focus:bg-red-500/10 dark:focus:text-red-300"
-                    >
-                        <Trash2 className="size-4 text-red-600 dark:text-red-400" strokeWidth={1.75} aria-hidden="true" />
-                        {etiquetas.delete}
-                    </DropdownMenuItem>
+                            <DropdownMenuSeparator className="mx-1.5 my-0 bg-[#2e3f84]/8 dark:bg-white/8" />
+                            <DropdownMenuItem
+                                onSelect={() => onDelete(disparador.current)}
+                                className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 pointer-coarse:h-11 text-[13px] leading-[18px] font-medium text-red-600 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:focus:bg-red-500/10 dark:focus:text-red-300"
+                            >
+                                <Trash2 className="size-4 text-red-600 dark:text-red-400" strokeWidth={1.75} aria-hidden="true" />
+                                {etiquetas.delete}
+                            </DropdownMenuItem>
                         </>
                     )}
                 </DropdownMenuContent>
@@ -711,8 +709,14 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         };
     };
 
+    // Un envío a la vez por acción, decidido al instante (el estado llega después del clic: con dos clics en la
+    // misma tanda salían dos peticiones, Inertia cancelaba la primera y al crear la segunda decía «el correo ya
+    // está registrado» aunque la cuenta sí se había creado).
+    const enCurso = useRef({ crear: false, editar: false, eliminar: false });
+
     const handleDelete = () => {
-        if (!userToDelete || eliminando) return;
+        if (!userToDelete || enCurso.current.eliminar) return;
+        enCurso.current.eliminar = true;
         const nombre = nombrePropio(userToDelete.name);
 
         router.delete(`/admin/users/${userToDelete.id}`, {
@@ -731,6 +735,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             },
             onError: () => toast.error(t('users.toastDeleteErrorName', { name: nombre })),
             onFinish: () => {
+                enCurso.current.eliminar = false;
                 setEliminando(false);
                 alTerminarEnvio();
             },
@@ -739,11 +744,16 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
     const handleCreate = (event: FormEvent) => {
         event.preventDefault();
+        if (enCurso.current.crear) return;
+        enCurso.current.crear = true;
         avisosCrear.alEnviar();
         const nombre = nombrePropio(createForm.data.name);
         createForm.post('/admin/users', {
             onStart: alEmpezarEnvio,
-            onFinish: alTerminarEnvio,
+            onFinish: () => {
+                enCurso.current.crear = false;
+                alTerminarEnvio();
+            },
             onSuccess: () => {
                 setShowCreateModal(false);
                 createForm.reset();
@@ -754,17 +764,29 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
     const handleEdit = (event: FormEvent) => {
         event.preventDefault();
-        if (!userToEdit) return;
+        if (!userToEdit || enCurso.current.editar) return;
+        enCurso.current.editar = true;
         avisosEditar.alEnviar();
         const nombre = nombrePropio(editForm.data.name);
         const cambioClave = modoClave && !!editForm.data.password;
+        const clave = editForm.data.password;
 
         editForm.put(`/admin/users/${userToEdit.id}`, {
             onStart: alEmpezarEnvio,
-            onFinish: alTerminarEnvio,
+            onFinish: () => {
+                enCurso.current.editar = false;
+                alTerminarEnvio();
+            },
             onSuccess: () => {
                 setShowEditModal(false);
-                toast.success(t(cambioClave ? 'users.toastPasswordChanged' : 'users.toastUpdatedName', { name: nombre }));
+                if (cambioClave) {
+                    // Por si se guardó sin copiarla: al cerrar la ventana la contraseña ya no se ve en ningún lado.
+                    toast.success(t('users.toastPasswordChanged', { name: nombre }), {
+                        boton: { titulo: t('users.copyPassword'), alPulsar: () => copiarClave(clave) },
+                    });
+                } else {
+                    toast.success(t('users.toastUpdatedName', { name: nombre }));
+                }
             },
         });
     };
@@ -919,8 +941,12 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
     const nameBlock = (user: User) => (
         <div className="flex min-w-0 flex-col gap-0.5">
-            <span className={cn('truncate text-[13.5px] leading-[18px] font-semibold tracking-[-0.003em]', TEXTO_NAVY)}>{nombrePropio(user.name)}</span>
-            <span className="truncate text-[12px] leading-4 text-muted-foreground">{user.email}</span>
+            <span title={nombrePropio(user.name)} className={cn('truncate text-[13.5px] leading-[18px] font-semibold tracking-[-0.003em]', TEXTO_NAVY)}>
+                {nombrePropio(user.name)}
+            </span>
+            <span title={user.email} className="truncate text-[12px] leading-4 text-muted-foreground">
+                {user.email}
+            </span>
         </div>
     );
 
@@ -1174,14 +1200,14 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                                 <div className="min-w-0 flex-1 pt-0.5">{nameBlock(user)}</div>
                                                                 <div className="-mt-0.5 -mr-1.5">
                                                                     <Acciones
-                                                            etiquetas={actionLabels}
-                                                            userId={user.id}
-                                                            nombre={nombrePropio(user.name)}
-                                                            puedeEliminar={user.id !== yoId}
-                                                            onEdit={(origen) => openEditModal(user, false, origen)}
-                                                            onResetPassword={(origen) => openEditModal(user, true, origen)}
-                                                            onDelete={(origen) => pedirEliminar(user, origen)}
-                                                        />
+                                                                        etiquetas={actionLabels}
+                                                                        userId={user.id}
+                                                                        nombre={nombrePropio(user.name)}
+                                                                        puedeEliminar={user.id !== yoId}
+                                                                        onEdit={(origen) => openEditModal(user, false, origen)}
+                                                                        onResetPassword={(origen) => openEditModal(user, true, origen)}
+                                                                        onDelete={(origen) => pedirEliminar(user, origen)}
+                                                                    />
                                                                 </div>
                                                             </div>
                                                             <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -1468,8 +1494,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
                                         <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
-                                            <SelectItem value="advisor" className="cursor-pointer rounded-md text-[13.5px] focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
-                                            <SelectItem value="admin" className="cursor-pointer rounded-md text-[13.5px] focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
+                                            <SelectItem value="advisor" className="cursor-pointer rounded-lg text-[13.5px] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:focus:bg-white/8 dark:focus:text-neutral-100">{t('users.roles.advisor')}</SelectItem>
+                                            <SelectItem value="admin" className="cursor-pointer rounded-lg text-[13.5px] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:focus:bg-white/8 dark:focus:text-neutral-100">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     {/* Qué puede hacer cada rol: es una decisión de acceso y antes no se explicaba. */}
@@ -1484,7 +1510,13 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)} className="rounded-xl text-[13px] font-semibold settings-btn-secondary pointer-coarse:h-11">
                                     {t('common.cancel')}
                                 </Button>
-                                <Button type="submit" disabled={createForm.processing} className="rounded-xl text-[13px] font-semibold settings-btn-primary disabled:opacity-50 pointer-coarse:h-11">
+                                <Button
+                                    type="submit"
+                                    aria-disabled={createForm.processing || undefined}
+                                    aria-busy={createForm.processing || undefined}
+                                    className="gap-2 rounded-xl text-[13px] font-semibold settings-btn-primary aria-disabled:cursor-wait aria-disabled:opacity-70 pointer-coarse:h-11"
+                                >
+                                    {createForm.processing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
                                     {createForm.processing ? t('users.creating') : t('users.createUser')}
                                 </Button>
                             </div>
@@ -1678,8 +1710,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
                                         <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
-                                            <SelectItem value="advisor" className="cursor-pointer rounded-md text-[13.5px] focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.advisor')}</SelectItem>
-                                            <SelectItem value="admin" className="cursor-pointer rounded-md text-[13.5px] focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
+                                            <SelectItem value="advisor" className="cursor-pointer rounded-lg text-[13.5px] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:focus:bg-white/8 dark:focus:text-neutral-100">{t('users.roles.advisor')}</SelectItem>
+                                            <SelectItem value="admin" className="cursor-pointer rounded-lg text-[13.5px] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:focus:bg-white/8 dark:focus:text-neutral-100">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     {userToEdit?.id === yoId ? (
@@ -1699,8 +1731,14 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 <Button type="button" variant="outline" onClick={() => setShowEditModal(false)} className="rounded-xl text-[13px] font-semibold settings-btn-secondary pointer-coarse:h-11">
                                     {t('common.cancel')}
                                 </Button>
-                                <Button type="submit" disabled={editForm.processing} className="rounded-xl text-[13px] font-semibold settings-btn-primary disabled:opacity-50 pointer-coarse:h-11">
-                                    {editForm.processing ? t('common.saving') : modoClave ? t('users.savePassword') : t('users.saveChanges')}
+                                <Button
+                                    type="submit"
+                                    aria-disabled={editForm.processing || undefined}
+                                    aria-busy={editForm.processing || undefined}
+                                    className="gap-2 rounded-xl text-[13px] font-semibold settings-btn-primary aria-disabled:cursor-wait aria-disabled:opacity-70 pointer-coarse:h-11"
+                                >
+                                    {editForm.processing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                                    {editForm.processing ? t('users.saving') : modoClave ? t('users.savePassword') : t('users.saveChanges')}
                                 </Button>
                             </div>
                         </form>
