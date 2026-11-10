@@ -16,7 +16,25 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::orderBy('created_at', 'desc')->get()->map(function ($user) {
+        // Chats abiertos de cada uno: la ventana de eliminar dice cuántos quedarían sin asignar.
+        // Una sola consulta agrupada por el índice de assigned_to (~4 ms con 82.000 conversaciones).
+        $abiertos = \App\Models\Conversation::query()
+            ->whereNotNull('assigned_to')
+            ->whereIn('status', \App\Services\InactiveConversationReleaser::OPEN_STATUSES)
+            ->selectRaw('assigned_to, COUNT(*) as total')
+            ->groupBy('assigned_to')
+            ->pluck('total', 'assigned_to');
+
+        // Plantillas no globales de cada uno: User::booted() las borra al eliminar la cuenta (también las que
+        // asignó a otros asesores), y la ventana de eliminar lo avisa con su número.
+        $plantillas = \App\Models\Template::query()
+            ->where('is_global', false)
+            ->whereNotNull('created_by')
+            ->selectRaw('created_by, COUNT(*) as total')
+            ->groupBy('created_by')
+            ->pluck('total', 'created_by');
+
+        $users = User::orderBy('created_at', 'desc')->get()->map(function ($user) use ($abiertos, $plantillas) {
             return [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -28,6 +46,8 @@ class UserController extends Controller
                 'is_online' => $user->isOnline(),
                 'online_status' => $user->getOnlineStatus(),
                 'last_activity_at' => $user->last_activity_at?->toISOString(),
+                'chats_abiertos' => (int) ($abiertos[$user->id] ?? 0),
+                'plantillas_propias' => (int) ($plantillas[$user->id] ?? 0),
             ];
         });
 
@@ -90,6 +110,12 @@ class UserController extends Controller
             'password' => ['nullable', 'confirmed', Password::defaults()],
         ]);
 
+        // El propio rol no se cambia desde aquí: quien se quitara el rol de administrador perdería el
+        // acceso a esta pantalla en el mismo guardado. Lo cambia otro administrador.
+        if ($user->is($request->user())) {
+            $validated['role'] = $user->role;
+        }
+
         $data = [
             'name' => $validated['name'],
             'email' => $validated['email'],
@@ -105,6 +131,13 @@ class UserController extends Controller
         }
 
         $user->update($data);
+
+        // Si cambió su propia contraseña, la sesión debe quedarse con el hash nuevo: AuthenticateSession guarda
+        // el del usuario autenticado (otra instancia, con el hash viejo) al terminar la petición, y en la
+        // siguiente cerraba la sesión. Settings/PasswordController no lo sufre porque cambia $request->user().
+        if (isset($data['password']) && $user->is($request->user())) {
+            $request->user()->forceFill(['password' => $user->password]);
+        }
 
         return redirect()->route('admin.users.index')
             ->with('success', 'Usuario actualizado exitosamente.');

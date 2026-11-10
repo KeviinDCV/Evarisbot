@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,7 @@ import {
     EyeOff,
     Headphones,
     KeyRound,
+    Loader2,
     Mail,
     Search,
     Send,
@@ -52,9 +53,10 @@ import {
     Users,
     X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { toast } from '@/lib/toast';
+import axios from 'axios';
 
 interface User {
     id: number;
@@ -67,6 +69,10 @@ interface User {
     is_online: boolean;
     online_status: 'online' | 'offline' | 'never';
     last_activity_at: string | null;
+    /** Chats abiertos asignados a esta persona (quedan sin asignar si se elimina). */
+    chats_abiertos?: number;
+    /** Plantillas no globales que creó: User::booted() las borra con la cuenta (también si las asignó a otros). */
+    plantillas_propias?: number;
 }
 
 interface UsersIndexProps {
@@ -84,7 +90,7 @@ interface UserFormData {
 type RoleFilter = 'all' | User['role'];
 
 /**
- * Contraseña aleatoria que cumple Password::defaults() (10+ caracteres, letras y números): 12
+ * Contraseña aleatoria que cumple Password::defaults() (5+ caracteres, letras y números): 12
  * caracteres sin los que se confunden al dictarla (0/O, 1/l/I).
  */
 function generarClave(largo = 12) {
@@ -160,7 +166,9 @@ const TEXTO_NAVY = 'text-[#2e3f84] dark:text-neutral-100';
 // Nombres de columna y opciones inactivas: en oscuro el muted-foreground no llega a 4,5:1 sobre la
 // banda tintada (4,45:1), así que ahí suben a neutral-400 (5,85:1).
 const TEXTO_SUAVE = 'text-muted-foreground dark:text-neutral-400';
-const FOCO = 'outline-none focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 dark:focus-visible:ring-[#8b9ae0]/60';
+// Foco: el contorno global de la app (navy sólido de 2 px con separación, app.css). Antes era un anillo
+// navy al 40 % (2,1:1 contra la hoja, por debajo de 3:1) que además apagaba el global con outline-none.
+const FOCO = 'focus-visible:outline-offset-2';
 
 // Columnas de la lista. Medio (hoja ≥ 768 px): compactas. Ancho (hoja ≥ 1024 px): las del diseño.
 // Por debajo de 768 px de hoja, cada persona es una tarjeta apilada (otra plantilla).
@@ -256,17 +264,33 @@ function RolePill({ role, label }: { role: User['role']; label: string }) {
  * Interruptor de envío masivo (solo en esta vista). Encendido: pista navy y bolita blanca con la
  * marca. Apagado: pista con contorno pizarra 500 y bolita pizarra 500 (4,76:1): se distingue sin color.
  */
-function InterruptorEnvio({ activo, etiqueta, onToggle }: { activo: boolean; etiqueta: string; onToggle: () => void }) {
+function InterruptorEnvio({
+    activo,
+    nombre,
+    pista,
+    ocupado,
+    onToggle,
+}: {
+    activo: boolean;
+    /** Nombre accesible fijo («Envío masivo de Luisa»): el estado lo dice aria-checked. */
+    nombre: string;
+    /** Lo que hará al pulsarlo (tooltip). */
+    pista: string;
+    ocupado: boolean;
+    onToggle: () => void;
+}) {
     return (
         <button
             type="button"
             role="switch"
             aria-checked={activo}
-            aria-label={etiqueta}
-            title={etiqueta}
-            onClick={onToggle}
+            aria-label={nombre}
+            aria-busy={ocupado || undefined}
+            aria-disabled={ocupado || undefined}
+            title={pista}
+            onClick={() => !ocupado && onToggle()}
             className={cn(
-                'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-[background-color,opacity] duration-200 aria-disabled:cursor-wait aria-disabled:opacity-60',
                 FOCO,
                 activo
                     ? 'bg-[#2e3f84] shadow-[inset_0_1px_1px_rgba(0,0,0,0.2)] dark:bg-[#596bcf]'
@@ -294,28 +318,48 @@ const BOTON_FANTASMA = cn(
     FOCO
 );
 
-/** Lápiz (Editar) + menú "…" con Editar, Restablecer contraseña y Eliminar. */
+/**
+ * Lápiz (Editar) + menú "…" con Editar, Restablecer contraseña y Eliminar. Cada acción recibe el botón
+ * de la fila desde el que se abrió, para devolverle el foco al cerrar la ventana.
+ */
 function Acciones({
     etiquetas,
+    userId,
+    nombre,
+    puedeEliminar,
     onEdit,
     onResetPassword,
     onDelete,
 }: {
     etiquetas: { edit: string; delete: string; more: string; reset: string };
-    onEdit: () => void;
-    onResetPassword: () => void;
-    onDelete: () => void;
+    userId: number;
+    nombre: string;
+    /** No en la propia fila: el servidor no deja eliminarse a uno mismo. */
+    puedeEliminar: boolean;
+    onEdit: (origen: HTMLElement | null) => void;
+    onResetPassword: (origen: HTMLElement | null) => void;
+    onDelete: (origen: HTMLElement | null) => void;
 }) {
+    const { t } = useTranslation();
+    const disparador = useRef<HTMLButtonElement>(null);
+
     return (
-        <div className="flex items-center justify-end gap-1">
-            <button type="button" onClick={onEdit} className={BOTON_FANTASMA} title={etiquetas.edit} aria-label={etiquetas.edit}>
+        <div className="flex items-center justify-end gap-1" data-acciones={userId}>
+            <button
+                type="button"
+                data-accion="editar"
+                onClick={(event) => onEdit(event.currentTarget)}
+                className={BOTON_FANTASMA}
+                title={etiquetas.edit}
+                aria-label={t('users.editFor', { name: nombre })}
+            >
                 <Edit3 className="size-4" strokeWidth={1.75} aria-hidden="true" />
             </button>
             {/* modal={false}: el menú abre un Dialog de Radix; en modo modal los dos se pisan el
                 bloqueo del body y la página se quedaba sin clics al cerrar el diálogo. */}
             <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
-                    <button type="button" className={BOTON_FANTASMA} title={etiquetas.more} aria-label={etiquetas.more}>
+                    <button ref={disparador} type="button" data-accion="mas" className={BOTON_FANTASMA} title={etiquetas.more} aria-label={t('users.moreActionsFor', { name: nombre })}>
                         <Ellipsis className="size-4" strokeWidth={1.75} aria-hidden="true" />
                     </button>
                 </DropdownMenuTrigger>
@@ -325,27 +369,31 @@ function Acciones({
                     className="flex w-[216px] flex-col gap-0.5 rounded-xl border-0 bg-white p-1 shadow-[0_0_0_1px_rgba(46,63,132,0.1),0_2px_4px_rgba(46,63,132,0.06),0_12px_28px_-12px_rgba(46,63,132,0.3)] dark:bg-popover dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_12px_28px_-12px_rgba(0,0,0,0.7)]"
                 >
                     <DropdownMenuItem
-                        onSelect={onEdit}
+                        onSelect={() => onEdit(disparador.current)}
                         className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100"
                     >
                         <Edit3 className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
                         {etiquetas.edit}
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                        onSelect={onResetPassword}
+                        onSelect={() => onResetPassword(disparador.current)}
                         className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100"
                     >
                         <KeyRound className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
                         {etiquetas.reset}
                     </DropdownMenuItem>
+                    {puedeEliminar && (
+                        <>
                     <DropdownMenuSeparator className="mx-1.5 my-0 bg-[#2e3f84]/8 dark:bg-white/8" />
                     <DropdownMenuItem
-                        onSelect={onDelete}
+                        onSelect={() => onDelete(disparador.current)}
                         className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 text-[13px] leading-[18px] font-medium text-red-600 focus:bg-red-50 focus:text-red-700 dark:text-red-400 dark:focus:bg-red-500/10 dark:focus:text-red-300"
                     >
                         <Trash2 className="size-4 text-red-600 dark:text-red-400" strokeWidth={1.75} aria-hidden="true" />
                         {etiquetas.delete}
                     </DropdownMenuItem>
+                        </>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
         </div>
@@ -404,6 +452,85 @@ function avataresVisibles(total: number, huecos: number) {
 
 export default function UsersIndex({ users }: UsersIndexProps) {
     const { t } = useTranslation();
+    // Quien está usando la página: no ve «Eliminar» en su fila ni puede cambiar su propio rol.
+    const yoId = usePage<{ auth: { user: { id: number } | null } }>().props.auth.user?.id;
+
+    /**
+     * Las ventanas se abren por estado (sin un Trigger de Radix), así que al cerrarlas el foco caía al
+     * principio de la página. Se recuerda el botón de origen y se le devuelve; si ya no existe o no se ve
+     * (fila eliminada, la otra variante de la fila), va al buscador.
+     */
+    const [userToDelete, setUserToDelete] = useState<User | null>(null);
+    const [abiertoBorrar, setAbiertoBorrar] = useState(false);
+    const [eliminando, setEliminando] = useState(false);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [userToEdit, setUserToEdit] = useState<User | null>(null);
+
+    const origenFoco = useRef<{ el: HTMLElement | null; userId?: number; vecino?: number } | null>(null);
+    const recordarOrigen = (origen: HTMLElement | null, userId?: number, vecino?: number) => {
+        origenFoco.current = {
+            el: origen ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null),
+            userId,
+            vecino,
+        };
+    };
+    const devolverFoco = (event: Event) => {
+        event.preventDefault();
+        const origen = origenFoco.current;
+        origenFoco.current = null;
+        const visible = (el: Element | null | undefined): el is HTMLElement =>
+            el instanceof HTMLElement && el.isConnected && el.getClientRects().length > 0;
+        // De las dos variantes de cada fila (escritorio / celular) solo una se ve.
+        const boton = (id: number | undefined, accion: string | undefined) =>
+            id === undefined ? undefined : [...document.querySelectorAll(`[data-acciones="${id}"] [data-accion="${accion ?? 'mas'}"]`)].find(visible);
+        const destino =
+            (visible(origen?.el) ? origen?.el : undefined) ??
+            boton(origen?.userId, origen?.el?.getAttribute('data-accion') ?? undefined) ??
+            boton(origen?.vecino, 'mas');
+        if (destino) destino.focus();
+        else document.getElementById('user-search')?.focus({ preventScroll: true });
+    };
+
+    /**
+     * Envíos de esta página (crear, editar, eliminar, envío masivo): si el servidor responde con su página
+     * de error (500, 419, 429, 503) o no hay red, Inertia abría su ventana en inglés. Se cancela y se avisa
+     * con un toast propio, como en Configuración. El sondeo de presencia no cuenta.
+     */
+    const enviando = useRef(0);
+    const alEmpezarEnvio = () => {
+        enviando.current += 1;
+    };
+    const alTerminarEnvio = () => {
+        enviando.current = Math.max(0, enviando.current - 1);
+    };
+    useEffect(() => {
+        const offInvalid = router.on('invalid', (event) => {
+            if (enviando.current === 0) return;
+            event.preventDefault();
+            const status = event.detail.response.status;
+            if (status === 404) {
+                toast.error(t('users.toastGone'));
+                setAbiertoBorrar(false);
+                setShowEditModal(false);
+                router.reload({ only: ['users'] });
+                return;
+            }
+            if (status === 419) axios.get('/csrf-refresh').catch(() => {});
+            toast.error(
+                t(status === 419 ? 'fallasEnvio.expired' : status === 429 ? 'settings.saveTooMany' : status === 503 ? 'fallasEnvio.maintenance' : 'fallasEnvio.server')
+            );
+        });
+        const offException = router.on('exception', (event) => {
+            if (enviando.current === 0) return;
+            event.preventDefault();
+            toast.error(t('fallasEnvio.offline'));
+        });
+        return () => {
+            offInvalid();
+            offException();
+        };
+    }, [t]);
     const [search, setSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
 
@@ -453,10 +580,6 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             window.removeEventListener('focus', refrescar);
         };
     }, []);
-    const [userToDelete, setUserToDelete] = useState<User | null>(null);
-    const [showCreateModal, setShowCreateModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [userToEdit, setUserToEdit] = useState<User | null>(null);
 
     const createForm = useForm<UserFormData>({
         name: '',
@@ -581,14 +704,28 @@ export default function UsersIndex({ users }: UsersIndexProps) {
     };
 
     const handleDelete = () => {
-        if (!userToDelete) return;
+        if (!userToDelete || eliminando) return;
+        const nombre = nombrePropio(userToDelete.name);
 
         router.delete(`/admin/users/${userToDelete.id}`, {
-            onSuccess: () => {
-                setUserToDelete(null);
-                toast.success(t('users.toastDeleted'));
+            preserveScroll: true,
+            onStart: () => {
+                setEliminando(true);
+                alEmpezarEnvio();
+            },
+            // El servidor rechaza algunos casos con un redirect y un flash de error (p. ej. eliminarse a uno
+            // mismo): para Inertia eso es un éxito, así que se mira el flash antes de decir «eliminado».
+            onSuccess: (page) => {
+                const error = (page.props as { flash?: { error?: string | null } }).flash?.error;
+                setAbiertoBorrar(false);
+                if (error) toast.error(error);
+                else toast.success(t('users.toastDeletedName', { name: nombre }));
             },
             onError: () => toast.error(t('users.toastDeleteError')),
+            onFinish: () => {
+                setEliminando(false);
+                alTerminarEnvio();
+            },
         });
     };
 
@@ -596,6 +733,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         event.preventDefault();
         avisosCrear.alEnviar();
         createForm.post('/admin/users', {
+            onStart: alEmpezarEnvio,
+            onFinish: alTerminarEnvio,
             onSuccess: () => {
                 setShowCreateModal(false);
                 createForm.reset();
@@ -610,16 +749,18 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         avisosEditar.alEnviar();
 
         editForm.put(`/admin/users/${userToEdit.id}`, {
+            onStart: alEmpezarEnvio,
+            onFinish: alTerminarEnvio,
             onSuccess: () => {
                 setShowEditModal(false);
-                setUserToEdit(null);
                 toast.success(t('users.toastUpdated'));
             },
         });
     };
 
     // generar = true: "Restablecer contraseña" (abre la edición con una contraseña nueva ya puesta y visible).
-    const openEditModal = (user: User, generar = false) => {
+    const openEditModal = (user: User, generar = false, origen: HTMLElement | null = null) => {
+        recordarOrigen(origen, user.id);
         const clave = generar ? generarClave() : '';
         setUserToEdit(user);
         editForm.setData({
@@ -635,12 +776,20 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         setShowEditModal(true);
     };
 
-    const openCreateModal = () => {
+    const openCreateModal = (origen: HTMLElement | null = null) => {
+        recordarOrigen(origen);
         createForm.reset();
         createForm.clearErrors();
         setVerClaveCrear(false);
         setGeneradaCrear(false);
         setShowCreateModal(true);
+    };
+
+    const pedirEliminar = (user: User, origen: HTMLElement | null) => {
+        const i = filteredUsers.findIndex((u) => u.id === user.id);
+        recordarOrigen(origen, user.id, (filteredUsers[i + 1] ?? filteredUsers[i - 1])?.id);
+        setUserToDelete(user);
+        setAbiertoBorrar(true);
     };
 
     const generarParaCrear = () => {
@@ -663,14 +812,39 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         avisosEditar.alEscribir('password_confirmation')();
     };
 
-    const toggleBulkSend = (user: User) => {
+    // Interruptores de envío masivo guardando ahora (el ref evita el doble clic aunque el estado no se haya
+    // pintado todavía; el estado es para pintarlos ocupados).
+    const enVueloEnvio = useRef(new Set<number>());
+    const [cambiandoEnvio, setCambiandoEnvio] = useState<number[]>([]);
+
+    /** El servidor invierte el permiso; «Deshacer» lo vuelve a invertir. */
+    const toggleBulkSend = (user: User, deshacer = false) => {
+        if (enVueloEnvio.current.has(user.id)) return;
+        const nombre = nombrePropio(user.name);
+        const activar = !user.can_bulk_send;
+        enVueloEnvio.current.add(user.id);
+        setCambiandoEnvio((ids) => [...ids, user.id]);
+
         router.post(`/admin/users/${user.id}/toggle-bulk-send`, {}, {
+            async: true,
+            showProgress: true,
             preserveScroll: true,
-            onSuccess: () => toast.success(
-                user.can_bulk_send
-                    ? t('users.toastBulkSendRemoved', { name: user.name })
-                    : t('users.toastBulkSendGranted', { name: user.name })
-            ),
+            onStart: alEmpezarEnvio,
+            onSuccess: () => {
+                if (deshacer) {
+                    toast.info(t('users.toastBulkSendUndone', { name: nombre }));
+                    return;
+                }
+                toast.success(t(activar ? 'users.toastBulkSendGranted' : 'users.toastBulkSendRemoved', { name: nombre }), {
+                    boton: { titulo: t('users.undo'), alPulsar: () => toggleBulkSend({ ...user, can_bulk_send: activar }, true) },
+                });
+            },
+            onError: () => toast.error(t('users.toastBulkSendError', { name: nombre })),
+            onFinish: () => {
+                enVueloEnvio.current.delete(user.id);
+                setCambiandoEnvio((ids) => ids.filter((id) => id !== user.id));
+                alTerminarEnvio();
+            },
         });
     };
 
@@ -682,7 +856,9 @@ export default function UsersIndex({ users }: UsersIndexProps) {
         user.role === 'advisor' ? (
             <InterruptorEnvio
                 activo={user.can_bulk_send}
-                etiqueta={user.can_bulk_send ? t('users.disableBulkSend') : t('users.enableBulkSend')}
+                nombre={t('users.bulkSendFor', { name: nombrePropio(user.name) })}
+                pista={user.can_bulk_send ? t('users.disableBulkSend') : t('users.enableBulkSend')}
+                ocupado={cambiandoEnvio.includes(user.id)}
                 onToggle={() => toggleBulkSend(user)}
             />
         ) : (
@@ -743,7 +919,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                         </div>
 
                         <Button
-                            onClick={openCreateModal}
+                            onClick={(event) => openCreateModal(event.currentTarget)}
                             className="h-[38px] gap-2 self-start rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary has-[>svg]:pr-4 has-[>svg]:pl-3.5"
                         >
                             <UserPlus className="size-4" strokeWidth={2} aria-hidden="true" />
@@ -960,14 +1136,24 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                         <div className="flex min-w-0 flex-col gap-0.5">
                                                             {statusWord(user)}
                                                             <span title={t('users.lastActivity')} className="truncate text-[12px] leading-4 text-muted-foreground">
+                                                                <span className="sr-only">{t('users.lastActivity')}: </span>
                                                                 {lastActivityText(user)}
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center">{bulkCell(user)}</div>
                                                         <span className="truncate text-[12.5px] leading-[18px] whitespace-nowrap text-muted-foreground tabular-nums">
+                                                            <span className="sr-only">{t('users.tableRegistered')}: </span>
                                                             {formatCreatedAt(user.created_at)}
                                                         </span>
-                                                        <Acciones etiquetas={actionLabels} onEdit={() => openEditModal(user)} onResetPassword={() => openEditModal(user, true)} onDelete={() => setUserToDelete(user)} />
+                                                        <Acciones
+                                                            etiquetas={actionLabels}
+                                                            userId={user.id}
+                                                            nombre={nombrePropio(user.name)}
+                                                            puedeEliminar={user.id !== yoId}
+                                                            onEdit={(origen) => openEditModal(user, false, origen)}
+                                                            onResetPassword={(origen) => openEditModal(user, true, origen)}
+                                                            onDelete={(origen) => pedirEliminar(user, origen)}
+                                                        />
                                                     </div>
 
                                                     {/* Tarjeta apilada (hoja < 768 px): las mismas piezas y acciones */}
@@ -979,7 +1165,15 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                             <div className="flex items-start gap-2">
                                                                 <div className="min-w-0 flex-1 pt-0.5">{nameBlock(user)}</div>
                                                                 <div className="-mt-0.5 -mr-1.5">
-                                                                    <Acciones etiquetas={actionLabels} onEdit={() => openEditModal(user)} onResetPassword={() => openEditModal(user, true)} onDelete={() => setUserToDelete(user)} />
+                                                                    <Acciones
+                                                            etiquetas={actionLabels}
+                                                            userId={user.id}
+                                                            nombre={nombrePropio(user.name)}
+                                                            puedeEliminar={user.id !== yoId}
+                                                            onEdit={(origen) => openEditModal(user, false, origen)}
+                                                            onResetPassword={(origen) => openEditModal(user, true, origen)}
+                                                            onDelete={(origen) => pedirEliminar(user, origen)}
+                                                        />
                                                                 </div>
                                                             </div>
                                                             <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
@@ -1021,34 +1215,53 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     </section>
                 </div>
 
-                <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
-                    <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl">
+                {/* Eliminar. Lo que pasa en la base al borrar una cuenta (reglas ON DELETE de producción, 10/11/2026):
+                    conversaciones, mensajes y citas se conservan sin su nombre (SET NULL) y su trabajo deja de contar en
+                    Estadísticas; se borran sus mensajes del chat interno y los anuncios que publicó (CASCADE), y
+                    User::booted() borra sus plantillas no globales, también las que asignó a otros. */}
+                <Dialog open={abiertoBorrar} onOpenChange={(open) => !open && !eliminando && setAbiertoBorrar(false)}>
+                    <DialogContent className="card-gradient rounded-2xl shadow-2xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
                         <DialogHeader>
-                            <DialogTitle className="settings-title">{t('users.deleteConfirm')}</DialogTitle>
-                            <DialogDescription className="settings-subtitle">
-                                <Trans
-                                    i18nKey="users.deleteMessageFull"
-                                    values={{ name: userToDelete?.name ?? '' }}
-                                    components={{ strong: <strong /> }}
-                                />{' '}
-                                {t('users.deleteWarning')}
+                            <DialogTitle className="settings-title">
+                                {t('users.deleteTitle', { name: userToDelete ? nombrePropio(userToDelete.name) : '' })}
+                            </DialogTitle>
+                            <DialogDescription asChild>
+                                <div className="settings-subtitle flex flex-col gap-2 text-[14px] leading-5">
+                                    {!!userToDelete?.chats_abiertos && (
+                                        <p className="font-semibold text-foreground">{t('users.deleteChats', { count: userToDelete.chats_abiertos })}</p>
+                                    )}
+                                    <p>{t('users.deleteKeeps')}</p>
+                                    <p>
+                                        {t('users.deleteErases')}
+                                        {!!userToDelete?.plantillas_propias && <> {t('users.deleteTemplates', { count: userToDelete.plantillas_propias })}</>}{' '}
+                                        <strong className="font-semibold text-foreground">{t('users.deleteWarning')}</strong>
+                                    </p>
+                                </div>
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button variant="outline" className="rounded-xl font-medium settings-btn-secondary">
+                                <Button variant="outline" aria-disabled={eliminando || undefined} className="rounded-xl font-medium settings-btn-secondary aria-disabled:opacity-60">
                                     {t('common.cancel')}
                                 </Button>
                             </DialogClose>
-                            <Button onClick={handleDelete} className="rounded-xl border-0 bg-gradient-to-b from-red-500 to-red-600 font-medium text-white shadow-md transition-all duration-200 hover:from-red-600 hover:to-red-700">
-                                {t('common.delete')}
+                            <Button
+                                onClick={handleDelete}
+                                aria-disabled={eliminando || undefined}
+                                aria-busy={eliminando || undefined}
+                                className="gap-2 rounded-xl border-0 bg-red-600 font-medium text-white hover:bg-red-700 aria-disabled:cursor-wait aria-disabled:opacity-70"
+                            >
+                                {eliminando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                                {eliminando
+                                    ? t('users.deleting')
+                                    : t('users.deleteButton', { name: userToDelete ? nombrePropio(userToDelete.name).split(' ')[0] : '' })}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
 
                 <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-                    <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl">
+                    <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
                         <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
                             <DialogTitle className="flex items-center gap-2 text-xl settings-title">
                                 <UserCircle className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
@@ -1230,7 +1443,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 </Dialog>
 
                 <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-                    <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl">
+                    <DialogContent className="card-gradient overflow-hidden rounded-2xl p-0 shadow-2xl sm:max-w-xl sm:rounded-2xl" onCloseAutoFocus={devolverFoco}>
                         <DialogHeader className="border-b border-[#d4d8e8]/80 px-5 py-4 dark:border-white/10">
                             <DialogTitle className="flex items-center gap-2 text-xl settings-title">
                                 <Edit3 className="h-5 w-5 text-[#2e3f84] dark:text-neutral-100" />
@@ -1297,7 +1510,10 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             id="edit-password"
                                             type={verClaveEditar ? 'text' : 'password'}
                                             value={editForm.data.password}
-                                            onChange={(event) => editForm.setData('password', event.target.value)}
+                                            onChange={(event) => {
+                                                const valor = event.target.value;
+                                                editForm.setData((datos) => ({ ...datos, password: valor, password_confirmation: valor ? datos.password_confirmation : '' }));
+                                            }}
                                             placeholder={t('users.newPasswordPlaceholder')}
                                             autoComplete="new-password"
                                             required={false}
@@ -1334,6 +1550,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     <div className="relative">
                                         <Input
                                             id="edit-password-confirm"
+                                            disabled={!editForm.data.password}
                                             type={verClaveEditar ? 'text' : 'password'}
                                             value={editForm.data.password_confirmation}
                                             onChange={(event) => editForm.setData('password_confirmation', event.target.value)}
@@ -1343,7 +1560,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             aria-invalid={avisosEditar.invalido('password_confirmation', editForm.errors.password_confirmation) || undefined}
                                             onInvalid={avisosEditar.alInvalidar('password_confirmation')}
                                             onInput={avisosEditar.alEscribir('password_confirmation')}
-                                            className="rounded-xl pr-[72px] text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
+                                            className="rounded-xl pr-[72px] text-sm settings-input disabled:opacity-100 focus:ring-2 focus:ring-[#2e3f84]/30 aria-[invalid=true]:border-red-500"
                                         />
                                         <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
                                             {editForm.data.password_confirmation && (
@@ -1353,6 +1570,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             )}
                                             <button
                                                 type="button"
+                                                disabled={!editForm.data.password}
                                                 onClick={() => setVerClaveEditar((v) => !v)}
                                                 className={BOTON_FANTASMA}
                                                 aria-pressed={verClaveEditar}
@@ -1386,8 +1604,16 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         <ShieldCheck className="h-3.5 w-3.5" />
                                         {t('users.role')}
                                     </Label>
-                                    <Select value={editForm.data.role} onValueChange={(value) => editForm.setData('role', value as User['role'])}>
-                                        <SelectTrigger id="edit-role" className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2">
+                                    <Select
+                                        value={editForm.data.role}
+                                        onValueChange={(value) => editForm.setData('role', value as User['role'])}
+                                        disabled={userToEdit?.id === yoId}
+                                    >
+                                        <SelectTrigger
+                                            id="edit-role"
+                                            aria-describedby={userToEdit?.id === yoId ? 'edit-role-propio' : undefined}
+                                            className="h-10 w-full rounded-xl text-sm settings-input focus:ring-2 focus:ring-[#2e3f84]/30 sm:w-1/2"
+                                        >
                                             <SelectValue placeholder={t('users.selectRole')} />
                                         </SelectTrigger>
                                         <SelectContent className="card-gradient rounded-xl p-1 shadow-lg">
@@ -1395,6 +1621,11 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                             <SelectItem value="admin" className="cursor-pointer rounded-md text-sm focus:bg-gray-100 dark:focus:bg-gray-800">{t('users.roles.admin')}</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                    {userToEdit?.id === yoId && (
+                                        <p id="edit-role-propio" className="text-[12.5px] leading-[18px] text-muted-foreground">
+                                            {t('users.ownRoleHint')}
+                                        </p>
+                                    )}
                                     <InputError message={editForm.errors.role} />
                                 </div>
                             </div>

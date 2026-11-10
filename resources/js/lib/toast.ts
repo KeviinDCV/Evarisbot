@@ -28,7 +28,10 @@ const RESUMEN: Record<Tipo, [clave: string, porDefecto: string]> = {
     info: ['toast.info', 'Aviso'],
 };
 
-function mostrar(tipo: Tipo, texto: string): string {
+/** Un botón dentro del aviso (p. ej. «Deshacer»). Con botón el aviso dura más: hay que alcanzar a pulsarlo. */
+type Opciones = { boton?: { titulo: string; alPulsar: () => void } };
+
+function mostrar(tipo: Tipo, texto: string, opciones?: Opciones): string {
     const frase = String(texto ?? '').trim();
     const cabe = frase.length <= CABE_EN_TITULO;
     const [clave, porDefecto] = RESUMEN[tipo];
@@ -36,14 +39,19 @@ function mostrar(tipo: Tipo, texto: string): string {
     return sileo[tipo]({
         title: cabe ? frase : i18n.t(clave, porDefecto),
         description: cabe ? undefined : frase,
-        duration: DURACION[tipo],
+        duration: opciones?.boton ? 8000 : DURACION[tipo],
+        // Con botón: Sileo pliega la descripción (donde va el botón) a los 4 s; se deja abierta todo el aviso.
+        // Solo se pasan las claves cuando hay botón, para no pisar las opciones globales del Toaster.
+        ...(opciones?.boton
+            ? { button: { title: opciones.boton.titulo, onClick: opciones.boton.alPulsar }, autopilot: { expand: 0, collapse: 8000 } }
+            : {}),
     });
 }
 
 export const toast = {
-    success: (texto: string) => mostrar('success', texto),
-    error: (texto: string) => mostrar('error', texto),
-    warning: (texto: string) => mostrar('warning', texto),
-    info: (texto: string) => mostrar('info', texto),
+    success: (texto: string, opciones?: Opciones) => mostrar('success', texto, opciones),
+    error: (texto: string, opciones?: Opciones) => mostrar('error', texto, opciones),
+    warning: (texto: string, opciones?: Opciones) => mostrar('warning', texto, opciones),
+    info: (texto: string, opciones?: Opciones) => mostrar('info', texto, opciones),
     dismiss: (id: string) => sileo.dismiss(id),
 };
