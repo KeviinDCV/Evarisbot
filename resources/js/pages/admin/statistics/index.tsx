@@ -134,9 +134,11 @@ interface Statistics {
         with_reminder_base?: number;
         /** Citas del total con fecha posterior a hoy. */
         future?: number;
+        /** Estado del recordatorio en cuatro partes que suman el total (cada cita en una sola). */
+        reminder_state?: { sent: number; not_sent: number; failed: number; cancelled_by_hospital: number };
         by_status: Record<string, number>;
     };
-    /** Creadas en el período, contadas por su estado ACTUAL. */
+    /** total y estados: números nuevos del período (una conversación por número), con su estado de HOY. */
     conversations: {
         total: number;
         active: number;
@@ -145,7 +147,12 @@ interface Statistics {
         resolved: number;
         closed: number;
         scheduled: number;
+        /** De las creadas en el período: ya no se muestra (queda por compatibilidad). */
         unread: number;
+        /** Foto de ahora, sin período: activas o pendientes con mensajes sin leer (como el menú de la izquierda). */
+        unread_now?: number;
+        /** Conversaciones en las que el paciente escribió en el período (sin contar botones). */
+        with_patient_messages?: number;
     };
     /** total = respuestas rápidas (de hoy); los envíos son SOLO los masivos del período. */
     templates: {
@@ -1337,6 +1344,22 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     const respuestasTotal = appointmentsData.reduce((s, a) => s + a.value, 0);
     const centroAnillo = appointments.with_reminder_base ?? respuestasTotal;
     const citasFuturas = appointments.future ?? 0;
+    // Estado del recordatorio: cuatro partes que suman el total, cada cita en una sola. Antes eran
+    // filas sueltas sobre el total («enviado» es una marca y «con error» un estado) y podían pasar de 100 %.
+    const estadoRecordatorio = appointments.reminder_state ?? {
+        sent: appointments.reminder_sent,
+        not_sent: appointments.pending,
+        failed: appointments.failed,
+        cancelled_by_hospital: canceladasHospital ?? 0,
+    };
+    const partesRecordatorio = [
+        { clave: 'sent', etiqueta: t('statistics.appointments.remindersSent'), valor: estadoRecordatorio.sent, color: G.serie },
+        { clave: 'not_sent', etiqueta: t('statistics.appointments.pending'), valor: estadoRecordatorio.not_sent, color: G.neutro },
+        { clave: 'failed', etiqueta: t('statistics.appointments.failed'), valor: estadoRecordatorio.failed, color: G.mal },
+        { clave: 'hospital', etiqueta: t('statistics.appointments.cancelledByHospital'), valor: estadoRecordatorio.cancelled_by_hospital, color: G.serie2 },
+    ].filter((p) => p.clave !== 'hospital' || p.valor > 0);
+    // Enviadas que no caben en el anillo: su estado no dice si el paciente respondió.
+    const fueraDelAnillo = appointments.reminder_state ? Math.max(appointments.reminder_state.sent - centroAnillo, 0) : 0;
     // La cabecera rotula un período en curso «hasta hoy», pero Citas cuenta el período completo.
     const notaCitas =
         !rangoDatos.custom && rangoDatos.start && rangoDatos.end && rangoDatos.end > hoy && rangoDatos.start <= hoy
@@ -1353,7 +1376,11 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         { key: 'scheduled', label: t('statistics.conversations.scheduled'), value: conversations.scheduled },
     ].filter((c) => !((c.key === 'in_progress' || c.key === 'closed') && c.value === 0));
     const maxConversationItem = Math.max(...conversationItems.map((c) => c.value), 1);
-    const sinLeer = conversations.unread > 0;
+    // «Sin leer» es la foto de ahora (la misma regla del menú de la izquierda), no depende del período.
+    const sinLeerAhora = conversations.unread_now ?? conversations.unread;
+    const sinLeer = sinLeerAhora > 0;
+    // «Conversaciones» del período = en las que el paciente escribió; los números nuevos van aparte.
+    const conMensajesPaciente = conversations.with_patient_messages ?? conversations.total;
 
     /* Asesores */
     const advisorList = advisors.advisors;
@@ -1535,6 +1562,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         messages.total === 0 &&
         appointments.total === 0 &&
         conversations.total === 0 &&
+        conMensajesPaciente === 0 &&
         templates.total_sends === 0 &&
         advisors.total_conversations === 0 &&
         adminList.every((a) => a.total_conversations === 0) &&
@@ -1558,15 +1586,15 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
             id: 'est-conversaciones',
             icono: MessagesSquare,
             etiqueta: t('statistics.chart.conversations'),
-            valor: formatNumber(conversations.total),
+            valor: formatNumber(conMensajesPaciente),
             detalle: sinLeer ? (
                 // Ámbar 800 (no 700): la franja va sobre el fondo de la página, donde el 700 quedaba en 4,49:1.
                 <span className="flex min-w-0 items-center gap-1.5 font-medium text-amber-800 dark:text-amber-400">
                     <span className={cn('size-[7px] shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
-                    <span className="truncate">{t('statistics.metricCard.unreadDetail', { value: formatNumber(conversations.unread) })}</span>
+                    <span className="truncate">{t('statistics.metricCard.unreadDetail', { value: formatNumber(sinLeerAhora) })}</span>
                 </span>
             ) : (
-                t('statistics.metricCard.unreadDetail', { value: formatNumber(conversations.unread) })
+                t('statistics.metricCard.unreadDetail', { value: formatNumber(sinLeerAhora) })
             ),
             destino: t('statistics.conversations.title'),
         },
@@ -1698,10 +1726,10 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                             <CalendarX2 className={cn('size-8', TEXTO_SUAVE)} strokeWidth={1.5} aria-hidden="true" />
                             <h2 className={cn('text-[17px] leading-[22px] font-semibold tracking-[-0.01em] text-balance', TEXTO_NAVY)}>{t('statistics.view.emptyTitle')}</h2>
                             <p className={cn('max-w-md text-[14px] leading-5 text-pretty', TEXTO_SUAVE)}>{t('statistics.view.emptyText', { range: textoCabecera })}</p>
-                            {conversations.unread > 0 && (
+                            {sinLeer && (
                                 <p className={cn('flex items-center gap-1.5 text-[13px] leading-[18px] font-medium', TXT_AVISO)}>
                                     <span className={cn('size-[7px] shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
-                                    {t('statistics.view.emptyUnreadNow', { count: conversations.unread, value: formatNumber(conversations.unread) })}
+                                    {t('statistics.view.emptyUnreadNow', { count: sinLeerAhora, value: formatNumber(sinLeerAhora) })}
                                 </p>
                             )}
                             {siguientePeriodo && (
@@ -1917,7 +1945,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 {thOrden('total', t('statistics.view.attended'), 'w-[152px] @6xl/hoja:w-[184px]')}
                                                 {thOrden('resolved', t('statistics.advisors.resolved'), 'w-[108px]', true)}
                                                 {/* «Activas (ahora)»: es lo de hoy, no del período (igual que en el Excel). */}
-                                                {thOrden('active', t('statistics.view.activeNow'), 'w-[120px]', true)}
+                                                {thOrden('active', t('statistics.view.activeNow'), 'w-[136px]', true)}
                                                 {thOrden('scheduled', t('statistics.advisors.scheduled'), 'w-[112px]', true)}
                                                 {thOrden('released', t('statistics.view.released'), 'w-[108px]', true, <span className="sr-only"> {t('statistics.view.releasedDetail')}</span>)}
                                                 {thOrden('messages', t('statistics.chart.messages'), 'w-[104px] @6xl/hoja:w-[150px]')}
@@ -1959,11 +1987,21 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                     id="est-conversaciones-titulo"
                                     icono={MessagesSquare}
                                     titulo={t('statistics.conversations.title')}
-                                    texto={t('statistics.view.conversationsSubtitle', { value: formatNumber(conversations.total) })}
+                                    texto={t('statistics.view.conversationsSubtitle', { value: formatNumber(conMensajesPaciente) })}
                                 />
                                 <NotasTema avisos={avisosDe('conversations')} />
                                 <div className={cn('flex flex-col gap-3 py-[18px] @3xl/hoja:pr-8', SANGRIA)}>
-                                    <Rotulo titulo={t('statistics.conversations.byStatus')} apoyo={t('statistics.view.ofConversations', { value: formatNumber(conversations.total) })} />
+                                    {/* Dos cifras distintas que antes se confundían: la conversación del período (el paciente
+                                        escribió) y el número nuevo (primer contacto, también por recordatorio o masivo). */}
+                                    <div className="mb-3 grid gap-x-6 gap-y-4 @md/hoja:grid-cols-2">
+                                        <MiniCifra
+                                            etiqueta={t('statistics.view.withPatientMessages')}
+                                            valor={formatNumber(conMensajesPaciente)}
+                                            detalle={t('statistics.view.withPatientMessagesDetail')}
+                                        />
+                                        <MiniCifra etiqueta={t('statistics.view.newNumbers')} valor={formatNumber(conversations.total)} detalle={t('statistics.view.newNumbersDetail')} />
+                                    </div>
+                                    <Rotulo titulo={t('statistics.view.todayStatus')} apoyo={t('statistics.view.ofNewNumbers', { value: formatNumber(conversations.total) })} />
                                     <div className="flex flex-col">
                                         {conversationItems.map((c) => (
                                             <FilaBarra
@@ -1987,10 +2025,11 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 {sinLeer && <span className={cn('size-2 shrink-0 self-center rounded-full', PUNTO_AVISO)} aria-hidden="true" />}
                                                 {t('statistics.conversations.unread')}
                                             </span>
-                                            <span className={cn('text-[12.5px] leading-4 font-normal', TEXTO_SUAVE)}>{t('statistics.view.unreadAnyState')}</span>
+                                            <span className={cn('text-[12.5px] leading-4 font-normal', TEXTO_SUAVE)}>{t('statistics.view.unreadNowHint')}</span>
                                         </span>
-                                        <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>{formatNumber(conversations.unread)}</span>
-                                        <span className={cn('text-right text-[12.5px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(conversations.unread, conversations.total)}</span>
+                                        <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>{formatNumber(sinLeerAhora)}</span>
+                                        {/* Sin porcentaje: es de todas las conversaciones de hoy, no de los números nuevos. */}
+                                        <span aria-hidden="true" />
                                     </div>
                                 </div>
                             </Tema>
@@ -2050,7 +2089,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 </span>
                                                 <span className="flex items-baseline gap-2">
                                                     <span className={cn('text-[24px] leading-[30px] font-medium tracking-[-0.025em] tabular-nums', TEXTO_NAVY)}>{formatNumber(v)}</span>
-                                                    <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(v, messages.total, 0)}</span>
+                                                    <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(v, messages.total)}</span>
                                                 </span>
                                                 {clave === 'sistema' && (
                                                     <span className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.writerSystemDetail')}</span>
@@ -2111,14 +2150,13 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>· {t('statistics.view.futureAppointments', { value: formatNumber(citasFuturas) })}</span>
                                         )}
                                     </div>
+                                    <Apilada alto={10} partes={partesRecordatorio} />
                                     <div className="flex flex-col">
-                                        <FilaBarra etiqueta={t('statistics.appointments.remindersSent')} valor={appointments.reminder_sent} total={appointments.total} color={G.serie} />
-                                        <FilaBarra etiqueta={t('statistics.appointments.pending')} valor={appointments.pending} total={appointments.total} color={G.neutro} />
-                                        <FilaBarra etiqueta={t('statistics.appointments.failed')} valor={appointments.failed} total={appointments.total} color={G.mal} />
-                                        {canceladasHospital !== undefined && (
-                                            <FilaBarra etiqueta={t('statistics.appointments.cancelledByHospital')} valor={canceladasHospital} total={appointments.total} color={G.serie2} />
-                                        )}
+                                        {partesRecordatorio.map((p) => (
+                                            <Leyenda key={p.clave} color={p.color} etiqueta={p.etiqueta} valor={p.valor} total={appointments.total} />
+                                        ))}
                                     </div>
+                                    <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.reminderStateNote')}</p>
                                 </div>
                                 <DivisorV />
                                 <div className="flex min-w-0 flex-col gap-3.5">
@@ -2172,6 +2210,11 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 {appointmentsData.map((r) => (
                                                     <Leyenda key={r.name} color={r.color} etiqueta={r.name} valor={r.value} total={respuestasTotal} alto={34} />
                                                 ))}
+                                                {fueraDelAnillo > 0 && (
+                                                    <p className={cn('mt-2 text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>
+                                                        {t('statistics.view.reminderNoReply', { count: fueraDelAnillo, value: formatNumber(fueraDelAnillo) })}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     ) : (
@@ -2288,7 +2331,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                         <Cuadro color={d.color} />
                                                         <span className={cn('text-[12.5px] leading-4 font-medium', TEXTO_NAVY)}>{d.etiqueta}</span>
                                                         <span className={cn('text-[12.5px] leading-4 font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(d.valor)}</span>
-                                                        <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(d.valor, fd.total, 0)}</span>
+                                                        <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(d.valor, fd.total)}</span>
                                                     </span>
                                                 ))}
                                             </div>
