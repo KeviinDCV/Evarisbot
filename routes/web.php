@@ -51,7 +51,10 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         return redirect()->route('admin.chat.index');
     });
     
-    Route::resource('users', UserController::class);
+    // Sin create/edit: crear y editar se hacen en ventanas dentro de la lista (admin/users/index); las páginas
+    // sueltas no tuvieron ni una visita del 19/08 al 11/11/2026 y se quitaron. Sin show: no hay método show()
+    // (la ruta daba error 500).
+    Route::resource('users', UserController::class)->except(['create', 'edit', 'show']);
     Route::post('users/{user}/toggle-bulk-send', [UserController::class, 'toggleBulkSend'])->name('users.toggle-bulk-send');
     
     // Plantillas: respuestas rápidas del chat («/»). Sin show (renderizaba una página que no existe) y sin

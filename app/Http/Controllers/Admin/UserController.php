@@ -57,14 +57,6 @@ class UserController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        return Inertia::render('admin/users/create');
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -86,16 +78,6 @@ class UserController extends Controller
 
         return redirect()->route('admin.users.index')
             ->with('success', 'Usuario creado exitosamente.');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(User $user)
-    {
-        return Inertia::render('admin/users/edit', [
-            'user' => $user,
-        ]);
     }
 
     /**
