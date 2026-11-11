@@ -16,7 +16,9 @@ import {
     Award,
     Bot,
     CalendarCheck2,
+    CalendarX2,
     CalendarRange,
+    ChevronDown,
     ChevronRight,
     ChevronsUpDown,
     CircleAlert,
@@ -31,6 +33,7 @@ import {
     RotateCw,
     Search,
     Send,
+    ShieldCheck,
     Timer,
     TrendingUp,
     Wallet,
@@ -80,6 +83,8 @@ interface AdvisorSummary {
     resolution_rate: number | null;
     /** Liberadas por inactividad en el periodo (opcional: la caché de 5 min puede no traerlo aún). */
     released_inactive?: number;
+    /** 'advisor' o 'admin' (los administradores que atendieron chats van en su propio grupo). */
+    role?: string;
 }
 
 /** Vacío de datos conocido que se cruza con el período (incidentes, meses sin guardar…). */
@@ -190,6 +195,10 @@ interface Statistics {
         /** null si nadie resolvió nada o hay empate en el máximo. */
         top_performer: AdvisorSummary | null;
         advisors: AdvisorSummary[];
+        /** Administradores que atendieron chats: aparte, fuera de los totales del equipo de asesores. */
+        admins?: AdvisorSummary[];
+        /** Por debajo de estas atendidas la resolución no se colorea (un solo caso la mueve mucho). */
+        few_attended?: number;
     };
     flowDemand?: {
         total: number;
@@ -240,8 +249,9 @@ const TEXTO_NAVY = 'text-[#2e3f84] dark:text-neutral-100';
 // Ayudas y rótulos: en oscuro el muted-foreground no llega a 4,5:1 sobre la banda tintada (4,45:1),
 // así que sube a neutral-400 (5,85:1). En claro, #5c6485 da 5,7:1 sobre la banda y 5,9:1 sobre la hoja.
 const TEXTO_SUAVE = 'text-muted-foreground dark:text-neutral-400';
-// outline-hidden (no outline-none): con el contraste alto de Windows el contorno sí se ve. Igual que Configuración.
-const FOCO = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 dark:focus-visible:ring-[#8b9ae0]/60';
+// Foco: el contorno global de la app (2 px navy sólido con 2 px de separación, app.css), como en Usuarios. Antes era
+// un anillo navy al 40 % que daba 2,0–2,1:1 contra la hoja (por debajo del 3:1 que pide un indicador de foco).
+const FOCO = 'focus-visible:outline-offset-2';
 const BANDA = 'bg-[#2e3f84]/[0.028] dark:bg-white/[0.03]';
 // Texto con color (AA sobre la hoja), el semáforo de Configuración: esmeralda 700, ámbar 700, rojo 700.
 const TXT_OK = 'text-emerald-700 dark:text-emerald-400';
@@ -571,30 +581,55 @@ function Banda({ id, icono: Icono, titulo, texto, derecha, className }: { id: st
  * de lo que cuenta el tema (en tono suave). Así un 0 o una caída no se leen como «no hubo actividad».
  */
 function NotasTema({ avisos = [], notas = [] }: { avisos?: string[]; notas?: string[] }) {
+    const { t } = useTranslation();
     if (avisos.length === 0 && notas.length === 0) return null;
 
+    const aviso = (texto: string) => (
+        <li key={texto} className={cn('flex items-start gap-1.5 text-[12px] leading-4 font-medium', TXT_AVISO)}>
+            <CircleAlert className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+            <span>{texto}</span>
+        </li>
+    );
+
     return (
-        <ul className={cn('flex flex-col gap-1.5 border-b py-2.5', SANGRIA, FILETE)}>
-            {avisos.map((texto) => (
-                <li key={texto} className={cn('flex items-start gap-1.5 text-[12px] leading-4 font-medium', TXT_AVISO)}>
-                    <CircleAlert className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
-                    <span>{texto}</span>
-                </li>
-            ))}
-            {notas.map((texto) => (
-                <li key={texto} className={cn('flex items-start gap-1.5 text-[12px] leading-4', TEXTO_SUAVE)}>
-                    <Info className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
-                    <span>{texto}</span>
-                </li>
-            ))}
-        </ul>
+        <div className={cn('flex flex-col gap-1.5 border-b py-2.5', SANGRIA, FILETE)}>
+            {avisos.length > 1 ? (
+                // Varios avisos en un tema: una línea que dice cuántos y se despliega. Uno solo se ve entero.
+                <details className="group">
+                    <summary
+                        className={cn(
+                            'flex w-fit cursor-pointer list-none items-center gap-1.5 rounded text-[12px] leading-4 font-medium pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden',
+                            TXT_AVISO,
+                            FOCO
+                        )}
+                    >
+                        <CircleAlert className="size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                        {t('statistics.view.gapsSummary', { count: avisos.length })}
+                        <ChevronDown className="size-3.5 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none" strokeWidth={2} aria-hidden="true" />
+                    </summary>
+                    <ul className="mt-2 flex flex-col gap-1.5">{avisos.map(aviso)}</ul>
+                </details>
+            ) : (
+                avisos.length === 1 && <ul className="flex flex-col gap-1.5">{avisos.map(aviso)}</ul>
+            )}
+            {notas.length > 0 && (
+                <ul className="flex flex-col gap-1.5">
+                    {notas.map((texto) => (
+                        <li key={texto} className={cn('flex items-start gap-1.5 text-[12px] leading-4', TEXTO_SUAVE)}>
+                            <Info className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                            <span>{texto}</span>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
     );
 }
 
 /** Tema de la hoja: se puede enfocar (la franja lleva hasta aquí) y deja margen al hacer scroll. */
 function Tema({ id, children, className }: { id: string; children: ReactNode; className?: string }) {
     return (
-        <section id={id} aria-labelledby={`${id}-titulo`} tabIndex={-1} className={cn('scroll-mt-20 outline-none lg:scroll-mt-5', className)}>
+        <section id={id} aria-labelledby={`${id}-titulo`} tabIndex={-1} className={cn('scroll-mt-20 outline-none lg:scroll-mt-5 last:[&>*:last-child]:border-b-0', className)}>
             {children}
         </section>
     );
@@ -642,7 +677,7 @@ function BotonReintentar({ sesion, onReintentar }: { sesion: boolean; onReintent
             type="button"
             onClick={sesion ? () => window.location.reload() : onReintentar}
             className={cn(
-                'inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-card px-3 text-[12.5px] leading-4 font-semibold shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16)] transition-colors hover:bg-[#2e3f84]/8 dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:hover:bg-white/10',
+                'inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-card px-3 text-[12.5px] leading-4 font-semibold pointer-coarse:h-11 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16)] transition-colors hover:bg-[#2e3f84]/8 dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:hover:bg-white/10',
                 TEXTO_NAVY,
                 FOCO
             )}
@@ -683,6 +718,7 @@ function Segmentado({
                         className={cn(
                             'flex-1 cursor-pointer rounded-lg font-semibold whitespace-nowrap transition-colors',
                             peq ? 'h-7 px-[11px] text-[12px] leading-4' : 'h-[30px] px-3 text-[12.5px] leading-4 @lg/pagina:px-[13px]',
+                            'pointer-coarse:h-10',
                             FOCO,
                             on
                                 ? 'bg-white text-[#2e3f84] shadow-[0_0_0_1px_rgba(46,63,132,0.08),0_1px_2px_rgba(46,63,132,0.12),0_2px_6px_-2px_rgba(46,63,132,0.12)] dark:bg-white/12 dark:text-neutral-100 dark:shadow-none'
@@ -831,7 +867,8 @@ function CampoRango({
                 className={cn(
                     'flex w-full cursor-pointer items-center gap-[9px] rounded-[10px] bg-card pl-3 text-left shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16),0_1px_2px_rgba(46,63,132,0.06)] transition-shadow hover:shadow-[inset_0_0_0_1px_rgba(46,63,132,0.28),0_1px_2px_rgba(46,63,132,0.06)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]',
                     peq ? 'h-[34px] text-[12px]' : 'h-9 text-[12.5px]',
-                    conRango ? 'pr-9' : 'pr-3',
+                    'pointer-coarse:h-11',
+                    conRango ? 'pr-9 pointer-coarse:pr-12' : 'pr-3',
                     FOCO
                 )}
             >
@@ -849,7 +886,7 @@ function CampoRango({
                     title={t('statistics.filters.clearRange')}
                     aria-label={t('statistics.filters.clearRange')}
                     className={cn(
-                        'absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100',
+                        'absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] pointer-coarse:right-1 pointer-coarse:size-9 dark:hover:bg-white/10 dark:hover:text-neutral-100',
                         TEXTO_SUAVE,
                         FOCO
                     )}
@@ -885,7 +922,7 @@ function CampoRango({
                                         clave === 'inicio' ? cambiar({ inicio: event.target.value, fin: borrador.fin }) : cambiar({ inicio: borrador.inicio, fin: event.target.value })
                                     }
                                     className={cn(
-                                        'h-9 w-full min-w-0 rounded-lg bg-[#2e3f84]/[0.035] px-2 text-[12.5px] leading-4 text-foreground tabular-nums shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:[color-scheme:dark]',
+                                        'h-9 w-full min-w-0 rounded-lg bg-[#2e3f84]/[0.035] px-2 text-[12.5px] leading-4 text-foreground tabular-nums pointer-coarse:h-11 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:[color-scheme:dark]',
                                         clave === 'fin' && invertido && 'shadow-[inset_0_0_0_1px_rgba(185,28,28,0.6)] dark:shadow-[inset_0_0_0_1px_rgba(248,113,113,0.6)]',
                                         FOCO
                                     )}
@@ -971,6 +1008,7 @@ function ThOrden({
                 className={cn(
                     // Sin max-w-full: el botón puede ocupar el relleno de la celda, así «Resueltas» o «Agendadas» no se cortan.
                     '-mx-1 inline-flex cursor-pointer items-center gap-1 rounded px-1 text-[11px] leading-4 font-semibold tracking-[0.07em] whitespace-nowrap uppercase transition-colors hover:text-[#2e3f84] dark:hover:text-neutral-100',
+                    'relative pointer-coarse:after:absolute pointer-coarse:after:-inset-x-1 pointer-coarse:after:-inset-y-[14px]',
                     derecha && 'flex-row-reverse',
                     activo ? TEXTO_NAVY : TEXTO_SUAVE,
                     FOCO
@@ -984,16 +1022,17 @@ function ThOrden({
     );
 }
 
-const PERIOD_KEYS = ['today', 'week', 'month', 'year', 'all'] as const;
+const PERIOD_KEYS = ['today', 'week', 'month', 'last_month', 'year', 'all'] as const;
 type Periodo = (typeof PERIOD_KEYS)[number];
 const esPeriodo = (valor: string | null | undefined): valor is Periodo => !!valor && (PERIOD_KEYS as readonly string[]).includes(valor);
 
 type ColAsesor = 'rate' | 'total' | 'resolved' | 'active' | 'scheduled' | 'released' | 'messages';
 
-function valorColumna(a: AdvisorSummary, col: ColAsesor): number | null {
+function valorColumna(a: AdvisorSummary, col: ColAsesor, pocas: number): number | null {
     switch (col) {
         case 'rate':
-            return a.resolution_rate;
+            // Con pocas atendidas el porcentaje no compara (1 de 1 = 100 %): al final, como «Sin datos».
+            return a.total_conversations < pocas ? null : a.resolution_rate;
         case 'total':
             return a.total_conversations;
         case 'resolved':
@@ -1007,6 +1046,23 @@ function valorColumna(a: AdvisorSummary, col: ColAsesor): number | null {
         case 'messages':
             return a.messages_sent;
     }
+}
+
+/** ¿El elemento desborda a lo ancho? Para que una región con scroll solo sea parada de Tab cuando hace falta. */
+function useDesbordaX<T extends HTMLElement>() {
+    const [desborda, setDesborda] = useState(false);
+    const observador = useRef<ResizeObserver | null>(null);
+    const ref = useCallback((el: T | null) => {
+        observador.current?.disconnect();
+        observador.current = null;
+        if (!el) return;
+        const medir = () => setDesborda(el.scrollWidth > el.clientWidth + 1);
+        medir();
+        observador.current = new ResizeObserver(medir);
+        observador.current.observe(el);
+    }, []);
+    useEffect(() => () => observador.current?.disconnect(), []);
+    return [ref, desborda] as const;
 }
 
 function StatisticsView({ statistics, actualizando, errorCarga, lento, onReintentar }: StatisticsViewProps) {
@@ -1043,6 +1099,10 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     const [busqueda, setBusqueda] = useState('');
     const [orden, setOrden] = useState<{ col: ColAsesor; dir: 'desc' | 'asc' } | null>(null);
     const peticion = useRef<AbortController | null>(null);
+    // Al cerrar el panel el foco vuelve al nombre de la persona (antes caía al fondo de la página).
+    const ultimoAbierto = useRef<number | null>(null);
+    const [filaAbierta, setFilaAbierta] = useState<AdvisorSummary | null>(null);
+    const [refTabla, tablaDesborda] = useDesbordaX<HTMLDivElement>();
 
     const periodOptions = useMemo(() => PERIOD_KEYS.map((value) => ({ value, label: t(`statistics.filters.periods.${value}`) })), [t]);
 
@@ -1077,8 +1137,11 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     useEffect(() => () => peticion.current?.abort(), []);
 
     // El panel abre con el filtro aplicado en la página, para que sus cifras casen con la fila pulsada.
-    const openAdvisorDetail = (advisorId: number) => {
+    const openAdvisorDetail = (persona: AdvisorSummary) => {
+        const advisorId = persona.id;
         const periodo = rangoAplicado ? 'custom' : periodoAplicado;
+        ultimoAbierto.current = advisorId;
+        setFilaAbierta(persona);
         setExpandedAdvisor(advisorId);
         setAdvisorDetail(null);
         setAdvisorPeriod(periodo);
@@ -1087,10 +1150,19 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         fetchAdvisorDetail(advisorId, periodo, inicioAplicado, finAplicado);
     };
 
+    const devolverFocoAlCerrar = (event: Event) => {
+        event.preventDefault();
+        const id = ultimoAbierto.current;
+        const boton = id === null ? null : document.querySelector<HTMLElement>(`[data-detalle-de="${id}"]`);
+        if (boton) boton.focus();
+        else document.getElementById('buscar-asesor')?.focus({ preventScroll: true });
+    };
+
     const closeAdvisorDetail = () => {
         peticion.current?.abort();
         peticion.current = null;
         setExpandedAdvisor(null);
+        setFilaAbierta(null);
         setAdvisorDetail(null);
         setLoadingAdvisor(false);
         setAdvisorError(null);
@@ -1181,7 +1253,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     };
 
     /* ── Datos derivados ── */
-    const { messages, appointments, conversations, templates, users, advisors, costs } = statistics;
+    const { messages, appointments, conversations, templates, advisors, costs } = statistics;
     const fd = statistics.flowDemand;
     const periodLabel = periodOptions.find((option) => option.value === periodoAplicado)?.label ?? '';
     const hoy = hoyColombia();
@@ -1282,18 +1354,15 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     const maxConversationItem = Math.max(...conversationItems.map((c) => c.value), 1);
     const sinLeer = conversations.unread > 0;
 
-    /* Equipo: sin el usuario IA, la misma cifra en la banda y en la composición. */
-    const usersData = [
-        { name: t('statistics.users.admins'), value: users.admins, color: G.serie },
-        { name: t('statistics.users.advisors'), value: users.advisors, color: G.curso },
-    ].filter((item) => item.value > 0);
-    const teamTotal = users.team_total ?? users.admins + users.advisors;
-
     /* Asesores */
     const advisorList = advisors.advisors;
-    const maxAdvisorConv = Math.max(...advisorList.map((a) => a.total_conversations), 0);
-    const maxAdvisorMsgs = Math.max(...advisorList.map((a) => a.messages_sent), 0);
-    const selectedAdvisor = advisorList.find((a) => a.id === expandedAdvisor) ?? null;
+    const adminList = advisors.admins ?? [];
+    const pocas = advisors.few_attended ?? 10;
+    // Las barras de los dos grupos usan la misma escala, para que se puedan comparar.
+    const maxAdvisorConv = Math.max(...advisorList.map((a) => a.total_conversations), ...adminList.map((a) => a.total_conversations), 0);
+    const maxAdvisorMsgs = Math.max(...advisorList.map((a) => a.messages_sent), ...adminList.map((a) => a.messages_sent), 0);
+    const selectedAdvisor =
+        advisorList.find((a) => a.id === expandedAdvisor) ?? adminList.find((a) => a.id === expandedAdvisor) ?? (expandedAdvisor !== null ? filaAbierta : null);
     const liberacionApagada = advisors.auto_release_enabled === false;
     const liberadasTotal = advisors.total_released_inactive ?? 0;
     const mejor = advisors.top_performer && advisors.top_performer.resolved_conversations > 0 ? advisors.top_performer : null;
@@ -1301,19 +1370,21 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
 
     // Búsqueda y orden solo en el cliente (sin peticiones). Los «Sin datos» van siempre al final.
     const termino = plano(busqueda.trim());
-    const asesoresVisibles = (() => {
-        const filtrados = termino ? advisorList.filter((a) => plano(a.name).includes(termino)) : advisorList;
+    const visibles = (lista: AdvisorSummary[]) => {
+        const filtrados = termino ? lista.filter((a) => plano(a.name).includes(termino)) : lista;
         if (!orden) return filtrados;
         const signo = orden.dir === 'desc' ? -1 : 1;
         return [...filtrados].sort((a, b) => {
-            const va = valorColumna(a, orden.col);
-            const vb = valorColumna(b, orden.col);
+            const va = valorColumna(a, orden.col, pocas);
+            const vb = valorColumna(b, orden.col, pocas);
             if (va === null && vb === null) return 0;
             if (va === null) return 1;
             if (vb === null) return -1;
             return (va - vb) * signo;
         });
-    })();
+    };
+    const asesoresVisibles = visibles(advisorList);
+    const adminsVisibles = visibles(adminList);
     const ordenarPor = (col: ColAsesor) =>
         setOrden((actual) => (actual?.col === col ? { col, dir: actual.dir === 'desc' ? 'asc' : 'desc' } : { col, dir: 'desc' }));
     const thOrden = (col: ColAsesor, etiqueta: string, className: string, derecha = false, extra?: ReactNode) => (
@@ -1322,23 +1393,165 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         </ThOrden>
     );
 
+    /** Una fila de la tabla (asesor o administrador que atendió chats). */
+    const filaPersona = (advisor: AdvisorSummary) => {
+        // resolution_rate es null cuando el asesor no tiene conversaciones
+        // asignadas: eso es "sin datos", no un 0% (no se marca en rojo a quien no tenía carga).
+        const rate = advisor.resolution_rate;
+        // Con menos de `pocas` atendidas el porcentaje no se juzga (1 de 1 = 100 % en verde): sin color ni barra.
+        const pocosCasos = rate !== null && advisor.total_conversations < pocas;
+        const rateColor = rate === null ? G.neutro : rate >= 70 ? G.ok : rate >= 40 ? G.pend : G.mal;
+        const rateText = rate === null ? TXT_NEUTRO : pocosCasos ? TEXTO_NAVY : rate >= 70 ? TEXTO_NAVY : rate >= 40 ? TXT_AVISO : TXT_MAL;
+        const nombre = nombrePropio(advisor.name);
+        const abierto = expandedAdvisor === advisor.id;
+        // Atendidas en el período = resueltas + sin resolver (las activas son de AHORA y no entran).
+        const otras = Math.max(advisor.total_conversations - advisor.resolved_conversations, 0);
+        const liberadas = advisor.released_inactive ?? 0;
+        const numero = (v: number, fuerte = false) => (
+            <td className={cn('px-2.5 text-right text-[13px] leading-[18px] tabular-nums', fuerte ? 'font-semibold' : 'font-medium', v ? TEXTO_NAVY : TEXTO_SUAVE)}>{formatNumber(v)}</td>
+        );
+
+        return (
+            <tr
+                key={advisor.id}
+                onClick={() => openAdvisorDetail(advisor)}
+                className={cn(
+                    'group h-[50px] cursor-pointer border-b transition-colors last:border-b-0 hover:bg-[#2e3f84]/[0.035] dark:hover:bg-white/[0.03]',
+                    abierto && 'bg-[#2e3f84]/[0.045] dark:bg-white/[0.045]',
+                    FILETE
+                )}
+            >
+                {/* Columna fija: al desplazar la tabla de lado (móvil) el nombre no se pierde. El
+                    fondo opaco repite el tinte de la fila para no taparlo. */}
+                <th
+                    scope="row"
+                    className={cn(
+                        'sticky left-0 z-[1] bg-card pr-2.5 pl-4 text-left font-normal @3xl/hoja:pl-5',
+                        abierto
+                            ? 'bg-[image:linear-gradient(rgba(46,63,132,0.045),rgba(46,63,132,0.045))] dark:bg-[image:linear-gradient(rgba(255,255,255,0.045),rgba(255,255,255,0.045))]'
+                            : 'group-hover:bg-[image:linear-gradient(rgba(46,63,132,0.035),rgba(46,63,132,0.035))] dark:group-hover:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]'
+                    )}
+                >
+                    <div className="flex min-w-0 items-center gap-3">
+                        <span
+                            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#2e3f84]/10 text-[11px] leading-none font-semibold tracking-[0.02em] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.06)] dark:bg-white/8 dark:text-neutral-200 dark:shadow-none"
+                            aria-hidden="true"
+                        >
+                            {iniciales(advisor.name)}
+                        </span>
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                            <button
+                                type="button"
+                                data-detalle-de={advisor.id}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    openAdvisorDetail(advisor);
+                                }}
+                                title={t('statistics.view.seeDetailOf', { name: nombre })}
+                                aria-haspopup="dialog"
+                                className={cn('-mx-1 line-clamp-2 rounded px-1 text-left text-[13.5px] leading-[18px] font-semibold tracking-[-0.003em] break-words hover:underline', TEXTO_NAVY, FOCO)}
+                            >
+                                {nombre}
+                            </button>
+                            {advisor.conversations_with_unread > 0 && (
+                                <span className={cn('flex min-w-0 items-center gap-1.5 text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>
+                                    <span className={cn('size-1.5 shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
+                                    <span className="truncate">
+                                        {t('statistics.view.withUnread', { count: advisor.conversations_with_unread, value: formatNumber(advisor.conversations_with_unread) })}
+                                    </span>
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </th>
+                <td className="px-2.5">
+                    {rate === null ? (
+                        <div className="flex flex-col">
+                            <span className={cn('text-[13px] leading-[18px] font-medium', rateText)}>{t('statistics.view.noDataShort')}</span>
+                            <span className={cn('text-[11.5px] leading-[14px]', TEXTO_SUAVE)}>{t('statistics.view.noConversations')}</span>
+                        </div>
+                    ) : (
+                        pocosCasos ? (
+                            <div className="flex flex-col" title={t('statistics.view.fewConversationsHint', { min: pocas })}>
+                                <span className={cn('text-[13px] leading-[18px] font-semibold tabular-nums', rateText)}>{formatRate(rate)}</span>
+                                <span className={cn('text-[11.5px] leading-[14px]', TEXTO_SUAVE)}>{t('statistics.view.fewConversations')}</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-[5px]">
+                                <span className={cn('text-[13px] leading-[18px] font-semibold tabular-nums', rateText)}>{formatRate(rate)}</span>
+                                <BarraPista valor={rate} max={100} color={rateColor} alto={4} />
+                            </div>
+                        )
+                    )}
+                </td>
+                <td className="px-2.5">
+                    <div className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3">
+                        <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', advisor.total_conversations ? TEXTO_NAVY : TEXTO_SUAVE)}>
+                            {formatNumber(advisor.total_conversations)}
+                        </span>
+                        <div className="h-2 overflow-hidden rounded-full" style={{ background: G.pista }} aria-hidden="true">
+                            {advisor.total_conversations > 0 && (
+                                <div className="flex h-full gap-[2px]" style={{ width: anchoBarra(advisor.total_conversations, maxAdvisorConv) }}>
+                                    <div style={{ flex: `${advisor.resolved_conversations} 1 0`, background: G.serie }} />
+                                    {otras > 0 && <div style={{ flex: `${otras} 1 0`, background: G.serie2 }} />}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </td>
+                {numero(advisor.resolved_conversations)}
+                {numero(advisor.active_conversations)}
+                {numero(advisor.scheduled_conversations)}
+                {liberacionApagada && liberadas === 0 ? (
+                    <td className={cn('px-2.5 text-right text-[13px] leading-[18px] font-medium', TEXTO_SUAVE)} title={t('statistics.view.releasedOff')}>
+                        <span aria-hidden="true">—</span>
+                        <span className="sr-only">{t('statistics.view.releasedOff')}</span>
+                    </td>
+                ) : (
+                    <td className={cn('px-2.5 text-right text-[13px] leading-[18px] font-medium tabular-nums', liberadas ? TXT_AVISO : TEXTO_SUAVE)}>{formatNumber(liberadas)}</td>
+                )}
+                <td className="px-2.5">
+                    <div className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3">
+                        <span className={cn('text-right text-[13px] leading-[18px] font-medium tabular-nums', advisor.messages_sent ? TEXTO_NAVY : TEXTO_SUAVE)}>
+                            {formatNumber(advisor.messages_sent)}
+                        </span>
+                        <BarraPista valor={advisor.messages_sent} max={maxAdvisorMsgs} alto={4} />
+                    </div>
+                </td>
+                <td className="pr-5 text-right">
+                    <ChevronRight
+                        className={cn('ml-auto size-4 transition-colors group-hover:text-[#2e3f84] dark:group-hover:text-neutral-100', abierto ? TEXTO_NAVY : TEXTO_SUAVE)}
+                        strokeWidth={1.75}
+                        aria-hidden="true"
+                    />
+                </td>
+            </tr>
+        );
+    };
+
+    /* Sin actividad en el período: ni mensajes, ni citas, ni conversaciones, ni envíos, ni trabajo de asesores. */
+    const sinActividad =
+        messages.total === 0 &&
+        appointments.total === 0 &&
+        conversations.total === 0 &&
+        templates.total_sends === 0 &&
+        advisors.total_conversations === 0 &&
+        adminList.every((a) => a.total_conversations === 0) &&
+        (fd?.total ?? 0) === 0 &&
+        (!costs || (costs.total_cost === 0 && costs.outbound_total === 0));
+    const siguientePeriodo: Periodo | null =
+        periodoActivo === 'today' ? 'week' : periodoActivo === 'week' ? 'month' : periodoActivo === 'month' ? 'last_month' : periodoActivo === 'last_month' || periodoActivo === 'year' ? 'all' : null;
+
     /* ── Franja ── */
     const cifras: { id: string; icono: LucideIcon; iconoTono?: string; etiqueta: string; valor: string; detalle: ReactNode; destino: string }[] = [
         {
-            id: 'est-mensajes',
-            icono: MessageSquare,
-            etiqueta: t('statistics.chart.messages'),
-            valor: formatNumber(messages.total),
-            detalle: t('statistics.metricCard.sentDetail', { value: formatNumber(messages.sent_by_system) }),
-            destino: t('statistics.messages.title'),
-        },
-        {
-            id: 'est-citas',
-            icono: CalendarCheck2,
-            etiqueta: t('statistics.chart.appointments'),
-            valor: formatNumber(appointments.total),
-            detalle: t('statistics.metricCard.confirmedDetail', { value: formatNumber(appointments.confirmed) }),
-            destino: t('statistics.view.appointmentsTitle'),
+            id: 'est-asesores',
+            icono: Headphones,
+            iconoTono: 'text-sky-700 dark:text-sky-300',
+            etiqueta: t('statistics.view.attendedByAdvisors'),
+            valor: formatNumber(advisors.total_conversations),
+            detalle: tasaEquipo === null ? t('statistics.view.resolutionNoData') : t('statistics.view.resolutionDetail', { value: formatRate(tasaEquipo) }),
+            destino: t('statistics.advisors.performanceTitle'),
         },
         {
             id: 'est-conversaciones',
@@ -1356,21 +1569,28 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
             destino: t('statistics.conversations.title'),
         },
         {
-            id: 'est-asesores',
-            icono: Headphones,
-            iconoTono: 'text-sky-700 dark:text-sky-300',
-            etiqueta: t('statistics.users.advisors'),
-            valor: formatNumber(advisors.total_advisors),
-            detalle: tasaEquipo === null ? t('statistics.view.resolutionNoData') : t('statistics.view.resolutionDetail', { value: formatRate(tasaEquipo) }),
-            destino: t('statistics.advisors.performanceTitle'),
-        },
-        {
             id: 'est-plantillas',
             icono: FileText,
             etiqueta: t('statistics.chart.templates'),
             valor: formatNumber(templates.total_sends),
             detalle: t('statistics.metricCard.failedDetail', { value: formatNumber(templates.failed_sends) }),
-            destino: t('statistics.view.templatesTeamTitle'),
+            destino: t('statistics.view.templateSends'),
+        },
+        {
+            id: 'est-mensajes',
+            icono: MessageSquare,
+            etiqueta: t('statistics.chart.messages'),
+            valor: formatNumber(messages.total),
+            detalle: t('statistics.metricCard.sentDetail', { value: formatNumber(messages.sent_by_system) }),
+            destino: t('statistics.messages.title'),
+        },
+        {
+            id: 'est-citas',
+            icono: CalendarCheck2,
+            etiqueta: t('statistics.chart.appointments'),
+            valor: formatNumber(appointments.total),
+            detalle: t('statistics.metricCard.confirmedDetail', { value: formatNumber(appointments.confirmed) }),
+            destino: t('statistics.view.appointmentsTitle'),
         },
     ];
     if (costs) {
@@ -1446,7 +1666,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                     onClick={handleExport}
                                     disabled={isExporting || actualizando}
                                     aria-busy={isExporting || undefined}
-                                    className="h-9 shrink-0 gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary disabled:opacity-50 has-[>svg]:pr-4 has-[>svg]:pl-3.5"
+                                    className="h-9 shrink-0 gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary disabled:opacity-50 has-[>svg]:pr-4 has-[>svg]:pl-3.5 pointer-coarse:h-11"
                                 >
                                     {isExporting ? (
                                         <Loader2 className="size-[15px] animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" />
@@ -1471,14 +1691,40 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                 {/* Mientras llegan las cifras nuevas se siguen viendo las anteriores, atenuadas: los
                     controles no desaparecen y el foco no se pierde. */}
                 <div className={cn('flex flex-col gap-6 transition-opacity motion-reduce:transition-none', actualizando && 'opacity-60')} aria-busy={actualizando || undefined}>
-                    {/* ── Franja de cifras: cada una lleva a su tema ── */}
+                    {sinActividad ? (
+                        <div className={cn('flex flex-col items-center gap-3 px-6 py-14 text-center', HOJA)}>
+                            <CalendarX2 className={cn('size-8', TEXTO_SUAVE)} strokeWidth={1.5} aria-hidden="true" />
+                            <h2 className={cn('text-[17px] leading-[22px] font-semibold tracking-[-0.01em] text-balance', TEXTO_NAVY)}>{t('statistics.view.emptyTitle')}</h2>
+                            <p className={cn('max-w-md text-[14px] leading-5 text-pretty', TEXTO_SUAVE)}>{t('statistics.view.emptyText', { range: textoCabecera })}</p>
+                            {conversations.unread > 0 && (
+                                <p className={cn('flex items-center gap-1.5 text-[13px] leading-[18px] font-medium', TXT_AVISO)}>
+                                    <span className={cn('size-[7px] shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
+                                    {t('statistics.view.emptyUnreadNow', { count: conversations.unread, value: formatNumber(conversations.unread) })}
+                                </p>
+                            )}
+                            {siguientePeriodo && (
+                                <button
+                                    type="button"
+                                    onClick={() => elegirPeriodo(siguientePeriodo)}
+                                    className={cn(
+                                        'mt-1 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-[10px] px-3.5 text-[13px] font-semibold pointer-coarse:h-11 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8',
+                                        FOCO
+                                    )}
+                                >
+                                    {t('statistics.view.emptyTry', { period: t(`statistics.filters.periods.${siguientePeriodo}`) })}
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                    <>
+                    {/* ── Franja de cifras: cada una lleva a su tema, en el orden de la hoja ── */}
                     <nav
                         aria-label={t('statistics.view.summaryLabel')}
                         className={cn(
                             'grid grid-cols-2 gap-x-6 gap-y-5 @xl/pagina:grid-cols-3 @5xl/pagina:gap-x-5 @5xl/pagina:gap-y-0',
                             costs
-                                ? '@5xl/pagina:grid-cols-[repeat(5,minmax(0,1fr)_1px)_minmax(0,1.2fr)]'
-                                : '@5xl/pagina:grid-cols-[repeat(4,minmax(0,1fr)_1px)_minmax(0,1fr)]'
+                                ? '@5xl/pagina:grid-cols-[minmax(0,1.3fr)_1px_repeat(4,minmax(0,1fr)_1px)_minmax(0,1.2fr)]'
+                                : '@5xl/pagina:grid-cols-[minmax(0,1.3fr)_1px_repeat(3,minmax(0,1fr)_1px)_minmax(0,1fr)]'
                         )}
                     >
                         {cifras.map((c, i) => {
@@ -1516,7 +1762,556 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
 
                     {/* ── La hoja: un tema tras otro, cada uno con su banda ── */}
                     <div className={cn('@container/hoja overflow-hidden', HOJA)}>
-                        {/* 1. Costo estimado de WhatsApp */}
+                        {/* 1. Rendimiento de asesores: lo que viene a buscar quien coordina, primero */}
+                        <Tema id="est-asesores" className={cn('border-b', FILETE)}>
+                            <Banda id="est-asesores-titulo" icono={Headphones} titulo={t('statistics.advisors.performanceTitle')} texto={t('statistics.view.advisorsSubtitle')} />
+                            <NotasTema avisos={avisosDe('advisors')} />
+                            <div
+                                className={cn(
+                                    'grid grid-cols-2 gap-x-5 gap-y-5 py-4 @xl/hoja:grid-cols-3 @5xl/hoja:grid-cols-[repeat(6,minmax(0,1fr)_1px)_minmax(0,1fr)] @5xl/hoja:gap-y-0',
+                                    SANGRIA
+                                )}
+                            >
+                                <MiniCifra etiqueta={t('statistics.users.advisors')} valor={formatNumber(advisors.total_advisors)} detalle={t('statistics.advisors.onTheTeam')} />
+                                <DivisorV desde="@5xl/hoja:block" />
+                                <MiniCifra etiqueta={t('statistics.view.attended')} valor={formatNumber(advisors.total_conversations)} detalle={t('statistics.advisors.assigned')} />
+                                <DivisorV desde="@5xl/hoja:block" />
+                                <MiniCifra etiqueta={t('statistics.advisors.resolved')} valor={formatNumber(advisors.total_resolved)} detalle={t('statistics.view.closedOrResolved')} />
+                                <DivisorV desde="@5xl/hoja:block" />
+                                <MiniCifra etiqueta={t('statistics.advisors.scheduled')} valor={formatNumber(advisors.total_scheduled)} detalle={t('statistics.view.scheduledDetail')} />
+                                <DivisorV desde="@5xl/hoja:block" />
+                                <MiniCifra etiqueta={t('statistics.chart.messages')} valor={formatNumber(advisors.total_messages_sent)} detalle={t('statistics.advisors.sentLower')} />
+                                <DivisorV desde="@5xl/hoja:block" />
+                                <MiniCifra
+                                    etiqueta={t('statistics.advisors.resolutionCap')}
+                                    valor={tasaEquipo === null ? t('statistics.view.noDataShort') : formatRate(tasaEquipo)}
+                                    detalle={tasaEquipo === null ? t('statistics.view.noConversationsInPeriod') : t('statistics.view.teamAverage')}
+                                    tono={tasaEquipo === null ? TEXTO_SUAVE : undefined}
+                                />
+                                <DivisorV desde="@5xl/hoja:block" />
+                                <div className="col-span-2 @xl/hoja:col-span-3 @5xl/hoja:col-span-1">
+                                    <MiniCifra
+                                        etiqueta={t('statistics.view.released')}
+                                        valor={liberacionApagada && liberadasTotal === 0 ? '—' : formatNumber(liberadasTotal)}
+                                        detalle={liberacionApagada ? (liberadasTotal === 0 ? t('statistics.view.releasedOff') : t('statistics.view.releasedOffNow')) : t('statistics.view.releasedDetail')}
+                                        tono={liberacionApagada && liberadasTotal === 0 ? TEXTO_SUAVE : undefined}
+                                    />
+                                </div>
+                            </div>
+                            <details className={cn('group border-b pb-3.5', SANGRIA, FILETE)}>
+                                <summary
+                                    className={cn(
+                                        'flex w-fit cursor-pointer list-none items-center gap-1.5 rounded text-[12.5px] leading-4 font-medium pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden',
+                                        TEXTO_NAVY,
+                                        FOCO
+                                    )}
+                                >
+                                    <Info className="size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                                    {t('statistics.view.columnsHelp')}
+                                    <ChevronDown className="size-3.5 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none" strokeWidth={2} aria-hidden="true" />
+                                </summary>
+                                <p className={cn('mt-2 max-w-[100ch] text-[12.5px] leading-[19px] text-pretty', TEXTO_SUAVE)}>{t('statistics.view.advisorsHelp')}</p>
+                            </details>
+
+                            <div className={cn('flex min-h-[52px] flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 @3xl/hoja:px-5 @5xl/hoja:flex-nowrap', FILETE)}>
+                                {mejor && (
+                                    <>
+                                        <span className={cn('hidden w-8 shrink-0 justify-center @3xl/hoja:flex', TEXTO_NAVY)}>
+                                            <Award className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
+                                        </span>
+                                        <p className={cn('min-w-0 text-[13px] leading-[18px] tabular-nums @5xl/hoja:truncate', TEXTO_SUAVE)}>
+                                            <Trans
+                                                i18nKey="statistics.view.topPerformer"
+                                                values={{
+                                                    name: nombrePropio(mejor.name),
+                                                    resolved: formatNumber(mejor.resolved_conversations),
+                                                    rate: formatRate(mejor.resolution_rate),
+                                                }}
+                                                components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
+                                            />
+                                        </p>
+                                    </>
+                                )}
+                                {advisorList.length + adminList.length > 0 && (
+                                    <div className="relative w-full @3xl/hoja:ml-auto @3xl/hoja:w-[260px] @3xl/hoja:shrink-0">
+                                        <label htmlFor="buscar-asesor" className="sr-only">
+                                            {t('statistics.view.searchAdvisor')}
+                                        </label>
+                                        <Search className={cn('pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2', TEXTO_SUAVE)} strokeWidth={1.75} aria-hidden="true" />
+                                        <input
+                                            id="buscar-asesor"
+                                            type="text"
+                                            value={busqueda}
+                                            onChange={(event) => setBusqueda(event.target.value)}
+                                            placeholder={t('statistics.view.searchAdvisor')}
+                                            className={cn(
+                                                'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground pointer-coarse:h-11 pointer-coarse:pr-12 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                                                FOCO
+                                            )}
+                                        />
+                                        {busqueda && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setBusqueda('')}
+                                                className={cn(
+                                                    'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] pointer-coarse:right-1 pointer-coarse:size-9 dark:hover:bg-white/10 dark:hover:text-neutral-100',
+                                                    TEXTO_SUAVE,
+                                                    FOCO
+                                                )}
+                                                aria-label={t('common.clearSearch')}
+                                                title={t('common.clearSearch')}
+                                            >
+                                                <X className="size-3.5" aria-hidden="true" />
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className={cn('flex flex-wrap items-center gap-x-6 gap-y-1.5 border-b px-4 py-2.5 text-[12px] leading-4 @3xl/hoja:pr-5 @3xl/hoja:pl-16', FILETE, TEXTO_SUAVE)}>
+                                <span className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
+                                    {t('statistics.view.conversationsBarLegend')}
+                                    <span className="flex items-center gap-1.5">
+                                        <Cuadro color={G.serie} />
+                                        {t('statistics.advisors.resolvedLower')}
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <Cuadro color={G.serie2} />
+                                        {t('statistics.view.otherLower')}
+                                    </span>
+                                </span>
+                                <span>{t('statistics.view.rateLegend', { min: pocas })}</span>
+                            </div>
+
+                            {advisorList.length + adminList.length === 0 ? (
+                                <div className="p-5">
+                                    <Vacio mensaje={t('statistics.advisors.noData')} alto="h-[120px]" />
+                                </div>
+                            ) : asesoresVisibles.length + adminsVisibles.length === 0 ? (
+                                <div className="p-5">
+                                    <Vacio mensaje={t('statistics.view.noAdvisorMatch', { q: busqueda.trim() })} alto="h-[120px]" />
+                                </div>
+                            ) : (
+                                // Solo si la tabla desborda es una región con su nombre y parada de Tab (para desplazarla con el
+                                // teclado); si no, la sección ya la nombra. scroll-pl = ancho de la columna fija «Asesor»: al volver con
+                                // Mayús+Tab el botón enfocado no queda debajo de ella. El contorno de foco va en la capa de al lado,
+                                // por encima de las celdas fijas (que lo tapaban).
+                                <div className="relative">
+                                <div
+                                    ref={refTabla}
+                                    className="peer relative scroll-pl-[240px] overflow-x-auto focus-visible:outline-none @4xl/hoja:scroll-pl-[184px]"
+                                    {...(tablaDesborda ? { role: 'region', tabIndex: 0, 'aria-label': t('statistics.view.advisorsTableRegion') } : {})}
+                                >
+                                    <table className="w-full min-w-[1116px] table-fixed border-collapse text-left @4xl/hoja:min-w-[1060px]">
+                                        <thead>
+                                            <tr className={cn('h-9 border-b', BANDA, FILETE)}>
+                                                <th
+                                                    scope="col"
+                                                    className="sticky left-0 z-[2] bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] pr-2.5 pl-4 @3xl/hoja:pl-[64px] dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]"
+                                                >
+                                                    <span className={TH}>{t('statistics.view.advisorColumn', { count: asesoresVisibles.length })}</span>
+                                                </th>
+                                                {thOrden('rate', t('statistics.advisors.resolutionCap'), 'w-[128px]')}
+                                                {thOrden('total', t('statistics.view.attended'), 'w-[152px] @6xl/hoja:w-[184px]')}
+                                                {thOrden('resolved', t('statistics.advisors.resolved'), 'w-[108px]', true)}
+                                                {/* «Activas (ahora)»: es lo de hoy, no del período (igual que en el Excel). */}
+                                                {thOrden('active', t('statistics.view.activeNow'), 'w-[120px]', true)}
+                                                {thOrden('scheduled', t('statistics.advisors.scheduled'), 'w-[112px]', true)}
+                                                {thOrden('released', t('statistics.view.released'), 'w-[108px]', true, <span className="sr-only"> {t('statistics.view.releasedDetail')}</span>)}
+                                                {thOrden('messages', t('statistics.chart.messages'), 'w-[104px] @6xl/hoja:w-[150px]')}
+                                                <th scope="col" className="w-[44px] pr-5 font-normal">
+                                                    <span className="sr-only">{t('statistics.view.detail')}</span>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {asesoresVisibles.map(filaPersona)}
+                                        </tbody>
+                                        {/* Administradores que atendieron chats: aparte, fuera de las cifras de arriba y del ranking. */}
+                                        {adminsVisibles.length > 0 && (
+                                            <tbody>
+                                                <tr className={cn('h-9 border-y', BANDA, FILETE)}>
+                                                    <th scope="rowgroup" colSpan={9} className="px-0 text-left font-normal">
+                                                        <span className="sticky left-0 flex w-max max-w-[calc(100vw-2rem)] flex-wrap items-baseline gap-x-2.5 pr-4 pl-4 md:max-w-[calc(100vw-3.5rem)] @3xl/hoja:pl-[64px]">
+                                                            <span className={TH}>{t('statistics.view.adminsGroup', { count: adminsVisibles.length })}</span>
+                                                            <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.adminsGroupHint')}</span>
+                                                        </span>
+                                                    </th>
+                                                </tr>
+                                                {adminsVisibles.map(filaPersona)}
+                                            </tbody>
+                                        )}
+                                    </table>
+                                </div>
+                                <div
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute inset-0 z-[3] peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-2 peer-focus-visible:outline-[#2e3f84] dark:peer-focus-visible:outline-[#53bdeb]"
+                                />
+                                </div>
+                            )}
+                        </Tema>
+                        {/* 2. Conversaciones | Envíos masivos */}
+                        <div className={cn('grid border-b @5xl/hoja:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]', FILETE)}>
+                            <Tema id="est-conversaciones" className="min-w-0">
+                                <Banda
+                                    id="est-conversaciones-titulo"
+                                    icono={MessagesSquare}
+                                    titulo={t('statistics.conversations.title')}
+                                    texto={t('statistics.view.conversationsSubtitle', { value: formatNumber(conversations.total) })}
+                                />
+                                <NotasTema avisos={avisosDe('conversations')} />
+                                <div className={cn('flex flex-col gap-3 py-[18px] @3xl/hoja:pr-8', SANGRIA)}>
+                                    <Rotulo titulo={t('statistics.conversations.byStatus')} apoyo={t('statistics.view.ofConversations', { value: formatNumber(conversations.total) })} />
+                                    <div className="flex flex-col">
+                                        {conversationItems.map((c) => (
+                                            <FilaBarra
+                                                key={c.key}
+                                                etiqueta={c.label}
+                                                valor={c.value}
+                                                total={conversations.total}
+                                                max={maxConversationItem}
+                                                color={G.serie}
+                                                alto={30}
+                                                cuadro={false}
+                                                anchoEtiqueta="grid-cols-[88px_minmax(0,1fr)_52px_48px] @xl/hoja:grid-cols-[96px_minmax(0,1fr)_56px_48px]"
+                                            />
+                                        ))}
+                                    </div>
+                                    {conversations.scheduled > 0 && <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.scheduledNote')}</p>}
+                                    <div className={cn('h-px', FILETE_BG)} aria-hidden="true" />
+                                    <div className="grid min-h-[22px] grid-cols-[minmax(0,1fr)_56px_48px] items-center gap-x-3.5">
+                                        <span className={cn('flex min-w-0 flex-wrap items-baseline gap-x-2 text-[13px] leading-[18px] font-medium', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>
+                                            <span className="flex items-center gap-2">
+                                                {sinLeer && <span className={cn('size-2 shrink-0 self-center rounded-full', PUNTO_AVISO)} aria-hidden="true" />}
+                                                {t('statistics.conversations.unread')}
+                                            </span>
+                                            <span className={cn('text-[12px] leading-4 font-normal', TEXTO_SUAVE)}>{t('statistics.view.unreadAnyState')}</span>
+                                        </span>
+                                        <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>{formatNumber(conversations.unread)}</span>
+                                        <span className={cn('text-right text-[12px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(conversations.unread, conversations.total)}</span>
+                                    </div>
+                                </div>
+                            </Tema>
+
+                            <Tema id="est-plantillas" className={cn('min-w-0 border-t @5xl/hoja:border-t-0 @5xl/hoja:border-l', FILETE)}>
+                                <Banda
+                                    id="est-plantillas-titulo"
+                                    icono={FileText}
+                                    titulo={t('statistics.view.templateSends')}
+                                    texto={t('statistics.view.bulkInPeriod', { value: formatNumber(templates.total_sends) })}
+                                />
+                                {/* Antes también «equipo» (personas y respuestas rápidas): son de hoy, no del período; están en Usuarios. */}
+                                <div className={cn('flex flex-col gap-6 py-[18px]', SANGRIA, '@5xl/hoja:pl-16')}>
+                                    <div className="flex flex-col gap-3">
+                                        <Rotulo titulo={t('statistics.view.sendResult')} />
+                                        <Apilada
+                                            alto={10}
+                                            partes={[
+                                                { etiqueta: t('statistics.templates.successfulSends'), valor: templates.successful_sends, color: G.ok },
+                                                { etiqueta: t('statistics.templates.failedSends'), valor: templates.failed_sends, color: G.mal },
+                                            ]}
+                                        />
+                                        <div className="flex flex-col">
+                                            <Leyenda color={G.ok} etiqueta={t('statistics.templates.successfulSends')} valor={templates.successful_sends} total={templates.total_sends} />
+                                            <Leyenda color={G.mal} etiqueta={t('statistics.templates.failedSends')} valor={templates.failed_sends} total={templates.total_sends} />
+                                        </div>
+                                    </div>
+                                </div>
+                            </Tema>
+                        </div>
+
+                        {/* 3. Mensajes */}
+                        <Tema id="est-mensajes">
+                            <Banda
+                                id="est-mensajes-titulo"
+                                icono={MessageSquare}
+                                titulo={t('statistics.messages.title')}
+                                texto={t('statistics.view.messagesSubtitle', { value: formatNumber(messages.total) })}
+                            />
+                            <NotasTema avisos={avisosDe('messages', 'delivery')} />
+                            <div className={cn('grid gap-y-6 border-b py-[18px] @4xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.2fr)] @4xl/hoja:gap-x-8', SANGRIA, FILETE)}>
+                                <div className="flex min-w-0 flex-col gap-[18px]">
+                                    <Rotulo titulo={t('statistics.view.whoWrites')} />
+                                    <div className="grid grid-cols-2 gap-x-6">
+                                        {(
+                                            [
+                                                ['sistema', t('statistics.view.writerSystem'), messages.sent_by_system, G.serie],
+                                                ['pacientes', t('statistics.view.writerPatients'), escritos, G.serie2],
+                                            ] as const
+                                        ).map(([clave, etq, v, color]) => (
+                                            <div key={clave} className="flex min-w-0 flex-col gap-1">
+                                                <span className="flex min-w-0 items-center gap-2">
+                                                    <Cuadro color={color} />
+                                                    <span className={cn('line-clamp-2 text-[12.5px] leading-4 font-medium', TEXTO_SUAVE)} title={etq}>
+                                                        {etq}
+                                                    </span>
+                                                </span>
+                                                <span className="flex items-baseline gap-2">
+                                                    <span className={cn('text-[24px] leading-[30px] font-medium tracking-[-0.025em] tabular-nums', TEXTO_NAVY)}>{formatNumber(v)}</span>
+                                                    <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(v, messages.total, 0)}</span>
+                                                </span>
+                                                {clave === 'sistema' && (
+                                                    <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.writerSystemDetail')}</span>
+                                                )}
+                                                {clave === 'pacientes' && toques > 0 && (
+                                                    <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{t('statistics.view.buttonTaps', { value: formatNumber(toques) })}</span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Apilada
+                                        partes={[
+                                            { etiqueta: t('statistics.view.writerSystem'), valor: messages.sent_by_system, color: G.serie },
+                                            { etiqueta: t('statistics.view.writerPatients'), valor: escritos, color: G.serie2 },
+                                            { etiqueta: t('statistics.view.buttonTapsShort'), valor: toques, color: G.neutro },
+                                        ]}
+                                    />
+                                    <p className={cn('text-[12px] leading-[17px] tabular-nums', TEXTO_SUAVE)}>
+                                        {t('statistics.metricModal.messages.headline')}: <span className={cn('font-semibold', TEXTO_NAVY)}>{formatNumber(messages.total)}</span>
+                                    </p>
+                                </div>
+                                <DivisorV />
+                                <div className="flex min-w-0 flex-col gap-3.5">
+                                    <Rotulo titulo={t('statistics.view.deliveryStatus')} apoyo={t('statistics.view.ofOutbound', { value: formatNumber(outboundTotal) })} />
+                                    {outboundTotal > 0 ? (
+                                        <>
+                                            <Apilada partes={delivery.map((d) => ({ etiqueta: d.label, valor: d.value, color: d.color }))} />
+                                            <div className="flex flex-col">
+                                                {delivery.map((d) => (
+                                                    <Leyenda key={d.key} color={d.color} etiqueta={d.label} valor={d.value} total={outboundTotal} />
+                                                ))}
+                                            </div>
+                                            <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.readNote')}</p>
+                                        </>
+                                    ) : (
+                                        <Vacio mensaje={t('statistics.messages.noOutbound')} alto="h-[150px]" />
+                                    )}
+                                </div>
+                            </div>
+                        </Tema>
+
+                        {/* 4. Citas y recordatorios */}
+                        <Tema id="est-citas">
+                            <Banda
+                                id="est-citas-titulo"
+                                icono={CalendarCheck2}
+                                titulo={t('statistics.view.appointmentsTitle')}
+                                texto={t('statistics.view.appointmentsSubtitle', { value: formatNumber(appointments.total) })}
+                            />
+                            <NotasTema avisos={avisosDe('appointments')} notas={notaCitas} />
+                            <div className={cn('grid gap-y-6 border-b py-[18px] @4xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] @4xl/hoja:gap-x-8', SANGRIA, FILETE)}>
+                                <div className="flex min-w-0 flex-col gap-3.5">
+                                    <Rotulo titulo={t('statistics.view.loadedAppointments')} apoyo={t('statistics.view.andReminder')} />
+                                    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                                        <span className={cn('text-[24px] leading-[30px] font-medium tracking-[-0.025em] tabular-nums', TEXTO_NAVY)}>{formatNumber(appointments.total)}</span>
+                                        <span className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.totalLoadedLower')}</span>
+                                        {citasFuturas > 0 && (
+                                            <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>· {t('statistics.view.futureAppointments', { value: formatNumber(citasFuturas) })}</span>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <FilaBarra etiqueta={t('statistics.appointments.remindersSent')} valor={appointments.reminder_sent} total={appointments.total} color={G.serie} />
+                                        <FilaBarra etiqueta={t('statistics.appointments.pending')} valor={appointments.pending} total={appointments.total} color={G.neutro} />
+                                        <FilaBarra etiqueta={t('statistics.appointments.failed')} valor={appointments.failed} total={appointments.total} color={G.mal} />
+                                        {canceladasHospital !== undefined && (
+                                            <FilaBarra etiqueta={t('statistics.appointments.cancelledByHospital')} valor={canceladasHospital} total={appointments.total} color={G.serie2} />
+                                        )}
+                                    </div>
+                                </div>
+                                <DivisorV />
+                                <div className="flex min-w-0 flex-col gap-3.5">
+                                    <Rotulo titulo={t('statistics.view.patientResponse')} apoyo={t('statistics.view.patientResponseHint')} />
+                                    {appointmentsData.length > 0 ? (
+                                        <div className="flex flex-col items-center gap-5 @md/hoja:flex-row @md/hoja:gap-8">
+                                            <div className="relative size-[150px] shrink-0">
+                                                {/* El anillo es decorativo para el lector: la leyenda ya da cifras y %. */}
+                                                <div aria-hidden="true">
+                                                    <PieChart width={150} height={150} accessibilityLayer={false}>
+                                                        <Pie
+                                                            rootTabIndex={-1}
+                                                            data={appointmentsData}
+                                                            dataKey="value"
+                                                            nameKey="name"
+                                                            cx="50%"
+                                                            cy="50%"
+                                                            innerRadius={57}
+                                                            outerRadius={75}
+                                                            startAngle={90}
+                                                            endAngle={-270}
+                                                            paddingAngle={appointmentsData.length > 1 ? 1.2 : 0}
+                                                            stroke="none"
+                                                            isAnimationActive={animar}
+                                                        >
+                                                            {appointmentsData.map((entry) => (
+                                                                <Cell key={entry.name} fill={entry.color} />
+                                                            ))}
+                                                        </Pie>
+                                                        <Tooltip
+                                                            isAnimationActive={false}
+                                                            content={({ active, payload }: ContenidoGlobo) => {
+                                                                const p = payload?.[0]?.payload as (typeof appointmentsData)[number] | undefined;
+                                                                if (!active || !p) return null;
+                                                                return (
+                                                                    <Globo
+                                                                        titulo={t('statistics.view.patientResponse')}
+                                                                        filas={[{ color: p.color, etiqueta: p.name, valor: `${formatNumber(p.value)} · ${pct(p.value, respuestasTotal)}`, fuerte: true }]}
+                                                                    />
+                                                                );
+                                                            }}
+                                                        />
+                                                    </PieChart>
+                                                </div>
+                                                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+                                                    <span className={cn('text-[22px] leading-[26px] font-medium tracking-[-0.02em] tabular-nums', TEXTO_NAVY)}>{formatNumber(centroAnillo)}</span>
+                                                    <span className={cn('text-center text-[11.5px] leading-[14px] font-medium', TEXTO_SUAVE)}>{t('statistics.view.withReminder')}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex w-full min-w-0 flex-1 flex-col">
+                                                {appointmentsData.map((r) => (
+                                                    <Leyenda key={r.name} color={r.color} etiqueta={r.name} valor={r.value} total={respuestasTotal} alto={34} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <Vacio mensaje={appointments.total > 0 ? t('statistics.view.noRemindersSent') : t('statistics.appointments.noData')} alto="h-[150px]" />
+                                    )}
+                                </div>
+                            </div>
+                        </Tema>
+
+                        {/* 5. Demanda del menú de bienvenida. El menú de bienvenida está apagado casi siempre;
+                            sin recorridos, este tema entero se oculta en vez de ocupar media pantalla con ceros.
+                            Si se reactiva el flujo y llegan datos, vuelve a aparecer solo. */}
+                        {fd &&
+                            (fd.total ?? 0) > 0 &&
+                            (() => {
+                                const svcLabels: Record<string, string> = {
+                                    agendamiento: t('statistics.flowDemand.services.scheduling'),
+                                    cancelacion: t('statistics.flowDemand.services.cancellation'),
+                                    informacion: t('statistics.flowDemand.services.information'),
+                                    asesor: t('statistics.flowDemand.services.talkToAdvisor'),
+                                };
+                                const outLabels: Record<string, string> = {
+                                    self_service: t('statistics.flowDemand.outcomes.selfService'),
+                                    advisor: t('statistics.flowDemand.outcomes.advisor'),
+                                    rejected: t('statistics.flowDemand.outcomes.rejected'),
+                                    in_progress: t('statistics.flowDemand.outcomes.inProgress'),
+                                };
+                                const outColors: Record<string, string> = { self_service: G.ok, advisor: G.serie, rejected: G.mal, in_progress: G.neutro };
+                                const regimenLabel = (k: string) =>
+                                    k === 'subsidiado'
+                                        ? t('statistics.flowDemand.regimens.subsidized')
+                                        : k === 'contributivo'
+                                          ? t('statistics.flowDemand.regimens.contributory')
+                                          : k.charAt(0).toLocaleUpperCase('es') + k.slice(1);
+                                const ordenDesenlace = ['self_service', 'advisor', 'rejected', 'in_progress'];
+                                const posDesenlace = (k: string) => (ordenDesenlace.indexOf(k) + 1 || ordenDesenlace.length + 1);
+                                const desenlace = Object.entries(fd.by_outcome)
+                                    .sort(([a], [b]) => posDesenlace(a) - posDesenlace(b))
+                                    .map(([k, v]) => ({ key: k, etiqueta: outLabels[k] ?? k, valor: v, color: outColors[k] ?? G.neutro }));
+                                // La tasa del menú es sobre los que TERMINARON (solos o con asesor), no sobre el total.
+                                const terminaron = (fd.by_outcome.self_service ?? 0) + (fd.by_outcome.advisor ?? 0);
+                                const ListaTop = ({ titulo, filas, vacio }: { titulo: string; filas: { name: string; value: number }[]; vacio?: string }) => (
+                                    <div className="flex min-w-0 flex-col gap-2.5">
+                                        <Rotulo titulo={titulo} />
+                                        {filas.length > 0 ? (
+                                            <div className="flex flex-col">
+                                                {filas.map((f) => (
+                                                    <div key={f.name} className="flex h-[34px] flex-col justify-center gap-[5px]">
+                                                        <div className="flex items-baseline gap-2.5">
+                                                            <span className={cn('min-w-0 flex-1 truncate text-[12.5px] leading-4 font-medium', TEXTO_NAVY)} title={f.name}>
+                                                                {f.name}
+                                                            </span>
+                                                            <span className={cn('text-[12.5px] leading-4 font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(f.value)}</span>
+                                                        </div>
+                                                        <BarraPista valor={f.value} max={fd.total} alto={4} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            vacio && <Vacio mensaje={vacio} alto="h-[88px]" />
+                                        )}
+                                    </div>
+                                );
+                                const flecha = (
+                                    <span className="hidden items-center text-[#2e3f84]/35 @4xl/hoja:flex dark:text-white/30" aria-hidden="true">
+                                        <ArrowRight className="size-4" strokeWidth={1.75} />
+                                    </span>
+                                );
+
+                                return (
+                                    <Tema id="est-menu">
+                                        <Banda
+                                            id="est-menu-titulo"
+                                            icono={Bot}
+                                            titulo={t('statistics.flowDemand.title')}
+                                            texto={t('statistics.view.flowSubtitle')}
+                                            derecha={
+                                                <span className={cn('inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-medium whitespace-nowrap tabular-nums', TXT_OK)}>
+                                                    <span className={cn('size-[7px] rounded-full', PUNTO_OK)} aria-hidden="true" />
+                                                    {t('statistics.view.flowRuns', { value: formatNumber(fd.total) })}
+                                                </span>
+                                            }
+                                        />
+                                        <div
+                                            className={cn(
+                                                'grid grid-cols-2 items-center gap-x-5 gap-y-5 border-b py-4 @4xl/hoja:grid-cols-[minmax(0,1fr)_16px_minmax(0,1fr)_16px_minmax(0,1fr)_1px_minmax(0,1fr)]',
+                                                SANGRIA,
+                                                FILETE
+                                            )}
+                                        >
+                                            <MiniCifra etiqueta={t('statistics.flowDemand.flows')} valor={formatNumber(fd.total)} detalle={t('statistics.flowDemand.started')} />
+                                            {flecha}
+                                            <MiniCifra
+                                                etiqueta={t('statistics.flowDemand.reachedMenu')}
+                                                valor={formatNumber(fd.reached_menu)}
+                                                detalle={t('statistics.view.acceptedPrivacy', { value: formatNumber(fd.accepted_privacy) })}
+                                            />
+                                            {flecha}
+                                            <MiniCifra
+                                                etiqueta={t('statistics.view.solvedByMenu')}
+                                                valor={formatRate(fd.automation_rate)}
+                                                detalle={t('statistics.view.solvedByMenuDetail', { menu: formatNumber(fd.by_outcome.self_service ?? 0), value: formatNumber(terminaron) })}
+                                                tono={TXT_OK}
+                                            />
+                                            <DivisorV />
+                                            <MiniCifra etiqueta={t('statistics.flowDemand.toAdvisor')} valor={formatNumber(fd.by_outcome.advisor ?? 0)} detalle={t('statistics.flowDemand.requiredAgent')} />
+                                        </div>
+                                        <div className={cn('flex flex-col gap-3 border-b py-4', SANGRIA, FILETE)}>
+                                            <Rotulo titulo={t('statistics.flowDemand.outcome')} apoyo={t('statistics.view.ofFlows', { value: formatNumber(fd.total) })} />
+                                            <Apilada alto={10} partes={desenlace} />
+                                            <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
+                                                {desenlace.map((d) => (
+                                                    <span key={d.key} className="flex items-center gap-2 whitespace-nowrap">
+                                                        <Cuadro color={d.color} />
+                                                        <span className={cn('text-[12.5px] leading-4 font-medium', TEXTO_NAVY)}>{d.etiqueta}</span>
+                                                        <span className={cn('text-[12.5px] leading-4 font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(d.valor)}</span>
+                                                        <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(d.valor, fd.total, 0)}</span>
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div
+                                            className={cn(
+                                                'grid gap-y-6 border-b py-[18px] @2xl/hoja:grid-cols-2 @2xl/hoja:gap-x-8 @5xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)_1px_minmax(0,1fr)]',
+                                                SANGRIA,
+                                                FILETE
+                                            )}
+                                        >
+                                            <div className="flex min-w-0 flex-col gap-[22px]">
+                                                <ListaTop titulo={t('statistics.flowDemand.byService')} filas={Object.entries(fd.by_service).map(([k, v]) => ({ name: svcLabels[k] ?? k, value: v }))} />
+                                                <ListaTop titulo={t('statistics.flowDemand.regimen')} filas={Object.entries(fd.by_regimen).map(([k, v]) => ({ name: regimenLabel(k), value: v }))} />
+                                            </div>
+                                            <DivisorV desde="@5xl/hoja:block" />
+                                            <ListaTop titulo={t('statistics.flowDemand.topEps')} filas={fd.top_eps} vacio={t('statistics.flowDemand.noEpsData')} />
+                                            <DivisorV desde="@5xl/hoja:block" />
+                                            <ListaTop titulo={t('statistics.view.topSubService')} filas={fd.top_sub_service ?? []} vacio={t('statistics.view.noSubServiceData')} />
+                                        </div>
+                                    </Tema>
+                                );
+                            })()}
+
+                        {/* 6. Costo estimado de WhatsApp: lo gestiona dirección, no quien coordina; al final */}
                         {costs &&
                             (() => {
                                 const c = costs;
@@ -1617,9 +2412,9 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 </div>
                                                 {conSerie ? (
                                                     <>
-                                                        <div className="h-[214px] min-w-0">
+                                                        <div className="h-[214px] min-w-0" aria-hidden="true">
                                                             <ResponsiveContainer width="100%" height="100%">
-                                                                <BarChart data={datos} title={t('statistics.view.costEvolution')} margin={{ top: 8, right: 0, bottom: 0, left: 0 }} barCategoryGap="25%">
+                                                                <BarChart accessibilityLayer={false} data={datos} title={t('statistics.view.costEvolution')} margin={{ top: 8, right: 0, bottom: 0, left: 0 }} barCategoryGap="25%">
                                                                     <CartesianGrid vertical={false} stroke={G.rejilla} />
                                                                     <XAxis dataKey="name" tick={EJE} axisLine={{ stroke: G.base }} tickLine={false} interval="preserveStartEnd" minTickGap={8} tickMargin={6} />
                                                                     <YAxis
@@ -1785,644 +2580,9 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                     </Tema>
                                 );
                             })()}
-
-                        {/* 2. Mensajes */}
-                        <Tema id="est-mensajes">
-                            <Banda
-                                id="est-mensajes-titulo"
-                                icono={MessageSquare}
-                                titulo={t('statistics.messages.title')}
-                                texto={t('statistics.view.messagesSubtitle', { value: formatNumber(messages.total) })}
-                            />
-                            <NotasTema avisos={avisosDe('messages', 'delivery')} />
-                            <div className={cn('grid gap-y-6 border-b py-[18px] @4xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.2fr)] @4xl/hoja:gap-x-8', SANGRIA, FILETE)}>
-                                <div className="flex min-w-0 flex-col gap-[18px]">
-                                    <Rotulo titulo={t('statistics.view.whoWrites')} />
-                                    <div className="grid grid-cols-2 gap-x-6">
-                                        {(
-                                            [
-                                                ['sistema', t('statistics.view.writerSystem'), messages.sent_by_system, G.serie],
-                                                ['pacientes', t('statistics.view.writerPatients'), escritos, G.serie2],
-                                            ] as const
-                                        ).map(([clave, etq, v, color]) => (
-                                            <div key={clave} className="flex min-w-0 flex-col gap-1">
-                                                <span className="flex min-w-0 items-center gap-2">
-                                                    <Cuadro color={color} />
-                                                    <span className={cn('line-clamp-2 text-[12.5px] leading-4 font-medium', TEXTO_SUAVE)} title={etq}>
-                                                        {etq}
-                                                    </span>
-                                                </span>
-                                                <span className="flex items-baseline gap-2">
-                                                    <span className={cn('text-[24px] leading-[30px] font-medium tracking-[-0.025em] tabular-nums', TEXTO_NAVY)}>{formatNumber(v)}</span>
-                                                    <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(v, messages.total, 0)}</span>
-                                                </span>
-                                                {clave === 'pacientes' && toques > 0 && (
-                                                    <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{t('statistics.view.buttonTaps', { value: formatNumber(toques) })}</span>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <Apilada
-                                        partes={[
-                                            { etiqueta: t('statistics.view.writerSystem'), valor: messages.sent_by_system, color: G.serie },
-                                            { etiqueta: t('statistics.view.writerPatients'), valor: escritos, color: G.serie2 },
-                                            { etiqueta: t('statistics.view.buttonTapsShort'), valor: toques, color: G.neutro },
-                                        ]}
-                                    />
-                                    <p className={cn('text-[12px] leading-[17px] tabular-nums', TEXTO_SUAVE)}>
-                                        {t('statistics.metricModal.messages.headline')}: <span className={cn('font-semibold', TEXTO_NAVY)}>{formatNumber(messages.total)}</span>
-                                    </p>
-                                </div>
-                                <DivisorV />
-                                <div className="flex min-w-0 flex-col gap-3.5">
-                                    <Rotulo titulo={t('statistics.view.deliveryStatus')} apoyo={t('statistics.view.ofOutbound', { value: formatNumber(outboundTotal) })} />
-                                    {outboundTotal > 0 ? (
-                                        <>
-                                            <Apilada partes={delivery.map((d) => ({ etiqueta: d.label, valor: d.value, color: d.color }))} />
-                                            <div className="flex flex-col">
-                                                {delivery.map((d) => (
-                                                    <Leyenda key={d.key} color={d.color} etiqueta={d.label} valor={d.value} total={outboundTotal} />
-                                                ))}
-                                            </div>
-                                            <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.readNote')}</p>
-                                        </>
-                                    ) : (
-                                        <Vacio mensaje={t('statistics.messages.noOutbound')} alto="h-[150px]" />
-                                    )}
-                                </div>
-                            </div>
-                        </Tema>
-
-                        {/* 3. Citas y recordatorios */}
-                        <Tema id="est-citas">
-                            <Banda
-                                id="est-citas-titulo"
-                                icono={CalendarCheck2}
-                                titulo={t('statistics.view.appointmentsTitle')}
-                                texto={t('statistics.view.appointmentsSubtitle', { value: formatNumber(appointments.total) })}
-                            />
-                            <NotasTema avisos={avisosDe('appointments')} notas={notaCitas} />
-                            <div className={cn('grid gap-y-6 border-b py-[18px] @4xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] @4xl/hoja:gap-x-8', SANGRIA, FILETE)}>
-                                <div className="flex min-w-0 flex-col gap-3.5">
-                                    <Rotulo titulo={t('statistics.view.loadedAppointments')} apoyo={t('statistics.view.andReminder')} />
-                                    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-                                        <span className={cn('text-[24px] leading-[30px] font-medium tracking-[-0.025em] tabular-nums', TEXTO_NAVY)}>{formatNumber(appointments.total)}</span>
-                                        <span className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.totalLoadedLower')}</span>
-                                        {citasFuturas > 0 && (
-                                            <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>· {t('statistics.view.futureAppointments', { value: formatNumber(citasFuturas) })}</span>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <FilaBarra etiqueta={t('statistics.appointments.remindersSent')} valor={appointments.reminder_sent} total={appointments.total} color={G.serie} />
-                                        <FilaBarra etiqueta={t('statistics.appointments.pending')} valor={appointments.pending} total={appointments.total} color={G.neutro} />
-                                        <FilaBarra etiqueta={t('statistics.appointments.failed')} valor={appointments.failed} total={appointments.total} color={G.mal} />
-                                        {canceladasHospital !== undefined && (
-                                            <FilaBarra etiqueta={t('statistics.appointments.cancelledByHospital')} valor={canceladasHospital} total={appointments.total} color={G.serie2} />
-                                        )}
-                                    </div>
-                                </div>
-                                <DivisorV />
-                                <div className="flex min-w-0 flex-col gap-3.5">
-                                    <Rotulo titulo={t('statistics.view.patientResponse')} apoyo={t('statistics.view.patientResponseHint')} />
-                                    {appointmentsData.length > 0 ? (
-                                        <div className="flex flex-col items-center gap-5 @md/hoja:flex-row @md/hoja:gap-8">
-                                            <div className="relative size-[150px] shrink-0">
-                                                {/* El anillo es decorativo para el lector: la leyenda ya da cifras y %. */}
-                                                <div aria-hidden="true">
-                                                    <PieChart width={150} height={150} accessibilityLayer={false}>
-                                                        <Pie
-                                                            data={appointmentsData}
-                                                            dataKey="value"
-                                                            nameKey="name"
-                                                            cx="50%"
-                                                            cy="50%"
-                                                            innerRadius={57}
-                                                            outerRadius={75}
-                                                            startAngle={90}
-                                                            endAngle={-270}
-                                                            paddingAngle={appointmentsData.length > 1 ? 1.2 : 0}
-                                                            stroke="none"
-                                                            isAnimationActive={animar}
-                                                        >
-                                                            {appointmentsData.map((entry) => (
-                                                                <Cell key={entry.name} fill={entry.color} />
-                                                            ))}
-                                                        </Pie>
-                                                        <Tooltip
-                                                            isAnimationActive={false}
-                                                            content={({ active, payload }: ContenidoGlobo) => {
-                                                                const p = payload?.[0]?.payload as (typeof appointmentsData)[number] | undefined;
-                                                                if (!active || !p) return null;
-                                                                return (
-                                                                    <Globo
-                                                                        titulo={t('statistics.view.patientResponse')}
-                                                                        filas={[{ color: p.color, etiqueta: p.name, valor: `${formatNumber(p.value)} · ${pct(p.value, respuestasTotal)}`, fuerte: true }]}
-                                                                    />
-                                                                );
-                                                            }}
-                                                        />
-                                                    </PieChart>
-                                                </div>
-                                                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-                                                    <span className={cn('text-[22px] leading-[26px] font-medium tracking-[-0.02em] tabular-nums', TEXTO_NAVY)}>{formatNumber(centroAnillo)}</span>
-                                                    <span className={cn('text-center text-[11.5px] leading-[14px] font-medium', TEXTO_SUAVE)}>{t('statistics.view.withReminder')}</span>
-                                                </div>
-                                            </div>
-                                            <div className="flex w-full min-w-0 flex-1 flex-col">
-                                                {appointmentsData.map((r) => (
-                                                    <Leyenda key={r.name} color={r.color} etiqueta={r.name} valor={r.value} total={respuestasTotal} alto={34} />
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <Vacio mensaje={appointments.total > 0 ? t('statistics.view.noRemindersSent') : t('statistics.appointments.noData')} alto="h-[150px]" />
-                                    )}
-                                </div>
-                            </div>
-                        </Tema>
-
-                        {/* 4. Conversaciones | Envíos masivos y equipo */}
-                        <div className={cn('grid border-b @5xl/hoja:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]', FILETE)}>
-                            <Tema id="est-conversaciones" className="min-w-0">
-                                <Banda
-                                    id="est-conversaciones-titulo"
-                                    icono={MessagesSquare}
-                                    titulo={t('statistics.conversations.title')}
-                                    texto={t('statistics.view.conversationsSubtitle', { value: formatNumber(conversations.total) })}
-                                />
-                                <NotasTema avisos={avisosDe('conversations')} />
-                                <div className={cn('flex flex-col gap-3 py-[18px] @3xl/hoja:pr-8', SANGRIA)}>
-                                    <Rotulo titulo={t('statistics.conversations.byStatus')} apoyo={t('statistics.view.ofConversations', { value: formatNumber(conversations.total) })} />
-                                    <div className="flex flex-col">
-                                        {conversationItems.map((c) => (
-                                            <FilaBarra
-                                                key={c.key}
-                                                etiqueta={c.label}
-                                                valor={c.value}
-                                                total={conversations.total}
-                                                max={maxConversationItem}
-                                                color={G.serie}
-                                                alto={30}
-                                                cuadro={false}
-                                                anchoEtiqueta="grid-cols-[88px_minmax(0,1fr)_52px_48px] @xl/hoja:grid-cols-[96px_minmax(0,1fr)_56px_48px]"
-                                            />
-                                        ))}
-                                    </div>
-                                    {conversations.scheduled > 0 && <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.scheduledNote')}</p>}
-                                    <div className={cn('h-px', FILETE_BG)} aria-hidden="true" />
-                                    <div className="grid min-h-[22px] grid-cols-[minmax(0,1fr)_56px_48px] items-center gap-x-3.5">
-                                        <span className={cn('flex min-w-0 flex-wrap items-baseline gap-x-2 text-[13px] leading-[18px] font-medium', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>
-                                            <span className="flex items-center gap-2">
-                                                {sinLeer && <span className={cn('size-2 shrink-0 self-center rounded-full', PUNTO_AVISO)} aria-hidden="true" />}
-                                                {t('statistics.conversations.unread')}
-                                            </span>
-                                            <span className={cn('text-[12px] leading-4 font-normal', TEXTO_SUAVE)}>{t('statistics.view.unreadAnyState')}</span>
-                                        </span>
-                                        <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>{formatNumber(conversations.unread)}</span>
-                                        <span className={cn('text-right text-[12px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(conversations.unread, conversations.total)}</span>
-                                    </div>
-                                </div>
-                            </Tema>
-
-                            <Tema id="est-plantillas" className={cn('min-w-0 border-t @5xl/hoja:border-t-0 @5xl/hoja:border-l', FILETE)}>
-                                <Banda
-                                    id="est-plantillas-titulo"
-                                    icono={FileText}
-                                    titulo={t('statistics.view.templatesTeamTitle')}
-                                    texto={t('statistics.view.templatesTeamSubtitle', { templates: formatNumber(templates.total), users: formatNumber(teamTotal) })}
-                                />
-                                <div className={cn('flex flex-col gap-6 py-[18px]', SANGRIA, '@5xl/hoja:pl-16')}>
-                                    <div className="flex flex-col gap-3">
-                                        <Rotulo titulo={t('statistics.view.templateSends')} apoyo={t('statistics.view.bulkInPeriod', { value: formatNumber(templates.total_sends) })} />
-                                        <Apilada
-                                            alto={10}
-                                            partes={[
-                                                { etiqueta: t('statistics.templates.successfulSends'), valor: templates.successful_sends, color: G.ok },
-                                                { etiqueta: t('statistics.templates.failedSends'), valor: templates.failed_sends, color: G.mal },
-                                            ]}
-                                        />
-                                        <div className="flex flex-col">
-                                            <Leyenda color={G.ok} etiqueta={t('statistics.templates.successfulSends')} valor={templates.successful_sends} total={templates.total_sends} />
-                                            <Leyenda color={G.mal} etiqueta={t('statistics.templates.failedSends')} valor={templates.failed_sends} total={templates.total_sends} />
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-3">
-                                        <Rotulo titulo={t('statistics.users.teamCompositionSubtitle')} apoyo={t('statistics.view.usersCount', { value: formatNumber(teamTotal) })} />
-                                        {usersData.length > 0 ? (
-                                            <>
-                                                <Apilada alto={10} partes={usersData.map((u) => ({ etiqueta: u.name, valor: u.value, color: u.color }))} />
-                                                <div className="flex flex-col">
-                                                    <Leyenda color={G.serie} etiqueta={t('statistics.users.admins')} valor={users.admins} total={teamTotal} />
-                                                    <Leyenda color={G.curso} etiqueta={t('statistics.users.advisors')} valor={users.advisors} total={teamTotal} />
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <Vacio mensaje={t('statistics.users.noData')} alto="h-[64px]" />
-                                        )}
-                                    </div>
-                                </div>
-                            </Tema>
-                        </div>
-
-                        {/* 5. Demanda del menú de bienvenida. El menú de bienvenida está apagado casi siempre;
-                            sin recorridos, este tema entero se oculta en vez de ocupar media pantalla con ceros.
-                            Si se reactiva el flujo y llegan datos, vuelve a aparecer solo. */}
-                        {fd &&
-                            (fd.total ?? 0) > 0 &&
-                            (() => {
-                                const svcLabels: Record<string, string> = {
-                                    agendamiento: t('statistics.flowDemand.services.scheduling'),
-                                    cancelacion: t('statistics.flowDemand.services.cancellation'),
-                                    informacion: t('statistics.flowDemand.services.information'),
-                                    asesor: t('statistics.flowDemand.services.talkToAdvisor'),
-                                };
-                                const outLabels: Record<string, string> = {
-                                    self_service: t('statistics.flowDemand.outcomes.selfService'),
-                                    advisor: t('statistics.flowDemand.outcomes.advisor'),
-                                    rejected: t('statistics.flowDemand.outcomes.rejected'),
-                                    in_progress: t('statistics.flowDemand.outcomes.inProgress'),
-                                };
-                                const outColors: Record<string, string> = { self_service: G.ok, advisor: G.serie, rejected: G.mal, in_progress: G.neutro };
-                                const regimenLabel = (k: string) =>
-                                    k === 'subsidiado'
-                                        ? t('statistics.flowDemand.regimens.subsidized')
-                                        : k === 'contributivo'
-                                          ? t('statistics.flowDemand.regimens.contributory')
-                                          : k.charAt(0).toLocaleUpperCase('es') + k.slice(1);
-                                const desenlace = Object.entries(fd.by_outcome).map(([k, v]) => ({ key: k, etiqueta: outLabels[k] ?? k, valor: v, color: outColors[k] ?? G.neutro }));
-                                // La tasa del menú es sobre los que TERMINARON (solos o con asesor), no sobre el total.
-                                const terminaron = (fd.by_outcome.self_service ?? 0) + (fd.by_outcome.advisor ?? 0);
-                                const ListaTop = ({ titulo, filas, vacio }: { titulo: string; filas: { name: string; value: number }[]; vacio?: string }) => (
-                                    <div className="flex min-w-0 flex-col gap-2.5">
-                                        <Rotulo titulo={titulo} />
-                                        {filas.length > 0 ? (
-                                            <div className="flex flex-col">
-                                                {filas.map((f) => (
-                                                    <div key={f.name} className="flex h-[34px] flex-col justify-center gap-[5px]">
-                                                        <div className="flex items-baseline gap-2.5">
-                                                            <span className={cn('min-w-0 flex-1 truncate text-[12.5px] leading-4 font-medium', TEXTO_NAVY)} title={f.name}>
-                                                                {f.name}
-                                                            </span>
-                                                            <span className={cn('text-[12.5px] leading-4 font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(f.value)}</span>
-                                                        </div>
-                                                        <BarraPista valor={f.value} max={fd.total} alto={4} />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            vacio && <Vacio mensaje={vacio} alto="h-[88px]" />
-                                        )}
-                                    </div>
-                                );
-                                const flecha = (
-                                    <span className="hidden items-center text-[#2e3f84]/35 @4xl/hoja:flex dark:text-white/30" aria-hidden="true">
-                                        <ArrowRight className="size-4" strokeWidth={1.75} />
-                                    </span>
-                                );
-
-                                return (
-                                    <Tema id="est-menu">
-                                        <Banda
-                                            id="est-menu-titulo"
-                                            icono={Bot}
-                                            titulo={t('statistics.flowDemand.title')}
-                                            texto={t('statistics.view.flowSubtitle')}
-                                            derecha={
-                                                <span className={cn('inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-medium whitespace-nowrap tabular-nums', TXT_OK)}>
-                                                    <span className={cn('size-[7px] rounded-full', PUNTO_OK)} aria-hidden="true" />
-                                                    {t('statistics.view.flowRuns', { value: formatNumber(fd.total) })}
-                                                </span>
-                                            }
-                                        />
-                                        <div
-                                            className={cn(
-                                                'grid grid-cols-2 items-center gap-x-5 gap-y-5 border-b py-4 @4xl/hoja:grid-cols-[minmax(0,1fr)_16px_minmax(0,1fr)_16px_minmax(0,1fr)_1px_minmax(0,1fr)]',
-                                                SANGRIA,
-                                                FILETE
-                                            )}
-                                        >
-                                            <MiniCifra etiqueta={t('statistics.flowDemand.flows')} valor={formatNumber(fd.total)} detalle={t('statistics.flowDemand.started')} />
-                                            {flecha}
-                                            <MiniCifra
-                                                etiqueta={t('statistics.flowDemand.reachedMenu')}
-                                                valor={formatNumber(fd.reached_menu)}
-                                                detalle={t('statistics.view.acceptedPrivacy', { value: formatNumber(fd.accepted_privacy) })}
-                                            />
-                                            {flecha}
-                                            <MiniCifra
-                                                etiqueta={t('statistics.view.solvedByMenu')}
-                                                valor={formatRate(fd.automation_rate)}
-                                                detalle={t('statistics.view.solvedByMenuDetail', { value: formatNumber(terminaron) })}
-                                                tono={TXT_OK}
-                                            />
-                                            <DivisorV />
-                                            <MiniCifra etiqueta={t('statistics.flowDemand.toAdvisor')} valor={formatNumber(fd.by_outcome.advisor ?? 0)} detalle={t('statistics.flowDemand.requiredAgent')} />
-                                        </div>
-                                        <div className={cn('flex flex-col gap-3 border-b py-4', SANGRIA, FILETE)}>
-                                            <Rotulo titulo={t('statistics.flowDemand.outcome')} apoyo={t('statistics.view.ofFlows', { value: formatNumber(fd.total) })} />
-                                            <Apilada alto={10} partes={desenlace} />
-                                            <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
-                                                {desenlace.map((d) => (
-                                                    <span key={d.key} className="flex items-center gap-2 whitespace-nowrap">
-                                                        <Cuadro color={d.color} />
-                                                        <span className={cn('text-[12.5px] leading-4 font-medium', TEXTO_NAVY)}>{d.etiqueta}</span>
-                                                        <span className={cn('text-[12.5px] leading-4 font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(d.valor)}</span>
-                                                        <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(d.valor, fd.total, 0)}</span>
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div
-                                            className={cn(
-                                                'grid gap-y-6 border-b py-[18px] @2xl/hoja:grid-cols-2 @2xl/hoja:gap-x-8 @5xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)_1px_minmax(0,1fr)]',
-                                                SANGRIA,
-                                                FILETE
-                                            )}
-                                        >
-                                            <div className="flex min-w-0 flex-col gap-[22px]">
-                                                <ListaTop titulo={t('statistics.flowDemand.byService')} filas={Object.entries(fd.by_service).map(([k, v]) => ({ name: svcLabels[k] ?? k, value: v }))} />
-                                                <ListaTop titulo={t('statistics.flowDemand.regimen')} filas={Object.entries(fd.by_regimen).map(([k, v]) => ({ name: regimenLabel(k), value: v }))} />
-                                            </div>
-                                            <DivisorV desde="@5xl/hoja:block" />
-                                            <ListaTop titulo={t('statistics.flowDemand.topEps')} filas={fd.top_eps} vacio={t('statistics.flowDemand.noEpsData')} />
-                                            <DivisorV desde="@5xl/hoja:block" />
-                                            <ListaTop titulo={t('statistics.view.topSubService')} filas={fd.top_sub_service ?? []} vacio={t('statistics.view.noSubServiceData')} />
-                                        </div>
-                                    </Tema>
-                                );
-                            })()}
-
-                        {/* 6. Rendimiento de asesores */}
-                        <Tema id="est-asesores">
-                            <Banda id="est-asesores-titulo" icono={Headphones} titulo={t('statistics.advisors.performanceTitle')} texto={t('statistics.view.advisorsSubtitle')} />
-                            <NotasTema avisos={avisosDe('advisors')} />
-                            <div
-                                className={cn(
-                                    'grid grid-cols-2 gap-x-5 gap-y-5 py-4 @xl/hoja:grid-cols-3 @5xl/hoja:grid-cols-[repeat(6,minmax(0,1fr)_1px)_minmax(0,1fr)] @5xl/hoja:gap-y-0',
-                                    SANGRIA
-                                )}
-                            >
-                                <MiniCifra etiqueta={t('statistics.users.advisors')} valor={formatNumber(advisors.total_advisors)} detalle={t('statistics.advisors.onTheTeam')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra etiqueta={t('statistics.chart.conversations')} valor={formatNumber(advisors.total_conversations)} detalle={t('statistics.advisors.assigned')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra etiqueta={t('statistics.advisors.resolved')} valor={formatNumber(advisors.total_resolved)} detalle={t('statistics.view.closedOrResolved')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra etiqueta={t('statistics.advisors.scheduled')} valor={formatNumber(advisors.total_scheduled)} detalle={t('statistics.view.scheduledDetail')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra etiqueta={t('statistics.chart.messages')} valor={formatNumber(advisors.total_messages_sent)} detalle={t('statistics.advisors.sentLower')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra
-                                    etiqueta={t('statistics.advisors.resolutionCap')}
-                                    valor={tasaEquipo === null ? t('statistics.view.noDataShort') : formatRate(tasaEquipo)}
-                                    detalle={tasaEquipo === null ? t('statistics.view.noConversationsInPeriod') : t('statistics.view.teamAverage')}
-                                    tono={tasaEquipo === null ? TEXTO_SUAVE : undefined}
-                                />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <div className="col-span-2 @xl/hoja:col-span-3 @5xl/hoja:col-span-1">
-                                    <MiniCifra
-                                        etiqueta={t('statistics.view.released')}
-                                        valor={liberacionApagada && liberadasTotal === 0 ? '—' : formatNumber(liberadasTotal)}
-                                        detalle={liberacionApagada ? (liberadasTotal === 0 ? t('statistics.view.releasedOff') : t('statistics.view.releasedOffNow')) : t('statistics.view.releasedDetail')}
-                                        tono={liberacionApagada && liberadasTotal === 0 ? TEXTO_SUAVE : undefined}
-                                    />
-                                </div>
-                            </div>
-                            <p className={cn('border-b pb-4 text-[12px] leading-[17px]', SANGRIA, FILETE, TEXTO_SUAVE)}>{t('statistics.view.advisorsHelp')}</p>
-
-                            <div className={cn('flex min-h-[52px] flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 @3xl/hoja:px-5 @5xl/hoja:flex-nowrap', FILETE)}>
-                                {mejor && (
-                                    <>
-                                        <span className={cn('hidden w-8 shrink-0 justify-center @3xl/hoja:flex', TEXTO_NAVY)}>
-                                            <Award className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
-                                        </span>
-                                        <p className={cn('min-w-0 text-[13px] leading-[18px] tabular-nums @5xl/hoja:truncate', TEXTO_SUAVE)}>
-                                            <Trans
-                                                i18nKey="statistics.view.topPerformer"
-                                                values={{
-                                                    name: nombrePropio(mejor.name),
-                                                    resolved: formatNumber(mejor.resolved_conversations),
-                                                    rate: formatRate(mejor.resolution_rate),
-                                                }}
-                                                components={{ strong: <span className={cn('font-semibold', TEXTO_NAVY)} /> }}
-                                            />
-                                        </p>
-                                    </>
-                                )}
-                                {advisorList.length > 0 && (
-                                    <div className="relative w-full @3xl/hoja:ml-auto @3xl/hoja:w-[260px] @3xl/hoja:shrink-0">
-                                        <label htmlFor="buscar-asesor" className="sr-only">
-                                            {t('statistics.view.searchAdvisor')}
-                                        </label>
-                                        <Search className={cn('pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2', TEXTO_SUAVE)} strokeWidth={1.75} aria-hidden="true" />
-                                        <input
-                                            id="buscar-asesor"
-                                            type="text"
-                                            value={busqueda}
-                                            onChange={(event) => setBusqueda(event.target.value)}
-                                            placeholder={t('statistics.view.searchAdvisor')}
-                                            className={cn(
-                                                'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
-                                                FOCO
-                                            )}
-                                        />
-                                        {busqueda && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setBusqueda('')}
-                                                className={cn(
-                                                    'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:hover:bg-white/10 dark:hover:text-neutral-100',
-                                                    TEXTO_SUAVE,
-                                                    FOCO
-                                                )}
-                                                aria-label={t('common.clearSearch')}
-                                                title={t('common.clearSearch')}
-                                            >
-                                                <X className="size-3.5" aria-hidden="true" />
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className={cn('flex flex-wrap items-center gap-x-6 gap-y-1.5 border-b px-4 py-2.5 text-[12px] leading-4 @3xl/hoja:pr-5 @3xl/hoja:pl-16', FILETE, TEXTO_SUAVE)}>
-                                <span className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
-                                    {t('statistics.view.conversationsBarLegend')}
-                                    <span className="flex items-center gap-1.5">
-                                        <Cuadro color={G.serie} />
-                                        {t('statistics.advisors.resolvedLower')}
-                                    </span>
-                                    <span className="flex items-center gap-1.5">
-                                        <Cuadro color={G.serie2} />
-                                        {t('statistics.view.otherLower')}
-                                    </span>
-                                </span>
-                                <span>{t('statistics.view.rateLegend')}</span>
-                            </div>
-
-                            {advisorList.length === 0 ? (
-                                <div className="p-5">
-                                    <Vacio mensaje={t('statistics.advisors.noData')} alto="h-[120px]" />
-                                </div>
-                            ) : asesoresVisibles.length === 0 ? (
-                                <div className="p-5">
-                                    <Vacio mensaje={t('statistics.view.noAdvisorMatch', { q: busqueda.trim() })} alto="h-[120px]" />
-                                </div>
-                            ) : (
-                                // El contorno global (2 px sólido) se dibuja por dentro: la hoja no lo recorta y se ve en contraste alto.
-                                <div className="relative overflow-x-auto focus-visible:-outline-offset-2" role="region" aria-labelledby="est-asesores-titulo" tabIndex={0}>
-                                    <table className="w-full min-w-[1088px] table-fixed border-collapse text-left @4xl/hoja:min-w-[1032px]">
-                                        <thead>
-                                            <tr className={cn('h-9 border-b', BANDA, FILETE)}>
-                                                <th
-                                                    scope="col"
-                                                    className="sticky left-0 z-[2] bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] pr-2.5 pl-4 @3xl/hoja:pl-[64px] dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]"
-                                                >
-                                                    <span className={TH}>{t('statistics.view.advisorColumn', { count: asesoresVisibles.length })}</span>
-                                                </th>
-                                                {thOrden('rate', t('statistics.advisors.resolutionCap'), 'w-[128px]')}
-                                                {thOrden('total', t('statistics.chart.conversations'), 'w-[152px] @6xl/hoja:w-[204px]')}
-                                                {thOrden('resolved', t('statistics.advisors.resolved'), 'w-[108px]', true)}
-                                                {thOrden('active', t('statistics.advisors.active'), 'w-[92px]', true)}
-                                                {thOrden('scheduled', t('statistics.advisors.scheduled'), 'w-[112px]', true)}
-                                                {thOrden('released', t('statistics.view.released'), 'w-[108px]', true, <span className="sr-only"> {t('statistics.view.releasedDetail')}</span>)}
-                                                {thOrden('messages', t('statistics.chart.messages'), 'w-[104px] @6xl/hoja:w-[170px]')}
-                                                <th scope="col" className="w-[44px] pr-5 font-normal">
-                                                    <span className="sr-only">{t('statistics.view.detail')}</span>
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {asesoresVisibles.map((advisor) => {
-                                                // resolution_rate es null cuando el asesor no tiene conversaciones
-                                                // asignadas: eso es "sin datos", no un 0% (no se marca en rojo a quien no tenía carga).
-                                                const rate = advisor.resolution_rate;
-                                                const rateColor = rate === null ? G.neutro : rate >= 70 ? G.ok : rate >= 40 ? G.pend : G.mal;
-                                                const rateText = rate === null ? TXT_NEUTRO : rate >= 70 ? TEXTO_NAVY : rate >= 40 ? TXT_AVISO : TXT_MAL;
-                                                const nombre = nombrePropio(advisor.name);
-                                                const abierto = expandedAdvisor === advisor.id;
-                                                // Atendidas en el período = resueltas + sin resolver (las activas son de AHORA y no entran).
-                                                const otras = Math.max(advisor.total_conversations - advisor.resolved_conversations, 0);
-                                                const liberadas = advisor.released_inactive ?? 0;
-                                                const numero = (v: number, fuerte = false) => (
-                                                    <td className={cn('px-2.5 text-right text-[13px] leading-[18px] tabular-nums', fuerte ? 'font-semibold' : 'font-medium', v ? TEXTO_NAVY : TEXTO_SUAVE)}>{formatNumber(v)}</td>
-                                                );
-
-                                                return (
-                                                    <tr
-                                                        key={advisor.id}
-                                                        onClick={() => openAdvisorDetail(advisor.id)}
-                                                        className={cn(
-                                                            'group h-[50px] cursor-pointer border-b transition-colors last:border-b-0 hover:bg-[#2e3f84]/[0.035] dark:hover:bg-white/[0.03]',
-                                                            abierto && 'bg-[#2e3f84]/[0.045] dark:bg-white/[0.045]',
-                                                            FILETE
-                                                        )}
-                                                    >
-                                                        {/* Columna fija: al desplazar la tabla de lado (móvil) el nombre no se pierde. El
-                                                            fondo opaco repite el tinte de la fila para no taparlo. */}
-                                                        <th
-                                                            scope="row"
-                                                            className={cn(
-                                                                'sticky left-0 z-[1] bg-card pr-2.5 pl-4 text-left font-normal @3xl/hoja:pl-5',
-                                                                abierto
-                                                                    ? 'bg-[image:linear-gradient(rgba(46,63,132,0.045),rgba(46,63,132,0.045))] dark:bg-[image:linear-gradient(rgba(255,255,255,0.045),rgba(255,255,255,0.045))]'
-                                                                    : 'group-hover:bg-[image:linear-gradient(rgba(46,63,132,0.035),rgba(46,63,132,0.035))] dark:group-hover:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]'
-                                                            )}
-                                                        >
-                                                            <div className="flex min-w-0 items-center gap-3">
-                                                                <span
-                                                                    className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#2e3f84]/10 text-[11px] leading-none font-semibold tracking-[0.02em] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.06)] dark:bg-white/8 dark:text-neutral-200 dark:shadow-none"
-                                                                    aria-hidden="true"
-                                                                >
-                                                                    {iniciales(advisor.name)}
-                                                                </span>
-                                                                <div className="flex min-w-0 flex-col gap-0.5">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={(event) => {
-                                                                            event.stopPropagation();
-                                                                            openAdvisorDetail(advisor.id);
-                                                                        }}
-                                                                        title={t('statistics.view.seeDetailOf', { name: nombre })}
-                                                                        aria-haspopup="dialog"
-                                                                        className={cn('-mx-1 truncate rounded px-1 text-left text-[13.5px] leading-[18px] font-semibold tracking-[-0.003em] hover:underline', TEXTO_NAVY, FOCO)}
-                                                                    >
-                                                                        {nombre}
-                                                                    </button>
-                                                                    {advisor.conversations_with_unread > 0 && (
-                                                                        <span className={cn('flex min-w-0 items-center gap-1.5 text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>
-                                                                            <span className={cn('size-1.5 shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
-                                                                            <span className="truncate">
-                                                                                {t('statistics.view.withUnread', { count: advisor.conversations_with_unread, value: formatNumber(advisor.conversations_with_unread) })}
-                                                                            </span>
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </th>
-                                                        <td className="px-2.5">
-                                                            {rate === null ? (
-                                                                <div className="flex flex-col">
-                                                                    <span className={cn('text-[13px] leading-[18px] font-medium', rateText)}>{t('statistics.view.noDataShort')}</span>
-                                                                    <span className={cn('text-[11.5px] leading-[14px]', TEXTO_SUAVE)}>{t('statistics.view.noConversations')}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="flex flex-col gap-[5px]">
-                                                                    <span className={cn('text-[13px] leading-[18px] font-semibold tabular-nums', rateText)}>{formatRate(rate)}</span>
-                                                                    <BarraPista valor={rate} max={100} color={rateColor} alto={4} />
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-2.5">
-                                                            <div className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3">
-                                                                <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', advisor.total_conversations ? TEXTO_NAVY : TEXTO_SUAVE)}>
-                                                                    {formatNumber(advisor.total_conversations)}
-                                                                </span>
-                                                                <div className="h-2 overflow-hidden rounded-full" style={{ background: G.pista }} aria-hidden="true">
-                                                                    {advisor.total_conversations > 0 && (
-                                                                        <div className="flex h-full gap-[2px]" style={{ width: anchoBarra(advisor.total_conversations, maxAdvisorConv) }}>
-                                                                            <div style={{ flex: `${advisor.resolved_conversations} 1 0`, background: G.serie }} />
-                                                                            {otras > 0 && <div style={{ flex: `${otras} 1 0`, background: G.serie2 }} />}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        {numero(advisor.resolved_conversations)}
-                                                        {numero(advisor.active_conversations)}
-                                                        {numero(advisor.scheduled_conversations)}
-                                                        {liberacionApagada && liberadas === 0 ? (
-                                                            <td className={cn('px-2.5 text-right text-[13px] leading-[18px] font-medium', TEXTO_SUAVE)} title={t('statistics.view.releasedOff')}>
-                                                                <span aria-hidden="true">—</span>
-                                                                <span className="sr-only">{t('statistics.view.releasedOff')}</span>
-                                                            </td>
-                                                        ) : (
-                                                            <td className={cn('px-2.5 text-right text-[13px] leading-[18px] font-medium tabular-nums', liberadas ? TXT_AVISO : TEXTO_SUAVE)}>{formatNumber(liberadas)}</td>
-                                                        )}
-                                                        <td className="px-2.5">
-                                                            <div className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3">
-                                                                <span className={cn('text-right text-[13px] leading-[18px] font-medium tabular-nums', advisor.messages_sent ? TEXTO_NAVY : TEXTO_SUAVE)}>
-                                                                    {formatNumber(advisor.messages_sent)}
-                                                                </span>
-                                                                <BarraPista valor={advisor.messages_sent} max={maxAdvisorMsgs} alto={4} />
-                                                            </div>
-                                                        </td>
-                                                        <td className="pr-5 text-right">
-                                                            <ChevronRight
-                                                                className={cn('ml-auto size-4 transition-colors group-hover:text-[#2e3f84] dark:group-hover:text-neutral-100', abierto ? TEXTO_NAVY : TEXTO_SUAVE)}
-                                                                strokeWidth={1.75}
-                                                                aria-hidden="true"
-                                                            />
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </Tema>
                     </div>
+                    </>
+                    )}
                 </div>
             </div>
 
@@ -2432,6 +2592,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                     <DialogPrimitive.Overlay className="fixed inset-0 z-[65] bg-[#2e3f84]/20 data-[state=open]:animate-in data-[state=open]:fade-in-0 motion-reduce:animate-none dark:bg-black/50" />
                     <DialogPrimitive.Content
                         aria-describedby={undefined}
+                        onCloseAutoFocus={devolverFocoAlCerrar}
                         onEscapeKeyDown={(event) => {
                             // Radix escucha Escape antes que React: con el calendario del rango abierto, Escape
                             // cierra solo el calendario (lo hace CampoRango), no el panel entero.
@@ -2590,14 +2751,21 @@ function PanelAsesor({
                     <DialogPrimitive.Title className={cn('truncate text-[17px] leading-[22px] font-semibold tracking-[-0.012em]', TEXTO_NAVY)} title={nombre}>
                         {nombre}
                     </DialogPrimitive.Title>
-                    <span className="inline-flex items-center gap-[5px] text-[12.5px] leading-4 font-semibold text-sky-700 dark:text-sky-300">
-                        <Headphones className="size-[13px]" strokeWidth={2} aria-hidden="true" />
-                        {t('statistics.view.advisorRole')}
-                    </span>
+                    {advisor.role === 'admin' ? (
+                        <span className={cn('inline-flex items-center gap-[5px] text-[12.5px] leading-4 font-semibold', TEXTO_NAVY)}>
+                            <ShieldCheck className="size-[13px]" strokeWidth={2} aria-hidden="true" />
+                            {t('statistics.view.adminRole')}
+                        </span>
+                    ) : (
+                        <span className="inline-flex items-center gap-[5px] text-[12.5px] leading-4 font-semibold text-sky-700 dark:text-sky-300">
+                            <Headphones className="size-[13px]" strokeWidth={2} aria-hidden="true" />
+                            {t('statistics.view.advisorRole')}
+                        </span>
+                    )}
                 </div>
                 <DialogPrimitive.Close
                     className={cn(
-                        'flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[9px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:hover:bg-white/8 dark:hover:text-neutral-100',
+                        'flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[9px] pointer-coarse:size-11 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:hover:bg-white/8 dark:hover:text-neutral-100',
                         TEXTO_SUAVE,
                         FOCO
                     )}
@@ -2683,9 +2851,9 @@ function PanelAsesor({
                         <div className={cn('grid gap-y-6 border-b px-4 pt-[18px] pb-4 sm:px-6 @md/cuerpo:grid-cols-2 @md/cuerpo:gap-x-7', FILETE)}>
                             <div className="flex min-w-0 flex-col gap-3">
                                 <Rotulo titulo={t('statistics.advisors.dailyActivity')} apoyo={apoyoDia} />
-                                <div className="h-[214px] min-w-0">
+                                <div className="h-[214px] min-w-0" aria-hidden="true">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={datosDia} title={t('statistics.advisors.dailyActivity')} margin={{ top: 8, right: 0, bottom: 0, left: 0 }} barCategoryGap="24%">
+                                        <BarChart accessibilityLayer={false} data={datosDia} title={t('statistics.advisors.dailyActivity')} margin={{ top: 8, right: 0, bottom: 0, left: 0 }} barCategoryGap="24%">
                                             <CartesianGrid vertical={false} stroke={G.rejilla} />
                                             <XAxis
                                                 dataKey="name"
@@ -2718,9 +2886,9 @@ function PanelAsesor({
                             </div>
                             <div className="flex min-w-0 flex-col gap-3">
                                 <Rotulo titulo={t('statistics.advisors.hourlyDistribution')} apoyo={t('statistics.view.colombiaTime')} />
-                                <div className="h-[214px] min-w-0">
+                                <div className="h-[214px] min-w-0" aria-hidden="true">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={detail.hourly_distribution} title={t('statistics.advisors.hourlyDistribution')} margin={{ top: 8, right: 0, bottom: 0, left: 0 }} barCategoryGap="14%">
+                                        <BarChart accessibilityLayer={false} data={detail.hourly_distribution} title={t('statistics.advisors.hourlyDistribution')} margin={{ top: 8, right: 0, bottom: 0, left: 0 }} barCategoryGap="14%">
                                             <CartesianGrid vertical={false} stroke={G.rejilla} />
                                             <XAxis dataKey="hour" tick={EJE} axisLine={{ stroke: G.base }} tickLine={false} interval={5} tickFormatter={(h: string) => h.slice(0, 2)} tickMargin={6} />
                                             <YAxis tick={EJE} axisLine={false} tickLine={false} width={44} allowDecimals={false} tickFormatter={miles} ticks={marcasHora} domain={[0, marcasHora[marcasHora.length - 1]]} />

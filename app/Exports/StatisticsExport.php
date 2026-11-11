@@ -80,9 +80,9 @@ class StatisticsExport
     private const TEXTOS_VACIOS = [
         'messages_nov2025_jan2026' => 'Noviembre y diciembre de 2025 casi no tienen mensajes guardados y enero de 2026 no tiene ninguno: no es una caída real.',
         'appointments_since_aug2026' => 'Desde el 13 de agosto de 2026 no se cargan agendas en Citas: las cifras de citas posteriores están incompletas.',
-        'webhook_oct2026' => 'Del 11 al 13 de octubre de 2026 no llegaron mensajes de pacientes ni estados de entrega (incidente del webhook): las cifras de esos días están incompletas.',
-        'late_oct2026' => 'Del 14 al 15 de octubre de 2026 los mensajes llegaron con retraso: se cuentan con la hora en que llegaron.',
-        'cost_attacker_oct2026' => 'No incluye lo que Meta cobró por los envíos del atacante durante el incidente (~US$46,72).',
+        'webhook_oct2026' => 'Del 11 al 13 de octubre de 2026 no llegaron mensajes de pacientes ni estados de entrega por una falla en la recepción: las cifras de esos días están incompletas.',
+        'late_oct2026' => 'El 14 y 15 de octubre de 2026 los mensajes llegaron con retraso: se cuentan con la hora en que llegaron.',
+        'cost_attacker_oct2026' => 'No incluye lo que Meta cobró por los envíos de un tercero no autorizado del 11 al 12 de octubre de 2026 (~US$ 46,72).',
         'history_before_mar2026' => 'Antes del 31 de marzo de 2026 no hay historial de asignaciones ni resoluciones: para esas fechas no se pueden contar las resueltas ni las agendadas por asesor.',
     ];
 
@@ -441,7 +441,7 @@ class StatisticsExport
         // Cobertura de la medición
         $row = $this->subtitulo($sheet, $row, 'Mensajes con dato de cobro', 'D');
         $filas = [
-            ['Mensajes enviados en el período', $this->n('costs.outbound_total')],
+            ['Mensajes enviados sin error en el período', $this->n('costs.outbound_total')],
             ['Con dato de cobro de Meta', $this->n('costs.with_pricing')],
             ['Sin dato de cobro de Meta', $this->n('costs.without_pricing')],
         ];
@@ -508,7 +508,7 @@ class StatisticsExport
         }
 
         $row = $this->titulo($sheet, 'RENDIMIENTO DE ASESORES', 'I', self::COLOR_PRIMARY);
-        $row = $this->nota($sheet, $row, 'Atendidas: conversaciones que el asesor tomó, que le asignaron, en las que escribió o que resolvió en el período. Resueltas y agendadas: las que él mismo resolvió o agendó en el período. Activas y sin leer: lo que tiene ahora. Mensajes: solo los escritos por la persona (sin envíos masivos, ocultos ni fallidos). Resolución: resueltas ÷ atendidas.', 'I');
+        $row = $this->nota($sheet, $row, 'Atendidas: conversaciones que el asesor tomó, que le asignaron, en las que escribió o que resolvió en el período. Resueltas y agendadas: las que él mismo resolvió o agendó. Resolución: resueltas ÷ atendidas. Mensajes: solo los que escribió (sin envíos masivos ni fallidos). Activas (ahora): lo que tiene abierto hoy; no depende del período. Liberadas: se le quitaron en el período por no responder a tiempo (Configuración → Liberación automática). El resumen y la tabla de asesores son solo de usuarios con rol de asesor; los administradores que atendieron chats van aparte, al final.', 'I');
         $row = $this->notasVacios($sheet, $row, ['advisors'], 'I');
         $row++;
 
@@ -573,7 +573,27 @@ class StatisticsExport
             $sheet->mergeCells('A' . $row . ':I' . $row);
         }
 
-        foreach ($asesores as $i => $advisor) {
+        $row = $this->filasPersonas($sheet, $row, $asesores, $autoRelease === false);
+
+        // Administradores que atendieron chats: aparte, como en la pantalla (no entran en el resumen).
+        $admins = (array) ($this->d('advisors.admins') ?? []);
+        if ($admins) {
+            $row++;
+            $row = $this->subtitulo($sheet, $row, 'ADMINISTRADORES QUE ATENDIERON CHATS', 'I');
+            $row = $this->nota($sheet, $row, 'No entran en el resumen general ni en «Más conversaciones resueltas».', 'I');
+            $row = $this->filasPersonas($sheet, $row, $admins, $autoRelease === false);
+        }
+
+        $this->horizontal($sheet);
+    }
+
+    /**
+     * Filas de la tabla de personas (asesores o administradores), con el mismo formato. Con la liberación
+     * automática apagada, «Función apagada» solo donde la persona no tiene liberadas (igual que la pantalla).
+     */
+    private function filasPersonas($sheet, int $row, array $personas, bool $liberacionApagada): int
+    {
+        foreach ($personas as $i => $advisor) {
             $this->styleDataRow($sheet, $row, $i % 2 === 0, 'A', 'I');
             $sheet->setCellValueExplicit('A' . $row, $this->nombrePropio($advisor['name'] ?? ''), DataType::TYPE_STRING);
             $this->poner($sheet, 'B' . $row, $this->entero($advisor['total_conversations'] ?? null));
@@ -584,7 +604,8 @@ class StatisticsExport
             $this->poner($sheet, 'G' . $row, $this->entero($advisor['messages_sent'] ?? null));
             // resolution_rate es null si el asesor no tiene conversaciones: «Sin datos».
             $this->poner($sheet, 'H' . $row, $this->pct($advisor['resolution_rate'] ?? null));
-            $this->poner($sheet, 'I' . $row, $funcionApagada ? 'Función apagada' : $this->entero($advisor['released_inactive'] ?? 0));
+            $liberadas = (int) ($advisor['released_inactive'] ?? 0);
+            $this->poner($sheet, 'I' . $row, $liberacionApagada && $liberadas === 0 ? 'Función apagada' : $this->entero($liberadas));
             // styleDataRow pone en negrita la última columna: la cifra principal es la resolución.
             if (is_numeric($advisor['resolution_rate'] ?? null)) {
                 $sheet->getStyle('H' . $row)->getFont()->setBold(true);
@@ -593,7 +614,7 @@ class StatisticsExport
             $row++;
         }
 
-        $this->horizontal($sheet);
+        return $row;
     }
 
     private function createWelcomeMenuSheet(Spreadsheet $spreadsheet): void
@@ -855,6 +876,7 @@ class StatisticsExport
             'today' => 'Hoy',
             'week' => 'Esta semana',
             'month' => 'Este mes',
+            'last_month' => 'Mes pasado',
             'year' => 'Este año',
             'custom' => 'Rango personalizado',
             default => 'Todo el tiempo',

@@ -22,7 +22,13 @@ class StatisticsController extends Controller
      */
     private const BUSINESS_TZ = 'America/Bogota';
 
-    private const PERIODOS = ['today', 'week', 'month', 'year', 'all'];
+    private const PERIODOS = ['today', 'week', 'month', 'last_month', 'year', 'all'];
+
+    /** Sin periodo en la dirección se abre «Este mes» (antes «Todo el tiempo», la consulta más lenta y la menos útil). */
+    private const PERIODO_POR_DEFECTO = 'month';
+
+    /** Por debajo de este número de atendidas, la resolución no se colorea en pantalla (un solo caso la mueve mucho). */
+    public const POCAS_ATENDIDAS = 10;
 
     /**
      * Toques de los botones de los recordatorios (Confirmar/Cancelar…): llegan como mensajes del
@@ -89,12 +95,13 @@ class StatisticsController extends Controller
     }
 
     /**
-     * Filtros validados: [period, start_date|null, end_date|null]. Un periodo desconocido vale 'all';
+     * Filtros validados: [period, start_date|null, end_date|null]. Un periodo desconocido o ausente vale
+     * PERIODO_POR_DEFECTO («Este mes»);
      * un rango incompleto, mal escrito o al revés se ignora (antes daba error 500 o cifras en cero).
      */
     private function filtros(Request $request): array
     {
-        $period = in_array($request->query('period'), self::PERIODOS, true) ? $request->query('period') : 'all';
+        $period = in_array($request->query('period'), self::PERIODOS, true) ? $request->query('period') : self::PERIODO_POR_DEFECTO;
 
         $fecha = function ($valor): ?string {
             if (! is_string($valor) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $valor)) {
@@ -126,7 +133,7 @@ class StatisticsController extends Controller
         [$dateStart, $dateEnd] = $this->calculateDateRange($startDate, $endDate, $period);
         $custom = $startDate !== null && $endDate !== null;
 
-        $cacheKey = 'statistics_v3_' . md5(serialize([
+        $cacheKey = 'statistics_v4_' . md5(serialize([
             'start' => $dateStart?->toIso8601String(),
             'end' => $dateEnd?->toIso8601String(),
             'period' => $period,
@@ -259,6 +266,11 @@ class StatisticsController extends Controller
             'month' => [
                 $ahora->copy()->startOfMonth()->utc(),
                 $ahora->copy()->endOfMonth()->utc(),
+            ],
+            // El mes calendario anterior completo, en hora de Colombia (el del informe mensual).
+            'last_month' => [
+                $ahora->copy()->startOfMonth()->subMonthNoOverflow()->startOfMonth()->utc(),
+                $ahora->copy()->startOfMonth()->subMonthNoOverflow()->endOfMonth()->utc(),
             ],
             'year' => [
                 $ahora->copy()->startOfYear()->utc(),
@@ -663,7 +675,7 @@ class StatisticsController extends Controller
 
         $liberadas = $this->liberadasPorInactividad($startDate, $endDate);
 
-        $advisorStats = $advisors->map(function ($advisor) use ($trabajo, $msgAgg, $liberadas) {
+        $fila = function ($advisor) use ($trabajo, $msgAgg, $liberadas) {
             $c = $trabajo[$advisor->id] ?? [];
 
             $totalConversations = (int) ($c['atendidas'] ?? 0);
@@ -678,6 +690,7 @@ class StatisticsController extends Controller
             return [
                 'id' => $advisor->id,
                 'name' => $advisor->name,
+                'role' => $advisor->role,
                 // Atendidas en el período: las que tomó, le asignaron, en las que escribió o que resolvió.
                 'total_conversations' => $totalConversations,
                 // Resueltas y agendadas POR ÉL en el período.
@@ -692,7 +705,28 @@ class StatisticsController extends Controller
                 // Liberación automática) en el período.
                 'released_inactive' => (int) ($liberadas[$advisor->id] ?? 0),
             ];
-        })->sortByDesc('resolved_conversations')->values()->toArray();
+        };
+
+        $advisorStats = $advisors->map($fila)->sortByDesc('resolved_conversations')->values()->toArray();
+
+        // Administradores que atendieron chats (en el período, o que tienen chats ahora): antes su trabajo
+        // no aparecía en ninguna parte. Van aparte y NO entran en los totales ni en «Más conversaciones
+        // resueltas», que siguen siendo del equipo de asesores. Sin consultas nuevas: el trabajo ya se
+        // calculaba para todos los usuarios (trabajoAsesores, mensajes y liberadas no filtran por rol).
+        $adminStats = User::where('role', 'admin')
+            ->where('email', '<>', User::AI_EMAIL)
+            ->get()
+            ->map($fila)
+            ->filter(fn (array $f) => $f['total_conversations'] > 0
+                || $f['messages_sent'] > 0
+                || $f['released_inactive'] > 0
+                // Chats suyos ahora: activos, pendientes o con mensajes sin leer.
+                || $f['active_conversations'] > 0
+                || $f['conversations_with_unread'] > 0
+                || (($trabajo[$f['id']]['pendientes'] ?? 0) > 0))
+            ->sortByDesc('resolved_conversations')
+            ->values()
+            ->toArray();
 
         $totalConversations = array_sum(array_column($advisorStats, 'total_conversations'));
         $totalResolved = array_sum(array_column($advisorStats, 'resolved_conversations'));
@@ -729,6 +763,9 @@ class StatisticsController extends Controller
             'auto_release_enabled' => (bool) (InactiveConversationReleaser::settings()['enabled'] ?? false),
             'top_performer' => $topAdvisor,
             'advisors' => $advisorStats,
+            'admins' => $adminStats,
+            // Umbral de «pocas conversaciones» para la pantalla (sin color por debajo).
+            'few_attended' => self::POCAS_ATENDIDAS,
         ];
     }
 
@@ -850,7 +887,7 @@ class StatisticsController extends Controller
         [$dateStart, $dateEnd] = $this->calculateDateRange($startDate, $endDate, $period);
         $custom = $startDate !== null && $endDate !== null;
 
-        $cacheKey = 'statistics_asesor_v3_' . $user->id . '_' . md5(serialize([$dateStart?->toIso8601String(), $dateEnd?->toIso8601String(), $period, $custom]));
+        $cacheKey = 'statistics_asesor_v4_' . $user->id . '_' . md5(serialize([$dateStart?->toIso8601String(), $dateEnd?->toIso8601String(), $period, $custom]));
 
         return response()->json(Cache::remember($cacheKey, 300, function () use ($user, $dateStart, $dateEnd, $period, $custom) {
             $enRango = fn ($q) => $q->when($dateStart && $dateEnd, fn ($q) => $q->whereBetween('created_at', [$dateStart, $dateEnd]));
