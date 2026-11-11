@@ -51,10 +51,10 @@ class StatisticsController extends Controller
      * se lean como «no hubo actividad». Fechas en hora de Colombia; to=null es «sin fin».
      */
     private const VACIOS = [
-        ['key' => 'messages_nov2025_jan2026', 'topics' => ['messages', 'advisors'], 'from' => '2025-11-01', 'to' => '2026-01-31'],
+        ['key' => 'messages_nov2025_jan2026', 'topics' => ['messages', 'advisors', 'conversations'], 'from' => '2025-11-01', 'to' => '2026-01-31'],
         ['key' => 'appointments_since_aug2026', 'topics' => ['appointments'], 'from' => '2026-08-13', 'to' => null],
         ['key' => 'webhook_oct2026', 'topics' => ['messages', 'delivery', 'conversations', 'costs'], 'from' => '2026-10-11', 'to' => '2026-10-13'],
-        ['key' => 'late_oct2026', 'topics' => ['messages'], 'from' => '2026-10-14', 'to' => '2026-10-15'],
+        ['key' => 'late_oct2026', 'topics' => ['messages', 'conversations'], 'from' => '2026-10-14', 'to' => '2026-10-15'],
         ['key' => 'cost_attacker_oct2026', 'topics' => ['costs'], 'from' => '2026-10-11', 'to' => '2026-10-12'],
         // Antes de esta fecha no existe el historial (conversation_activities): las resueltas y
         // agendadas por asesor no se pueden contar y la resolución sale más baja de lo real.
@@ -133,7 +133,7 @@ class StatisticsController extends Controller
         [$dateStart, $dateEnd] = $this->calculateDateRange($startDate, $endDate, $period);
         $custom = $startDate !== null && $endDate !== null;
 
-        $cacheKey = 'statistics_v4_' . md5(serialize([
+        $cacheKey = 'statistics_v5_' . md5(serialize([
             'start' => $dateStart?->toIso8601String(),
             'end' => $dateEnd?->toIso8601String(),
             'period' => $period,
@@ -142,13 +142,16 @@ class StatisticsController extends Controller
 
         $ttl = ($period === 'today' && ! $custom) ? 60 : 300;
 
-        return Cache::remember($cacheKey, $ttl, function () use ($dateStart, $dateEnd, $period, $custom) {
+        $datos = Cache::remember($cacheKey, $ttl, function () use ($dateStart, $dateEnd, $period, $custom) {
             $rango = $this->rangoNegocio($dateStart, $dateEnd, $period, $custom);
+            $mensajes = $this->getMessageStatistics($dateStart, $dateEnd);
 
             return [
-                'messages' => $this->getMessageStatistics($dateStart, $dateEnd),
+                'messages' => $mensajes,
                 'appointments' => $this->getAppointmentStatistics($dateStart, $dateEnd),
-                'conversations' => $this->getConversationStatistics($dateStart, $dateEnd),
+                // Las conversaciones con mensajes del paciente salen de la misma pasada sobre mensajes.
+                'conversations' => $this->getConversationStatistics($dateStart, $dateEnd)
+                    + ['with_patient_messages' => $mensajes['conversations_written']],
                 'templates' => $this->getTemplateStatistics($dateStart, $dateEnd),
                 'costs' => $this->getCostStatistics($dateStart, $dateEnd),
                 'users' => $this->getUserStatistics(),
@@ -159,6 +162,22 @@ class StatisticsController extends Controller
                 'generated_at' => now()->setTimezone(self::BUSINESS_TZ)->toIso8601String(),
             ];
         });
+
+        // «Sin leer ahora» va fuera de la caché: es la foto de este momento y tiene que coincidir con el
+        // número del menú de la izquierda, que se calcula en cada petición (consulta barata, con índice).
+        // Antes solo contaba las creadas en el período y la cifra «de ahora» cambiaba con el período.
+        $datos['conversations']['unread_now'] = $this->sinLeerAhora();
+
+        return $datos;
+    }
+
+    /** Activas o pendientes con mensajes sin leer: la misma regla del número del menú para administradores. */
+    private function sinLeerAhora(): int
+    {
+        return DB::table('conversations')
+            ->whereIn('status', ['active', 'pending'])
+            ->where('unread_count', '>', 0)
+            ->count();
     }
 
     /**
@@ -320,12 +339,13 @@ class StatisticsController extends Controller
                 SUM(CASE WHEN is_from_user = 0 THEN 1 ELSE 0 END) as sent_by_system,
                 SUM(CASE WHEN is_from_user = 1 THEN 1 ELSE 0 END) as received_from_users,
                 SUM(CASE WHEN is_from_user = 1 AND is_hidden = 0 AND LOWER(TRIM(COALESCE(content, ''))) NOT IN ({$botones}) THEN 1 ELSE 0 END) as received_written,
+                COUNT(DISTINCT CASE WHEN is_from_user = 1 AND is_hidden = 0 AND LOWER(TRIM(COALESCE(content, ''))) NOT IN ({$botones}) THEN conversation_id END) as conversations_written,
                 SUM(CASE WHEN is_from_user = 0 AND status = 'pending' THEN 1 ELSE 0 END) as status_pending,
                 SUM(CASE WHEN is_from_user = 0 AND status = 'sent' THEN 1 ELSE 0 END) as status_sent,
                 SUM(CASE WHEN is_from_user = 0 AND status = 'delivered' THEN 1 ELSE 0 END) as status_delivered,
                 SUM(CASE WHEN is_from_user = 0 AND status = 'read' THEN 1 ELSE 0 END) as status_read,
                 SUM(CASE WHEN is_from_user = 0 AND status = 'failed' THEN 1 ELSE 0 END) as status_failed
-            ", self::BOTONES);
+            ", array_merge(self::BOTONES, self::BOTONES));
 
         if ($startDate && $endDate) {
             $stats->whereBetween('created_at', [$startDate, $endDate]);
@@ -343,6 +363,8 @@ class StatisticsController extends Controller
             // Lo que el paciente escribió de verdad, sin los toques de Confirmar/Cancelar.
             'received_written' => $written,
             'button_taps' => max(0, $received - $written),
+            // Conversaciones en las que el paciente escribió algo en el período (sin contar los botones).
+            'conversations_written' => (int) ($result->conversations_written ?? 0),
             'delivery_status' => [
                 'pending' => (int) ($result->status_pending ?? 0),
                 'sent' => (int) ($result->status_sent ?? 0),
@@ -370,15 +392,16 @@ class StatisticsController extends Controller
                 SUM(CASE WHEN reminder_sent = 1 THEN 1 ELSE 0 END) as reminder_sent,
                 SUM(CASE WHEN reminder_status = 'pending' THEN 1 ELSE 0 END) as pending,
                 SUM(CASE WHEN reminder_status = 'sent' THEN 1 ELSE 0 END) as sent,
-                SUM(CASE WHEN reminder_status = 'sent' AND reminder_sent = 1 THEN 1 ELSE 0 END) as awaiting,
+                SUM(CASE WHEN reminder_sent = 1 AND (reminder_status IS NULL OR reminder_status NOT IN ('failed', 'confirmed', 'cancelled')) THEN 1 ELSE 0 END) as awaiting,
                 SUM(CASE WHEN reminder_status = 'failed' THEN 1 ELSE 0 END) as failed,
                 SUM(CASE WHEN reminder_status = 'confirmed' THEN 1 ELSE 0 END) as confirmed_all,
                 SUM(CASE WHEN reminder_status = 'confirmed' AND reminder_sent = 1 THEN 1 ELSE 0 END) as confirmed,
                 SUM(CASE WHEN reminder_status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_all,
                 SUM(CASE WHEN reminder_status = 'cancelled' AND notes LIKE ? THEN 1 ELSE 0 END) as cancelled_hospital,
                 SUM(CASE WHEN reminder_status = 'cancelled' AND reminder_sent = 1 AND (notes IS NULL OR notes NOT LIKE ?) THEN 1 ELSE 0 END) as cancelled_patient,
+                SUM(CASE WHEN reminder_status = 'cancelled' AND notes LIKE ? THEN 0 WHEN reminder_status = 'failed' THEN 0 WHEN reminder_sent = 1 THEN 1 ELSE 0 END) as estado_enviado,
                 SUM(CASE WHEN citfc > ? THEN 1 ELSE 0 END) as future
-            ", [self::NOTA_CANCELADA_HOSPITAL, self::NOTA_CANCELADA_HOSPITAL, $hoy]);
+            ", [self::NOTA_CANCELADA_HOSPITAL, self::NOTA_CANCELADA_HOSPITAL, self::NOTA_CANCELADA_HOSPITAL, $hoy]);
 
         // Se filtra por citfc (FECHA DE LA CITA), no por created_at: las citas se insertan
         // con DB::table()->insert(), que se salta los timestamps de Eloquent, así que
@@ -409,12 +432,23 @@ class StatisticsController extends Controller
             'cancelled_by_patient' => $cancelledPatient,
             'cancelled_by_hospital' => $cancelledHospital,
             'cancelled' => $cancelledPatient + $cancelledHospital,
-            // Recordatorio enviado (aceptado por Meta) y el paciente todavía no ha contestado.
+            // Recordatorio enviado y el paciente todavía no ha contestado (misma regla que la pantalla de
+            // Citas): ni fallido, ni confirmado, ni cancelado. Con esto la base del anillo es igual a
+            // reminder_state.sent.
             'awaiting_reply' => $awaiting,
             // Base del anillo «Respuesta de pacientes»: el centro es la suma de su leyenda.
             'with_reminder_base' => $confirmed + $cancelledPatient + $awaiting,
             'pending' => $n('pending'),
             'failed' => $n('failed'),
+            // Estado del recordatorio: cada cita cae en UNA sola parte y las cuatro suman el total.
+            // «Enviado» es una marca (reminder_sent) y «con error» un estado: una cita que Meta aceptó y
+            // luego no entregó tiene las dos, y mostradas sobre el total las barras pasaban de 100 %.
+            'reminder_state' => [
+                'sent' => $n('estado_enviado'),
+                'not_sent' => max(0, $n('total') - $n('estado_enviado') - $n('failed') - $cancelledHospital),
+                'failed' => $n('failed'),
+                'cancelled_by_hospital' => $cancelledHospital,
+            ],
             // Citas del total con fecha posterior a hoy (los periodos en curso cuentan el periodo completo).
             'future' => $n('future'),
             'by_status' => [
@@ -431,7 +465,8 @@ class StatisticsController extends Controller
      * Get conversation statistics - OPTIMIZADO con consultas agregadas
      *
      * Ojo: hay UNA conversación por número de teléfono, así que created_at es la primera vez que
-     * ese número habló con el hospital, y el estado que se cuenta es el de AHORA.
+     * ese número habló con el hospital (por mensaje del paciente, recordatorio o envío masivo), y el
+     * estado que se cuenta es el de AHORA. Por eso la pantalla las llama «números nuevos».
      */
     private function getConversationStatistics(?Carbon $startDate, ?Carbon $endDate): array
     {
@@ -462,6 +497,8 @@ class StatisticsController extends Controller
             'resolved' => (int) ($result->resolved ?? 0),
             'closed' => (int) ($result->closed ?? 0),
             'scheduled' => (int) ($result->scheduled ?? 0),
+            // Las creadas en el período con mensajes sin leer: queda solo para la pantalla ya publicada;
+            // la nueva usa unread_now (se agrega en calcular(), fuera de la caché).
             'unread' => (int) ($result->unread ?? 0),
         ];
     }
@@ -830,7 +867,7 @@ class StatisticsController extends Controller
                 assigned_to AS uid,
                 SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS activas,
                 SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pendientes,
-                SUM(CASE WHEN unread_count > 0 THEN 1 ELSE 0 END) AS sin_leer
+                SUM(CASE WHEN status IN ('active', 'pending') AND unread_count > 0 THEN 1 ELSE 0 END) AS sin_leer
             ")
             ->groupBy('assigned_to')
             ->get()

@@ -195,7 +195,7 @@ class StatisticsExport
             'Citas con fecha dentro del período y qué respondieron los pacientes.') + 1;
 
         $row = $this->addSection($sheet, $row, 'CONVERSACIONES', $this->conversationRows(), self::COLOR_SUCCESS,
-            'Conversaciones iniciadas en el período, según su estado actual.') + 1;
+            'Conversaciones en las que el paciente escribió en el período, y números nuevos con su estado de hoy.') + 1;
 
         $row = $this->addSection($sheet, $row, 'ENVÍOS MASIVOS', $this->templateRows(), self::COLOR_WARNING,
             'No incluye recordatorios de citas ni plantillas enviadas desde el chat.') + 1;
@@ -313,16 +313,15 @@ class StatisticsExport
             $texto .= ((int) ($this->d('appointments.future') ?? 0)) > 0 ? ', también las que aún no han llegado.' : '.';
             $row = $this->nota($sheet, $row, $texto, 'C');
         }
-        if ($row > 3) {
-            $row++;
-        }
+        $row = $this->nota($sheet, $row, 'Las cuatro filas del recordatorio suman las citas del período: cada cita cuenta en una sola.', 'C');
+        $row++;
 
         $row = $this->encabezado($sheet, $row);
         $row = $this->filas($sheet, $row, $this->appointmentRows(false));
 
-        // Respuesta de pacientes: solo citas con recordatorio enviado. Sus tres filas suman la base.
+        // Respuesta de pacientes: solo las citas que el paciente podía responder. Sus tres filas suman la base.
         $row++;
-        $row = $this->subtitulo($sheet, $row, 'Respuesta de pacientes (citas con recordatorio enviado)', 'C');
+        $row = $this->subtitulo($sheet, $row, 'Respuesta de pacientes (citas que el paciente podía responder)', 'C');
         foreach (['Respuesta', 'Citas', '%'] as $i => $header) {
             $sheet->setCellValue(chr(ord('A') + $i) . $row, $header);
         }
@@ -344,9 +343,9 @@ class StatisticsExport
         foreach ($respuestas as [$etiqueta, $valor]) {
             $filas[] = [$etiqueta, $this->entero($valor), $parte($valor)];
         }
-        // No es «Recordatorios enviados» (reminder_sent): esta base deja fuera las citas con
-        // recordatorio que después canceló el hospital o quedaron en otro estado. Con el rótulo
-        // «Total con recordatorio enviado» la hoja daba dos cifras distintas para lo mismo.
+        // No es «Recordatorio enviado» de arriba: esta base deja fuera las citas con recordatorio
+        // que quedaron en un estado sin respuesta posible. Con el rótulo «Total con recordatorio
+        // enviado» la hoja daba dos cifras distintas para lo mismo.
         $filas[] = ['Total (base de los porcentajes)', $this->entero($base), $parte($base)];
         $row = $this->filas($sheet, $row, $filas, 'C');
         $sheet->getStyle('A' . ($row - 1) . ':C' . ($row - 1))->getFont()->setBold(true);
@@ -360,7 +359,7 @@ class StatisticsExport
         $sheet->getColumnDimension('B')->setWidth(22);
 
         $row = $this->titulo($sheet, 'ESTADÍSTICAS DE CONVERSACIONES', 'B', self::COLOR_SUCCESS);
-        $row = $this->nota($sheet, $row, 'Conversaciones iniciadas en el período, según su estado actual.', 'B');
+        $row = $this->nota($sheet, $row, 'Con mensajes del paciente: conversaciones en las que el paciente escribió en el período, sin contar los botones Confirmar o Cancelar. Números nuevos: primer contacto con el hospital en el período, por mensaje del paciente, recordatorio o envío masivo; su estado es el de hoy.', 'B');
         $row = $this->notasVacios($sheet, $row, ['conversations'], 'B');
         $row++;
 
@@ -645,7 +644,7 @@ class StatisticsExport
             ['Eligieron un servicio', $this->entero($fd['reached_menu'] ?? null)],
             ['Pasaron a un asesor', $this->entero($porSalida['advisor'] ?? 0)],
             [
-                'Resueltos por el menú, sin asesor (de los ' . $this->miles($terminaron) . ' que terminaron por el menú o con un asesor)',
+                'Terminaron sin asesor (de los ' . $this->miles($terminaron) . ' que terminaron por el menú o con un asesor)',
                 $this->pct($terminaron > 0 ? ($fd['automation_rate'] ?? null) : null),
             ],
         ]);
@@ -733,18 +732,19 @@ class StatisticsExport
     private function appointmentRows(bool $conRespuestas): array
     {
         $filas = [['Citas con fecha en el período', $this->n('appointments.total')]];
+        // Estado del recordatorio: cuatro partes que suman las citas del período (cada cita en una sola).
+        $filas[] = [$this->sub('Recordatorio enviado'), $this->n('appointments.reminder_state.sent')];
+        $filas[] = [$this->sub('Recordatorio sin enviar'), $this->n('appointments.reminder_state.not_sent')];
+        $filas[] = [$this->sub('Recordatorio con error'), $this->n('appointments.reminder_state.failed')];
+        $filas[] = [$this->sub('Cancelada por el hospital (plantilla)'), $this->n('appointments.reminder_state.cancelled_by_hospital')];
         if ((int) ($this->d('appointments.future') ?? 0) > 0) {
-            $filas[] = [$this->sub('de ellas, en días que aún no llegan'), $this->n('appointments.future')];
+            $filas[] = ['Citas en días que aún no llegan (ya están en el total)', $this->n('appointments.future')];
         }
-        $filas[] = ['Recordatorios enviados', $this->n('appointments.reminder_sent')];
         if ($conRespuestas) {
             $filas[] = ['Confirmadas por el paciente', $this->n('appointments.confirmed')];
             $filas[] = ['Canceladas por el paciente', $this->n('appointments.cancelled_by_patient')];
             $filas[] = ['Recordatorio enviado, sin respuesta', $this->n('appointments.awaiting_reply')];
         }
-        $filas[] = ['Canceladas por el hospital (plantilla)', $this->n('appointments.cancelled_by_hospital')];
-        $filas[] = ['Recordatorio sin enviar', $this->n('appointments.pending')];
-        $filas[] = ['Recordatorio con error', $this->n('appointments.failed')];
 
         return $filas;
     }
@@ -752,20 +752,22 @@ class StatisticsExport
     private function conversationRows(): array
     {
         $filas = [
-            ['Iniciadas en el período', $this->n('conversations.total')],
-            ['Activas', $this->n('conversations.active')],
-            ['Pendientes', $this->n('conversations.pending')],
-            ['Resueltas', $this->n('conversations.resolved')],
-            ['Agendadas (incluye abiertas por recordatorio)', $this->n('conversations.scheduled')],
+            ['Con mensajes del paciente en el período', $this->n('conversations.with_patient_messages')],
+            ['Números nuevos (primer contacto en el período)', $this->n('conversations.total')],
+            [$this->sub('Activas hoy'), $this->n('conversations.active')],
+            [$this->sub('Pendientes hoy'), $this->n('conversations.pending')],
+            [$this->sub('Resueltas hoy'), $this->n('conversations.resolved')],
+            [$this->sub('Agendadas hoy (incluye abiertas por recordatorio)'), $this->n('conversations.scheduled')],
         ];
         // «En progreso» y «Cerradas» ya no se pueden asignar: solo salen si tienen algo.
         if ((int) ($this->d('conversations.in_progress') ?? 0) > 0) {
-            $filas[] = ['En progreso', $this->n('conversations.in_progress')];
+            $filas[] = [$this->sub('En progreso hoy'), $this->n('conversations.in_progress')];
         }
         if ((int) ($this->d('conversations.closed') ?? 0) > 0) {
-            $filas[] = ['Cerradas', $this->n('conversations.closed')];
+            $filas[] = [$this->sub('Cerradas hoy'), $this->n('conversations.closed')];
         }
-        $filas[] = ['Con mensajes sin leer (ahora mismo)', $this->n('conversations.unread')];
+        // Foto de este momento, con la regla del número del menú de la izquierda; no depende del período.
+        $filas[] = ['Con mensajes sin leer ahora (activas o pendientes)', $this->n('conversations.unread_now')];
 
         return $filas;
     }

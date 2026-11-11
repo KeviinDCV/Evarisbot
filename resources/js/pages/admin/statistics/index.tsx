@@ -1358,8 +1358,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         { clave: 'failed', etiqueta: t('statistics.appointments.failed'), valor: estadoRecordatorio.failed, color: G.mal },
         { clave: 'hospital', etiqueta: t('statistics.appointments.cancelledByHospital'), valor: estadoRecordatorio.cancelled_by_hospital, color: G.serie2 },
     ].filter((p) => p.clave !== 'hospital' || p.valor > 0);
-    // Enviadas que no caben en el anillo: su estado no dice si el paciente respondió.
-    const fueraDelAnillo = appointments.reminder_state ? Math.max(appointments.reminder_state.sent - centroAnillo, 0) : 0;
+    // El anillo suma exactamente «Recordatorio enviado»: el servidor cuenta «Sin respuesta» como la
+    // pantalla de Citas (enviado y ni fallido, ni confirmado, ni cancelado).
     // La cabecera rotula un período en curso «hasta hoy», pero Citas cuenta el período completo.
     const notaCitas =
         !rangoDatos.custom && rangoDatos.start && rangoDatos.end && rangoDatos.end > hoy && rangoDatos.start <= hoy
@@ -2001,7 +2001,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                         />
                                         <MiniCifra etiqueta={t('statistics.view.newNumbers')} valor={formatNumber(conversations.total)} detalle={t('statistics.view.newNumbersDetail')} />
                                     </div>
-                                    <Rotulo titulo={t('statistics.view.todayStatus')} apoyo={t('statistics.view.ofNewNumbers', { value: formatNumber(conversations.total) })} />
+                                    <Rotulo titulo={t('statistics.view.todayStatus')} apoyo={t('statistics.view.ofNewNumbers', { count: conversations.total, value: formatNumber(conversations.total) })} />
                                     <div className="flex flex-col">
                                         {conversationItems.map((c) => (
                                             <FilaBarra
@@ -2210,11 +2210,6 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 {appointmentsData.map((r) => (
                                                     <Leyenda key={r.name} color={r.color} etiqueta={r.name} valor={r.value} total={respuestasTotal} alto={34} />
                                                 ))}
-                                                {fueraDelAnillo > 0 && (
-                                                    <p className={cn('mt-2 text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>
-                                                        {t('statistics.view.reminderNoReply', { count: fueraDelAnillo, value: formatNumber(fueraDelAnillo) })}
-                                                    </p>
-                                                )}
                                             </div>
                                         </div>
                                     ) : (
