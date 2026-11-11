@@ -73,6 +73,9 @@ class StatisticsController extends Controller
         // segunda petición automática y el frontend muestra un skeleton mientras tanto.
         return Inertia::render('admin/statistics/index', [
             'statistics' => Inertia::defer(fn () => $this->calcular($period, $startDate, $endDate)),
+            // La comparación con el período anterior va en su propia petición (otro grupo): las cifras
+            // del período no la esperan, y si falla devuelve null en vez de un error.
+            'comparison' => Inertia::defer(fn () => $this->comparacionSegura($period, $startDate, $endDate), 'comparacion'),
         ]);
     }
 
@@ -85,13 +88,189 @@ class StatisticsController extends Controller
 
         $statistics = $this->calcular($period, $startDate, $endDate);
 
-        // Hora de Colombia: con now() (UTC) un archivo bajado a las 15:00 salía marcado
-        // como las 20:00, y los de la tarde aparecían fechados al día siguiente.
-        $fileName = 'estadisticas_' . now()->setTimezone(self::BUSINESS_TZ)->format('Y-m-d_His') . '.xlsx';
+        // El nombre dice el período (antes solo la hora de descarga: «estadisticas_2026-11-11_083800»).
+        // La hora de generación va dentro, en la hoja Resumen.
+        $fileName = $this->nombreArchivo($statistics['date_range'] ?? []);
 
         $export = new StatisticsExport($statistics, $statistics['date_range']);
 
         return $export->download($fileName);
+    }
+
+    /**
+     * Nombre del Excel según el período (fechas de Colombia, solo ASCII):
+     * un mes completo «estadisticas_octubre-2026.xlsx», un año completo «estadisticas_2025.xlsx»,
+     * un día «estadisticas_2026-11-11.xlsx», lo demás «estadisticas_2026-11-01_a_2026-11-11.xlsx»
+     * (un período en curso llega hasta hoy) y «Todo el tiempo» «estadisticas_todo-hasta-2026-11-11.xlsx».
+     */
+    private function nombreArchivo(array $rango): string
+    {
+        $hoy = now()->setTimezone(self::BUSINESS_TZ)->toDateString();
+        $ini = $rango['start'] ?? null;
+        $fin = $rango['end'] ?? null;
+        if (! $ini || ! $fin) {
+            return "estadisticas_todo-hasta-{$hoy}.xlsx";
+        }
+
+        $hasta = ($fin > $hoy && $ini <= $hoy) ? $hoy : $fin;
+        if ($ini === $hasta) {
+            return "estadisticas_{$ini}.xlsx";
+        }
+
+        $i = Carbon::parse($ini, self::BUSINESS_TZ);
+        $f = Carbon::parse($fin, self::BUSINESS_TZ);
+        $completo = $fin < $hoy;
+        if ($completo && $i->day === 1 && $f->isSameMonth($i) && $f->isLastOfMonth()) {
+            $meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+            return 'estadisticas_' . $meses[$i->month - 1] . '-' . $i->year . '.xlsx';
+        }
+        if ($completo && $i->format('m-d') === '01-01' && $f->format('m-d') === '12-31' && $i->year === $f->year) {
+            return "estadisticas_{$i->year}.xlsx";
+        }
+
+        return "estadisticas_{$ini}_a_{$hasta}.xlsx";
+    }
+
+    /** La comparación nunca rompe la página: ante cualquier error se registra y la pantalla no muestra flechas. */
+    private function comparacionSegura(string $period, ?string $startDate, ?string $endDate): ?array
+    {
+        try {
+            return $this->comparacion($period, $startDate, $endDate);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return null;
+        }
+    }
+
+    /**
+     * Las seis cifras de la franja en el período anterior, para la flecha de variación.
+     *
+     * - Período en curso: se compara con el MISMO tramo del anterior (del 1 al 11 de noviembre frente al
+     *   1 al 11 de octubre, no contra octubre entero), redondeado a 5 minutos para poder cachearlo.
+     * - Citas: van por fecha de la cita y cuentan el período completo (también los días que no han
+     *   llegado), así que se comparan con el período anterior completo.
+     * - Si una cifra cruza un hueco de datos conocido (VACIOS) en cualquiera de los dos tramos, no se
+     *   compara: una caída por una falla no es una caída del trabajo.
+     * - «Todo el tiempo» no tiene período anterior.
+     */
+    private function comparacion(string $period, ?string $startDate, ?string $endDate): ?array
+    {
+        $custom = $startDate !== null && $endDate !== null;
+        if (! $custom && $period === 'all') {
+            return null;
+        }
+
+        [$ini, $fin] = $this->calculateDateRange($startDate, $endDate, $period);
+        if (! $ini || ! $fin) {
+            return null;
+        }
+
+        $tz = self::BUSINESS_TZ;
+        $ahora = now();
+        $corte = $fin->lessThan($ahora) ? $fin->copy() : $ahora->copy();
+        if ($corte->lessThanOrEqualTo($ini)) {
+            return null; // un rango que todavía no empieza: no hay nada que comparar
+        }
+
+        $iniCo = $ini->copy()->setTimezone($tz);
+        $finCo = $fin->copy()->setTimezone($tz);
+        if ($custom) {
+            // Un rango que es un mes o un año calendario completo se compara con el mes o año anterior
+            // (octubre con septiembre, no con «del 31 de agosto al 30 de septiembre»); cualquier otro,
+            // con los mismos días justo antes.
+            $anioCompleto = $iniCo->format('m-d') === '01-01' && $finCo->format('m-d') === '12-31' && $iniCo->year === $finCo->year;
+            $mesCompleto = $iniCo->day === 1 && $finCo->isSameMonth($iniCo) && $finCo->day === $finCo->daysInMonth;
+            if ($anioCompleto) {
+                $antIniCo = $iniCo->copy()->subYear()->startOfYear();
+                $antFinCo = $iniCo->copy()->subYear()->endOfYear();
+            } elseif ($mesCompleto) {
+                $antIniCo = $iniCo->copy()->subMonthNoOverflow()->startOfMonth();
+                $antFinCo = $iniCo->copy()->subMonthNoOverflow()->endOfMonth();
+            } else {
+                $dias = (int) round(abs($iniCo->copy()->startOfDay()->diffInDays($finCo->copy()->startOfDay()))) + 1;
+                $antIniCo = $iniCo->copy()->startOfDay()->subDays($dias);
+                $antFinCo = $iniCo->copy()->startOfDay()->subDay()->endOfDay();
+            }
+        } else {
+            [$antIniCo, $antFinCo] = match ($period) {
+                'today' => [$iniCo->copy()->subDay()->startOfDay(), $iniCo->copy()->subDay()->endOfDay()],
+                'week' => [$iniCo->copy()->subWeek()->startOfWeek(), $iniCo->copy()->subWeek()->endOfWeek()],
+                'month', 'last_month' => [$iniCo->copy()->subMonthNoOverflow()->startOfMonth(), $iniCo->copy()->subMonthNoOverflow()->endOfMonth()],
+                'year' => [$iniCo->copy()->subYear()->startOfYear(), $iniCo->copy()->subYear()->endOfYear()],
+                default => [null, null],
+            };
+            if (! $antIniCo) {
+                return null;
+            }
+        }
+
+        // El mismo tramo transcurrido, sin pasarse del final del período anterior.
+        $transcurrido = (int) floor(abs($ini->diffInSeconds($corte)) / 300) * 300;
+        $antIni = $antIniCo->copy()->utc();
+        $antFin = $antFinCo->copy()->utc();
+        // Un período ya terminado se compara con el anterior COMPLETO (febrero con todo enero, un año con
+        // todo el anterior aunque sea bisiesto); solo uno en curso usa el mismo tramo transcurrido.
+        $antCorte = $fin->greaterThan($ahora) ? $antIni->copy()->addSeconds($transcurrido) : $antFin->copy();
+        if ($antCorte->greaterThan($antFin)) {
+            $antCorte = $antFin->copy();
+        }
+
+        $ttl = (! $custom && $period === 'today') ? 60 : 300;
+        $clave = 'statistics_comp_v1_' . md5(serialize([$antIni->toIso8601String(), $antCorte->toIso8601String(), $antFin->toIso8601String()]));
+        $anterior = Cache::remember($clave, $ttl, function () use ($antIni, $antCorte, $antFin) {
+            $mensajes = $this->getMessageStatistics($antIni, $antCorte);
+
+            return [
+                'advisors' => $this->getAdvisorStatistics($antIni, $antCorte)['total_conversations'] ?? null,
+                'conversations' => $mensajes['conversations_written'] ?? null,
+                'templates' => $this->getTemplateStatistics($antIni, $antCorte)['total_sends'] ?? null,
+                'messages' => $mensajes['total'] ?? null,
+                'appointments' => $this->getAppointmentStatistics($antIni, $antFin)['total'] ?? null,
+                'costs' => $this->getCostStatistics($antIni, $antCorte)['total_cost'] ?? null,
+            ];
+        });
+
+        $dia = fn (Carbon $c) => $c->copy()->setTimezone($tz)->toDateString();
+        // Tramos en días de Colombia: [actual, anterior]. Las citas usan los períodos completos.
+        $tramos = [$dia($ini), $dia($corte), $dia($antIni), $dia($antCorte)];
+        $tramosCitas = [$dia($ini), $dia($fin), $dia($antIni), $dia($antFin)];
+        $temas = ['advisors' => 'advisors', 'conversations' => 'conversations', 'templates' => 'templates', 'messages' => 'messages', 'appointments' => 'appointments', 'costs' => 'costs'];
+
+        $metricas = [];
+        foreach ($temas as $cifra => $tema) {
+            [$a, $b, $c, $d] = $cifra === 'appointments' ? $tramosCitas : $tramos;
+            $hueco = $this->cruzaVacio($tema, $a, $b) || $this->cruzaVacio($tema, $c, $d);
+            $metricas[$cifra] = [
+                'previous' => $hueco ? null : $anterior[$cifra],
+                'gap' => $hueco,
+            ];
+        }
+
+        return [
+            'previous' => [
+                'start' => $dia($antIni),
+                'end' => $dia($antCorte),
+                // Las citas se comparan con el período anterior completo.
+                'end_full' => $dia($antFin),
+                // true si el período actual está en curso y se comparó el mismo tramo del anterior.
+                'partial' => $fin->greaterThan($ahora),
+            ],
+            'metrics' => $metricas,
+        ];
+    }
+
+    /** ¿El tramo [desde, hasta] (días de Colombia) cruza un hueco de datos conocido de ese tema? */
+    private function cruzaVacio(string $tema, string $desde, string $hasta): bool
+    {
+        foreach (self::VACIOS as $v) {
+            if (in_array($tema, $v['topics'], true) && $v['from'] <= $hasta && ($v['to'] === null || $v['to'] >= $desde)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

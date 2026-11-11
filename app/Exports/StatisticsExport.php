@@ -501,7 +501,9 @@ class StatisticsExport
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('Asesores');
-        $anchos = ['A' => 36, 'B' => 16, 'C' => 14, 'D' => 12, 'E' => 12, 'F' => 14, 'G' => 16, 'H' => 13, 'I' => 18];
+        // Mismo orden de columnas que la tabla de la pantalla; «sin leer (ahora)» al final (en la pantalla
+        // va debajo del nombre).
+        $anchos = ['A' => 36, 'B' => 16, 'C' => 14, 'D' => 13, 'E' => 12, 'F' => 13, 'G' => 18, 'H' => 16, 'I' => 16];
         foreach ($anchos as $col => $ancho) {
             $sheet->getColumnDimension($col)->setWidth($ancho);
         }
@@ -554,7 +556,7 @@ class StatisticsExport
         $row = $this->subtitulo($sheet, $row, 'DETALLE POR ASESOR', 'I');
         $row++;
 
-        $headers = ['Asesor', 'Atendidas en el período', 'Resueltas en el período', 'Agendadas en el período', 'Activas (ahora)', 'Con mensajes sin leer (ahora)', 'Mensajes escritos (sin masivos)', 'Resolución (resueltas ÷ atendidas)', 'Liberadas por no responder a tiempo'];
+        $headers = ['Asesor', 'Resolución (resueltas ÷ atendidas)', 'Atendidas en el período', 'Resueltas en el período', 'Activas (ahora)', 'Agendadas en el período', 'Liberadas por no responder a tiempo', 'Mensajes escritos (sin masivos)', 'Con mensajes sin leer (ahora)'];
         $col = 'A';
         foreach ($headers as $header) {
             $sheet->setCellValue($col . $row, $header);
@@ -595,19 +597,19 @@ class StatisticsExport
         foreach ($personas as $i => $advisor) {
             $this->styleDataRow($sheet, $row, $i % 2 === 0, 'A', 'I');
             $sheet->setCellValueExplicit('A' . $row, $this->nombrePropio($advisor['name'] ?? ''), DataType::TYPE_STRING);
-            $this->poner($sheet, 'B' . $row, $this->entero($advisor['total_conversations'] ?? null));
-            $this->poner($sheet, 'C' . $row, $this->entero($advisor['resolved_conversations'] ?? null));
-            $this->poner($sheet, 'D' . $row, $this->entero($advisor['scheduled_conversations'] ?? null));
-            $this->poner($sheet, 'E' . $row, $this->entero($advisor['active_conversations'] ?? null));
-            $this->poner($sheet, 'F' . $row, $this->entero($advisor['conversations_with_unread'] ?? null));
-            $this->poner($sheet, 'G' . $row, $this->entero($advisor['messages_sent'] ?? null));
             // resolution_rate es null si el asesor no tiene conversaciones: «Sin datos».
-            $this->poner($sheet, 'H' . $row, $this->pct($advisor['resolution_rate'] ?? null));
+            $this->poner($sheet, 'B' . $row, $this->pct($advisor['resolution_rate'] ?? null));
+            $this->poner($sheet, 'C' . $row, $this->entero($advisor['total_conversations'] ?? null));
+            $this->poner($sheet, 'D' . $row, $this->entero($advisor['resolved_conversations'] ?? null));
+            $this->poner($sheet, 'E' . $row, $this->entero($advisor['active_conversations'] ?? null));
+            $this->poner($sheet, 'F' . $row, $this->entero($advisor['scheduled_conversations'] ?? null));
             $liberadas = (int) ($advisor['released_inactive'] ?? 0);
-            $this->poner($sheet, 'I' . $row, $liberacionApagada && $liberadas === 0 ? 'Función apagada' : $this->entero($liberadas));
+            $this->poner($sheet, 'G' . $row, $liberacionApagada && $liberadas === 0 ? 'Función apagada' : $this->entero($liberadas));
+            $this->poner($sheet, 'H' . $row, $this->entero($advisor['messages_sent'] ?? null));
+            $this->poner($sheet, 'I' . $row, $this->entero($advisor['conversations_with_unread'] ?? null));
             // styleDataRow pone en negrita la última columna: la cifra principal es la resolución.
             if (is_numeric($advisor['resolution_rate'] ?? null)) {
-                $sheet->getStyle('H' . $row)->getFont()->setBold(true);
+                $sheet->getStyle('B' . $row)->getFont()->setBold(true);
             }
             $sheet->getStyle('I' . $row)->getFont()->setBold(false);
             $row++;

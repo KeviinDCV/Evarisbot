@@ -11,8 +11,10 @@ import axios from 'axios';
 import {
     Activity,
     ArrowDown,
+    ArrowDownRight,
     ArrowRight,
     ArrowUp,
+    ArrowUpRight,
     Award,
     Bot,
     CalendarCheck2,
@@ -30,6 +32,7 @@ import {
     Loader2,
     MessageSquare,
     MessagesSquare,
+    Minus,
     RotateCw,
     Search,
     Send,
@@ -230,10 +233,24 @@ interface Statistics {
     data_gaps?: DataGap[];
 }
 
+/** Las cifras de la franja que se comparan con el período anterior (claves del servidor). */
+type ClaveComparable = 'advisors' | 'conversations' | 'templates' | 'messages' | 'appointments' | 'costs';
+
+/**
+ * Las seis cifras de la franja en el período anterior. Llega en su propia petición diferida; null con
+ * «Todo el tiempo» o si falló. Período en curso → el mismo tramo del anterior (partial); las citas,
+ * siempre contra el anterior completo (end_full). gap: algún tramo cruza un hueco de datos, no se compara.
+ */
+interface Comparacion {
+    previous: { start: string; end: string; end_full: string; partial: boolean };
+    metrics: Partial<Record<ClaveComparable, { previous: number | null; gap: boolean }>>;
+}
+
 interface StatisticsIndexProps {
     // statistics es opcional porque llega DIFERIDA (Inertia v2 deferred prop): está ausente en la
     // respuesta inicial y en la de cada cambio de filtro, hasta que llega la segunda petición.
     statistics?: Statistics;
+    comparison?: Comparacion | null;
 }
 
 type ErrorCarga = 'session' | 'other' | null;
@@ -245,6 +262,7 @@ interface StatisticsViewProps {
     errorCarga: ErrorCarga;
     lento: boolean;
     onReintentar: () => void;
+    comparacion?: Comparacion | null;
 }
 
 /* ── Tintas de la vista (design/vista-estadisticas/gen_estadisticas.mjs) ──────────────────────────
@@ -1072,7 +1090,7 @@ function useDesbordaX<T extends HTMLElement>() {
     return [ref, desborda] as const;
 }
 
-function StatisticsView({ statistics, actualizando, errorCarga, lento, onReintentar }: StatisticsViewProps) {
+function StatisticsView({ statistics, actualizando, errorCarga, lento, onReintentar, comparacion }: StatisticsViewProps) {
     const { t } = useTranslation();
     const { url } = usePage();
     const reducirMovimiento = usePrefiereMenosMovimiento();
@@ -1572,9 +1590,21 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         periodoActivo === 'today' ? 'week' : periodoActivo === 'week' ? 'month' : periodoActivo === 'month' ? 'last_month' : periodoActivo === 'last_month' || periodoActivo === 'year' ? 'all' : null;
 
     /* ── Franja ── */
-    const cifras: { id: string; icono: LucideIcon; iconoTono?: string; etiqueta: string; valor: string; detalle: ReactNode; destino: string }[] = [
+    const cifras: {
+        id: string;
+        clave: ClaveComparable;
+        actual: number;
+        icono: LucideIcon;
+        iconoTono?: string;
+        etiqueta: string;
+        valor: string;
+        detalle: ReactNode;
+        destino: string;
+    }[] = [
         {
             id: 'est-asesores',
+            clave: 'advisors',
+            actual: advisors.total_conversations,
             icono: Headphones,
             iconoTono: 'text-sky-700 dark:text-sky-300',
             etiqueta: t('statistics.view.attendedByAdvisors'),
@@ -1584,6 +1614,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         },
         {
             id: 'est-conversaciones',
+            clave: 'conversations',
+            actual: conMensajesPaciente,
             icono: MessagesSquare,
             etiqueta: t('statistics.chart.conversations'),
             valor: formatNumber(conMensajesPaciente),
@@ -1600,6 +1632,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         },
         {
             id: 'est-plantillas',
+            clave: 'templates',
+            actual: templates.total_sends,
             icono: FileText,
             etiqueta: t('statistics.chart.templates'),
             valor: formatNumber(templates.total_sends),
@@ -1608,6 +1642,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         },
         {
             id: 'est-mensajes',
+            clave: 'messages',
+            actual: messages.total,
             icono: MessageSquare,
             etiqueta: t('statistics.chart.messages'),
             valor: formatNumber(messages.total),
@@ -1616,6 +1652,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         },
         {
             id: 'est-citas',
+            clave: 'appointments',
+            actual: appointments.total,
             icono: CalendarCheck2,
             etiqueta: t('statistics.chart.appointments'),
             valor: formatNumber(appointments.total),
@@ -1626,6 +1664,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     if (costs) {
         cifras.push({
             id: 'est-costo',
+            clave: 'costs',
+            actual: costs.total_cost,
             icono: Wallet,
             etiqueta: t('statistics.view.costShort'),
             valor: formatMoney(costs.total_cost, costs.currency),
@@ -1633,6 +1673,44 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
             destino: t('statistics.view.costTitle'),
         });
     }
+
+    /* Comparación con el período anterior. Solo con cifras al día: mientras llegan las de un período
+       nuevo se verían cifras viejas frente a un anterior nuevo. Sin color: subir no es bueno ni malo
+       por sí mismo (más conversaciones, más costo…), la flecha solo dice hacia dónde se movió. */
+    const comp = actualizando ? null : (comparacion ?? null);
+    const rangoComparado = (inicio: string, fin: string) => {
+        const a = fechaLocal(inicio);
+        const b = fechaLocal(fin);
+        const mesEntero =
+            a.getDate() === 1 && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear() && new Date(b.getFullYear(), b.getMonth() + 1, 0).getDate() === b.getDate();
+        return mesEntero ? t('statistics.view.monthYear', { month: a.toLocaleDateString(loc(), { month: 'long' }), year: a.getFullYear() }) : textoRango(inicio, fin);
+    };
+    const textoAnterior = comp ? rangoComparado(comp.previous.start, comp.previous.end) : '';
+    const variacion = (clave: ClaveComparable, actual: number): { Icono: LucideIcon; corto: string; largo: string } | null => {
+        const m = comp?.metrics?.[clave];
+        if (!comp || !m || m.gap || m.previous === null || m.previous === undefined) return null;
+        const antes = Number(m.previous);
+        if (antes === 0 && actual === 0) return null;
+        const rango = clave === 'appointments' ? rangoComparado(comp.previous.start, comp.previous.end_full) : textoAnterior;
+        if (antes === 0) return { Icono: ArrowUpRight, corto: t('statistics.view.compareFromZero'), largo: t('statistics.view.compareFromZeroLong', { range: rango }) };
+        const antesTexto = clave === 'costs' ? formatMoney(antes, costs?.currency) : formatNumber(antes);
+        const cambio = ((actual - antes) / antes) * 100;
+        if (Math.abs(cambio) < 0.5) return { Icono: Minus, corto: conPorcentaje(0, 0), largo: t('statistics.view.compareSame', { range: rango, before: antesTexto }) };
+        return {
+            Icono: cambio > 0 ? ArrowUpRight : ArrowDownRight,
+            // Más de diez veces: «×12» en vez de «1.150 %».
+            corto: cambio >= 1000 ? `×${formatNumber(Math.round(actual / antes))}` : conPorcentaje(Math.round(Math.abs(cambio)), 0),
+            largo: t(cambio > 0 ? 'statistics.view.compareUp' : 'statistics.view.compareDown', { pct: conPorcentaje(Math.abs(cambio), 1), range: rango, before: antesTexto }),
+        };
+    };
+    const notaComparacion = (() => {
+        if (!comp) return null;
+        const conFlecha = cifras.some((c) => variacion(c.clave, c.actual) !== null);
+        const conHueco = cifras.some((c) => comp.metrics?.[c.clave]?.gap);
+        if (!conFlecha) return conHueco ? t('statistics.view.compareNone', { range: textoAnterior }) : null;
+        const base = t(comp.previous.partial ? 'statistics.view.compareWithPartial' : 'statistics.view.compareWith', { range: textoAnterior });
+        return conHueco ? `${base} ${t('statistics.view.compareGaps')}` : base;
+    })();
 
     /* Línea de estado bajo el título: hora de las cifras, «Actualizando…» o el error con su salida. */
     const lineaEstado = errorCarga ? (
@@ -1747,48 +1825,61 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                         </div>
                     ) : (
                     <>
-                    {/* ── Franja de cifras: cada una lleva a su tema, en el orden de la hoja ── */}
-                    <nav
-                        aria-label={t('statistics.view.summaryLabel')}
-                        className={cn(
-                            'grid grid-cols-2 gap-x-6 gap-y-5 @xl/pagina:grid-cols-3 @5xl/pagina:gap-x-5 @5xl/pagina:gap-y-0',
-                            costs
-                                ? '@5xl/pagina:grid-cols-[minmax(0,1.3fr)_1px_repeat(4,minmax(0,1fr)_1px)_minmax(0,1.2fr)]'
-                                : '@5xl/pagina:grid-cols-[minmax(0,1.3fr)_1px_repeat(3,minmax(0,1fr)_1px)_minmax(0,1fr)]'
-                        )}
-                    >
-                        {cifras.map((c, i) => {
-                            const Icono = c.icono;
+                    <div className="flex flex-col gap-3">
+                        {/* ── Franja de cifras: cada una lleva a su tema, en el orden de la hoja ── */}
+                        <nav
+                            aria-label={t('statistics.view.summaryLabel')}
+                            className={cn(
+                                'grid grid-cols-2 gap-x-6 gap-y-5 @xl/pagina:grid-cols-3 @5xl/pagina:gap-x-5 @5xl/pagina:gap-y-0',
+                                costs
+                                    ? '@5xl/pagina:grid-cols-[minmax(0,1.3fr)_1px_repeat(4,minmax(0,1fr)_1px)_minmax(0,1.2fr)]'
+                                    : '@5xl/pagina:grid-cols-[minmax(0,1.3fr)_1px_repeat(3,minmax(0,1fr)_1px)_minmax(0,1fr)]'
+                            )}
+                        >
+                            {cifras.map((c, i) => {
+                                const Icono = c.icono;
+                                const v = variacion(c.clave, c.actual);
 
-                            return [
-                                i > 0 && <div key={`${c.id}-div`} className="hidden w-px self-stretch bg-[#2e3f84]/12 @5xl/pagina:block dark:bg-white/10" aria-hidden="true" />,
-                                <button
-                                    key={c.id}
-                                    type="button"
-                                    onClick={() => irA(c.id)}
-                                    title={t('statistics.view.goTo', { section: c.destino })}
-                                    className={cn('group relative -m-1.5 flex min-w-0 cursor-pointer flex-col rounded-lg p-1.5 text-left transition-colors hover:bg-[#2e3f84]/[0.035] dark:hover:bg-white/[0.03]', FOCO)}
-                                >
-                                    <span className="flex min-h-4 min-w-0 items-center gap-2">
-                                        <Icono className={cn('size-3.5 shrink-0', c.iconoTono ?? TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />
-                                        <span className="line-clamp-2 text-[12.5px] leading-4 font-medium text-muted-foreground @xl/pagina:line-clamp-1">{c.etiqueta}</span>
-                                        <ChevronRight className="-ml-[3px] size-3 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" strokeWidth={2} aria-hidden="true" />
-                                        <span className="sr-only">{t('statistics.view.goTo', { section: c.destino })}</span>
-                                    </span>
-                                    <span
-                                        className={cn(
-                                            'mt-[7px] truncate font-medium tracking-[-0.03em] whitespace-nowrap tabular-nums',
-                                            TEXTO_NAVY,
-                                            c.valor.length > 10 ? 'text-[22px] leading-8' : 'text-[26px] leading-8 @min-[1120px]/pagina:text-[28px]'
-                                        )}
+                                return [
+                                    i > 0 && <div key={`${c.id}-div`} className="hidden w-px self-stretch bg-[#2e3f84]/12 @5xl/pagina:block dark:bg-white/10" aria-hidden="true" />,
+                                    <button
+                                        key={c.id}
+                                        type="button"
+                                        onClick={() => irA(c.id)}
+                                        title={t('statistics.view.goTo', { section: c.destino })}
+                                        className={cn('group relative -m-1.5 flex min-w-0 cursor-pointer flex-col rounded-lg p-1.5 text-left transition-colors hover:bg-[#2e3f84]/[0.035] dark:hover:bg-white/[0.03]', FOCO)}
                                     >
-                                        {c.valor}
-                                    </span>
-                                    <span className="mt-[5px] flex h-4 min-w-0 items-center truncate text-[12.5px] leading-4 text-muted-foreground tabular-nums">{c.detalle}</span>
-                                </button>,
-                            ];
-                        })}
-                    </nav>
+                                        <span className="flex min-h-4 min-w-0 items-center gap-2">
+                                            <Icono className={cn('size-3.5 shrink-0', c.iconoTono ?? TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />
+                                            <span className="line-clamp-2 text-[12.5px] leading-4 font-medium text-muted-foreground @xl/pagina:line-clamp-1">{c.etiqueta}</span>
+                                            <ChevronRight className="-ml-[3px] size-3 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" strokeWidth={2} aria-hidden="true" />
+                                            <span className="sr-only">{t('statistics.view.goTo', { section: c.destino })}</span>
+                                        </span>
+                                        <span className="mt-[7px] flex min-w-0 items-center gap-2">
+                                            <span
+                                                className={cn(
+                                                    'min-w-0 truncate font-medium tracking-[-0.03em] whitespace-nowrap tabular-nums',
+                                                    TEXTO_NAVY,
+                                                    c.valor.length > 10 ? 'text-[22px] leading-8' : 'text-[26px] leading-8 @min-[1120px]/pagina:text-[28px]'
+                                                )}
+                                            >
+                                                {c.valor}
+                                            </span>
+                                            {v && (
+                                                <span className={cn('inline-flex shrink-0 items-center gap-0.5 text-[12px] leading-4 font-semibold tabular-nums', TEXTO_SUAVE)} title={v.largo}>
+                                                    <v.Icono className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden="true" />
+                                                    <span aria-hidden="true">{v.corto}</span>
+                                                    <span className="sr-only">{v.largo}</span>
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span className="mt-[5px] flex h-4 min-w-0 items-center truncate text-[12.5px] leading-4 text-muted-foreground tabular-nums">{c.detalle}</span>
+                                    </button>,
+                                ];
+                            })}
+                        </nav>
+                        {notaComparacion && <p className={cn('text-[12.5px] leading-4 text-pretty', TEXTO_SUAVE)}>{notaComparacion}</p>}
+                    </div>
 
                     {/* ── La hoja: un tema tras otro, cada uno con su banda ── */}
                     <div className={cn('@container/hoja overflow-hidden', HOJA)}>
@@ -3072,7 +3163,7 @@ function ErrorEstadisticas({ tipo, onReintentar }: { tipo: 'session' | 'other'; 
     );
 }
 
-export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
+export default function StatisticsIndex({ statistics, comparison }: StatisticsIndexProps) {
     const { t } = useTranslation();
 
     // Las últimas cifras recibidas. Al cambiar de filtro la prop diferida desaparece hasta que llega la
@@ -3140,7 +3231,14 @@ export default function StatisticsIndex({ statistics }: StatisticsIndexProps) {
         <AdminLayout>
             <Head title={t('statistics.title')} />
             {datos ? (
-                <StatisticsView statistics={datos} actualizando={!statistics} errorCarga={errorCarga} lento={lento} onReintentar={reintentar} />
+                <StatisticsView
+                    statistics={datos}
+                    actualizando={!statistics}
+                    errorCarga={errorCarga}
+                    lento={lento}
+                    onReintentar={reintentar}
+                    comparacion={comparison}
+                />
             ) : errorCarga ? (
                 <ErrorEstadisticas tipo={errorCarga} onReintentar={reintentar} />
             ) : (
