@@ -1677,6 +1677,7 @@
             "solvedByMenuDetail": "{{menu}} of the {{value}} that finished (on their own or with an advisor)",
             "advisorsHelp": "Handled: conversations the advisor took, was assigned, wrote in or resolved during the period. Resolved and scheduled: the ones they resolved or scheduled themselves. Resolution: resolved ÷ handled. Messages: only the ones they wrote (no bulk sends or failed messages). Active (now): what they have open today; it does not depend on the period. Released: taken from them in the period for not replying in time (Settings → Automatic release). The figures above are advisors only; administrators who handled chats are listed separately at the end of the table.",
             "columnsHelp": "What each column counts",
+            "costTableCaption": "Estimated cost by message category",
             "scheduledDetail": "in the period",
             "releasedOff": "turned off in Settings",
             "releasedOffNow": "currently turned off",

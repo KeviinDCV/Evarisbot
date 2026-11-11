@@ -289,7 +289,7 @@ const G = {
     eje: 'var(--g-eje)',
     realce: 'var(--g-realce)',
 };
-const EJE = { fill: G.eje, fontSize: 11 };
+const EJE = { fill: G.eje, fontSize: 12 };
 
 /* ── Formatos: siguen el idioma de la interfaz (en inglés, «1,234» y «57.2%») ─────────────────────── */
 
@@ -439,7 +439,7 @@ function Rotulo({ titulo, apoyo, className }: { titulo: string; apoyo?: ReactNod
         <div className={cn('flex min-h-4 min-w-0 flex-wrap items-baseline gap-x-2.5', className)}>
             <h3 className={cn('text-[11px] leading-4 font-semibold tracking-[0.07em] whitespace-nowrap uppercase', TEXTO_SUAVE)}>{titulo}</h3>
             {apoyo && (
-                <span className={cn('min-w-0 text-[12px] leading-4 tabular-nums @3xl/hoja:truncate', TEXTO_SUAVE)} title={typeof apoyo === 'string' ? apoyo : undefined}>
+                <span className={cn('min-w-0 text-[12.5px] leading-4 tabular-nums @3xl/hoja:truncate', TEXTO_SUAVE)} title={typeof apoyo === 'string' ? apoyo : undefined}>
                     {apoyo}
                 </span>
             )}
@@ -477,13 +477,13 @@ function BarraPista({ valor, max, color = G.serie, alto = 6 }: { valor: number; 
 /** Fila de leyenda: cuadro, etiqueta, cifra y porcentaje. */
 function Leyenda({ color, etiqueta, valor, total, alto = 26 }: { color: string; etiqueta: string; valor: number; total: number; alto?: number }) {
     return (
-        <div className="grid grid-cols-[9px_minmax(0,1fr)_72px_56px] items-center gap-x-2.5" style={{ height: alto }}>
+        <div className="grid grid-cols-[9px_minmax(0,1fr)_72px_56px] items-center gap-x-2.5" style={{ minHeight: alto }}>
             <Cuadro color={color} />
-            <span className={cn('truncate text-[13px] leading-[18px] font-medium', TEXTO_NAVY)} title={etiqueta}>
+            <span className={cn('line-clamp-2 text-[13px] leading-[18px] font-medium', TEXTO_NAVY)} title={etiqueta}>
                 {etiqueta}
             </span>
             <span className={cn('text-right text-[13px] leading-[18px] font-medium tabular-nums', TEXTO_NAVY)}>{formatNumber(valor)}</span>
-            <span className={cn('text-right text-[12px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(valor, total)}</span>
+            <span className={cn('text-right text-[12.5px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(valor, total)}</span>
         </div>
     );
 }
@@ -518,7 +518,7 @@ function FilaBarra({
             </span>
             <BarraPista valor={valor} max={max ?? total} color={color} alto={8} />
             <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(valor)}</span>
-            <span className={cn('text-right text-[12px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(valor, total)}</span>
+            <span className={cn('text-right text-[12.5px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(valor, total)}</span>
         </div>
     );
 }
@@ -527,7 +527,7 @@ function FilaBarra({
 function MiniCifra({ etiqueta, valor, detalle, tono, icono: Icono }: { etiqueta: string; valor: string; detalle?: ReactNode; tono?: string; icono?: LucideIcon }) {
     return (
         <div className="flex min-w-0 flex-col gap-1">
-            <span className={cn('flex min-w-0 items-center gap-[7px] text-[12px] leading-4 font-medium', TEXTO_SUAVE)}>
+            <span className={cn('flex min-w-0 items-center gap-[7px] text-[12.5px] leading-4 font-medium', TEXTO_SUAVE)}>
                 {Icono && <Icono className={cn('size-[13px] shrink-0', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />}
                 <span className="truncate" title={etiqueta}>
                     {etiqueta}
@@ -535,7 +535,7 @@ function MiniCifra({ etiqueta, valor, detalle, tono, icono: Icono }: { etiqueta:
             </span>
             <span className={cn('text-[24px] leading-[30px] font-medium tracking-[-0.025em] whitespace-nowrap tabular-nums', tono ?? TEXTO_NAVY)}>{valor}</span>
             {detalle !== undefined && (
-                <span className={cn('truncate text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)} title={typeof detalle === 'string' ? detalle : undefined}>
+                <span className={cn('line-clamp-3 text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)} title={typeof detalle === 'string' ? detalle : undefined}>
                     {detalle}
                 </span>
             )}
@@ -564,10 +564,10 @@ function Banda({ id, icono: Icono, titulo, texto, derecha, className }: { id: st
                 <Icono className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
             </span>
             <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                <h2 id={id} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em]', TEXTO_NAVY)}>
+                <h2 id={id} className={cn('text-[17px] leading-[22px] font-semibold tracking-[-0.012em] text-balance', TEXTO_NAVY)}>
                     {titulo}
                 </h2>
-                <p className={cn('text-[12.5px] leading-4 tabular-nums @3xl/hoja:truncate', TEXTO_SUAVE)} title={typeof texto === 'string' ? texto : undefined}>
+                <p className={cn('text-[12.5px] leading-[18px] tabular-nums text-pretty @3xl/hoja:line-clamp-2', TEXTO_SUAVE)} title={typeof texto === 'string' ? texto : undefined}>
                     {texto}
                 </p>
             </div>
@@ -585,7 +585,7 @@ function NotasTema({ avisos = [], notas = [] }: { avisos?: string[]; notas?: str
     if (avisos.length === 0 && notas.length === 0) return null;
 
     const aviso = (texto: string) => (
-        <li key={texto} className={cn('flex items-start gap-1.5 text-[12px] leading-4 font-medium', TXT_AVISO)}>
+        <li key={texto} className={cn('flex items-start gap-1.5 text-[12.5px] leading-4 font-medium', TXT_AVISO)}>
             <CircleAlert className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
             <span>{texto}</span>
         </li>
@@ -598,7 +598,7 @@ function NotasTema({ avisos = [], notas = [] }: { avisos?: string[]; notas?: str
                 <details className="group">
                     <summary
                         className={cn(
-                            'flex w-fit cursor-pointer list-none items-center gap-1.5 rounded text-[12px] leading-4 font-medium pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden',
+                            'flex w-fit cursor-pointer list-none items-center gap-1.5 rounded text-[12.5px] leading-4 font-medium pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden',
                             TXT_AVISO,
                             FOCO
                         )}
@@ -615,7 +615,7 @@ function NotasTema({ avisos = [], notas = [] }: { avisos?: string[]; notas?: str
             {notas.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
                     {notas.map((texto) => (
-                        <li key={texto} className={cn('flex items-start gap-1.5 text-[12px] leading-4', TEXTO_SUAVE)}>
+                        <li key={texto} className={cn('flex items-start gap-1.5 text-[12.5px] leading-4', TEXTO_SUAVE)}>
                             <Info className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
                             <span>{texto}</span>
                         </li>
@@ -909,7 +909,7 @@ function CampoRango({
                             ] as const
                         ).map(([clave, etiqueta, valor, ref]) => (
                             <label key={clave} className="flex min-w-0 flex-col gap-1.5">
-                                <span className={cn('text-[12px] leading-4 font-medium', TEXTO_SUAVE)}>{etiqueta}</span>
+                                <span className={cn('text-[12.5px] leading-4 font-medium', TEXTO_SUAVE)}>{etiqueta}</span>
                                 <input
                                     ref={ref ?? undefined}
                                     type="date"
@@ -930,10 +930,10 @@ function CampoRango({
                             </label>
                         ))}
                     </div>
-                    <p id={idAviso} aria-live="polite" className={cn('text-[12px] leading-4 font-medium empty:hidden', TXT_MAL)}>
+                    <p id={idAviso} aria-live="polite" className={cn('text-[12.5px] leading-4 font-medium empty:hidden', TXT_MAL)}>
                         {invertido ? t('statistics.view.rangeInverted') : ''}
                     </p>
-                    <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.rangeHint')}</p>
+                    <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.rangeHint')}</p>
                 </div>
             )}
         </div>
@@ -944,12 +944,12 @@ function CampoRango({
 function Globo({ titulo, filas }: { titulo: string; filas: { color?: string; etiqueta: string; valor: string; fuerte?: boolean }[] }) {
     return (
         <div className={cn('flex min-w-[168px] flex-col gap-[3px] rounded-[10px] bg-white px-3 pt-[9px] pb-2.5 dark:bg-popover', SOMBRA_FLOTANTE)}>
-            <span className={cn('text-[12px] leading-4 font-medium tabular-nums', TEXTO_SUAVE)}>{titulo}</span>
+            <span className={cn('text-[12.5px] leading-4 font-medium tabular-nums', TEXTO_SUAVE)}>{titulo}</span>
             {filas.map((f) => (
                 <span key={f.etiqueta} className={cn('flex items-center gap-2', !f.color && 'pl-[17px]')}>
                     {f.color && <Cuadro color={f.color} />}
-                    <span className={cn(f.fuerte ? cn('text-[13px] leading-[18px] font-medium', TEXTO_NAVY) : cn('text-[12px] leading-4', TEXTO_SUAVE))}>{f.etiqueta}</span>
-                    <span className={cn('ml-auto pl-4 tabular-nums', TEXTO_NAVY, f.fuerte ? 'text-[13px] leading-[18px] font-semibold' : 'text-[12px] leading-4 font-medium')}>{f.valor}</span>
+                    <span className={cn(f.fuerte ? cn('text-[13px] leading-[18px] font-medium', TEXTO_NAVY) : cn('text-[12.5px] leading-4', TEXTO_SUAVE))}>{f.etiqueta}</span>
+                    <span className={cn('ml-auto pl-4 tabular-nums', TEXTO_NAVY, f.fuerte ? 'text-[13px] leading-[18px] font-semibold' : 'text-[12.5px] leading-4 font-medium')}>{f.valor}</span>
                 </span>
             ))}
         </div>
@@ -966,11 +966,11 @@ function TickDosLineas(props: { x?: number | string; y?: number | string; payloa
 
     return (
         <g transform={`translate(${x},${y})`}>
-            <text x={0} y={0} dy={11} textAnchor="middle" fill={G.eje} fontSize={11}>
+            <text x={0} y={0} dy={12} textAnchor="middle" fill={G.eje} fontSize={12}>
                 {a}
             </text>
             {resto.length > 0 && (
-                <text x={0} y={0} dy={26} textAnchor="middle" fill={G.eje} fontSize={11}>
+                <text x={0} y={0} dy={28} textAnchor="middle" fill={G.eje} fontSize={12}>
                     {resto.join(' ')}
                 </text>
             )}
@@ -1097,7 +1097,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     const [isExporting, setIsExporting] = useState(false);
     const [exportError, setExportError] = useState<ErrorCarga>(null);
     const [busqueda, setBusqueda] = useState('');
-    const [orden, setOrden] = useState<{ col: ColAsesor; dir: 'desc' | 'asc' } | null>(null);
+    // El servidor manda la tabla por resueltas, de más a menos: la cabecera lo indica desde el principio.
+    const [orden, setOrden] = useState<{ col: ColAsesor; dir: 'desc' | 'asc' } | null>({ col: 'resolved', dir: 'desc' });
     const peticion = useRef<AbortController | null>(null);
     // Al cerrar el panel el foco vuelve al nombre de la persona (antes caía al fondo de la página).
     const ultimoAbierto = useRef<number | null>(null);
@@ -1454,9 +1455,9 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                 {nombre}
                             </button>
                             {advisor.conversations_with_unread > 0 && (
-                                <span className={cn('flex min-w-0 items-center gap-1.5 text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>
+                                <span className={cn('flex min-w-0 items-center gap-1.5 text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>
                                     <span className={cn('size-1.5 shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
-                                    <span className="truncate">
+                                    <span className="truncate" title={t('statistics.view.withUnread', { count: advisor.conversations_with_unread, value: formatNumber(advisor.conversations_with_unread) })}>
                                         {t('statistics.view.withUnread', { count: advisor.conversations_with_unread, value: formatNumber(advisor.conversations_with_unread) })}
                                     </span>
                                 </span>
@@ -1468,13 +1469,13 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                     {rate === null ? (
                         <div className="flex flex-col">
                             <span className={cn('text-[13px] leading-[18px] font-medium', rateText)}>{t('statistics.view.noDataShort')}</span>
-                            <span className={cn('text-[11.5px] leading-[14px]', TEXTO_SUAVE)}>{t('statistics.view.noConversations')}</span>
+                            <span className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.noConversations')}</span>
                         </div>
                     ) : (
                         pocosCasos ? (
                             <div className="flex flex-col" title={t('statistics.view.fewConversationsHint', { min: pocas })}>
                                 <span className={cn('text-[13px] leading-[18px] font-semibold tabular-nums', rateText)}>{formatRate(rate)}</span>
-                                <span className={cn('text-[11.5px] leading-[14px]', TEXTO_SUAVE)}>{t('statistics.view.fewConversations')}</span>
+                                <span className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.fewConversations')}</span>
                             </div>
                         ) : (
                             <div className="flex flex-col gap-[5px]">
@@ -1559,7 +1560,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
             etiqueta: t('statistics.chart.conversations'),
             valor: formatNumber(conversations.total),
             detalle: sinLeer ? (
-                <span className={cn('flex min-w-0 items-center gap-1.5 font-medium', TXT_AVISO)}>
+                // Ámbar 800 (no 700): la franja va sobre el fondo de la página, donde el 700 quedaba en 4,49:1.
+                <span className="flex min-w-0 items-center gap-1.5 font-medium text-amber-800 dark:text-amber-400">
                     <span className={cn('size-[7px] shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
                     <span className="truncate">{t('statistics.metricCard.unreadDetail', { value: formatNumber(conversations.unread) })}</span>
                 </span>
@@ -1739,9 +1741,9 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                     title={t('statistics.view.goTo', { section: c.destino })}
                                     className={cn('group relative -m-1.5 flex min-w-0 cursor-pointer flex-col rounded-lg p-1.5 text-left transition-colors hover:bg-[#2e3f84]/[0.035] dark:hover:bg-white/[0.03]', FOCO)}
                                 >
-                                    <span className="flex h-4 min-w-0 items-center gap-2">
+                                    <span className="flex min-h-4 min-w-0 items-center gap-2">
                                         <Icono className={cn('size-3.5 shrink-0', c.iconoTono ?? TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />
-                                        <span className="truncate text-[12px] leading-4 font-medium text-muted-foreground">{c.etiqueta}</span>
+                                        <span className="line-clamp-2 text-[12.5px] leading-4 font-medium text-muted-foreground @xl/pagina:line-clamp-1">{c.etiqueta}</span>
                                         <ChevronRight className="-ml-[3px] size-3 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" strokeWidth={2} aria-hidden="true" />
                                         <span className="sr-only">{t('statistics.view.goTo', { section: c.destino })}</span>
                                     </span>
@@ -1868,7 +1870,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                 )}
                             </div>
 
-                            <div className={cn('flex flex-wrap items-center gap-x-6 gap-y-1.5 border-b px-4 py-2.5 text-[12px] leading-4 @3xl/hoja:pr-5 @3xl/hoja:pl-16', FILETE, TEXTO_SUAVE)}>
+                            <div className={cn('flex flex-wrap items-center gap-x-6 gap-y-1.5 border-b px-4 py-2.5 text-[12.5px] leading-4 @3xl/hoja:pr-5 @3xl/hoja:pl-16', FILETE, TEXTO_SUAVE)}>
                                 <span className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
                                     {t('statistics.view.conversationsBarLegend')}
                                     <span className="flex items-center gap-1.5">
@@ -1934,7 +1936,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                     <th scope="rowgroup" colSpan={9} className="px-0 text-left font-normal">
                                                         <span className="sticky left-0 flex w-max max-w-[calc(100vw-2rem)] flex-wrap items-baseline gap-x-2.5 pr-4 pl-4 md:max-w-[calc(100vw-3.5rem)] @3xl/hoja:pl-[64px]">
                                                             <span className={TH}>{t('statistics.view.adminsGroup', { count: adminsVisibles.length })}</span>
-                                                            <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.adminsGroupHint')}</span>
+                                                            <span className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.adminsGroupHint')}</span>
                                                         </span>
                                                     </th>
                                                 </tr>
@@ -1977,7 +1979,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             />
                                         ))}
                                     </div>
-                                    {conversations.scheduled > 0 && <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.scheduledNote')}</p>}
+                                    {conversations.scheduled > 0 && <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.scheduledNote')}</p>}
                                     <div className={cn('h-px', FILETE_BG)} aria-hidden="true" />
                                     <div className="grid min-h-[22px] grid-cols-[minmax(0,1fr)_56px_48px] items-center gap-x-3.5">
                                         <span className={cn('flex min-w-0 flex-wrap items-baseline gap-x-2 text-[13px] leading-[18px] font-medium', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>
@@ -1985,10 +1987,10 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 {sinLeer && <span className={cn('size-2 shrink-0 self-center rounded-full', PUNTO_AVISO)} aria-hidden="true" />}
                                                 {t('statistics.conversations.unread')}
                                             </span>
-                                            <span className={cn('text-[12px] leading-4 font-normal', TEXTO_SUAVE)}>{t('statistics.view.unreadAnyState')}</span>
+                                            <span className={cn('text-[12.5px] leading-4 font-normal', TEXTO_SUAVE)}>{t('statistics.view.unreadAnyState')}</span>
                                         </span>
                                         <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>{formatNumber(conversations.unread)}</span>
-                                        <span className={cn('text-right text-[12px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(conversations.unread, conversations.total)}</span>
+                                        <span className={cn('text-right text-[12.5px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(conversations.unread, conversations.total)}</span>
                                     </div>
                                 </div>
                             </Tema>
@@ -2051,10 +2053,10 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                     <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(v, messages.total, 0)}</span>
                                                 </span>
                                                 {clave === 'sistema' && (
-                                                    <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.writerSystemDetail')}</span>
+                                                    <span className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.writerSystemDetail')}</span>
                                                 )}
                                                 {clave === 'pacientes' && toques > 0 && (
-                                                    <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{t('statistics.view.buttonTaps', { value: formatNumber(toques) })}</span>
+                                                    <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{t('statistics.view.buttonTaps', { value: formatNumber(toques) })}</span>
                                                 )}
                                             </div>
                                         ))}
@@ -2066,7 +2068,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             { etiqueta: t('statistics.view.buttonTapsShort'), valor: toques, color: G.neutro },
                                         ]}
                                     />
-                                    <p className={cn('text-[12px] leading-[17px] tabular-nums', TEXTO_SUAVE)}>
+                                    <p className={cn('text-[12.5px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>
                                         {t('statistics.metricModal.messages.headline')}: <span className={cn('font-semibold', TEXTO_NAVY)}>{formatNumber(messages.total)}</span>
                                     </p>
                                 </div>
@@ -2081,7 +2083,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                     <Leyenda key={d.key} color={d.color} etiqueta={d.label} valor={d.value} total={outboundTotal} />
                                                 ))}
                                             </div>
-                                            <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.readNote')}</p>
+                                            <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.readNote')}</p>
                                         </>
                                     ) : (
                                         <Vacio mensaje={t('statistics.messages.noOutbound')} alto="h-[150px]" />
@@ -2163,7 +2165,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 </div>
                                                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5">
                                                     <span className={cn('text-[22px] leading-[26px] font-medium tracking-[-0.02em] tabular-nums', TEXTO_NAVY)}>{formatNumber(centroAnillo)}</span>
-                                                    <span className={cn('text-center text-[11.5px] leading-[14px] font-medium', TEXTO_SUAVE)}>{t('statistics.view.withReminder')}</span>
+                                                    <span className={cn('text-center text-[12.5px] leading-4 font-medium', TEXTO_SUAVE)}>{t('statistics.view.withReminder')}</span>
                                                 </div>
                                             </div>
                                             <div className="flex w-full min-w-0 flex-1 flex-col">
@@ -2286,7 +2288,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                         <Cuadro color={d.color} />
                                                         <span className={cn('text-[12.5px] leading-4 font-medium', TEXTO_NAVY)}>{d.etiqueta}</span>
                                                         <span className={cn('text-[12.5px] leading-4 font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(d.valor)}</span>
-                                                        <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(d.valor, fd.total, 0)}</span>
+                                                        <span className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{pct(d.valor, fd.total, 0)}</span>
                                                     </span>
                                                 ))}
                                             </div>
@@ -2384,7 +2386,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             texto={tarifasDe ? t('statistics.view.costSubtitleAsOf', { date: tarifasDe }) : t('statistics.view.costSubtitle')}
                                             derecha={
                                                 <div className="flex flex-col items-start gap-px @3xl/hoja:items-end">
-                                                    <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.costs.periodEstimate')}</span>
+                                                    <span className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.costs.periodEstimate')}</span>
                                                     <span className={cn('text-[20px] leading-6 font-semibold tracking-[-0.02em] tabular-nums', TEXTO_NAVY)}>{formatMoney(c.total_cost, c.currency)}</span>
                                                 </div>
                                             }
@@ -2453,7 +2455,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                             columnas={[grupo === 'month' ? t('statistics.view.monthCol') : t('statistics.view.dayCol'), t('statistics.costs.table.cost'), t('statistics.costs.table.billable')]}
                                                             filas={datos.map((p) => ({ clave: p.day, celdas: [tituloPunto(p.day), formatMoney(p.cost, c.currency), formatNumber(p.billable)] }))}
                                                         />
-                                                        <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.costGapNote')}</p>
+                                                        <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.costGapNote')}</p>
                                                     </>
                                                 ) : (
                                                     <Vacio mensaje={t('statistics.view.noCostSeries')} alto="h-[214px]" />
@@ -2464,6 +2466,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
 
                                             <div className="relative min-w-0 overflow-x-auto">
                                                 <table className="w-full table-fixed border-collapse text-left">
+                                                    <caption className="sr-only">{t('statistics.view.costTableCaption')}</caption>
                                                     <thead>
                                                         <tr className="border-b border-[#2e3f84]/12 dark:border-white/10">
                                                             <th scope="col" className={cn('pb-2.5 align-bottom', TH)}>
@@ -2488,8 +2491,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                             return (
                                                                 <tr key={key} className={cn('h-[42px] border-b', FILETE)}>
                                                                     <th scope="row" className="py-1 pr-2 text-left font-normal" title={pista ? `${nombreCat} · ${pista}` : nombreCat}>
-                                                                        <span className={cn('block truncate text-[13px] leading-[17px] font-medium', TEXTO_NAVY)}>{nombreCat}</span>
-                                                                        {pista && <span className={cn('block truncate text-[11.5px] leading-[14px]', TEXTO_SUAVE)}>{pista}</span>}
+                                                                        <span className={cn('block truncate text-[13px] leading-[18px] font-medium', TEXTO_NAVY)}>{nombreCat}</span>
+                                                                        {pista && <span className={cn('line-clamp-2 text-[12.5px] leading-4', TEXTO_SUAVE)}>{pista}</span>}
                                                                     </th>
                                                                     <td className={cn('pl-2 text-right text-[13px] leading-[18px] font-medium tabular-nums @xl/hoja:pl-3', data.billable ? TEXTO_NAVY : TEXTO_SUAVE)}>
                                                                         {formatNumber(data.billable)}
@@ -2556,20 +2559,20 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             {(c.without_pricing > 0 || sinTarifa > 0) && (
                                                 <div className="flex flex-col gap-1.5">
                                                     {c.without_pricing > 0 && (
-                                                        <p className={cn('flex items-start gap-1.5 text-[12px] leading-4 font-medium', TXT_AVISO)}>
+                                                        <p className={cn('flex items-start gap-1.5 text-[12.5px] leading-4 font-medium', TXT_AVISO)}>
                                                             <CircleAlert className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
                                                             {t('statistics.view.missingRatesWarning')}
                                                         </p>
                                                     )}
                                                     {sinTarifa > 0 && (
-                                                        <p className={cn('flex items-start gap-1.5 text-[12px] leading-4 font-medium', TXT_AVISO)}>
+                                                        <p className={cn('flex items-start gap-1.5 text-[12.5px] leading-4 font-medium', TXT_AVISO)}>
                                                             <CircleAlert className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
                                                             {t('statistics.view.unknownRateWarning', { value: formatNumber(sinTarifa) })}
                                                         </p>
                                                     )}
                                                 </div>
                                             )}
-                                            <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>
+                                            <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>
                                                 <Trans
                                                     i18nKey="statistics.view.metaBillingNote"
                                                     values={{ path: t('statistics.costs.metaBillingPath') }}
@@ -2843,7 +2846,7 @@ function PanelAsesor({
                                 tono={liberacionApagada && liberadas === 0 ? TEXTO_SUAVE : undefined}
                             />
                         </div>
-                        <p className={cn('border-b px-4 pb-4 text-[12px] leading-[17px] sm:px-6', FILETE, TEXTO_SUAVE)}>
+                        <p className={cn('border-b px-4 pb-4 text-[12.5px] leading-[18px] sm:px-6', FILETE, TEXTO_SUAVE)}>
                             {t('statistics.view.typicalResponseHelp')}
                             {esperasLargas > 0 && ` ${t('statistics.view.waitsOver24h', { count: esperasLargas, value: formatNumber(esperasLargas) })}`}
                         </p>
@@ -2924,7 +2927,7 @@ function PanelAsesor({
                                             </span>
                                             <BarraPista valor={count} max={maxTipo} alto={6} />
                                             <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(count)}</span>
-                                            <span className={cn('text-right text-[12px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(count, totalTipos)}</span>
+                                            <span className={cn('text-right text-[12.5px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>{pct(count, totalTipos)}</span>
                                         </div>
                                     ))}
                                 </div>

@@ -1677,6 +1677,7 @@
             "solvedByMenuDetail": "{{menu}} de los {{value}} que terminaron (solos o con asesor)",
             "advisorsHelp": "Atendidas: conversaciones que el asesor tomó, que le asignaron, en las que escribió o que resolvió en el período. Resueltas y agendadas: las que él mismo resolvió o agendó. Resolución: resueltas ÷ atendidas. Mensajes: solo los que escribió (sin envíos masivos ni fallidos). Activas (ahora): lo que tiene abierto hoy; no depende del período. Liberadas: se le quitaron en el período por no responder a tiempo (Configuración → Liberación automática). Las cifras de arriba son solo de asesores; los administradores que atendieron chats van aparte, al final de la tabla.",
             "columnsHelp": "Qué cuenta cada columna",
+            "costTableCaption": "Costo estimado por categoría de mensaje",
             "scheduledDetail": "en el período",
             "releasedOff": "función apagada en Configuración",
             "releasedOffNow": "hoy la función está apagada",
