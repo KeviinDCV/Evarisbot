@@ -43,7 +43,7 @@ import {
     X,
     type LucideIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type UIEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -610,8 +610,8 @@ function NotasTema({ avisos = [], notas = [] }: { avisos?: string[]; notas?: str
     if (avisos.length === 0 && notas.length === 0) return null;
 
     const aviso = (texto: string) => (
-        <li key={texto} className={cn('flex items-start gap-1.5 text-[12.5px] leading-4 font-medium', TXT_AVISO)}>
-            <CircleAlert className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+        <li key={texto} className={cn('flex items-start gap-1.5 text-[12.5px] leading-[18px] font-medium', TXT_AVISO)}>
+            <CircleAlert className="mt-0.5 size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
             <span>{texto}</span>
         </li>
     );
@@ -640,8 +640,8 @@ function NotasTema({ avisos = [], notas = [] }: { avisos?: string[]; notas?: str
             {notas.length > 0 && (
                 <ul className="flex flex-col gap-1.5">
                     {notas.map((texto) => (
-                        <li key={texto} className={cn('flex items-start gap-1.5 text-[12.5px] leading-4', TEXTO_SUAVE)}>
-                            <Info className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                        <li key={texto} className={cn('flex items-start gap-1.5 text-[12.5px] leading-[18px]', TEXTO_SUAVE)}>
+                            <Info className="mt-0.5 size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
                             <span>{texto}</span>
                         </li>
                     ))}
@@ -958,7 +958,7 @@ function CampoRango({
                     <p id={idAviso} aria-live="polite" className={cn('text-[12.5px] leading-4 font-medium empty:hidden', TXT_MAL)}>
                         {invertido ? t('statistics.view.rangeInverted') : ''}
                     </p>
-                    <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.rangeHint')}</p>
+                    <p className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>{t('statistics.view.rangeHint')}</p>
                 </div>
             )}
         </div>
@@ -1122,6 +1122,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     const [isExporting, setIsExporting] = useState(false);
     const [exportError, setExportError] = useState<ErrorCarga>(null);
     const [busqueda, setBusqueda] = useState('');
+    // «Qué cuenta cada columna»: definiciones y leyenda de colores, plegadas bajo la línea de herramientas.
+    const [ayudaColumnas, setAyudaColumnas] = useState(false);
     // El servidor manda la tabla por resueltas, de más a menos: la cabecera lo indica desde el principio.
     const [orden, setOrden] = useState<{ col: ColAsesor; dir: 'desc' | 'asc' } | null>({ col: 'resolved', dir: 'desc' });
     const peticion = useRef<AbortController | null>(null);
@@ -1129,6 +1131,15 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
     const ultimoAbierto = useRef<number | null>(null);
     const [filaAbierta, setFilaAbierta] = useState<AdvisorSummary | null>(null);
     const [refTabla, tablaDesborda] = useDesbordaX<HTMLDivElement>();
+    // Con la tabla más ancha que la pantalla: sombra en la columna fija al desplazarla y un desvanecido a la
+    // derecha mientras quedan columnas por ver.
+    const [tablaDesplazada, setTablaDesplazada] = useState(false);
+    const [tablaAlFinal, setTablaAlFinal] = useState(false);
+    const alDesplazarTabla = (event: UIEvent<HTMLDivElement>) => {
+        const el = event.currentTarget;
+        setTablaDesplazada(el.scrollLeft > 0);
+        setTablaAlFinal(el.scrollLeft + el.clientWidth >= el.scrollWidth - 1);
+    };
 
     const periodOptions = useMemo(() => PERIOD_KEYS.map((value) => ({ value, label: t(`statistics.filters.periods.${value}`) })), [t]);
 
@@ -1472,7 +1483,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                 <th
                     scope="row"
                     className={cn(
-                        'sticky left-0 z-[1] bg-card pr-2.5 pl-4 text-left font-normal @3xl/hoja:pl-5',
+                        'sticky left-0 z-[1] bg-card pr-2.5 pl-4 text-left font-normal @3xl/hoja:pl-5 group-data-[desplazada]/tabla:shadow-[6px_0_10px_-6px_rgba(46,63,132,0.28)] dark:group-data-[desplazada]/tabla:shadow-[6px_0_10px_-6px_rgba(0,0,0,0.7)]',
                         abierto
                             ? 'bg-[image:linear-gradient(rgba(46,63,132,0.045),rgba(46,63,132,0.045))] dark:bg-[image:linear-gradient(rgba(255,255,255,0.045),rgba(255,255,255,0.045))]'
                             : 'group-hover:bg-[image:linear-gradient(rgba(46,63,132,0.035),rgba(46,63,132,0.035))] dark:group-hover:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]'
@@ -1480,7 +1491,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                 >
                     <div className="flex min-w-0 items-center gap-3">
                         <span
-                            className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#2e3f84]/10 text-[11px] leading-none font-semibold tracking-[0.02em] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.06)] dark:bg-white/8 dark:text-neutral-200 dark:shadow-none"
+                            className="hidden size-8 shrink-0 items-center justify-center rounded-full bg-[#2e3f84]/10 text-[11px] @3xl/hoja:flex leading-none font-semibold tracking-[0.02em] text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.06)] dark:bg-white/8 dark:text-neutral-200 dark:shadow-none"
                             aria-hidden="true"
                         >
                             {iniciales(advisor.name)}
@@ -1503,7 +1514,12 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                 <span className={cn('flex min-w-0 items-center gap-1.5 text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>
                                     <span className={cn('size-1.5 shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
                                     <span className="truncate" title={t('statistics.view.withUnread', { count: advisor.conversations_with_unread, value: formatNumber(advisor.conversations_with_unread) })}>
-                                        {t('statistics.view.withUnread', { count: advisor.conversations_with_unread, value: formatNumber(advisor.conversations_with_unread) })}
+                                        <span className="@3xl/hoja:hidden">
+                                            {t('statistics.view.withUnreadShort', { count: advisor.conversations_with_unread, value: formatNumber(advisor.conversations_with_unread) })}
+                                        </span>
+                                        <span className="hidden @3xl/hoja:inline">
+                                            {t('statistics.view.withUnread', { count: advisor.conversations_with_unread, value: formatNumber(advisor.conversations_with_unread) })}
+                                        </span>
                                     </span>
                                 </span>
                             )}
@@ -1590,6 +1606,14 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
         periodoActivo === 'today' ? 'week' : periodoActivo === 'week' ? 'month' : periodoActivo === 'month' ? 'last_month' : periodoActivo === 'last_month' || periodoActivo === 'year' ? 'all' : null;
 
     /* ── Franja ── */
+    // Lo pendiente o fallido (sin leer ahora, envíos que no salieron), en ámbar con su punto. Ámbar 800 (no 700):
+    // la franja va sobre el fondo de la página, donde el 700 quedaba en 4,49:1.
+    const enAviso = (texto: string) => (
+        <span className="flex min-w-0 items-center gap-1.5 font-medium text-amber-800 dark:text-amber-400">
+            <span className={cn('size-[7px] shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
+            <span className="truncate">{texto}</span>
+        </span>
+    );
     const cifras: {
         id: string;
         clave: ClaveComparable;
@@ -1619,15 +1643,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
             icono: MessagesSquare,
             etiqueta: t('statistics.chart.conversations'),
             valor: formatNumber(conMensajesPaciente),
-            detalle: sinLeer ? (
-                // Ámbar 800 (no 700): la franja va sobre el fondo de la página, donde el 700 quedaba en 4,49:1.
-                <span className="flex min-w-0 items-center gap-1.5 font-medium text-amber-800 dark:text-amber-400">
-                    <span className={cn('size-[7px] shrink-0 rounded-full', PUNTO_AVISO)} aria-hidden="true" />
-                    <span className="truncate">{t('statistics.metricCard.unreadDetail', { value: formatNumber(sinLeerAhora) })}</span>
-                </span>
-            ) : (
-                t('statistics.metricCard.unreadDetail', { value: formatNumber(sinLeerAhora) })
-            ),
+            detalle: sinLeer ? enAviso(t('statistics.metricCard.unreadDetail', { value: formatNumber(sinLeerAhora) })) : t('statistics.metricCard.unreadDetail', { value: formatNumber(sinLeerAhora) }),
             destino: t('statistics.conversations.title'),
         },
         {
@@ -1637,7 +1653,10 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
             icono: FileText,
             etiqueta: t('statistics.chart.templates'),
             valor: formatNumber(templates.total_sends),
-            detalle: t('statistics.metricCard.failedDetail', { value: formatNumber(templates.failed_sends) }),
+            detalle:
+                templates.failed_sends > 0
+                    ? enAviso(t('statistics.metricCard.failedDetail', { value: formatNumber(templates.failed_sends) }))
+                    : t('statistics.metricCard.failedDetail', { value: formatNumber(templates.failed_sends) }),
             destino: t('statistics.view.templateSends'),
         },
         {
@@ -1741,11 +1760,11 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                 <header className="flex flex-col gap-4 @min-[1100px]/pagina:flex-row @min-[1100px]/pagina:items-start @min-[1100px]/pagina:justify-between @min-[1100px]/pagina:gap-6">
                     <div className="flex min-w-0 flex-col gap-1">
                         <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('statistics.title')}</h1>
-                        <p className="text-[14px] leading-5 text-muted-foreground" aria-live="polite">
+                        <p className="text-[14px] leading-5 text-pretty text-muted-foreground">
                             <span className={cn('font-semibold', TEXTO_NAVY)}>{rangoAplicado ? t('statistics.filters.custom') : periodLabel}</span>
                             {textoCabecera && `, ${textoCabecera}`}
                         </p>
-                        <div className={cn('min-h-4 text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)} aria-live="polite">
+                        <div className={cn('min-h-[18px] text-[12.5px] leading-[18px] text-pretty tabular-nums', TEXTO_SUAVE)} aria-live="polite">
                             {lineaEstado}
                         </div>
                     </div>
@@ -1772,7 +1791,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                 <Button
                                     type="button"
                                     onClick={handleExport}
-                                    disabled={isExporting || actualizando}
+                                    disabled={isExporting || actualizando || sinActividad}
                                     aria-busy={isExporting || undefined}
                                     className="h-9 shrink-0 gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary disabled:opacity-50 has-[>svg]:pr-4 has-[>svg]:pl-3.5 pointer-coarse:h-11"
                                 >
@@ -1853,7 +1872,6 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             <Icono className={cn('size-3.5 shrink-0', c.iconoTono ?? TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />
                                             <span className="line-clamp-2 text-[12.5px] leading-4 font-medium text-muted-foreground @xl/pagina:line-clamp-1">{c.etiqueta}</span>
                                             <ChevronRight className="-ml-[3px] size-3 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" strokeWidth={2} aria-hidden="true" />
-                                            <span className="sr-only">{t('statistics.view.goTo', { section: c.destino })}</span>
                                         </span>
                                         <span className="mt-[7px] flex min-w-0 items-center gap-2">
                                             <span
@@ -1874,11 +1892,12 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             )}
                                         </span>
                                         <span className="mt-[5px] flex h-4 min-w-0 items-center truncate text-[12.5px] leading-4 text-muted-foreground tabular-nums">{c.detalle}</span>
+                                        <span className="sr-only">{t('statistics.view.goTo', { section: c.destino })}</span>
                                     </button>,
                                 ];
                             })}
                         </nav>
-                        {notaComparacion && <p className={cn('text-[12.5px] leading-4 text-pretty', TEXTO_SUAVE)}>{notaComparacion}</p>}
+                        {notaComparacion && <p className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>{notaComparacion}</p>}
                     </div>
 
                     {/* ── La hoja: un tema tras otro, cada uno con su banda ── */}
@@ -1887,53 +1906,8 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                         <Tema id="est-asesores" className={cn('border-b', FILETE)}>
                             <Banda id="est-asesores-titulo" icono={Headphones} titulo={t('statistics.advisors.performanceTitle')} texto={t('statistics.view.advisorsSubtitle')} />
                             <NotasTema avisos={avisosDe('advisors')} />
-                            <div
-                                className={cn(
-                                    'grid grid-cols-2 gap-x-5 gap-y-5 py-4 @xl/hoja:grid-cols-3 @5xl/hoja:grid-cols-[repeat(6,minmax(0,1fr)_1px)_minmax(0,1fr)] @5xl/hoja:gap-y-0',
-                                    SANGRIA
-                                )}
-                            >
-                                <MiniCifra etiqueta={t('statistics.users.advisors')} valor={formatNumber(advisors.total_advisors)} detalle={t('statistics.advisors.onTheTeam')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra etiqueta={t('statistics.view.attended')} valor={formatNumber(advisors.total_conversations)} detalle={t('statistics.advisors.assigned')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra etiqueta={t('statistics.advisors.resolved')} valor={formatNumber(advisors.total_resolved)} detalle={t('statistics.view.closedOrResolved')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra etiqueta={t('statistics.advisors.scheduled')} valor={formatNumber(advisors.total_scheduled)} detalle={t('statistics.view.scheduledDetail')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra etiqueta={t('statistics.chart.messages')} valor={formatNumber(advisors.total_messages_sent)} detalle={t('statistics.advisors.sentLower')} />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <MiniCifra
-                                    etiqueta={t('statistics.advisors.resolutionCap')}
-                                    valor={tasaEquipo === null ? t('statistics.view.noDataShort') : formatRate(tasaEquipo)}
-                                    detalle={tasaEquipo === null ? t('statistics.view.noConversationsInPeriod') : t('statistics.view.teamAverage')}
-                                    tono={tasaEquipo === null ? TEXTO_SUAVE : undefined}
-                                />
-                                <DivisorV desde="@5xl/hoja:block" />
-                                <div className="col-span-2 @xl/hoja:col-span-3 @5xl/hoja:col-span-1">
-                                    <MiniCifra
-                                        etiqueta={t('statistics.view.released')}
-                                        valor={liberacionApagada && liberadasTotal === 0 ? '—' : formatNumber(liberadasTotal)}
-                                        detalle={liberacionApagada ? (liberadasTotal === 0 ? t('statistics.view.releasedOff') : t('statistics.view.releasedOffNow')) : t('statistics.view.releasedDetail')}
-                                        tono={liberacionApagada && liberadasTotal === 0 ? TEXTO_SUAVE : undefined}
-                                    />
-                                </div>
-                            </div>
-                            <details className={cn('group border-b pb-3.5', SANGRIA, FILETE)}>
-                                <summary
-                                    className={cn(
-                                        'flex w-fit cursor-pointer list-none items-center gap-1.5 rounded text-[12.5px] leading-4 font-medium pointer-coarse:min-h-11 [&::-webkit-details-marker]:hidden',
-                                        TEXTO_NAVY,
-                                        FOCO
-                                    )}
-                                >
-                                    <Info className="size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
-                                    {t('statistics.view.columnsHelp')}
-                                    <ChevronDown className="size-3.5 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none" strokeWidth={2} aria-hidden="true" />
-                                </summary>
-                                <p className={cn('mt-2 max-w-[100ch] text-[12.5px] leading-[19px] text-pretty', TEXTO_SUAVE)}>{t('statistics.view.advisorsHelp')}</p>
-                            </details>
-
+                            {/* Una sola línea sobre la tabla: el mejor resuelto, la ayuda de columnas y la búsqueda. Los totales
+                                del equipo (antes siete recuadros aquí, dos repetidos de la franja) van en la última fila. */}
                             <div className={cn('flex min-h-[52px] flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-3 @3xl/hoja:px-5 @5xl/hoja:flex-nowrap', FILETE)}>
                                 {mejor && (
                                     <>
@@ -1953,55 +1927,78 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                         </p>
                                     </>
                                 )}
-                                {advisorList.length + adminList.length > 0 && (
-                                    <div className="relative w-full @3xl/hoja:ml-auto @3xl/hoja:w-[260px] @3xl/hoja:shrink-0">
-                                        <label htmlFor="buscar-asesor" className="sr-only">
-                                            {t('statistics.view.searchAdvisor')}
-                                        </label>
-                                        <Search className={cn('pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2', TEXTO_SUAVE)} strokeWidth={1.75} aria-hidden="true" />
-                                        <input
-                                            id="buscar-asesor"
-                                            type="text"
-                                            value={busqueda}
-                                            onChange={(event) => setBusqueda(event.target.value)}
-                                            placeholder={t('statistics.view.searchAdvisor')}
-                                            className={cn(
-                                                'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground pointer-coarse:h-11 pointer-coarse:pr-12 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
-                                                FOCO
-                                            )}
+                                <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 @3xl/hoja:ml-auto @3xl/hoja:w-auto @3xl/hoja:shrink-0 @3xl/hoja:flex-nowrap">
+                                    <button
+                                        type="button"
+                                        aria-expanded={ayudaColumnas}
+                                        aria-controls="ayuda-columnas"
+                                        onClick={() => setAyudaColumnas((abierta) => !abierta)}
+                                        className={cn(
+                                            'flex shrink-0 cursor-pointer items-center gap-1.5 rounded text-[12.5px] leading-4 font-medium whitespace-nowrap pointer-coarse:min-h-11',
+                                            TEXTO_NAVY,
+                                            FOCO
+                                        )}
+                                    >
+                                        <Info className="size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                                        {t('statistics.view.columnsHelp')}
+                                        <ChevronDown
+                                            className={cn('size-3.5 shrink-0 transition-transform motion-reduce:transition-none', ayudaColumnas && 'rotate-180')}
+                                            strokeWidth={2}
+                                            aria-hidden="true"
                                         />
-                                        {busqueda && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setBusqueda('')}
+                                    </button>
+                                    {advisorList.length + adminList.length > 0 && (
+                                        <div className="relative w-full @md/hoja:w-auto @md/hoja:min-w-0 @md/hoja:flex-1 @3xl/hoja:w-[260px] @3xl/hoja:flex-none">
+                                            <label htmlFor="buscar-asesor" className="sr-only">
+                                                {t('statistics.view.searchAdvisor')}
+                                            </label>
+                                            <Search className={cn('pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2', TEXTO_SUAVE)} strokeWidth={1.75} aria-hidden="true" />
+                                            <input
+                                                id="buscar-asesor"
+                                                type="text"
+                                                value={busqueda}
+                                                onChange={(event) => setBusqueda(event.target.value)}
+                                                placeholder={t('statistics.view.searchAdvisor')}
                                                 className={cn(
-                                                    'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] pointer-coarse:right-1 pointer-coarse:size-9 dark:hover:bg-white/10 dark:hover:text-neutral-100',
-                                                    TEXTO_SUAVE,
+                                                    'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground pointer-coarse:h-11 pointer-coarse:pr-12 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
                                                     FOCO
                                                 )}
-                                                aria-label={t('common.clearSearch')}
-                                                title={t('common.clearSearch')}
-                                            >
-                                                <X className="size-3.5" aria-hidden="true" />
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
+                                            />
+                                            {busqueda && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setBusqueda('')}
+                                                    className={cn(
+                                                        'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] pointer-coarse:right-1 pointer-coarse:size-9 dark:hover:bg-white/10 dark:hover:text-neutral-100',
+                                                        TEXTO_SUAVE,
+                                                        FOCO
+                                                    )}
+                                                    aria-label={t('common.clearSearch')}
+                                                    title={t('common.clearSearch')}
+                                                >
+                                                    <X className="size-3.5" aria-hidden="true" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-
-                            <div className={cn('flex flex-wrap items-center gap-x-6 gap-y-1.5 border-b px-4 py-2.5 text-[12.5px] leading-4 @3xl/hoja:pr-5 @3xl/hoja:pl-16', FILETE, TEXTO_SUAVE)}>
-                                <span className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
-                                    {t('statistics.view.conversationsBarLegend')}
-                                    <span className="flex items-center gap-1.5">
-                                        <Cuadro color={G.serie} />
-                                        {t('statistics.advisors.resolvedLower')}
+                            <div id="ayuda-columnas" hidden={!ayudaColumnas} className={cn('border-b py-3.5', SANGRIA, FILETE)}>
+                                <p className={cn('max-w-[100ch] text-[12.5px] leading-[19px] text-pretty', TEXTO_SUAVE)}>{t('statistics.view.advisorsHelp')}</p>
+                                <div className={cn('mt-2.5 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[12.5px] leading-4', TEXTO_SUAVE)}>
+                                    <span className="flex flex-wrap items-center gap-x-3.5 gap-y-1">
+                                        {t('statistics.view.conversationsBarLegend')}
+                                        <span className="flex items-center gap-1.5">
+                                            <Cuadro color={G.serie} />
+                                            {t('statistics.advisors.resolvedLower')}
+                                        </span>
+                                        <span className="flex items-center gap-1.5">
+                                            <Cuadro color={G.serie2} />
+                                            {t('statistics.view.otherLower')}
+                                        </span>
                                     </span>
-                                    <span className="flex items-center gap-1.5">
-                                        <Cuadro color={G.serie2} />
-                                        {t('statistics.view.otherLower')}
-                                    </span>
-                                </span>
-                                <span>{t('statistics.view.rateLegend', { min: pocas })}</span>
+                                    <span>{t('statistics.view.rateLegend', { min: pocas })}</span>
+                                </div>
                             </div>
 
                             {advisorList.length + adminList.length === 0 ? (
@@ -2017,18 +2014,28 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                 // teclado); si no, la sección ya la nombra. scroll-pl = ancho de la columna fija «Asesor»: al volver con
                                 // Mayús+Tab el botón enfocado no queda debajo de ella. El contorno de foco va en la capa de al lado,
                                 // por encima de las celdas fijas (que lo tapaban).
+                                <>
+                                {/* Solo cuando la tabla no cabe (celular, zoom, ventana angosta); no cambia al desplazarla. */}
+                                {tablaDesborda && (
+                                    <p className={cn('flex items-center gap-1.5 border-b px-4 py-2 text-[12.5px] leading-[18px] text-pretty @3xl/hoja:px-5', FILETE, TEXTO_SUAVE)}>
+                                        {t('statistics.view.tableScrollHint')}
+                                        <ArrowRight className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                    </p>
+                                )}
                                 <div className="relative">
                                 <div
                                     ref={refTabla}
-                                    className="peer relative scroll-pl-[240px] overflow-x-auto focus-visible:outline-none @4xl/hoja:scroll-pl-[184px]"
+                                    onScroll={alDesplazarTabla}
+                                    data-desplazada={tablaDesplazada || undefined}
+                                    className="peer group/tabla relative scroll-pl-[152px] overflow-x-auto focus-visible:outline-none @3xl/hoja:scroll-pl-[240px] @4xl/hoja:scroll-pl-[184px]"
                                     {...(tablaDesborda ? { role: 'region', tabIndex: 0, 'aria-label': t('statistics.view.advisorsTableRegion') } : {})}
                                 >
-                                    <table className="w-full min-w-[1116px] table-fixed border-collapse text-left @4xl/hoja:min-w-[1060px]">
+                                    <table className="w-full min-w-[1044px] table-fixed border-collapse text-left @3xl/hoja:min-w-[1116px] @4xl/hoja:min-w-[1060px]">
                                         <thead>
                                             <tr className={cn('h-9 border-b', BANDA, FILETE)}>
                                                 <th
                                                     scope="col"
-                                                    className="sticky left-0 z-[2] bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] pr-2.5 pl-4 @3xl/hoja:pl-[64px] dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))]"
+                                                    className="sticky left-0 z-[2] w-[152px] bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] pr-2.5 pl-4 @3xl/hoja:w-auto @3xl/hoja:pl-[64px] dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))] group-data-[desplazada]/tabla:shadow-[6px_0_10px_-6px_rgba(46,63,132,0.28)] dark:group-data-[desplazada]/tabla:shadow-[6px_0_10px_-6px_rgba(0,0,0,0.7)]"
                                                 >
                                                     <span className={TH}>{t('statistics.view.advisorColumn', { count: asesoresVisibles.length })}</span>
                                                 </th>
@@ -2048,6 +2055,47 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                         <tbody>
                                             {asesoresVisibles.map(filaPersona)}
                                         </tbody>
+                                        {/* Totales del equipo de asesores (sin administradores), debajo de su columna. Con una
+                                            búsqueda no sale: no sumaría las filas que se ven. */}
+                                        {!termino && advisorList.length > 0 && (
+                                            <tbody>
+                                                <tr className={cn('h-[46px] border-t', BANDA, FILETE)}>
+                                                    <th
+                                                        scope="row"
+                                                        className="sticky left-0 z-[1] bg-card bg-[image:linear-gradient(rgba(46,63,132,0.028),rgba(46,63,132,0.028))] pr-2.5 pl-4 text-left font-normal @3xl/hoja:pl-[64px] dark:bg-[image:linear-gradient(rgba(255,255,255,0.03),rgba(255,255,255,0.03))] group-data-[desplazada]/tabla:shadow-[6px_0_10px_-6px_rgba(46,63,132,0.28)] dark:group-data-[desplazada]/tabla:shadow-[6px_0_10px_-6px_rgba(0,0,0,0.7)]"
+                                                    >
+                                                        <span className={cn('text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>{t('statistics.view.teamTotal')}</span>
+                                                    </th>
+                                                    <td className={cn('px-2.5 text-[13px] leading-[18px] font-semibold tabular-nums', tasaEquipo === null ? TEXTO_SUAVE : TEXTO_NAVY)}>
+                                                        {tasaEquipo === null ? t('statistics.view.noDataShort') : formatRate(tasaEquipo)}
+                                                    </td>
+                                                    <td className="px-2.5">
+                                                        <div className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3">
+                                                            <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(advisors.total_conversations)}</span>
+                                                        </div>
+                                                    </td>
+                                                    {[advisors.total_resolved, advisors.total_active, advisors.total_scheduled].map((v, k) => (
+                                                        <td key={k} className={cn('px-2.5 text-right text-[13px] leading-[18px] font-semibold tabular-nums', TEXTO_NAVY)}>
+                                                            {formatNumber(v)}
+                                                        </td>
+                                                    ))}
+                                                    {liberacionApagada && liberadasTotal === 0 ? (
+                                                        <td className={cn('px-2.5 text-right text-[13px] leading-[18px] font-semibold', TEXTO_SUAVE)} title={t('statistics.view.releasedOff')}>
+                                                            <span aria-hidden="true">—</span>
+                                                            <span className="sr-only">{t('statistics.view.releasedOff')}</span>
+                                                        </td>
+                                                    ) : (
+                                                        <td className={cn('px-2.5 text-right text-[13px] leading-[18px] font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(liberadasTotal)}</td>
+                                                    )}
+                                                    <td className="px-2.5">
+                                                        <div className="grid grid-cols-[48px_minmax(0,1fr)] items-center gap-x-3">
+                                                            <span className={cn('text-right text-[13px] leading-[18px] font-semibold tabular-nums', TEXTO_NAVY)}>{formatNumber(advisors.total_messages_sent)}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td />
+                                                </tr>
+                                            </tbody>
+                                        )}
                                         {/* Administradores que atendieron chats: aparte, fuera de las cifras de arriba y del ranking. */}
                                         {adminsVisibles.length > 0 && (
                                             <tbody>
@@ -2064,11 +2112,15 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                         )}
                                     </table>
                                 </div>
+                                {tablaDesborda && !tablaAlFinal && (
+                                    <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-[3] w-10 bg-gradient-to-l from-card to-transparent" />
+                                )}
                                 <div
                                     aria-hidden="true"
                                     className="pointer-events-none absolute inset-0 z-[3] peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-2 peer-focus-visible:outline-[#2e3f84] dark:peer-focus-visible:outline-[#53bdeb]"
                                 />
                                 </div>
+                                </>
                             )}
                         </Tema>
                         {/* 2. Conversaciones | Envíos masivos */}
@@ -2108,7 +2160,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             />
                                         ))}
                                     </div>
-                                    {conversations.scheduled > 0 && <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.scheduledNote')}</p>}
+                                    {conversations.scheduled > 0 && <p className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>{t('statistics.view.scheduledNote')}</p>}
                                     <div className={cn('h-px', FILETE_BG)} aria-hidden="true" />
                                     <div className="grid min-h-[22px] grid-cols-[minmax(0,1fr)_56px_48px] items-center gap-x-3.5">
                                         <span className={cn('flex min-w-0 flex-wrap items-baseline gap-x-2 text-[13px] leading-[18px] font-medium', sinLeer ? TXT_AVISO : TEXTO_SUAVE)}>
@@ -2213,7 +2265,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                     <Leyenda key={d.key} color={d.color} etiqueta={d.label} valor={d.value} total={outboundTotal} />
                                                 ))}
                                             </div>
-                                            <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.readNote')}</p>
+                                            <p className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>{t('statistics.view.readNote')}</p>
                                         </>
                                     ) : (
                                         <Vacio mensaje={t('statistics.messages.noOutbound')} alto="h-[150px]" />
@@ -2247,7 +2299,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             <Leyenda key={p.clave} color={p.color} etiqueta={p.etiqueta} valor={p.valor} total={appointments.total} />
                                         ))}
                                     </div>
-                                    <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.reminderStateNote')}</p>
+                                    <p className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>{t('statistics.view.reminderStateNote')}</p>
                                 </div>
                                 <DivisorV />
                                 <div className="flex min-w-0 flex-col gap-3.5">
@@ -2584,7 +2636,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                             columnas={[grupo === 'month' ? t('statistics.view.monthCol') : t('statistics.view.dayCol'), t('statistics.costs.table.cost'), t('statistics.costs.table.billable')]}
                                                             filas={datos.map((p) => ({ clave: p.day, celdas: [tituloPunto(p.day), formatMoney(p.cost, c.currency), formatNumber(p.billable)] }))}
                                                         />
-                                                        <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{t('statistics.view.costGapNote')}</p>
+                                                        <p className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>{t('statistics.view.costGapNote')}</p>
                                                     </>
                                                 ) : (
                                                     <Vacio mensaje={t('statistics.view.noCostSeries')} alto="h-[214px]" />
@@ -2621,7 +2673,7 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                                 <tr key={key} className={cn('h-[42px] border-b', FILETE)}>
                                                                     <th scope="row" className="py-1 pr-2 text-left font-normal" title={pista ? `${nombreCat} · ${pista}` : nombreCat}>
                                                                         <span className={cn('block truncate text-[13px] leading-[18px] font-medium', TEXTO_NAVY)}>{nombreCat}</span>
-                                                                        {pista && <span className={cn('line-clamp-2 text-[12.5px] leading-4', TEXTO_SUAVE)}>{pista}</span>}
+                                                                        {pista && <span className={cn('line-clamp-3 text-[12.5px] leading-4 @md/hoja:line-clamp-2', TEXTO_SUAVE)}>{pista}</span>}
                                                                     </th>
                                                                     <td className={cn('pl-2 text-right text-[13px] leading-[18px] font-medium tabular-nums @xl/hoja:pl-3', data.billable ? TEXTO_NAVY : TEXTO_SUAVE)}>
                                                                         {formatNumber(data.billable)}
@@ -2688,20 +2740,20 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                             {(c.without_pricing > 0 || sinTarifa > 0) && (
                                                 <div className="flex flex-col gap-1.5">
                                                     {c.without_pricing > 0 && (
-                                                        <p className={cn('flex items-start gap-1.5 text-[12.5px] leading-4 font-medium', TXT_AVISO)}>
-                                                            <CircleAlert className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                                                        <p className={cn('flex items-start gap-1.5 text-[12.5px] leading-[18px] font-medium', TXT_AVISO)}>
+                                                            <CircleAlert className="mt-0.5 size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
                                                             {t('statistics.view.missingRatesWarning')}
                                                         </p>
                                                     )}
                                                     {sinTarifa > 0 && (
-                                                        <p className={cn('flex items-start gap-1.5 text-[12.5px] leading-4 font-medium', TXT_AVISO)}>
-                                                            <CircleAlert className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
+                                                        <p className={cn('flex items-start gap-1.5 text-[12.5px] leading-[18px] font-medium', TXT_AVISO)}>
+                                                            <CircleAlert className="mt-0.5 size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
                                                             {t('statistics.view.unknownRateWarning', { value: formatNumber(sinTarifa) })}
                                                         </p>
                                                     )}
                                                 </div>
                                             )}
-                                            <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>
+                                            <p className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>
                                                 <Trans
                                                     i18nKey="statistics.view.metaBillingNote"
                                                     values={{ path: t('statistics.costs.metaBillingPath') }}
@@ -2976,8 +3028,10 @@ function PanelAsesor({
                             />
                         </div>
                         <p className={cn('border-b px-4 pb-4 text-[12.5px] leading-[18px] sm:px-6', FILETE, TEXTO_SUAVE)}>
-                            {t('statistics.view.typicalResponseHelp')}
-                            {esperasLargas > 0 && ` ${t('statistics.view.waitsOver24h', { count: esperasLargas, value: formatNumber(esperasLargas) })}`}
+                            <span className="block max-w-[78ch] text-pretty">
+                                {t('statistics.view.typicalResponseHelp')}
+                                {esperasLargas > 0 && ` ${t('statistics.view.waitsOver24h', { count: esperasLargas, value: formatNumber(esperasLargas) })}`}
+                            </span>
                         </p>
 
                         <div className={cn('grid gap-y-6 border-b px-4 pt-[18px] pb-4 sm:px-6 @md/cuerpo:grid-cols-2 @md/cuerpo:gap-x-7', FILETE)}>

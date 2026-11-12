@@ -1,4 +1,5 @@
 import { Head, router, usePage } from '@inertiajs/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -172,7 +173,8 @@ const TEXTO_NAVY = 'text-[#2e3f84] dark:text-neutral-100';
 // así que sube a neutral-400 (5,85:1). En claro, #5c6485 da 5,7:1 sobre la banda y 5,9:1 sobre la hoja.
 const TEXTO_SUAVE = 'text-muted-foreground dark:text-neutral-400';
 // outline-hidden (no outline-none): con el contraste alto de Windows el contorno sí se ve.
-const FOCO = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 dark:focus-visible:ring-[#8b9ae0]/60';
+// Contorno global de app.css (2 px navy; #53bdeb en oscuro): el anillo navy al 40 % daba ~2,1:1 (menos de 3:1).
+const FOCO = 'focus-visible:outline-offset-2';
 // Monoespaciada del diseño (Cascadia Mono en Windows 11; Consolas si no está).
 const MONO = "[font-family:ui-monospace,'Cascadia_Mono','SF_Mono',Consolas,monospace]";
 const BANDA = 'bg-[#2e3f84]/[0.028] dark:bg-white/[0.03]';
@@ -269,7 +271,9 @@ function Casilla({ marcada, apagada = false }: { marcada: boolean; apagada?: boo
 }
 
 // Anillo de foco en la fila cuando la casilla (sr-only) lo tiene.
-const FOCO_FILA = 'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#2e3f84]/40 has-[:focus-visible]:outline-hidden dark:has-[:focus-visible]:ring-[#8b9ae0]/60';
+// Por dentro de la fila (-outline-offset), para que la lista con scroll no lo recorte.
+const FOCO_FILA =
+    'has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-[#2e3f84] dark:has-[:focus-visible]:outline-[#53bdeb]';
 
 /** Avatar de iniciales en tinta navy (los asesores). */
 function Iniciales({ name, className }: { name: string; className?: string }) {
@@ -364,7 +368,7 @@ function Banda({
             </span>
             <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-[3px]">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <h2 id={id} tabIndex={-1} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em] outline-none', TEXTO_NAVY)}>
+                    <h2 id={id} tabIndex={-1} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em] text-balance outline-none', TEXTO_NAVY)}>
                         {titulo}
                     </h2>
                     {estado}
@@ -418,7 +422,7 @@ function Fila({
                 ) : (
                     <span className={claseEtiqueta}>{etiqueta}</span>
                 )}
-                <span id={ayudaId} className={cn('whitespace-pre-line', TIPO_AYUDA, TEXTO_SUAVE)}>
+                <span id={ayudaId} className={cn('whitespace-pre-line text-pretty', TIPO_AYUDA, TEXTO_SUAVE)}>
                     {ayuda}
                 </span>
             </div>
@@ -478,7 +482,7 @@ function PistaInterruptor({ activo }: { activo: boolean }) {
         >
             <span
                 className={cn(
-                    'absolute flex items-center justify-center rounded-full transition-all duration-200',
+                    'absolute flex items-center justify-center rounded-full transition-[top,left,width,height,background-color] duration-200 ease-out motion-reduce:transition-none',
                     activo
                         ? 'top-0.5 left-[18px] size-4 bg-white text-[#2e3f84] shadow-[0_1px_2px_rgba(0,0,0,0.28)]'
                         : 'top-[5px] left-[5px] size-2.5 bg-slate-500 dark:bg-neutral-400'
@@ -513,11 +517,33 @@ function Interruptor({
             aria-checked={activo}
             aria-describedby={describedBy}
             onClick={onToggle}
-            className={cn('inline-flex cursor-pointer items-center gap-2.5 rounded-full py-1 pr-1', FOCO)}
+            className={cn('inline-flex cursor-pointer items-center gap-2.5 rounded-full py-1 pr-1 pointer-coarse:min-h-11', FOCO)}
         >
             <PistaInterruptor activo={activo} />
             <span className={cn('text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>{activo ? si : no}</span>
         </button>
+    );
+}
+
+/**
+ * Ícono que cambia dentro de un botón (listo ↔ girando): entra y sale con escala, opacidad y desenfoque en vez
+ * de aparecer de golpe. Con «reducir movimiento» del sistema no se anima (MotionConfig en app.tsx).
+ */
+function IconoCambiante({ clave, children }: { clave: string; children: ReactNode }) {
+    return (
+        <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+                key={clave}
+                className="flex shrink-0"
+                initial={{ opacity: 0, scale: 0.25, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 0.25, filter: 'blur(4px)' }}
+                transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
+                aria-hidden="true"
+            >
+                {children}
+            </motion.span>
+        </AnimatePresence>
     );
 }
 
@@ -578,14 +604,14 @@ function Pie({
 
 // Sin FOCO: así vale el contorno global de foco (app.css). El anillo de FOCO es una sombra y
 // .settings-btn-primary, sin capa, la pisaba: tabulando hasta «Guardar» no se veía nada.
-const BOTON_PRIMARIO = 'h-9 gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold has-[>svg]:pr-4 has-[>svg]:pl-3.5';
+const BOTON_PRIMARIO = 'h-9 gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold has-[>svg]:pr-4 has-[>svg]:pl-3.5 pointer-coarse:h-11';
 
 // Desactivado "de verdad" (sin cambios que guardar): tinta navy, sin relleno sólido.
 const BOTON_APAGADO =
     'bg-[#2e3f84]/6 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] hover:bg-[#2e3f84]/6 disabled:opacity-100 dark:bg-white/5 dark:text-neutral-400 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]';
 
 const BOTON_SECUNDARIO = cn(
-    'inline-flex h-8 shrink-0 cursor-pointer items-center gap-[7px] rounded-[9px] bg-white pr-3 pl-2.5 text-[12.5px] leading-4 font-semibold whitespace-nowrap text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16),0_1px_2px_rgba(46,63,132,0.08)] transition-colors hover:bg-[#f6f7fb] disabled:cursor-default disabled:opacity-60',
+    'inline-flex h-8 shrink-0 cursor-pointer items-center gap-[7px] rounded-[9px] bg-white pr-3 pl-2.5 text-[12.5px] leading-4 font-semibold whitespace-nowrap text-[#2e3f84] pointer-coarse:h-11 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.16),0_1px_2px_rgba(46,63,132,0.08)] transition-colors hover:bg-[#f6f7fb] disabled:cursor-default disabled:opacity-60',
     'dark:bg-white/5 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)] dark:hover:bg-white/8',
     FOCO
 );
@@ -1091,26 +1117,24 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
 
     const soloLectura = t('settings.readOnly');
 
-    const botonGuardar = (processing: boolean, texto: string) =>
-        processing ? (
-            <>
-                <Loader2 className="size-[15px] animate-spin" aria-hidden="true" />
-                {t('common.saving')}
-            </>
-        ) : (
-            <>
-                <Check className="size-[15px]" strokeWidth={2} aria-hidden="true" />
-                {texto}
-            </>
-        );
+    const botonGuardar = (processing: boolean, texto: string) => (
+        <>
+            <IconoCambiante clave={processing ? 'girando' : 'listo'}>
+                {processing ? <Loader2 className="size-[15px] animate-spin motion-reduce:animate-none" /> : <Check className="size-[15px]" strokeWidth={2} />}
+            </IconoCambiante>
+            {processing ? t('common.saving') : texto}
+        </>
+    );
 
     const botonComprobar = (comprobando: boolean, texto: string, onClick: () => void) => (
         <button type="button" onClick={onClick} disabled={comprobando} aria-busy={comprobando} className={BOTON_SECUNDARIO}>
-            {comprobando ? (
-                <Loader2 className="size-[15px] animate-spin" aria-hidden="true" />
-            ) : (
-                <PlugZap className="size-[15px]" strokeWidth={1.75} aria-hidden="true" />
-            )}
+            <IconoCambiante clave={comprobando ? 'girando' : 'listo'}>
+                {comprobando ? (
+                    <Loader2 className="size-[15px] animate-spin motion-reduce:animate-none" />
+                ) : (
+                    <PlugZap className="size-[15px]" strokeWidth={2} />
+                )}
+            </IconoCambiante>
             {comprobando ? t('settings.checking') : texto}
         </button>
     );
@@ -1327,7 +1351,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                         onChange={(event) => setAdvisorSearch(event.target.value)}
                                         placeholder={t('settings.onDutyAdvisors.searchPlaceholder')}
                                         className={cn(
-                                            'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground forced-colors:border dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                                            'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground pointer-coarse:h-11 pointer-coarse:pr-12 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground forced-colors:border dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
                                             FOCO
                                         )}
                                     />
@@ -1336,7 +1360,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                             type="button"
                                             onClick={() => setAdvisorSearch('')}
                                             className={cn(
-                                                'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100',
+                                                'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground pointer-coarse:right-1 pointer-coarse:size-9 transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100',
                                                 FOCO
                                             )}
                                             aria-label={t('common.clearSearch')}
@@ -1606,7 +1630,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                             onBlur={() => setTiempoTocado(true)}
                                             aria-describedby={describir('auto-release-time-help', releaseError && tiempoTocado && 'auto-release-time-error')}
                                             aria-invalid={(releaseError && tiempoTocado) || undefined}
-                                            className="caja-ajuste h-[38px] w-[96px] rounded-[9px] px-3 text-[13px] leading-[18px] tabular-nums outline-hidden"
+                                            className="caja-ajuste h-[38px] w-[96px] rounded-[9px] px-3 text-[13px] leading-[18px] tabular-nums outline-hidden pointer-coarse:h-11 pointer-coarse:text-[16px]"
                                         />
                                         <label htmlFor="auto-release-unit" className="sr-only">
                                             {t('settings.autoRelease.unitLabel')}
@@ -1617,7 +1641,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                             value={releaseUnit}
                                             onChange={(event) => setReleaseUnit(event.target.value as UnidadDuracion)}
                                             onBlur={() => setTiempoTocado(true)}
-                                            className="caja-ajuste h-[38px] cursor-pointer rounded-[9px] pr-8 pl-3 text-[13px] leading-[18px] outline-hidden"
+                                            className="caja-ajuste h-[38px] cursor-pointer rounded-[9px] pr-8 pl-3 text-[13px] leading-[18px] outline-hidden pointer-coarse:h-11 pointer-coarse:text-[16px]"
                                         >
                                             <option value="minutes">{t('settings.autoRelease.unitMinutes')}</option>
                                             <option value="hours">{t('settings.autoRelease.unitHours')}</option>
@@ -1662,7 +1686,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                                     <span className={TONO_TEXTO.error}>{frase}</span>
                                                 ) : releasePreview.count === null ? (
                                                     <span className={cn('inline-flex items-center gap-2', TEXTO_SUAVE)}>
-                                                        <Loader2 className="size-[14px] animate-spin" aria-hidden="true" />
+                                                        <Loader2 className="size-[14px] animate-spin motion-reduce:animate-none" aria-hidden="true" />
                                                         {t('settings.autoRelease.previewLoading')}
                                                     </span>
                                                 ) : (
@@ -1737,7 +1761,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                             onBlur={() => setTextoTocado(true)}
                                             aria-describedby={describir('weekend-text-help', 'weekend-text-count', mostrarErrorTexto && 'weekend-text-error')}
                                             aria-invalid={mostrarErrorTexto || undefined}
-                                            className="caja-ajuste block w-full resize-y rounded-[9px] px-3 py-2.5 text-[13px] leading-[19px] outline-hidden"
+                                            className="caja-ajuste block w-full resize-y rounded-[9px] px-3 py-2.5 text-[13px] leading-[19px] outline-hidden pointer-coarse:text-[16px]"
                                         />
                                         <AvisoCampo id="weekend-text-error" texto={mostrarErrorTexto ? errorTexto : undefined} />
                                     </div>
@@ -1770,8 +1794,8 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                         {t('settings.weekendNotice.previewOff')}
                                     </p>
                                 )}
-                                <div className={cn('w-full max-w-[420px] rounded-[12px] bg-[#efeae2] p-3 transition-opacity dark:bg-white/[0.04]', !weekendEnabled && 'opacity-70')}>
-                                    <p className="max-w-[92%] rounded-[10px] rounded-tl-[3px] bg-white px-3 py-2 text-[13px] leading-[19px] whitespace-pre-wrap text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] [overflow-wrap:anywhere] dark:bg-[#202c33] dark:text-neutral-100">
+                                <div className={cn('w-full max-w-[420px] rounded-[20px] bg-[#efeae2] p-3 transition-opacity dark:bg-white/[0.04]', !weekendEnabled && 'opacity-70')}>
+                                    <p className="max-w-[92%] rounded-[8px] rounded-tl-[3px] bg-white px-3 py-2 text-[13px] leading-[19px] whitespace-pre-wrap text-[#111b21] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] [overflow-wrap:anywhere] dark:bg-[#202c33] dark:text-neutral-100">
                                         {/* Como se guarda: sin líneas en blanco al principio ni al final. */}
                                         {weekendTextTrim ? <TextoWhatsApp texto={weekendTextTrim} /> : <span className={TEXTO_SUAVE}>—</span>}
                                     </p>
@@ -1855,7 +1879,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                     onClick={() => setVerDetallesWhatsApp((v) => !v)}
                                     className={cn('-mx-1.5 inline-flex min-h-9 items-center gap-1.5 rounded-[8px] px-1.5 text-[13px] leading-[18px] font-semibold', TEXTO_NAVY, FOCO)}
                                 >
-                                    <ChevronDown className={cn('size-4 shrink-0 transition-transform', verDetallesWhatsApp && 'rotate-180')} strokeWidth={2} aria-hidden="true" />
+                                    <ChevronDown className={cn('size-4 shrink-0 transition-transform motion-reduce:transition-none', verDetallesWhatsApp && 'rotate-180')} strokeWidth={2} aria-hidden="true" />
                                     {verDetallesWhatsApp ? t('settings.whatsapp.hideDetails') : t('settings.whatsapp.showDetails')}
                                 </button>
                             </div>
@@ -1983,19 +2007,19 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                         if (errorNombreEquipo) setErrorNombreEquipo('');
                                     }}
                                     placeholder={t('settings.equipos.nombreEjemplo')}
-                                    className={cn('h-9 rounded-[10px] bg-[#2e3f84]/[0.035] px-3 text-[13.5px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]', FOCO)}
+                                    className={cn('h-9 rounded-[10px] bg-[#2e3f84]/[0.035] px-3 text-[13.5px] text-foreground pointer-coarse:h-11 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]', FOCO)}
                                 />
                             </label>
                             <AvisoBajoCampo id="error-nombre-equipo" texto={errorNombreEquipo} />
                             <div className="flex items-center justify-between gap-2">
-                                <span className={cn('text-[13px] font-semibold', TEXTO_NAVY)}>{t('settings.equipos.miembros', { count: editorEquipo.miembros.length })}</span>
+                                <span className={cn('text-[13px] font-semibold tabular-nums', TEXTO_NAVY)}>{t('settings.equipos.miembros', { count: editorEquipo.miembros.length })}</span>
                                 <input
                                     type="search"
                                     value={buscarEnEquipo}
                                     onChange={(e) => setBuscarEnEquipo(e.target.value)}
                                     placeholder={t('settings.onDutyAdvisors.searchPlaceholder')}
                                     aria-label={t('settings.onDutyAdvisors.searchLabel')}
-                                    className={cn('h-8 w-44 rounded-[9px] bg-[#2e3f84]/[0.035] px-2.5 text-[12.5px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:bg-white/5', FOCO)}
+                                    className={cn('h-8 w-44 rounded-[9px] bg-[#2e3f84]/[0.035] px-2.5 text-[12.5px] text-foreground pointer-coarse:h-11 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] dark:bg-white/5', FOCO)}
                                 />
                             </div>
                             <ul className="custom-scrollbar min-h-0 flex-1 overflow-y-auto rounded-xl border border-[#2e3f84]/10 p-1 dark:border-white/10">
@@ -2009,7 +2033,7 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
                                             <li key={a.id}>
                                                 <label
                                                     className={cn(
-                                                        'flex cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-2 transition-colors',
+                                                        'flex cursor-pointer items-center gap-3 rounded-[8px] px-2.5 py-2 transition-colors',
                                                         FOCO_FILA,
                                                         marcado ? 'bg-[#2e3f84]/[0.05] dark:bg-white/[0.06]' : 'hover:bg-[#2e3f84]/[0.03] dark:hover:bg-white/[0.03]'
                                                     )}

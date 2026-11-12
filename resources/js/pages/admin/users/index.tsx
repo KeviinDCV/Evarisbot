@@ -1,4 +1,5 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -300,7 +301,7 @@ function InterruptorEnvio({
         >
             <span
                 className={cn(
-                    'absolute flex items-center justify-center rounded-full transition-all duration-200',
+                    'absolute flex items-center justify-center rounded-full transition-[top,left,width,height,background-color] duration-200 ease-out motion-reduce:transition-none',
                     activo
                         ? 'top-0.5 left-[18px] size-4 bg-white text-[#2e3f84] shadow-[0_1px_2px_rgba(0,0,0,0.28)]'
                         : 'top-[5px] left-[5px] size-2.5 bg-slate-500 dark:bg-neutral-400'
@@ -310,6 +311,30 @@ function InterruptorEnvio({
                 {activo && <Check className="size-2.5" strokeWidth={3.5} />}
             </span>
         </button>
+    );
+}
+
+/**
+ * Ícono que aparece, desaparece o cambia (ver ↔ ocultar, girador al guardar) con escala, opacidad y desenfoque en
+ * vez de saltar. `clave` null = sin ícono. Con «reducir movimiento» del sistema no se anima (MotionConfig en app.tsx).
+ */
+function IconoAnimado({ clave, children }: { clave: string | null; children?: ReactNode }) {
+    return (
+        <AnimatePresence mode="popLayout" initial={false}>
+            {clave !== null && (
+                <motion.span
+                    key={clave}
+                    className="flex shrink-0"
+                    initial={{ opacity: 0, scale: 0.25, filter: 'blur(4px)' }}
+                    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, scale: 0.25, filter: 'blur(4px)' }}
+                    transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
+                    aria-hidden="true"
+                >
+                    {children}
+                </motion.span>
+            )}
+        </AnimatePresence>
     );
 }
 
@@ -1319,7 +1344,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                 aria-busy={eliminando || undefined}
                                 className="gap-2 rounded-xl border-0 bg-red-600 text-[13px] font-semibold text-white hover:bg-red-700 aria-disabled:cursor-wait aria-disabled:opacity-70 pointer-coarse:h-11"
                             >
-                                {eliminando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                                <IconoAnimado clave={eliminando ? 'girando' : null}><Loader2 className="size-4 animate-spin motion-reduce:animate-none" /></IconoAnimado>
                                 {eliminando
                                     ? t('users.deleting')
                                     : t('users.deleteButton', { name: userToDelete ? nombrePropio(userToDelete.name).split(' ')[0] : '' })}
@@ -1419,7 +1444,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                 aria-label={verClaveCrear ? t('auth.hidePassword') : t('auth.showPassword')}
                                                 title={verClaveCrear ? t('auth.hidePassword') : t('auth.showPassword')}
                                             >
-                                                {verClaveCrear ? <EyeOff className="size-4" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+                                                <IconoAnimado clave={verClaveCrear ? 'ocultar' : 'ver'}>{verClaveCrear ? <EyeOff className="size-4" strokeWidth={1.75} /> : <Eye className="size-4" strokeWidth={1.75} />}</IconoAnimado>
                                             </button>
                                         </div>
                                         <AvisoCampo id="create-password-error" texto={avisosCrear.error('password', createForm.errors.password)} />
@@ -1458,7 +1483,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                 aria-label={verClaveCrear ? t('auth.hidePassword') : t('auth.showPassword')}
                                                 title={verClaveCrear ? t('auth.hidePassword') : t('auth.showPassword')}
                                             >
-                                                {verClaveCrear ? <EyeOff className="size-4" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+                                                <IconoAnimado clave={verClaveCrear ? 'ocultar' : 'ver'}>{verClaveCrear ? <EyeOff className="size-4" strokeWidth={1.75} /> : <Eye className="size-4" strokeWidth={1.75} />}</IconoAnimado>
                                             </button>
                                         </div>
                                         <AvisoCampo id="create-password-confirm-error" texto={avisosCrear.error('password_confirmation', createForm.errors.password_confirmation)} />
@@ -1471,7 +1496,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         onClick={generarParaCrear}
                                         className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold pointer-coarse:h-11 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8"
                                     >
-                                        <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                        <Sparkles className="size-4" strokeWidth={2} aria-hidden="true" />
                                         {t('users.generatePassword')}
                                     </button>
                                 </div>
@@ -1516,7 +1541,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     aria-busy={createForm.processing || undefined}
                                     className="gap-2 rounded-xl text-[13px] font-semibold settings-btn-primary aria-disabled:cursor-wait aria-disabled:opacity-70 pointer-coarse:h-11"
                                 >
-                                    {createForm.processing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                                    <IconoAnimado clave={createForm.processing ? 'girando' : null}><Loader2 className="size-4 animate-spin motion-reduce:animate-none" /></IconoAnimado>
                                     {createForm.processing ? t('users.creating') : t('users.createUser')}
                                 </Button>
                             </div>
@@ -1629,7 +1654,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                 aria-label={verClaveEditar ? t('auth.hidePassword') : t('auth.showPassword')}
                                                 title={verClaveEditar ? t('auth.hidePassword') : t('auth.showPassword')}
                                             >
-                                                {verClaveEditar ? <EyeOff className="size-4" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+                                                <IconoAnimado clave={verClaveEditar ? 'ocultar' : 'ver'}>{verClaveEditar ? <EyeOff className="size-4" strokeWidth={1.75} /> : <Eye className="size-4" strokeWidth={1.75} />}</IconoAnimado>
                                             </button>
                                         </div>
                                         <AvisoCampo id="edit-password-error" texto={avisosEditar.error('password', editForm.errors.password)} />
@@ -1670,7 +1695,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                                 aria-label={verClaveEditar ? t('auth.hidePassword') : t('auth.showPassword')}
                                                 title={verClaveEditar ? t('auth.hidePassword') : t('auth.showPassword')}
                                             >
-                                                {verClaveEditar ? <EyeOff className="size-4" strokeWidth={1.75} aria-hidden="true" /> : <Eye className="size-4" strokeWidth={1.75} aria-hidden="true" />}
+                                                <IconoAnimado clave={verClaveEditar ? 'ocultar' : 'ver'}>{verClaveEditar ? <EyeOff className="size-4" strokeWidth={1.75} /> : <Eye className="size-4" strokeWidth={1.75} />}</IconoAnimado>
                                             </button>
                                         </div>
                                         <AvisoCampo id="edit-password-confirm-error" texto={avisosEditar.error('password_confirmation', editForm.errors.password_confirmation)} />
@@ -1683,7 +1708,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                         onClick={generarParaEditar}
                                         className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg px-3 text-[13px] font-semibold pointer-coarse:h-11 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.2)] transition-colors hover:bg-[#2e3f84]/6 dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] dark:hover:bg-white/8"
                                     >
-                                        <Sparkles className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                                        <Sparkles className="size-4" strokeWidth={2} aria-hidden="true" />
                                         {t('users.generatePassword')}
                                     </button>
                                 </div>
@@ -1737,7 +1762,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                                     aria-busy={editForm.processing || undefined}
                                     className="gap-2 rounded-xl text-[13px] font-semibold settings-btn-primary aria-disabled:cursor-wait aria-disabled:opacity-70 pointer-coarse:h-11"
                                 >
-                                    {editForm.processing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+                                    <IconoAnimado clave={editForm.processing ? 'girando' : null}><Loader2 className="size-4 animate-spin motion-reduce:animate-none" /></IconoAnimado>
                                     {editForm.processing ? t('users.saving') : modoClave ? t('users.savePassword') : t('users.saveChanges')}
                                 </Button>
                             </div>
