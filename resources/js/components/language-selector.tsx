@@ -3,6 +3,8 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Languages } from 'lucide-react';
@@ -10,7 +12,8 @@ import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 
 interface LanguageSelectorProps {
-    variant?: 'default' | 'admin';
+    /** 'translucido': para fondos navy (login "Tarjeta sobre el hospital"). */
+    variant?: 'default' | 'admin' | 'translucido';
 }
 
 export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps) {
@@ -43,14 +46,14 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
         };
     }, [i18n]);
 
-    const changeLanguage = async (lng: string) => {
+    const changeLanguage = async (lng: string, recargar = true) => {
         // Guardar en localStorage explícitamente
         localStorage.setItem('i18nextLng', lng);
         // Cambiar el idioma
         await i18n.changeLanguage(lng);
         setCurrentLanguage(lng);
         // Recargar la página para asegurar que todas las traducciones se apliquen
-        window.location.reload();
+        if (recargar) window.location.reload();
     };
 
     const languages = [
@@ -90,6 +93,35 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
                             )}
                         </DropdownMenuItem>
                     ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    }
+
+    // Login: todo el texto es del cliente, así que el idioma cambia SIN recargar (la recarga borraba el correo
+    // y la clave escritos). Sin banderas (Windows las pinta como letras «ES»/«US», y la de España no es la de
+    // un hospital colombiano) y como opciones de radio: el lector de pantalla dice cuál está marcada.
+    if (variant === 'translucido') {
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button
+                        type="button"
+                        className="lh-control flex h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 text-[13.5px] font-semibold text-white transition-colors hover:bg-white/[0.16]"
+                        aria-label={t('loginHospital.language', { idioma: currentLang?.name })}
+                    >
+                        <Languages className="h-4 w-4" aria-hidden="true" />
+                        {currentLang?.name}
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuRadioGroup value={currentLanguage} onValueChange={(lng) => void changeLanguage(lng, false)}>
+                        {languages.map((language) => (
+                            <DropdownMenuRadioItem key={language.code} value={language.code} lang={language.code} className="cursor-pointer">
+                                {language.name}
+                            </DropdownMenuRadioItem>
+                        ))}
+                    </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
             </DropdownMenu>
         );

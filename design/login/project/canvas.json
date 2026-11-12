@@ -1,0 +1,25 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-15T13:20:00Z" },
+  "title": "Login de Evarisbot",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Hoy.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Hoy", "expand": "fill" },
+    "Main.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 900, "title": "A · Pantalla partida (recomendada)", "expand": "fill" },
+    "Tarjeta.dc.html": { "x": 3040, "y": 0, "w": 1440, "h": 900, "title": "B · Tarjeta sobre el hospital", "expand": "fill" },
+    "Conversacion.dc.html": { "x": 0, "y": 1380, "w": 1440, "h": 900, "title": "C · Entrar conversando", "expand": "fill" },
+    "Editorial.dc.html": { "x": 1520, "y": 1380, "w": 1440, "h": 900, "title": "D · Portada clara con cifras", "expand": "fill" }
+  },
+  "order": ["Hoy.dc.html", "Main.dc.html", "Tarjeta.dc.html", "Conversacion.dc.html", "Editorial.dc.html"],
+  "notes": {
+    "titulo": { "x": 0, "y": -320, "text": "Nueva entrada a Evarisbot: ¿qué forma le damos?", "kind": "title1", "maxW": 4480 },
+    "nota-hoy": { "x": 0, "y": 940, "w": 700, "maxH": 360, "size": "m", "fill": "gray", "text": "Así se ve hoy.\nCorrecta pero sin historia: logo, formulario y fondo lila. No dice qué es Evarisbot ni lo que ha logrado." },
+    "nota-a": { "x": 1520, "y": 940, "w": 700, "maxH": 360, "size": "m", "fill": "blue", "text": "A · Pantalla partida (la que recomiendo).\nA la izquierda, en el mismo azul del menú de la app, qué hace Evarisbot: un recordatorio de cita confirmado y las cifras reales. A la derecha, el formulario limpio, en blanco.\nEntrar se siente como llegar a la misma app.\n\nCoste: en el celular solo cabe el formulario; la parte azul baja debajo." },
+    "nota-b": { "x": 3040, "y": 940, "w": 700, "maxH": 360, "size": "m", "fill": "gray", "text": "B · Tarjeta sobre el hospital.\nTodo el fondo en azul con el dibujo del edificio del HUV en grande y, en el centro, una tarjeta blanca con el formulario.\nLa más vistosa y la más fácil de leer: solo hay una cosa que hacer.\n\nCoste: cuenta poco de la app; los avisos que flotan alrededor son decorativos, no reales." },
+    "nota-c": { "x": 0, "y": 2320, "w": 700, "maxH": 360, "size": "m", "fill": "gray", "text": "C · Entrar conversando.\nEl inicio de sesión es un chat con Evarisbot: te pide el correo y luego la contraseña, como un mensaje de WhatsApp.\nLa más original: dice «esto es un chatbot» sin explicarlo.\n\nCoste: son dos pasos en vez de uno, y a quien entra 10 veces al día se le puede hacer largo." },
+    "nota-d": { "x": 1520, "y": 2320, "w": 700, "maxH": 360, "size": "m", "fill": "gray", "text": "D · Portada clara con cifras.\nFondo blanco, un titular grande y las cifras del año como en un informe; el formulario a la derecha, sin tarjeta.\nLa más sobria y profesional; celebra con datos.\n\nCoste: poco color de marca; las cifras son las protagonistas y hay que mantenerlas al día (en la app se calcularían solas)." },
+    "nota-pregunta": { "x": 3040, "y": 1380, "w": 700, "maxH": 520, "size": "l", "text": "Una sola pregunta: ¿cuál de las cuatro formas?\n\nLos colores, los textos, el modo oscuro y la versión para celular se ajustan después, sobre la que elijas.\n\nLas cifras son reales (15 de octubre de 2026). En la app se actualizarían solas." }
+  },
+  "designSystems": []
+}

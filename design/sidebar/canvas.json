@@ -1,0 +1,16 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html",          "title": "Oscuro · solo iconos (hoy)", "x": 0,   "y": 0,    "w": 760, "h": 900 },
+    { "file": "ClaroIconos.dc.html",   "title": "Claro · solo iconos",        "x": 880, "y": 0,    "w": 760, "h": 900 },
+    { "file": "OscuroNombres.dc.html", "title": "Oscuro · con nombres",       "x": 0,   "y": 1200, "w": 760, "h": 900 },
+    { "file": "ClaroNombres.dc.html",  "title": "Claro · con nombres",        "x": 880, "y": 1200, "w": 760, "h": 900 }
+  ],
+  "annotations": [
+    { "id": "resumen", "x": 0, "y": -250, "w": 1640, "text": "Paso 1: el sidebar.\nSolo cambia la barra de la izquierda. La página va atenuada a propósito, para que no distraiga.\n\nDos preguntas:  ¿oscuro o claro? (columnas)   ·   ¿solo iconos o con nombres? (filas)\nEl de arriba a la izquierda es el que tienen hoy." },
+    { "id": "nota-hoy", "x": 0, "y": 940, "w": 760, "text": "Como está hoy. El navy separa bien la navegación del contenido y es la marca más visible de la app. Los nombres aparecen al pasar el ratón." },
+    { "id": "nota-claro-iconos", "x": 880, "y": 940, "w": 760, "text": "Más ligero: el contenido gana protagonismo. Coste: se pierde el ancla de color de la marca, y el logo del HUV, en su azul real, queda tenue a este tamaño." },
+    { "id": "nota-oscuro-nombres", "x": 0, "y": 2140, "w": 760, "text": "Siempre se lee qué es cada cosa, sin pasar el ratón. Coste: ocupa 196 px más; aquí se nota poco, en Conversaciones (tres columnas) mucho. Ya existe: es el botón «Fijar menú abierto»." },
+    { "id": "nota-claro-nombres", "x": 880, "y": 2140, "w": 760, "text": "Nombres siempre visibles y superficie clara. Suma los dos costes: más ancho ocupado y menos presencia de la marca." }
+  ],
+  "launch": { "view": "canvas" }
+}

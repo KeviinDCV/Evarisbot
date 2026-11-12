@@ -4,22 +4,36 @@ import { send } from '@/routes/verification';
 import { type SharedData } from '@/types';
 import { Transition } from '@headlessui/react';
 import { Form, Head, Link, usePage } from '@inertiajs/react';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 import InputError from '@/components/input-error';
+import PerfilCarnet from '@/components/perfil/perfil-carnet';
+import { usarDisenoNuevo } from '@/lib/diseno-nuevo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AdminLayout from '@/layouts/admin-layout';
 import { useTranslation } from 'react-i18next';
 
-export default function Profile({
-    mustVerifyEmail,
-    status,
-}: {
+interface ProfileProps {
     mustVerifyEmail: boolean;
     status?: string;
-}) {
+    /** Diseño "Carnet y ajustes" para todos (ajuste perfil_diseno = 'carnet'). */
+    disenoNuevo?: boolean;
+}
+
+export default function Profile({ mustVerifyEmail, status, disenoNuevo }: ProfileProps) {
+    const [nuevo] = useState(() => usarDisenoNuevo('evarisbot.perfil-nuevo', Boolean(disenoNuevo)));
+
+    return nuevo ? (
+        <PerfilCarnet mustVerifyEmail={mustVerifyEmail} status={status} />
+    ) : (
+        <PerfilActual mustVerifyEmail={mustVerifyEmail} status={status} />
+    );
+}
+
+/** El perfil de siempre (el que ven todos mientras no se active el nuevo). */
+function PerfilActual({ mustVerifyEmail, status }: Pick<ProfileProps, 'mustVerifyEmail' | 'status'>) {
     const { t } = useTranslation();
     const { auth } = usePage<SharedData>().props;
     const passwordInput = useRef<HTMLInputElement>(null);
@@ -54,13 +68,13 @@ export default function Profile({
                             {({ processing, recentlySuccessful, errors }) => (
                                 <>
                                     <div className="space-y-2">
-                                        <Label htmlFor="name" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="name" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)] dark:drop-shadow-none">
                                             {t('common.name')}
                                         </Label>
 
                                         <Input
                                             id="name"
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200"
+                                            className="settings-input rounded-xl"
                                             defaultValue={auth.user.name}
                                             name="name"
                                             required
@@ -72,14 +86,14 @@ export default function Profile({
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="email" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="email" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)] dark:drop-shadow-none">
                                             {t('common.email')}
                                         </Label>
 
                                         <Input
                                             id="email"
                                             type="email"
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200"
+                                            className="settings-input rounded-xl"
                                             defaultValue={auth.user.email}
                                             name="email"
                                             required
@@ -169,7 +183,7 @@ export default function Profile({
                             {({ errors, processing, recentlySuccessful }) => (
                                 <>
                                     <div className="space-y-2">
-                                        <Label htmlFor="current_password" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="current_password" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)] dark:drop-shadow-none">
                                             {t('settings.profile.currentPassword')}
                                         </Label>
 
@@ -178,7 +192,7 @@ export default function Profile({
                                             ref={currentPasswordInput}
                                             name="current_password"
                                             type="password"
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200"
+                                            className="settings-input rounded-xl"
                                             autoComplete="current-password"
                                             placeholder={t('settings.profile.currentPasswordPlaceholder')}
                                         />
@@ -187,7 +201,7 @@ export default function Profile({
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="password" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="password" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)] dark:drop-shadow-none">
                                             {t('settings.profile.newPassword')}
                                         </Label>
 
@@ -196,7 +210,7 @@ export default function Profile({
                                             ref={passwordInput}
                                             name="password"
                                             type="password"
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200"
+                                            className="settings-input rounded-xl"
                                             autoComplete="new-password"
                                             placeholder={t('users.passwordPlaceholder')}
                                         />
@@ -205,7 +219,7 @@ export default function Profile({
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="password_confirmation" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                                        <Label htmlFor="password_confirmation" className="text-sm font-medium text-primary dark:text-primary drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)] dark:drop-shadow-none">
                                             {t('settings.profile.confirmNewPassword')}
                                         </Label>
 
@@ -213,7 +227,7 @@ export default function Profile({
                                             id="password_confirmation"
                                             name="password_confirmation"
                                             type="password"
-                                            className="border-0 bg-gradient-to-b from-[#f4f5f9] to-[#f0f2f8] focus:from-white focus:to-[#fafbfc] shadow-[0_1px_2px_rgba(46,63,132,0.04),0_2px_3px_rgba(46,63,132,0.06),inset_0_1px_0_rgba(255,255,255,0.6)] focus:shadow-[0_1px_3px_rgba(46,63,132,0.08),0_2px_6px_rgba(46,63,132,0.1),0_4px_12px_rgba(46,63,132,0.12),inset_0_1px_0_rgba(255,255,255,0.95)] hover:shadow-[0_2px_4px_rgba(46,63,132,0.06),0_3px_8px_rgba(46,63,132,0.08),inset_0_1px_0_rgba(255,255,255,0.7)] rounded-xl transition-all duration-200"
+                                            className="settings-input rounded-xl"
                                             autoComplete="new-password"
                                             placeholder={t('users.confirmNewPasswordPlaceholder')}
                                         />

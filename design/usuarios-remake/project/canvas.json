@@ -1,0 +1,105 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-15T15:05:00Z"
+  },
+  "title": "Usuarios de Evarisbot",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Hoy.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Hoy"
+    },
+    "Main.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "A · Equipo en carnets (recomendada)",
+      "expand": "fill"
+    },
+    "Lista.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "B · Lista y carnet",
+      "expand": "fill"
+    },
+    "Portada.dc.html": {
+      "x": 0,
+      "y": 1380,
+      "w": 1440,
+      "h": 900,
+      "title": "C · Portada y tabla",
+      "expand": "fill"
+    }
+  },
+  "order": [
+    "Hoy.dc.html",
+    "Main.dc.html",
+    "Lista.dc.html",
+    "Portada.dc.html"
+  ],
+  "notes": {
+    "titulo": {
+      "x": 0,
+      "y": -320,
+      "text": "Página de usuarios: ¿qué forma le damos?",
+      "kind": "title1",
+      "maxW": 4480
+    },
+    "nota-hoy": {
+      "x": 0,
+      "y": 940,
+      "w": 700,
+      "maxH": 380,
+      "size": "m",
+      "fill": "gray",
+      "text": "Así se ve hoy (el rediseño de septiembre).\nUna franja de cifras, buscador y filtro de rol, y una tabla separada en «En línea» y «Desconectados». Práctica y densa, pero es una lista de nombres: no se siente como un equipo."
+    },
+    "nota-a": {
+      "x": 1520,
+      "y": 940,
+      "w": 700,
+      "maxH": 380,
+      "size": "m",
+      "fill": "blue",
+      "text": "A · Equipo en carnets (la que recomiendo).\nCada persona es un carnet pequeño, como el de tu perfil: iniciales, punto verde si está en línea, cargo, y sus permisos (envío masivo, de turno) a la vista. Arriba, quién está conectado ahora.\nLa más humana y la que sigue el estilo del login y del perfil.\n\nCoste: caben unas 12 personas por pantalla (hoy caben 10 filas); para comparar permisos de todos hay que bajar."
+    },
+    "nota-b": {
+      "x": 3040,
+      "y": 940,
+      "w": 700,
+      "maxH": 380,
+      "size": "m",
+      "fill": "gray",
+      "text": "B · Lista y carnet.\nLa lista a la izquierda y, al elegir a alguien, su carnet completo a la derecha: datos, permisos con interruptores y todas sus acciones juntas (editar, restablecer contraseña, quitarle sus conversaciones, eliminar).\nLa más cómoda para administrar a una persona.\n\nCoste: para ver los permisos de varias personas hay que ir una por una."
+    },
+    "nota-c": {
+      "x": 0,
+      "y": 2320,
+      "w": 700,
+      "maxH": 380,
+      "size": "m",
+      "fill": "gray",
+      "text": "C · Portada y tabla.\nUna portada azul (como el login) con quién está en línea y el botón de nuevo usuario; debajo, la misma tabla de hoy con los permisos como interruptores.\nEl cambio más pequeño: se ve más bonita pero se usa igual que ahora.\n\nCoste: la portada ocupa espacio; caben 8 filas en vez de 10."
+    },
+    "nota-pregunta": {
+      "x": 3040,
+      "y": 1380,
+      "w": 700,
+      "maxH": 560,
+      "size": "l",
+      "text": "Elegida: A · Equipo en carnets.\n\nLas personas son de ejemplo; las cifras tienen la forma de las reales (34 personas: 5 administradores y 29 asesores, 10 con envío masivo y 5 de turno)."
+    }
+  },
+  "designSystems": []
+}

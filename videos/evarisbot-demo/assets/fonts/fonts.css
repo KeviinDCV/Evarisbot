@@ -1,0 +1,33 @@
+/* Instrument Sans — la tipografía REAL de la aplicación.
+   Los .woff2 de 400/500/600 se copiaron de public/fonts/ del propio proyecto
+   (la app los auto-hospeda); el 700 se añadió para los titulares del vídeo.
+   Rutas locales: el render es determinista y no puede depender de la red. */
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('./instrument-sans-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('./instrument-sans-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('./instrument-sans-latin-600-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('./instrument-sans-latin-700-normal.woff2') format('woff2');
+}

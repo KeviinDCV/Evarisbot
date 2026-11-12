@@ -140,7 +140,7 @@ class TwilioService
             ]);
 
             // Disparar evento de broadcasting para tiempo real
-            event(new \App\Events\NewMessageReceived($message, $conversation));
+            \App\Support\TiempoReal::conversacion('mensaje_entrante', $conversation->id);
 
         } catch (\Exception $e) {
             Log::error('Error processing Twilio incoming message', [

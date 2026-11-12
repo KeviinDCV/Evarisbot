@@ -1,0 +1,1002 @@
+<template>
+  <div id="root" data-composition-id="03-recordatorios" data-duration="14.5" data-width="1920" data-height="1080">
+
+    <!-- ============ FONDO A SANGRE (track 0) ============ -->
+    <div id="f03-bg" class="clip" data-start="0" data-duration="14" data-track-index="0"></div>
+
+    <!-- ============ RÓTULO / CABECERA (track 1) ============ -->
+    <div id="f03-title" class="clip" data-start="0" data-duration="14" data-track-index="1">
+      <div id="f03-accent"></div>
+      <div id="f03-titleline"><span class="f3-w" id="f03-w1">Sube</span><span class="f3-w" id="f03-w2">la</span><span class="f3-w" id="f03-w3">agenda.</span><span class="f3-w" id="f03-w4">El</span><span class="f3-w" id="f03-w5">resto</span><span class="f3-w" id="f03-w6">lo</span><span class="f3-w" id="f03-w7">hace</span><span class="f3-w" id="f03-w8">solo.</span></div>
+    </div>
+
+    <!-- ============ ESCENARIO (track 2) ============ -->
+    <div id="f03-world" class="clip" data-start="0" data-duration="14" data-track-index="2">
+
+      <!-- ---------- IZQUIERDA (60 %) · PANEL DE CITAS ---------- -->
+      <div id="f03-panel">
+
+        <!-- halo de la fila clave (detrás del contenido) -->
+        <div id="f03-halo"></div>
+
+        <div id="f03-panelinner">
+
+          <div id="f03-panelhead">
+            <div class="f3-panel-title">Panel de citas</div>
+            <div class="f3-chips">
+              <div class="f3-chip" id="f03-chipA">29 jul 2026</div>
+              <div class="f3-chip" id="f03-chipB">6 citas</div>
+            </div>
+          </div>
+
+          <!-- zona de carga -->
+          <div id="f03-drop">
+            <div id="f03-dropglow"></div>
+            <div id="f03-dropghost">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 15V4M12 4L8 8M12 4l4 4" stroke="#2e3f84" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke="#2e3f84" stroke-width="1.9" stroke-linecap="round"/>
+              </svg>
+              <span>Arrastra aquí la agenda del día&nbsp;&nbsp;·&nbsp;&nbsp;.xlsx</span>
+            </div>
+          </div>
+
+          <!-- el archivo que cae -->
+          <div id="f03-file">
+            <div class="f3-file-ico">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke="#2e3f84" stroke-width="1.8"/>
+                <path d="M3.5 9.5h17M3.5 15h17M9.7 3.5v17" stroke="#2e3f84" stroke-width="1.5" opacity="0.6"/>
+              </svg>
+            </div>
+            <div class="f3-file-body">
+              <div class="f3-file-name">agenda-29-julio.xlsx</div>
+              <div class="f3-file-track"><span id="f03-progress"></span></div>
+            </div>
+            <div class="f3-file-check" id="f03-filecheck">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4.5 12.6l5 5L19.5 7" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- tabla -->
+          <div id="f03-thead">
+            <div class="f3-c1">Paciente</div>
+            <div class="f3-c2">Hora</div>
+            <div class="f3-c3">Médico</div>
+            <div class="f3-c4">Especialidad</div>
+            <div class="f3-c5">Estado</div>
+          </div>
+
+          <div id="f03-tbody">
+
+            <div class="f3-row" id="f03-row1">
+              <div class="f3-c1"><span class="f3-av">MQ</span><span class="f3-nm">Marisol Quintero Ríos</span></div>
+              <div class="f3-c2 f3-hora">07:40</div>
+              <div class="f3-c3">Dr. Andrés Villamil</div>
+              <div class="f3-c4">Cardiología</div>
+              <div class="f3-c5"><div class="f3-swap"><div class="f3-badge f3-pend" id="f03-b1">Pendiente</div></div></div>
+            </div>
+
+            <div class="f3-row" id="f03-row2">
+              <div class="f3-c1"><span class="f3-av">YO</span><span class="f3-nm">Yulieth Ocampo Mena</span></div>
+              <div class="f3-c2 f3-hora">08:20</div>
+              <div class="f3-c3">Dra. Paula Mosquera</div>
+              <div class="f3-c4">Ortopedia</div>
+              <div class="f3-c5"><div class="f3-swap"><div class="f3-badge f3-pend" id="f03-b2">Pendiente</div></div></div>
+            </div>
+
+            <!-- ★ LA FILA CLAVE -->
+            <div class="f3-row" id="f03-row3">
+              <div class="f3-c1"><span class="f3-av">CR</span><span class="f3-nm">Camilo Restrepo Ávila</span></div>
+              <div class="f3-c2 f3-hora">09:30</div>
+              <div class="f3-c3">Dra. Lucía Bermúdez</div>
+              <div class="f3-c4">Dermatología</div>
+              <div class="f3-c5">
+                <div class="f3-swap">
+                  <div class="f3-badge f3-pend" id="f03-bpend">Pendiente</div>
+                  <div class="f3-badge f3-conf" id="f03-bconf">
+                    <svg id="f03-confcheck" width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M4.5 12.6l5 5L19.5 7" stroke="#059669" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>Confirmada</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="f3-row" id="f03-row4">
+              <div class="f3-c1"><span class="f3-av">DN</span><span class="f3-nm">Diego Naranjo Cifuentes</span></div>
+              <div class="f3-c2 f3-hora">10:15</div>
+              <div class="f3-c3">Dr. Hernán Salcedo</div>
+              <div class="f3-c4">Neurología</div>
+              <div class="f3-c5"><div class="f3-swap"><div class="f3-badge f3-pend" id="f03-b4">Pendiente</div></div></div>
+            </div>
+
+            <div class="f3-row" id="f03-row5">
+              <div class="f3-c1"><span class="f3-av">EC</span><span class="f3-nm">Esperanza Cuéllar Lozano</span></div>
+              <div class="f3-c2 f3-hora">11:00</div>
+              <div class="f3-c3">Dr. Iván Gutiérrez</div>
+              <div class="f3-c4">Oftalmología</div>
+              <div class="f3-c5"><div class="f3-swap"><div class="f3-badge f3-pend" id="f03-b5">Pendiente</div></div></div>
+            </div>
+
+            <div class="f3-row" id="f03-row6">
+              <div class="f3-c1"><span class="f3-av">BZ</span><span class="f3-nm">Brayan Zapata Herrera</span></div>
+              <div class="f3-c2 f3-hora">11:45</div>
+              <div class="f3-c3">Dra. Nohora Cadavid</div>
+              <div class="f3-c4">Medicina Interna</div>
+              <div class="f3-c5"><div class="f3-swap"><div class="f3-badge f3-pend" id="f03-b6">Pendiente</div></div></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- DERECHA (40 %) · MÓVIL ---------- -->
+      <div id="f03-phone">
+        <div id="f03-screen">
+
+          <div id="f03-statusbar">
+            <span>9:12</span>
+            <span class="f3-sb-right"><i class="f3-sb-bar"></i><i class="f3-sb-bar"></i><i class="f3-sb-bat"></i></span>
+          </div>
+
+          <div id="f03-appbar">
+            <svg width="10" height="18" viewBox="0 0 10 18" fill="none" aria-hidden="true">
+              <path d="M8.5 1.5L1.5 9l7 7.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div class="f3-avatar">HU</div>
+            <div class="f3-who">
+              <div class="f3-who-n">Hospital Universitario</div>
+              <div class="f3-who-s">en línea</div>
+            </div>
+          </div>
+
+          <div id="f03-chat">
+            <div id="f03-datechip"><span>MIÉRCOLES 29 DE JULIO</span></div>
+
+            <div id="f03-bubble">
+              <div class="f3-b-greet" id="f03-greet">Estimado(a) Camilo Restrepo</div>
+              <div class="f3-b-lead" id="f03-lead">Le recordamos que tiene una cita médica programada.</div>
+              <div class="f3-b-det" id="f03-d1"><span>Fecha:</span> miércoles 29 de julio de 2026</div>
+              <div class="f3-b-det" id="f03-d2"><span>Hora:</span> 09:30 AM</div>
+              <div class="f3-b-det" id="f03-d3"><span>Médico:</span> Dr(a). Lucía Bermúdez</div>
+              <div class="f3-b-det" id="f03-d4"><span>Especialidad:</span> Dermatología</div>
+              <div class="f3-b-det" id="f03-d5"><span>Consultorio:</span> B05</div>
+              <div class="f3-b-time" id="f03-btime">09:12
+                <svg width="15" height="10" viewBox="0 0 18 11" fill="none" aria-hidden="true">
+                  <path d="M1 6.1l3 3L10.4 1.9" stroke="#5c6485" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M6.6 6.1l3 3L17 1.9" stroke="#5c6485" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <div class="f3-btn" id="f03-btn-ok">
+              <div class="f3-btn-fx" id="f03-okglow"></div>
+              <span class="f3-btn-label">Confirmar</span>
+              <svg id="f03-okcheck" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4.5 12.6l5 5L19.5 7" stroke="#059669" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+
+            <div class="f3-btn" id="f03-btn-no">
+              <div class="f3-btn-fx" id="f03-noring"></div>
+              <span class="f3-btn-label">Cancelar</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- VÍNCULO MÓVIL → TABLA ---------- -->
+      <svg id="f03-link" width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" aria-hidden="true">
+        <path id="f03-linkpath" d="M1292 710 C 1234 706 1176 666 1104 560" stroke="#059669" stroke-width="2.4" stroke-linecap="round"/>
+        <circle id="f03-linkdot" cx="1104" cy="560" r="0" fill="#059669"/>
+      </svg>
+
+      <!-- ---------- CURSOR ---------- -->
+      <svg id="f03-cursor" width="44" height="64" viewBox="0 0 30 44" fill="none" aria-hidden="true">
+        <path d="M2.5 2.5 L2.5 32 L9.6 25.8 L14.6 37 L20 34.6 L15.1 23.7 L24.8 23.2 Z"
+              fill="#1c1f2e" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round"/>
+      </svg>
+
+      <!-- ---------- APOYO FINAL ---------- -->
+      <div id="f03-support"><span class="f3-sup-pill"><i class="f3-sup-dot"></i>…o Cancelar, y el hueco queda libre para otro paciente.</span></div>
+
+    </div>
+  </div>
+
+  <style>
+    /* Instrument Sans — tipografía real de la aplicación, auto-hospedada */
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-400-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-500-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-600-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 700;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-700-normal.woff2') format('woff2');
+    }
+
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      font-family: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+      color: #1c1f2e;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------------- fondo ---------------- */
+    #f03-bg {
+      position: absolute;
+      inset: 0;
+      background-color: #f0f2f8;
+      background-image: radial-gradient(1250px 720px at 50% 32%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 72%);
+    }
+
+    /* ---------------- rótulo ---------------- */
+    #f03-title {
+      position: absolute;
+      left: 0;
+      top: 44px;
+      width: 1920px;
+      text-align: center;
+      transform-origin: 50% 50%;
+    }
+    #f03-accent {
+      width: 60px;
+      height: 4px;
+      border-radius: 2px;
+      background: #2e3f84;
+      margin: 0 auto 14px;
+      transform-origin: 50% 50%;
+    }
+    #f03-titleline {
+      font-size: 40px;
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: #1c1f2e;
+      white-space: nowrap;
+    }
+    .f3-w {
+      display: inline-block;
+      opacity: 0;
+      margin-right: 0.26em;
+    }
+    #f03-w8 { margin-right: 0; }
+
+    /* ---------------- escenario ---------------- */
+    #f03-world {
+      position: absolute;
+      inset: 0;
+      transform-origin: 50% 50%;
+    }
+
+    /* ---------------- panel de citas ---------------- */
+    #f03-panel {
+      position: absolute;
+      left: 72px;
+      top: 150px;
+      width: 1044px;
+      height: 656px;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(28, 31, 46, 0.07), 0 1px 3px rgba(28, 31, 46, 0.05);
+      opacity: 0;
+      transform-origin: 50% 50%;
+    }
+    #f03-halo {
+      position: absolute;
+      left: 18px;
+      top: 372px;
+      width: 1008px;
+      height: 72px;
+      border-radius: 12px;
+      background: rgba(5, 150, 105, 0.07);
+      box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.32), 0 0 32px rgba(5, 150, 105, 0.2);
+      transform-origin: 50% 50%;
+      opacity: 0;
+      z-index: 0;
+    }
+    #f03-panelinner {
+      position: relative;
+      z-index: 1;
+      padding: 30px;
+    }
+
+    #f03-panelhead {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      opacity: 0;
+    }
+    .f3-panel-title {
+      font-size: 19px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #1c1f2e;
+    }
+    .f3-chips { display: flex; gap: 8px; }
+    .f3-chip {
+      background: rgba(46, 63, 132, 0.08);
+      color: #2e3f84;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 100px;
+      transform-origin: 50% 50%;
+    }
+    #f03-chipB { opacity: 0; }
+
+    /* zona de carga */
+    #f03-drop {
+      position: relative;
+      margin-top: 18px;
+      height: 104px;
+      border-radius: 14px;
+      background-color: rgba(46, 63, 132, 0.05);
+      border: 2px dashed rgba(46, 63, 132, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform-origin: 50% 50%;
+      opacity: 0;
+    }
+    #f03-dropglow {
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      box-shadow: inset 0 0 34px rgba(46, 63, 132, 0.22);
+      opacity: 0;
+      z-index: 0;
+    }
+    #f03-dropghost {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14.5px;
+      font-weight: 500;
+      color: #5c6485;
+    }
+
+    /* tarjeta de archivo (cae sobre la zona) */
+    #f03-file {
+      position: absolute;
+      left: 312px;
+      top: 108px;
+      width: 420px;
+      height: 64px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 8px 22px rgba(28, 31, 46, 0.14);
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 0 16px;
+      opacity: 0;
+      transform-origin: 50% 50%;
+      z-index: 2;
+    }
+    .f3-file-ico {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: rgba(46, 63, 132, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+    .f3-file-body { flex: 1; }
+    .f3-file-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1c1f2e;
+      letter-spacing: -0.005em;
+    }
+    .f3-file-track {
+      display: block;
+      margin-top: 7px;
+      height: 4px;
+      width: 240px;
+      border-radius: 6px;
+      background: rgba(46, 63, 132, 0.12);
+      overflow: hidden;
+    }
+    #f03-progress {
+      display: block;
+      height: 4px;
+      width: 240px;
+      border-radius: 6px;
+      background: #2e3f84;
+      transform-origin: 0% 50%;
+    }
+    .f3-file-check {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #2e3f84;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+      opacity: 0;
+      transform-origin: 50% 50%;
+    }
+
+    /* tabla */
+    #f03-thead {
+      margin-top: 26px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      box-shadow: inset 0 -1px 0 rgba(46, 63, 132, 0.12);
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #5c6485;
+      opacity: 0;
+    }
+    .f3-row {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      box-shadow: inset 0 -1px 0 rgba(46, 63, 132, 0.06);
+      opacity: 0;
+      transform-origin: 50% 50%;
+    }
+    .f3-c1 { width: 272px; display: flex; align-items: center; gap: 11px; padding-right: 12px; }
+    .f3-c2 { width: 96px; padding-right: 12px; }
+    .f3-c3 { width: 232px; padding-right: 12px; }
+    .f3-c4 { width: 212px; padding-right: 12px; }
+    .f3-c5 { width: 172px; }
+    #f03-tbody .f3-c1,
+    #f03-tbody .f3-c2,
+    #f03-tbody .f3-c3,
+    #f03-tbody .f3-c4 {
+      font-size: 14.5px;
+      color: #5c6485;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #f03-tbody .f3-c2.f3-hora {
+      font-weight: 600;
+      color: #1c1f2e;
+      font-variant-numeric: tabular-nums;
+    }
+    .f3-av {
+      width: 32px;
+      height: 32px;
+      flex: none;
+      border-radius: 50%;
+      background: rgba(46, 63, 132, 0.1);
+      color: #2e3f84;
+      font-size: 11.5px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: 0.02em;
+    }
+    .f3-nm {
+      font-size: 14.5px;
+      font-weight: 500;
+      color: #1c1f2e;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* estados */
+    .f3-swap { position: relative; width: 132px; height: 34px; }
+    .f3-badge {
+      position: absolute;
+      inset: 0;
+      border-radius: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      transform-origin: 50% 50%;
+    }
+    .f3-pend {
+      background: rgba(92, 100, 133, 0.12);
+      color: #5c6485;
+      opacity: 0;
+      z-index: 1;
+    }
+    .f3-conf {
+      background: rgba(5, 150, 105, 0.13);
+      color: #059669;
+      opacity: 0;
+      z-index: 2;
+    }
+    #f03-confcheck { opacity: 0; }
+
+    /* ---------------- móvil ---------------- */
+    #f03-phone {
+      position: absolute;
+      left: 1276px;
+      top: 150px;
+      width: 448px;
+      height: 660px;
+      background: #202433;
+      border-radius: 40px;
+      padding: 11px;
+      box-shadow: 0 20px 48px rgba(28, 31, 46, 0.22);
+      opacity: 0;
+      transform-origin: 50% 50%;
+    }
+    #f03-screen {
+      position: relative;
+      width: 426px;
+      height: 638px;
+      border-radius: 30px;
+      overflow: hidden;
+      background: #eef0f6;
+    }
+    #f03-statusbar {
+      height: 28px;
+      background: #2e3f84;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+    }
+    .f3-sb-right { display: inline-flex; align-items: center; gap: 4px; }
+    .f3-sb-bar {
+      display: inline-block;
+      width: 3px;
+      height: 8px;
+      border-radius: 1px;
+      background: rgba(255, 255, 255, 0.75);
+    }
+    .f3-sb-bat {
+      display: inline-block;
+      width: 16px;
+      height: 8px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.55);
+      margin-left: 3px;
+    }
+    #f03-appbar {
+      height: 58px;
+      background: #2e3f84;
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 0 15px;
+    }
+    .f3-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+    .f3-who-n { font-size: 14px; font-weight: 600; color: #ffffff; letter-spacing: -0.005em; }
+    .f3-who-s { font-size: 10.5px; color: rgba(255, 255, 255, 0.72); margin-top: 1px; }
+
+    #f03-chat {
+      position: relative;
+      height: 552px;
+      background-color: #eef0f6;
+      background-image: radial-gradient(rgba(46, 63, 132, 0.055) 1px, transparent 1px);
+      background-size: 22px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 12px 12px 16px;
+    }
+    #f03-datechip {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 16px;
+      text-align: center;
+      opacity: 0;
+    }
+    #f03-datechip span {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.92);
+      border-radius: 100px;
+      padding: 5px 13px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      color: #5c6485;
+    }
+
+    #f03-bubble {
+      width: 366px;
+      background: #ffffff;
+      border-radius: 14px;
+      border-top-left-radius: 4px;
+      padding: 12px 14px 8px;
+      box-shadow: 0 1px 2px rgba(28, 31, 46, 0.1);
+      opacity: 0;
+      transform-origin: 0% 100%;
+    }
+    .f3-b-greet { font-size: 14.5px; font-weight: 600; color: #1c1f2e; opacity: 0; }
+    .f3-b-lead {
+      margin-top: 5px;
+      font-size: 13.5px;
+      line-height: 1.42;
+      color: #5c6485;
+      opacity: 0;
+    }
+    .f3-b-det {
+      font-size: 13.5px;
+      line-height: 21px;
+      color: #1c1f2e;
+      font-weight: 600;
+      opacity: 0;
+    }
+    #f03-d1 { margin-top: 9px; }
+    .f3-b-det span { color: #5c6485; font-weight: 400; }
+    .f3-b-time {
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+      font-size: 10.5px;
+      color: #5c6485;
+      opacity: 0;
+    }
+
+    .f3-btn {
+      position: relative;
+      width: 366px;
+      height: 44px;
+      margin-top: 7px;
+      background-color: #ffffff;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14.5px;
+      font-weight: 600;
+      color: #2e3f84;
+      box-shadow: 0 1px 2px rgba(28, 31, 46, 0.1);
+      opacity: 0;
+      transform-origin: 50% 50%;
+    }
+    #f03-btn-ok { margin-top: 9px; }
+    .f3-btn-fx { position: absolute; inset: 0; border-radius: 12px; opacity: 0; z-index: 0; }
+    #f03-okglow { box-shadow: inset 0 0 22px rgba(5, 150, 105, 0.28); }
+    #f03-noring { box-shadow: 0 0 0 2px rgba(46, 63, 132, 0.32); }
+    .f3-btn-label { position: relative; z-index: 1; }
+    #f03-okcheck {
+      position: absolute;
+      right: 16px;
+      top: 15px;
+      z-index: 1;
+      opacity: 0;
+      transform-origin: 50% 50%;
+    }
+
+    /* ---------------- vínculo ---------------- */
+    #f03-link {
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      z-index: 5;
+    }
+    #f03-linkpath { stroke-dasharray: 300; stroke-dashoffset: 300; }
+
+    /* ---------------- cursor ---------------- */
+    #f03-cursor {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+      z-index: 9;
+    }
+
+    /* ---------------- apoyo final ---------------- */
+    #f03-support {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 826px;
+      text-align: center;
+      opacity: 0;
+    }
+    .f3-sup-pill {
+      display: inline-flex;
+      align-items: center;
+      height: 52px;
+      padding: 0 30px;
+      border-radius: 100px;
+      background: rgba(46, 63, 132, 0.07);
+      font-size: 19px;
+      font-weight: 500;
+      color: #2e3f84;
+    }
+    .f3-sup-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #2e3f84;
+      opacity: 0.45;
+      margin-right: 13px;
+      flex: none;
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var tl = gsap.timeline({ paused: true });
+
+      /* --------------------------------------------------------------
+         t = 0 · estados iniciales (deterministas, seek-safe)
+      -------------------------------------------------------------- */
+      tl.set("#f03-cursor", { x: 1992, y: 618 }, 0);
+      tl.set("#f03-progress", { scaleX: 0 }, 0);
+      tl.set("#f03-bconf", { scale: 0.72 }, 0);
+      tl.set("#f03-chipB", { scale: 0.8 }, 0);
+      // el rótulo nace grande y centrado; sube a cabecera en la escena 2
+      tl.set("#f03-title", { y: 380, scale: 2.0 }, 0);
+
+      /* ==============================================================
+         ESCENA 1 (0.0-1.8) · solo el rotulo, centrado. Se lee.
+      ============================================================== */
+      tl.fromTo("#f03-accent",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.5, ease: "power3.out" }, 0.10);
+
+      // waterfall-entry · opacidad BINARIA via tl.set, whip desde abajo
+      var words = [
+        { id: "#f03-w1", t: 0.180, d: 0.190, y: 76 },
+        { id: "#f03-w2", t: 0.403, d: 0.160, y: 52 },
+        { id: "#f03-w3", t: 0.580, d: 0.155, y: 50 },
+        { id: "#f03-w4", t: 0.735, d: 0.150, y: 48 },
+        { id: "#f03-w5", t: 0.868, d: 0.145, y: 46 },
+        { id: "#f03-w6", t: 0.996, d: 0.140, y: 44 },
+        { id: "#f03-w7", t: 1.103, d: 0.135, y: 42 },
+        { id: "#f03-w8", t: 1.205, d: 0.130, y: 48 }
+      ];
+      for (var i = 0; i < words.length; i++) {
+        tl.set(words[i].id, { opacity: 1, y: words[i].y }, words[i].t);
+        tl.to(words[i].id, { y: 0, duration: words[i].d, ease: "power4.out" }, words[i].t);
+      }
+
+      /* ==============================================================
+         ESCENA 2 (1.8-3.0) · el rotulo sube · pantalla partida 60/40
+      ============================================================== */
+      tl.to("#f03-title", { y: 0, scale: 1, duration: 0.78, ease: "power3.inOut" }, 1.80);
+
+      // camara: UN solo movimiento lento (zoom-out) durante toda la demo,
+      // manteniendo panel y movil siempre co-visibles
+      tl.fromTo("#f03-world",
+        { scale: 1.018 },
+        { scale: 1, duration: 11.6, ease: "none" }, 2.20);
+
+      tl.fromTo("#f03-panel",
+        { opacity: 0, y: 36 },
+        { opacity: 1, y: 0, duration: 0.62, ease: "power3.out" }, 2.06);
+
+      tl.fromTo("#f03-phone",
+        { opacity: 0, y: 44, scale: 0.965 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.70, ease: "power3.out" }, 2.20);
+
+      tl.fromTo("#f03-panelhead",
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.40, ease: "power3.out" }, 2.62);
+
+      tl.fromTo("#f03-drop",
+        { opacity: 0, scale: 0.975 },
+        { opacity: 1, scale: 1, duration: 0.46, ease: "power3.out" }, 2.74);
+
+      tl.fromTo("#f03-thead",
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.40, ease: "power3.out" }, 2.90);
+
+      /* ==============================================================
+         ESCENA 3 (3.0-4.6) · cae "agenda-29-julio.xlsx"
+         physics-press-reaction · archivo y zona comprimen JUNTOS
+      ============================================================== */
+      // cae desde justo encima del panel (nunca invade el rotulo de cabecera)
+      tl.set("#f03-file", { opacity: 1, y: -132, rotation: -5, scale: 0.96 }, 3.08);
+      tl.to("#f03-file",
+        { y: 0, rotation: 0, scale: 1, duration: 0.50, ease: "power2.in" }, 3.08);
+
+      // impacto (un solo targets array, misma escala)
+      tl.to(["#f03-file", "#f03-drop"],
+        { scale: 0.955, duration: 0.11, ease: "power1.in" }, 3.58);
+      tl.to("#f03-dropglow",
+        { opacity: 1, duration: 0.11, ease: "power1.in" }, 3.58);
+
+      // liberacion con rebote
+      tl.to(["#f03-file", "#f03-drop"],
+        { scale: 1, duration: 0.54, ease: "back.out(1.9)" }, 3.69);
+      tl.to("#f03-dropglow",
+        { opacity: 0, duration: 0.5, ease: "power2.out" }, 3.69);
+
+      // la zona acepta el archivo
+      tl.to("#f03-dropghost", { opacity: 0, duration: 0.26, ease: "power2.out" }, 3.62);
+      tl.to("#f03-drop", { backgroundColor: "rgba(46,63,132,0.09)", duration: 0.42, ease: "power2.out" }, 3.62);
+
+      // se procesa solo
+      tl.to("#f03-progress", { scaleX: 1, duration: 0.46, ease: "power2.inOut" }, 4.02);
+      tl.fromTo("#f03-filecheck",
+        { opacity: 0, scale: 0.4 },
+        { opacity: 1, scale: 1, duration: 0.34, ease: "back.out(2)" }, 4.50);
+
+      /* ==============================================================
+         ESCENA 4 (4.6-7.0) · la tabla se rellena sola · waterfall-entry
+      ============================================================== */
+      var rows = [
+        { id: "#f03-row1", t: 4.660, d: 0.190, y: 72 },
+        { id: "#f03-row2", t: 4.883, d: 0.170, y: 56 },
+        { id: "#f03-row3", t: 5.070, d: 0.160, y: 50 },
+        { id: "#f03-row4", t: 5.230, d: 0.155, y: 48 },
+        { id: "#f03-row5", t: 5.368, d: 0.150, y: 44 },
+        { id: "#f03-row6", t: 5.485, d: 0.140, y: 42 }
+      ];
+      for (var r = 0; r < rows.length; r++) {
+        tl.set(rows[r].id, { opacity: 1, y: rows[r].y }, rows[r].t);
+        tl.to(rows[r].id, { y: 0, duration: rows[r].d, ease: "power4.out" }, rows[r].t);
+      }
+
+      // columna Estado: las seis en "Pendiente", gris
+      var pend = ["#f03-b1", "#f03-b2", "#f03-bpend", "#f03-b4", "#f03-b5", "#f03-b6"];
+      for (var p = 0; p < pend.length; p++) {
+        tl.fromTo(pend[p],
+          { opacity: 0, scale: 0.72 },
+          { opacity: 1, scale: 1, duration: 0.34, ease: "back.out(1.7)" }, 5.76 + p * 0.115);
+      }
+
+      tl.to("#f03-chipB",
+        { opacity: 1, scale: 1, duration: 0.36, ease: "back.out(1.8)" }, 6.70);
+
+      /* ==============================================================
+         ESCENA 5 (7.0-9.2) · llega el recordatorio al movil
+      ============================================================== */
+      tl.fromTo("#f03-datechip",
+        { opacity: 0, y: -8 },
+        { opacity: 1, y: 0, duration: 0.34, ease: "power3.out" }, 7.04);
+
+      tl.fromTo("#f03-bubble",
+        { opacity: 0, y: 26, scale: 0.95 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.50, ease: "back.out(1.3)" }, 7.16);
+
+      tl.fromTo("#f03-greet",
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.30, ease: "power3.out" }, 7.44);
+      tl.fromTo("#f03-lead",
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.30, ease: "power3.out" }, 7.56);
+
+      var det = ["#f03-d1", "#f03-d2", "#f03-d3", "#f03-d4", "#f03-d5"];
+      for (var k = 0; k < det.length; k++) {
+        tl.fromTo(det[k],
+          { opacity: 0, y: 8 },
+          { opacity: 1, y: 0, duration: 0.30, ease: "power3.out" }, 7.72 + k * 0.10);
+      }
+
+      tl.fromTo("#f03-btime",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.28, ease: "power2.out" }, 8.36);
+
+      tl.fromTo("#f03-btn-ok",
+        { opacity: 0, y: 16, scale: 0.94 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.36, ease: "back.out(1.6)" }, 8.52);
+      tl.fromTo("#f03-btn-no",
+        { opacity: 0, y: 16, scale: 0.94 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.36, ease: "back.out(1.6)" }, 8.68);
+
+      /* ==============================================================
+         ESCENA 6 (9.2-10.6) · el paciente pulsa "Confirmar"
+         physics-press-reaction - cursor + boton, un solo targets array
+      ============================================================== */
+      tl.to("#f03-cursor",
+        { x: 1479, y: 707, duration: 1.04, ease: "power2.inOut" }, 9.18);
+
+      tl.to(["#f03-btn-ok", "#f03-cursor"],
+        { scale: 0.93, duration: 0.14, ease: "power1.in" }, 10.22);
+      tl.to("#f03-okglow",
+        { opacity: 1, duration: 0.14, ease: "power1.in" }, 10.22);
+
+      tl.to(["#f03-btn-ok", "#f03-cursor"],
+        { scale: 1, duration: 0.56, ease: "back.out(2)" }, 10.44);
+      tl.to("#f03-okglow",
+        { opacity: 0, duration: 0.5, ease: "power2.out" }, 10.44);
+
+      // se ilumina en verde (verde = solo confirmacion)
+      tl.to("#f03-btn-ok",
+        { backgroundColor: "rgb(219,245,236)", color: "#059669", duration: 0.40, ease: "power2.out" }, 10.44);
+      tl.fromTo("#f03-okcheck",
+        { opacity: 0, scale: 0.4 },
+        { opacity: 1, scale: 1, duration: 0.32, ease: "back.out(2)" }, 10.56);
+
+      /* ==============================================================
+         ESCENA 7 (10.6-12.4) · LA CLAVE
+         El vinculo viaja del movil a la tabla y la fila cambia sola:
+         "Pendiente" gris -> "Confirmada" VERDE (scale-swap-transition).
+         Nadie del hospital ha tocado nada.
+      ============================================================== */
+      tl.to("#f03-link", { opacity: 0.5, duration: 0.22, ease: "power2.out" }, 10.48);
+      tl.to("#f03-linkpath", { strokeDashoffset: 0, duration: 0.44, ease: "power2.out" }, 10.48);
+      tl.fromTo("#f03-linkdot",
+        { attr: { r: 0 } },
+        { attr: { r: 5 }, duration: 0.30, ease: "back.out(2)" }, 10.86);
+
+      // la fila destaca sobre las demas
+      tl.to(["#f03-row1", "#f03-row2", "#f03-row4", "#f03-row5", "#f03-row6"],
+        { opacity: 0.4, duration: 0.50, ease: "power2.out" }, 10.62);
+      tl.fromTo("#f03-halo",
+        { opacity: 0, scale: 0.98 },
+        { opacity: 1, scale: 1.015, duration: 0.55, ease: "power3.out" }, 10.62);
+      tl.to("#f03-row3",
+        { scale: 1.015, duration: 0.55, ease: "power3.out" }, 10.62);
+
+      // el swap: saliente rapido, entrante con rebote y por encima
+      tl.to("#f03-bpend",
+        { scale: 0.72, opacity: 0, duration: 0.34, ease: "power2.in" }, 10.78);
+      tl.to("#f03-bconf",
+        { scale: 1, opacity: 1, duration: 0.58, ease: "back.out(1.8)" }, 10.97);
+      // el contenido interno se revela cuando el contenedor ya asento
+      tl.fromTo("#f03-confcheck",
+        { opacity: 0, x: -6 },
+        { opacity: 1, x: 0, duration: 0.30, ease: "power3.out" }, 11.40);
+
+      /* ==============================================================
+         ESCENA 8 (12.4-14.0) · apoyo · todo lo demas, quieto
+      ============================================================== */
+      tl.fromTo("#f03-support",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" }, 12.46);
+
+      tl.to("#f03-noring",
+        { opacity: 1, duration: 0.45, ease: "power2.out" }, 12.74);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["03-recordatorios"] = tl;
+    })();
+  </script>
+</template>

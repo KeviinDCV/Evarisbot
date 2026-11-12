@@ -28,15 +28,28 @@ class WhatsAppWebhookController extends Controller
 
         $verifyToken = Setting::get('whatsapp_verify_token');
 
-        // Verificar que el token coincida
-        if ($mode === 'subscribe' && $token === $verifyToken) {
-            Log::info('Webhook verified successfully');
-            return response($challenge, 200);
+        // FALLAR CERRADO. Setting::get() devuelve null si la fila no existe o su valor está
+        // vacío, y un hub_verify_token omitido también es null: sin esta guarda la condición
+        // null === null dejaba pasar la verificación SIN secreto y reflejaba el challenge a
+        // cualquiera. (SettingsController valida el token como 'nullable', así que un admin
+        // podía vaciarlo desde la UI y abrir el hueco en silencio.)
+        if (!is_string($verifyToken) || $verifyToken === '') {
+            Log::error('Webhook verify rechazado: whatsapp_verify_token no está configurado');
+            return response('Forbidden', 403);
         }
 
+        // hash_equals: comparación en tiempo constante, no filtra el token por timing.
+        if ($mode === 'subscribe' && is_string($token) && hash_equals($verifyToken, $token)) {
+            Log::info('Webhook verified successfully');
+            // text/plain: aunque el challenge se refleje, nunca se interpreta como HTML.
+            // No se castea a int: Meta manda un challenge numérico, pero forzarlo rompería
+            // la verificación si alguna vez no lo fuera. text/plain ya neutraliza el reflejo.
+            return response((string) $challenge, 200, ['Content-Type' => 'text/plain']);
+        }
+
+        // No se registra el token recibido: es dato controlado por quien llama.
         Log::warning('Webhook verification failed', [
             'mode' => $mode,
-            'token' => $token,
         ]);
 
         return response('Forbidden', 403);
@@ -51,29 +64,44 @@ class WhatsAppWebhookController extends Controller
         try {
             $data = $request->all();
 
-            Log::info('Webhook received', ['payload' => $data]);
-
             // Verificar que sea un mensaje de WhatsApp
-            if (!isset($data['entry'])) {
+            if (!isset($data['entry']) || !is_array($data['entry'])) {
                 return response()->json(['status' => 'ignored']);
             }
 
+            // Solo un resumen: el contenido completo llevaba teléfonos, nombres y textos de pacientes al log.
+            Log::info('Webhook received', self::summary($data['entry']));
+
+            $ourPhoneId = (string) Setting::get('whatsapp_phone_id');
+
             foreach ($data['entry'] as $entry) {
-                if (!isset($entry['changes'])) {
+                if (!isset($entry['changes']) || !is_array($entry['changes'])) {
                     continue;
                 }
 
                 foreach ($entry['changes'] as $change) {
-                    if ($change['field'] !== 'messages') {
+                    if (($change['field'] ?? null) !== 'messages' || !is_array($change['value'] ?? null)) {
                         continue;
                     }
 
                     $value = $change['value'];
 
+                    // Avisos de otro número: no son de esta bandeja.
+                    $phoneId = (string) ($value['metadata']['phone_number_id'] ?? '');
+                    if ($phoneId !== '' && $ourPhoneId !== '' && $phoneId !== $ourPhoneId) {
+                        Log::warning('Webhook de otro phone_number_id ignorado', ['phone_number_id' => $phoneId]);
+                        continue;
+                    }
+
                     // Procesar mensajes entrantes
-                    if (isset($value['messages'])) {
-                        $contacts = $value['contacts'] ?? [];
+                    if (isset($value['messages']) && is_array($value['messages'])) {
+                        $contacts = is_array($value['contacts'] ?? null) ? $value['contacts'] : [];
                         foreach ($value['messages'] as $message) {
+                            // El remitente siempre es un número de 8 a 15 dígitos (formato de Meta).
+                            if (!is_array($message) || !preg_match('/^\d{8,15}$/', (string) ($message['from'] ?? ''))) {
+                                Log::warning('Mensaje entrante con remitente inválido, se ignora');
+                                continue;
+                            }
                             $this->whatsappService->processIncomingMessage($message, $contacts);
                         }
                     }
@@ -97,6 +125,34 @@ class WhatsAppWebhookController extends Controller
 
             return response()->json(['status' => 'error'], 500);
         }
+    }
+
+    /**
+     * Resumen del aviso para el log: cuántos mensajes y estados, de qué tipo y para qué número.
+     */
+    private static function summary(array $entries): array
+    {
+        $types = [];
+        $statuses = [];
+        $phoneIds = [];
+        foreach ($entries as $entry) {
+            foreach ((array) ($entry['changes'] ?? []) as $change) {
+                $value = (array) ($change['value'] ?? []);
+                if (isset($value['metadata']['phone_number_id'])) {
+                    $phoneIds[(string) $value['metadata']['phone_number_id']] = true;
+                }
+                foreach ((array) ($value['messages'] ?? []) as $m) {
+                    $t = (string) ($m['type'] ?? '?');
+                    $types[$t] = ($types[$t] ?? 0) + 1;
+                }
+                foreach ((array) ($value['statuses'] ?? []) as $st) {
+                    $t = (string) ($st['status'] ?? '?');
+                    $statuses[$t] = ($statuses[$t] ?? 0) + 1;
+                }
+            }
+        }
+
+        return ['mensajes' => $types, 'estados' => $statuses, 'phone_number_id' => array_keys($phoneIds)];
     }
 
     /**
@@ -145,8 +201,77 @@ class WhatsAppWebhookController extends Controller
                     $errorMsg = $errorCode ? "{$errorTitle} (code: {$errorCode})" : $errorTitle;
                     $updateData['error_message'] = $errorMsg;
                 }
-                
-                $message->update($updateData);
+
+                // Capturar datos de facturación que Meta envía en los callbacks
+                // 'sent'/'delivered' (objetos `pricing` y `conversation`) para el
+                // panel de costos. Solo se escriben si vienen: así un callback
+                // posterior ('read') no borra lo ya capturado.
+                $this->fillBillingData($status, $updateData);
+
+                // Meta a veces manda los estados en desorden («read» antes que «delivered», «failed» antes que «sent»: ~6 %
+                // de los mensajes) y, con el paciente en el chat, «delivered» y «read» casi a la vez (Apache los atiende en
+                // paralelo). El estado nunca baja (enviado < entregado < leído) y «failed» es final frente a los demás;
+                // antes se guardaba el último que llegaba y un mensaje leído podía quedar como solo entregado. Se compara
+                // con la fila BLOQUEADA, no con la leída arriba. Los datos de facturación se guardan igual. Un update sin
+                // cambios no escribe ni avisa; el aviso de tiempo real de Message::updated espera al commit.
+                $nivel = ['pending' => 0, 'sent' => 1, 'delivered' => 2, 'read' => 3];
+                \Illuminate\Support\Facades\DB::transaction(function () use (&$message, &$updateData, $statusType, $nivel) {
+                    $message = \App\Models\Message::whereKey($message->id)->lockForUpdate()->first() ?? $message;
+                    $actual = $message->status;
+                    if ($actual === 'failed' && $statusType !== 'failed') {
+                        unset($updateData['status']);
+                    } elseif (isset($nivel[$statusType], $nivel[$actual]) && $nivel[$statusType] < $nivel[$actual]) {
+                        unset($updateData['status']);
+                    }
+                    $message->update($updateData);
+                }, 3);
+
+                // Si era el recordatorio de una cita y Meta avisa que no lo entregó, la cita pasa a «Con error» con el
+                // motivo (sigue con reminder_sent = 1: no se reenvía). Se busca por la conversación del mensaje, que
+                // ya tiene índice, y el id del recordatorio. Un fallo aquí solo se registra: no puede impedir lo de abajo.
+                if ($statusType === 'failed' && $message->conversation_id) {
+                    try {
+                        $codigoCita = $errorInfo[0]['code'] ?? null;
+                        $motivoCita = \App\Support\Recordatorios::motivoDeCodigo($codigoCita) ?? 'otro';
+                        if (in_array($motivoCita, ['temporal', 'caducado'], true)) {
+                            // Su texto promete «se reintenta en el próximo envío», pero esta cita ya cuenta como enviada
+                            // (reminder_sent = 1) y no vuelve a salir.
+                            $motivoCita = 'otro';
+                        }
+                        $textoCita = \App\Support\WhatsAppErrorTranslator::human($codigoCita, $errorInfo[0]['title'] ?? null, $errorInfo[0]['error_data']['details'] ?? null);
+                        $citasFallidas = \App\Models\Appointment::where('conversation_id', $message->conversation_id)
+                            ->where('reminder_whatsapp_message_id', $messageId)
+                            ->whereIn('reminder_status', ['sent', 'pending'])
+                            ->pluck('id');
+                        $detalleCita = $codigoCita !== null ? 'Meta '.$codigoCita : null;
+                        // Las que ya habían salido al teléfono 2 (el principal falló antes): ninguno de los dos sirvió.
+                        $alSegundo = $citasFallidas->isEmpty() ? collect() : \App\Models\Appointment::whereIn('id', $citasFallidas)->where('reminder_numero', 2)->pluck('id');
+                        \App\Models\Appointment::whereIn('id', $citasFallidas->diff($alSegundo))
+                            ->update([
+                                'reminder_status' => 'failed',
+                                'reminder_error' => \App\Support\Recordatorios::error($motivoCita, rtrim($textoCita, '.'), $detalleCita),
+                            ]);
+                        if ($alSegundo->isNotEmpty()) {
+                            \App\Models\Appointment::whereIn('id', $alSegundo)
+                                ->update([
+                                    'reminder_status' => 'failed',
+                                    'reminder_error' => \App\Support\Recordatorios::error($motivoCita, 'Ninguno de los dos números recibió el recordatorio', 'Teléfono 2: '.rtrim($textoCita, '.').($detalleCita ? ' ('.$detalleCita.')' : '')),
+                                ]);
+                        }
+                        $citasFallidas = $citasFallidas->diff($alSegundo);
+                        // El número no sirve (sin WhatsApp, rechazado): si la cita tiene segundo teléfono, se le manda
+                        // ahí (en la cola, al ritmo de los recordatorios). El trabajo comprueba todo de nuevo.
+                        if ($citasFallidas->isNotEmpty() && in_array($motivoCita, \App\Support\Recordatorios::MOTIVOS_DEL_NUMERO, true)) {
+                            $conSegundo = \App\Models\Appointment::whereIn('id', $citasFallidas)->get(['id', 'pactel', 'pactel2'])
+                                ->filter(fn ($cita) => isset(\App\Support\Recordatorios::celularesCita($cita->pactel, $cita->pactel2)[1]));
+                            foreach ($conSegundo as $cita) {
+                                \App\Jobs\RecordatorioSegundoNumeroJob::dispatch((int) $cita->id, (string) $messageId, $motivoCita);
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        Log::error('No se pudo marcar la cita del recordatorio no entregado', ['message_id' => $messageId, 'error' => $e->getMessage()]);
+                    }
+                }
 
                 // Si el mensaje era de envío masivo y falló, actualizar contadores del BulkSend
                 if ($statusType === 'failed' && str_contains($message->content ?? '', '[Envío masivo:')) {
@@ -166,14 +291,10 @@ class WhatsAppWebhookController extends Controller
                             $recipientPhone = $status['recipient_id'] ?? null;
                             if ($recipientPhone) {
                                 $errorCodeMsg = $errorInfo[0]['code'] ?? null;
-                                $errorTitleMsg = $errorInfo[0]['title'] ?? 'Error desconocido';
+                                $errorTitleMsg = $errorInfo[0]['title'] ?? null;
                                 $errorDetail = $errorInfo[0]['error_data']['details'] ?? ($errorInfo[0]['message'] ?? null);
-                                $finalErrorMsg = $errorCodeMsg
-                                    ? "{$errorTitleMsg} (code: {$errorCodeMsg})"
-                                    : $errorTitleMsg;
-                                if ($errorDetail) {
-                                    $finalErrorMsg .= ' — ' . $errorDetail;
-                                }
+                                // Mensaje claro en español para el usuario (sin códigos técnicos)
+                                $finalErrorMsg = \App\Support\WhatsAppErrorTranslator::human($errorCodeMsg, $errorTitleMsg, $errorDetail);
 
                                 // El recipient phone puede venir sin prefijo "+" — comparar tolerante.
                                 $digits = preg_replace('/\D/', '', (string) $recipientPhone);
@@ -215,6 +336,38 @@ class WhatsAppWebhookController extends Controller
                 'error' => $e->getMessage(),
                 'status' => $status,
             ]);
+        }
+    }
+
+    /**
+     * Extrae los datos de facturación del status de Meta y los agrega a $updateData
+     * (por referencia). Meta manda `pricing` y `conversation` en los callbacks
+     * 'sent'/'delivered'. Solo se agregan las llaves presentes para no sobrescribir
+     * con null lo capturado en un callback anterior.
+     */
+    private function fillBillingData(array $status, array &$updateData): void
+    {
+        $pricing = $status['pricing'] ?? null;
+        if (is_array($pricing)) {
+            if (array_key_exists('billable', $pricing)) {
+                $updateData['billable'] = (bool) $pricing['billable'];
+            }
+            if (!empty($pricing['category'])) {
+                $updateData['pricing_category'] = $pricing['category'];
+            }
+            if (!empty($pricing['pricing_model'])) {
+                $updateData['pricing_model'] = $pricing['pricing_model'];
+            }
+        }
+
+        $conversation = $status['conversation'] ?? null;
+        if (is_array($conversation)) {
+            if (!empty($conversation['id'])) {
+                $updateData['wa_conversation_id'] = $conversation['id'];
+            }
+            if (!empty($conversation['origin']['type'])) {
+                $updateData['conversation_origin_type'] = $conversation['origin']['type'];
+            }
         }
     }
 }

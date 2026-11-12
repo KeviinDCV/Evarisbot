@@ -3,260 +3,387 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\VerifyMetaSignature;
+use App\Models\Conversation;
+use App\Models\ConversationActivity;
+use App\Models\Equipo;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\InactiveConversationReleaser;
+use App\Services\WebhookWatchdog;
+use App\Services\WeekendNotice;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
+/**
+ * Configuración del sistema.
+ *
+ * Seguridad (incidente oct 2026): las claves e identificadores de WhatsApp y la clave de Groq ya no
+ * se cambian desde la web. La página solo muestra si están guardadas y permite comprobarlas. Se
+ * cambian en la consola del servidor: php artisan whatsapp:guardar-token (clave de acceso),
+ * whatsapp:clave-verificacion, whatsapp:firma --guardar y groq:guardar-clave. Los identificadores
+ * del número no tienen orden propia (tinker). Setting::set rechaza esas claves fuera de la consola.
+ */
 class SettingsController extends Controller
 {
-    /**
-     * Mostrar la página de configuración
-     */
+    /** Último perfil del número que devolvió Meta al pulsar «Comprobar ahora». */
+    private const KEY_PERFIL = 'ajustes:perfil_whatsapp';
+
     public function index()
     {
+        // Ningún carácter de los secretos sale hacia la página: solo si están guardados y cuándo cambiaron.
+        $secretos = ['whatsapp_token', 'whatsapp_verify_token', VerifyMetaSignature::KEY_SECRET, 'groq_api_key'];
+        $cambios = Setting::whereIn('key', $secretos)->pluck('updated_at', 'key');
+        $clave = function (string $key) use ($cambios) {
+            $guardada = filled(Setting::get($key));
+
+            return [
+                'guardada' => $guardada,
+                'cambiada_en' => $guardada && isset($cambios[$key]) ? Carbon::parse($cambios[$key])->toIso8601String() : null,
+            ];
+        };
+
+        $firma = $clave(VerifyMetaSignature::KEY_SECRET);
+
         $settings = [
             'whatsapp' => [
-                'token' => Setting::getPreview('whatsapp_token'),
+                'configurada' => filled(Setting::get('whatsapp_token')) && filled(Setting::get('whatsapp_phone_id')),
+                'clave_acceso' => $clave('whatsapp_token'),
+                'clave_verificacion' => $clave('whatsapp_verify_token'),
+                'firma' => $firma['guardada']
+                    ? (Setting::get(VerifyMetaSignature::KEY_MODE) === VerifyMetaSignature::MODE_ENFORCE ? 'exigida' : 'observar')
+                    : 'sin_activar',
                 'phone_id' => Setting::get('whatsapp_phone_id'),
+                // Recordatorios y envíos masivos salen por esta otra clave: debe ser el mismo número.
+                'phone_number_id' => Setting::get('whatsapp_phone_number_id'),
                 'business_account_id' => Setting::get('whatsapp_business_account_id'),
-                'verify_token' => Setting::getPreview('whatsapp_verify_token'),
-                'webhook_url' => Setting::get('whatsapp_webhook_url'),
-                'is_configured' => Setting::has('whatsapp_token') && Setting::has('whatsapp_phone_id'),
+                'webhook_url' => WebhookWatchdog::expectedWebhookUrl(),
+                'perfil' => Cache::get(self::KEY_PERFIL),
             ],
             'groq' => [
-                'api_key' => Setting::getPreview('groq_api_key'),
-                'is_configured' => Setting::has('groq_api_key'),
+                'clave' => $clave('groq_api_key'),
+            ],
+            'vigilancia' => [
+                'revisado_en' => Cache::get(WebhookWatchdog::KEY_CHECKED_AT),
+                // Última vez que Meta contestó de verdad (no basta con que la vigilancia corriera).
+                'meta_ok_en' => Cache::get(WebhookWatchdog::KEY_META_OK),
             ],
         ];
 
-        // Obtener asesores para la sección de turnos
+        // Asesores para la sección de turnos (y la de equipos: con su equipo)
         $advisors = User::where('role', 'advisor')
-            ->select('id', 'name', 'email', 'is_on_duty')
+            ->select('id', 'name', 'email', 'is_on_duty', 'equipo_id')
             ->orderBy('name')
             ->get();
 
+        // Equipos aparte de la línea general (Teleconsulta…), con sus miembros y cuántos chats abiertos tienen.
+        $equipos = Equipo::orderBy('nombre')->get()->map(fn (Equipo $e) => [
+            'id' => $e->id,
+            'nombre' => $e->nombre,
+            'miembros' => User::where('equipo_id', $e->id)->orderBy('name')->pluck('id')->all(),
+            'chats_abiertos' => Conversation::where('equipo_id', $e->id)->whereIn('status', ['active', 'pending'])->count(),
+        ])->all();
+
+        $autoRelease = InactiveConversationReleaser::settings();
+        $weekendNotice = WeekendNotice::settings();
+
         return Inertia::render('admin/settings/index', [
+            'weekendNotice' => [
+                'enabled' => $weekendNotice['enabled'],
+                'text' => $weekendNotice['text'],
+                'default_text' => WeekendNotice::DEFAULT_TEXT,
+                'max_length' => WeekendNotice::MAX_LENGTH,
+            ],
             'settings' => $settings,
             'advisors' => $advisors,
+            'equipos' => $equipos,
+            'autoRelease' => [
+                'enabled' => $autoRelease['enabled'],
+                'minutes' => $autoRelease['minutes'],
+                'min' => InactiveConversationReleaser::MIN_MINUTES,
+                'max' => InactiveConversationReleaser::MAX_MINUTES,
+            ],
         ]);
     }
 
     /**
-     * Actualizar configuración de WhatsApp
+     * Liberación automática: activar/desactivar y tiempo de espera sin respuesta del asesor.
      */
-    public function updateWhatsApp(Request $request)
+    public function updateAutoRelease(Request $request)
+    {
+        // Apagar nunca depende del tiempo: si el campo quedó mal, se conserva el guardado.
+        $validated = $request->validate([
+            'enabled' => 'required|boolean',
+            'minutes' => 'required_if:enabled,true,1|nullable|integer|min:' . InactiveConversationReleaser::MIN_MINUTES . '|max:' . InactiveConversationReleaser::MAX_MINUTES,
+        ], [
+            'minutes.required_if' => 'Indica el tiempo sin respuesta.',
+            'minutes.min' => 'El tiempo mínimo es de ' . InactiveConversationReleaser::MIN_MINUTES . ' minutos.',
+            'minutes.max' => 'El tiempo máximo es de 30 días.',
+        ]);
+
+        if (isset($validated['minutes'])) {
+            Setting::set(InactiveConversationReleaser::KEY_MINUTES, (string) $validated['minutes'], 'Minutos sin respuesta del asesor antes de liberar la conversación');
+        }
+        Setting::set(InactiveConversationReleaser::KEY_ENABLED, $validated['enabled'] ? 'true' : 'false', 'Liberación automática de conversaciones sin respuesta del asesor');
+
+        return redirect()->back()->with('success', 'Liberación automática actualizada.');
+    }
+
+    /**
+     * Mensaje de fin de semana: activar/desactivar y texto que recibe el paciente.
+     */
+    public function updateWeekendNotice(Request $request)
     {
         $validated = $request->validate([
-            'whatsapp_token' => 'nullable|string|min:20',
-            'whatsapp_phone_id' => 'nullable|numeric|digits_between:10,20',
-            'whatsapp_business_account_id' => 'nullable|numeric|digits_between:10,20',
-            'whatsapp_verify_token' => 'nullable|string|min:8',
+            'enabled' => 'required|boolean',
+            'text' => 'required_if:enabled,true,1|nullable|string|max:' . WeekendNotice::MAX_LENGTH,
+        ], [
+            'text.required_if' => 'Escribe el mensaje que recibirá el paciente.',
+            'text.max' => 'El mensaje puede tener como máximo ' . WeekendNotice::MAX_LENGTH . ' caracteres.',
         ]);
 
-        // Si se proporciona un token, verificar que sea válido
-        if (!empty($validated['whatsapp_token'])) {
-            $isValid = $this->verifyWhatsAppToken($validated['whatsapp_token']);
-            
-            if (!$isValid) {
-                throw ValidationException::withMessages([
-                    'whatsapp_token' => 'El token de WhatsApp no es válido o ha expirado.',
-                ]);
-            }
+        // Saltos de línea de Windows → \n (WhatsApp los muestra igual, y así no se duplican).
+        $texto = trim(str_replace("\r\n", "\n", (string) ($validated['text'] ?? '')));
+        if ($texto !== '') {
+            Setting::set(WeekendNotice::KEY_TEXT, $texto, 'Mensaje automático que reciben los pacientes que escriben el fin de semana');
         }
+        Setting::set(WeekendNotice::KEY_ENABLED, $validated['enabled'] ? 'true' : 'false', 'Mensaje automático de fin de semana');
 
-        // Guardar configuraciones
-        if (isset($validated['whatsapp_token'])) {
-            Setting::set('whatsapp_token', $validated['whatsapp_token'], 'Token de acceso de WhatsApp Business API');
-        }
-
-        if (isset($validated['whatsapp_phone_id'])) {
-            Setting::set('whatsapp_phone_id', $validated['whatsapp_phone_id'], 'ID del número de teléfono de WhatsApp');
-        }
-
-        if (isset($validated['whatsapp_business_account_id'])) {
-            Setting::set('whatsapp_business_account_id', $validated['whatsapp_business_account_id'], 'ID de la cuenta de WhatsApp Business');
-        }
-
-        if (isset($validated['whatsapp_verify_token'])) {
-            Setting::set('whatsapp_verify_token', $validated['whatsapp_verify_token'], 'Token de verificación del webhook');
-        }
-
-        return redirect()->back()->with('success', 'Configuración de WhatsApp actualizada exitosamente.');
+        return redirect()->back()->with('success', 'Mensaje de fin de semana actualizado.');
     }
 
     /**
-     * Verificar si el token de WhatsApp es válido
+     * Cuántas conversaciones se liberarían ahora mismo con ese tiempo (solo consulta, no toca nada).
      */
-    private function verifyWhatsAppToken(string $token): bool
+    public function previewAutoRelease(Request $request, InactiveConversationReleaser $releaser)
     {
-        try {
-            $response = Http::withToken($token)
-                ->timeout(10)
-                ->get('https://graph.facebook.com/v18.0/me');
+        $validated = $request->validate([
+            'minutes' => 'required|integer|min:' . InactiveConversationReleaser::MIN_MINUTES . '|max:' . InactiveConversationReleaser::MAX_MINUTES,
+        ]);
 
-            return $response->successful();
-        } catch (\Exception $e) {
-            return false;
-        }
+        return response()->json([
+            'count' => $releaser->candidates((int) $validated['minutes'])->count(),
+        ]);
     }
 
     /**
-     * Obtener información del perfil de WhatsApp Business
+     * «Comprobar ahora»: corre en el momento la misma vigilancia que se hace sola cada 10 minutos
+     * (clave aceptada, desvío del webhook, cola, disco…) y trae el perfil del número.
+     *
+     * Solo lee. Al navegador nunca llegan mensajes de excepción ni la respuesta cruda de Meta.
      */
-    public function getBusinessProfile()
+    public function checkWhatsApp(WebhookWatchdog $watchdog)
+    {
+        $alertas = $watchdog->run();
+
+        $perfil = null;
+        if (isset($alertas['meta_config'])) {
+            $meta = 'sin_config';
+        } else {
+            $perfil = $this->perfilWhatsApp();
+            $desviado = isset($alertas['meta_override'])
+                || collect(array_keys($alertas))->contains(fn ($codigo) => str_starts_with($codigo, 'meta_webhook_'));
+
+            // «ok» solo si de verdad se revisaron la clave, la dirección y el desvío: si Meta no
+            // contestó a alguna consulta, no se puede afirmar que todo esté bien.
+            $meta = match (true) {
+                isset($alertas['meta_token']) => 'rechazada',
+                isset($alertas['meta_error']) => 'error_meta',
+                $desviado => 'desviado',
+                $perfil === null || ! $watchdog->metaCompleta() => 'sin_respuesta',
+                default => 'ok',
+            };
+        }
+
+        return response()->json([
+            'meta' => $meta,
+            // código => texto (la página separa las de Meta, que ya resume `meta`, de las demás).
+            'alertas' => (object) $alertas,
+            'perfil' => $perfil,
+            'revisado_en' => Cache::get(WebhookWatchdog::KEY_CHECKED_AT),
+            'meta_ok_en' => Cache::get(WebhookWatchdog::KEY_META_OK),
+        ]);
+    }
+
+    /** Lo que Meta tiene registrado del número; null si no respondió. */
+    private function perfilWhatsApp(): ?array
     {
         $token = Setting::get('whatsapp_token');
         $phoneId = Setting::get('whatsapp_phone_id');
 
-        if (empty($token) || empty($phoneId)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'WhatsApp API not configured.',
-            ], 400);
-        }
-
         try {
-            $response = Http::withToken($token)
-                ->timeout(10)
-                ->get("https://graph.facebook.com/v18.0/{$phoneId}", [
-                    'fields' => 'id,verified_name,code_verification_status,display_phone_number,quality_rating,messaging_limit_tier'
+            $response = Http::withToken((string) $token)
+                ->timeout(8)
+                ->connectTimeout(5)
+                ->get("https://graph.facebook.com/v21.0/{$phoneId}", [
+                    'fields' => 'verified_name,display_phone_number,quality_rating,whatsapp_business_manager_messaging_limit,messaging_limit_tier',
                 ]);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                return response()->json([
-                    'success' => true,
-                    'profile' => [
-                        'business_name' => $data['verified_name'] ?? 'N/A',
-                        'phone_number' => $data['display_phone_number'] ?? 'N/A',
-                        'phone_number_id' => $data['id'] ?? 'N/A',
-                        'verified' => ($data['code_verification_status'] ?? 'NOT_VERIFIED') === 'VERIFIED',
-                        'quality_rating' => $data['quality_rating'] ?? 'UNKNOWN',
-                        'messaging_limit' => $data['messaging_limit_tier'] ?? 'TIER_NOT_SET',
-                    ],
-                ]);
+            if (! $response->successful()) {
+                Log::warning('Configuración: Meta no devolvió el perfil del número', ['status' => $response->status(), 'code' => $response->json('error.code')]);
+
+                return null;
             }
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Unable to fetch business profile.',
-            ], 400);
+            $perfil = [
+                'nombre' => $response->json('verified_name'),
+                'numero' => $response->json('display_phone_number'),
+                'calidad' => $response->json('quality_rating'),
+                // Meta pasó el límite al portafolio: el campo viejo llega vacío (comprobado el 15/10/2026).
+                'limite' => $response->json('whatsapp_business_manager_messaging_limit') ?? $response->json('messaging_limit_tier'),
+                'consultado_en' => now()->toIso8601String(),
+            ];
+            Cache::put(self::KEY_PERFIL, $perfil, now()->addDays(7));
 
-        } catch (\Exception $e) {
-            Log::error('Get business profile error', ['error' => $e->getMessage()]);
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return $perfil;
+        } catch (\Throwable $e) {
+            Log::warning('Configuración: no se pudo consultar el perfil del número', ['error' => $e->getMessage()]);
+
+            return null;
         }
     }
 
     /**
-     * Probar la conexión con WhatsApp
+     * «Comprobar clave» de Groq: pregunta a Groq si acepta la clave guardada (lista de modelos).
      */
-    public function testWhatsAppConnection()
+    public function checkGroq()
     {
-        $token = Setting::get('whatsapp_token');
-        $phoneId = Setting::get('whatsapp_phone_id');
+        $apiKey = Setting::get('groq_api_key');
 
-        if (empty($token) || empty($phoneId)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No se han configurado las credenciales de WhatsApp.',
-            ], 400);
+        if (blank($apiKey)) {
+            return response()->json(['estado' => 'sin_clave']);
         }
 
         try {
-            // Verificar el token
-            $response = Http::withToken($token)
+            $response = Http::withToken((string) $apiKey)
                 ->timeout(10)
-                ->get('https://graph.facebook.com/v18.0/me');
-
-            if ($response->successful()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Conexión exitosa con WhatsApp Business API.',
-                    'data' => $response->json(),
-                ]);
-            }
-
-            return response()->json([
-                'success' => false,
-                'message' => 'No se pudo conectar con WhatsApp. Verifica tus credenciales.',
-            ], 400);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al conectar: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    /**
-     * Actualizar configuración de Groq (transcripción de audio)
-     */
-    public function updateGroq(Request $request)
-    {
-        $validated = $request->validate([
-            'groq_api_key' => 'nullable|string|min:20',
-        ]);
-
-        if (!empty($validated['groq_api_key'])) {
-            // Verificar que la API key sea válida
-            $isValid = $this->verifyGroqApiKey($validated['groq_api_key']);
-            
-            if (!$isValid) {
-                throw ValidationException::withMessages([
-                    'groq_api_key' => 'La API key de Groq no es válida.',
-                ]);
-            }
-
-            Setting::set('groq_api_key', $validated['groq_api_key'], 'API Key de Groq para transcripción de audio');
-        }
-
-        return redirect()->back()->with('success', 'Configuración de Groq actualizada exitosamente.');
-    }
-
-    /**
-     * Verificar si la API key de Groq es válida
-     */
-    private function verifyGroqApiKey(string $apiKey): bool
-    {
-        try {
-            $response = Http::withHeaders([
-                    'Authorization' => 'Bearer ' . $apiKey,
-                ])
-                ->timeout(10)
+                ->connectTimeout(5)
                 ->get('https://api.groq.com/openai/v1/models');
 
-            return $response->successful();
-        } catch (\Exception $e) {
-            return false;
+            $estado = match (true) {
+                $response->successful() => 'ok',
+                in_array($response->status(), [401, 403], true) => 'rechazada',
+                default => 'sin_respuesta',
+            };
+
+            if ($estado !== 'ok') {
+                Log::warning('Configuración: Groq no aceptó la comprobación de la clave', ['status' => $response->status()]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Configuración: no se pudo hablar con Groq', ['error' => $e->getMessage()]);
+            $estado = 'sin_respuesta';
         }
+
+        return response()->json(['estado' => $estado]);
     }
 
     /**
      * Actualizar asesores de turno
      */
-    public function updateOnDutyAdvisors(Request $request)
+    /**
+     * Crear o actualizar un equipo (nombre y miembros). Al entrar a un equipo, los chats que la persona tenía asignados
+     * en la línea general vuelven a la bandeja general (ya no los vería); al salir, los del equipo que tenía asignados
+     * quedan sin asignar en el equipo (sus compañeros los siguen viendo).
+     */
+    public function guardarEquipo(Request $request, ?Equipo $equipo = null)
     {
         $validated = $request->validate([
-            'advisor_ids' => 'present|array',
-            'advisor_ids.*' => 'integer|exists:users,id',
+            'nombre' => 'required|string|max:80|unique:equipos,nombre' . ($equipo ? ',' . $equipo->id : ''),
+            'miembros' => 'present|array',
+            'miembros.*' => 'integer',
+        ], [
+            'nombre.required' => 'Escribe el nombre del equipo.',
+            'nombre.unique' => 'Ya hay un equipo con ese nombre.',
         ]);
 
-        // Desactivar todos los asesores primero
-        User::where('role', 'advisor')->update(['is_on_duty' => false]);
+        $afectadas = [];
+        DB::transaction(function () use ($validated, &$equipo, &$afectadas) {
+            $equipo = $equipo ?? new Equipo();
+            $equipo->nombre = trim($validated['nombre']);
+            $equipo->save();
 
-        // Activar solo los seleccionados
-        if (!empty($validated['advisor_ids'])) {
-            User::whereIn('id', $validated['advisor_ids'])
-                ->where('role', 'advisor')
-                ->update(['is_on_duty' => true]);
-        }
+            // Solo asesores (los administradores ven todo y no van en equipos).
+            $nuevos = User::whereIn('id', $validated['miembros'])->where('role', 'advisor')->pluck('id')->all();
+            $antes = User::where('equipo_id', $equipo->id)->pluck('id')->all();
+
+            $salen = array_values(array_diff($antes, $nuevos));
+            if ($salen) {
+                $sueltas = Conversation::where('equipo_id', $equipo->id)->whereIn('assigned_to', $salen)->pluck('id')->all();
+                if ($sueltas) {
+                    Conversation::whereIn('id', $sueltas)->update(['assigned_to' => null, 'assigned_at' => null]);
+                    array_push($afectadas, ...$sueltas);
+                }
+                User::whereIn('id', $salen)->update(['equipo_id' => null]);
+            }
+
+            $entran = array_values(array_diff($nuevos, $antes));
+            foreach ($entran as $id) {
+                // Sus chats abiertos de la línea general (o de otro equipo) vuelven a su bandeja, sin asignar.
+                $devueltos = Conversation::where('assigned_to', $id)
+                    ->where(fn ($q) => $q->whereNull('equipo_id')->orWhere('equipo_id', '!=', $equipo->id))
+                    ->whereIn('status', \App\Services\InactiveConversationReleaser::OPEN_STATUSES)
+                    ->pluck('id');
+                if ($devueltos->isNotEmpty()) {
+                    Conversation::whereIn('id', $devueltos)->update(['assigned_to' => null, 'assigned_at' => null]);
+                    array_push($afectadas, ...$devueltos->all());
+                    foreach ($devueltos as $cid) {
+                        ConversationActivity::log((int) $cid, 'unassigned', auth()->id(), ['reason' => 'equipo', 'equipo' => $equipo->nombre, 'released_from_id' => $id]);
+                    }
+                }
+                // El turno es de la línea general: en un equipo no aplica (y así el bot tampoco lo cuenta).
+                User::whereKey($id)->update(['equipo_id' => $equipo->id, 'is_on_duty' => false]);
+            }
+        });
+        // Las pantallas abiertas sueltan (o recogen) esos chats sin esperar a recargar.
+        \App\Support\TiempoReal::conversacion('conversacion', $afectadas);
+        \App\Support\TiempoReal::paraTodos('conversacion');
+
+        return redirect()->back()->with('success', 'Equipo guardado.');
+    }
+
+    /** Eliminar un equipo: sus chats vuelven a la línea general (sin asignar) y sus miembros, también. */
+    public function eliminarEquipo(Equipo $equipo)
+    {
+        $afectadas = [];
+        DB::transaction(function () use ($equipo, &$afectadas) {
+            $afectadas = Conversation::where('equipo_id', $equipo->id)->pluck('id')->all();
+            Conversation::where('equipo_id', $equipo->id)->update(['equipo_id' => null, 'assigned_to' => null, 'assigned_at' => null]);
+            User::where('equipo_id', $equipo->id)->update(['equipo_id' => null]);
+            // Sus envíos masivos pasan a la línea general, como sus chats (y uno en curso ya no mueve chats).
+            \App\Models\BulkSend::where('equipo_id', $equipo->id)->update(['equipo_id' => null]);
+            $equipo->delete();
+        });
+        \App\Support\TiempoReal::conversacion('conversacion', $afectadas);
+        \App\Support\TiempoReal::paraTodos('conversacion');
+
+        return redirect()->back()->with('success', 'Equipo eliminado: sus chats volvieron a la línea general.');
+    }
+
+    public function updateOnDutyAdvisors(Request $request)
+    {
+        // Sin exists: un asesor borrado con la página abierta no debe tumbar todo el guardado; el
+        // whereIn de abajo ya ignora los que no son asesores.
+        $validated = $request->validate([
+            'advisor_ids' => 'present|array',
+            'advisor_ids.*' => 'integer',
+        ]);
+
+        // En una transacción: nunca queda un instante sin nadie de turno a la vista de un paciente.
+        DB::transaction(function () use ($validated) {
+            User::where('role', 'advisor')->update(['is_on_duty' => false]);
+
+            if (! empty($validated['advisor_ids'])) {
+                User::whereIn('id', $validated['advisor_ids'])
+                    ->where('role', 'advisor')
+                    ->whereNull('equipo_id') // el turno es de la línea general: un equipo recibe siempre los suyos
+                    ->update(['is_on_duty' => true]);
+            }
+        });
 
         return redirect()->back()->with('success', 'Asesores de turno actualizados exitosamente.');
     }

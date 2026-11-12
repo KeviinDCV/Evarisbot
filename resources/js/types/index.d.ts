@@ -27,6 +27,8 @@ export interface SharedData {
     quote: { message: string; author: string };
     auth: Auth;
     sidebarOpen: boolean;
+    /** Alertas de la vigilancia del webhook (solo llegan a administradores). Código => mensaje. */
+    alertasSeguridad?: Record<string, string> | unknown[];
     [key: string]: unknown;
 }
 

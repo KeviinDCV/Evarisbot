@@ -101,7 +101,7 @@ Plantillas de mensajes aprobadas por WhatsApp para iniciar conversaciones (HSM -
 ### 3.1 Recepción de Mensajes (Webhook)
 El archivo `routes/web.php` o `api.php` define la ruta POST `/webhook/whatsapp`.
 1.  **Manejo:** `App\Http\Controllers\WebhookController`.
-2.  **Validación:** Se verifica la firma SHA256 (`X-Hub-Signature`).
+2.  **Validación:** firma `X-Hub-Signature-256` con el App Secret (middleware `VerifyMetaSignature`, ruta en `routes/webhook.php`). Solo se comprueba cuando el App Secret está guardado (`php artisan whatsapp:firma --guardar`); empieza en modo "observar" y se pasa a "exigir" con `php artisan whatsapp:firma --exigir`.
 3.  **Procesamiento:**
     -   Se busca o crea la `Conversation` basada en el teléfono.
     -   Se guarda el `Message` en base de datos.

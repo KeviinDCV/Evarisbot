@@ -68,6 +68,7 @@ class TagController extends Controller
      */
     public function attach(Request $request, Conversation $conversation)
     {
+        abort_unless($conversation->mismoEquipoQue(auth()->user()), 403, 'No tienes permiso para esta conversación.');
         $validated = $request->validate([
             'tag_id' => 'required|exists:tags,id',
         ]);
@@ -84,6 +85,7 @@ class TagController extends Controller
      */
     public function detach(Conversation $conversation, Tag $tag)
     {
+        abort_unless($conversation->mismoEquipoQue(auth()->user()), 403, 'No tienes permiso para esta conversación.');
         $conversation->tags()->detach($tag->id);
 
         return response()->json(
@@ -96,6 +98,7 @@ class TagController extends Controller
      */
     public function conversationTags(Conversation $conversation)
     {
+        abort_unless($conversation->mismoEquipoQue(auth()->user()), 403, 'No tienes permiso para esta conversación.');
         return response()->json(
             $conversation->tags()->get()
         );

@@ -1,0 +1,61 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Actual",
+      "x": 0,
+      "y": 0,
+      "w": 380,
+      "h": 620
+    },
+    {
+      "file": "Etiquetas.dc.html",
+      "title": "Variante A — Etiquetas en línea propia",
+      "x": 460,
+      "y": 0,
+      "w": 380,
+      "h": 620
+    },
+    {
+      "file": "Compacta.dc.html",
+      "title": "Variante B — Etiqueta junto al nombre",
+      "x": 920,
+      "y": 0,
+      "w": 380,
+      "h": 620
+    }
+  ],
+  "annotations": [
+    {
+      "id": "nota-actual",
+      "x": 0,
+      "y": -150,
+      "w": 380,
+      "text": "ACTUAL\n\nCada fila gasta una linea entera en «● Activa». Como la lista ya filtra las resueltas, ese texto se repite en casi todas: ocupa sitio sin informar.\n\nY las etiquetas del paciente solo se ven abriendo el chat."
+    },
+    {
+      "id": "nota-a",
+      "x": 460,
+      "y": -150,
+      "w": 380,
+      "text": "VARIANTE A  ←  la elegida\n\nLas etiquetas ocupan el sitio de la antigua linea de estado.\nCoste de altura: CERO.\n\nY el estado solo aparece cuando NO es \"Activa\": Pendiente, Agendada, Resuelta o Bloqueada. Si esta activa — que es casi siempre — no se dice nada.\n\nMira la fila 4 (Agendada), la 6 (Pendiente) y la 7 (Resuelta): ahi si aporta."
+    },
+    {
+      "id": "nota-b",
+      "x": 920,
+      "y": -150,
+      "w": 380,
+      "text": "VARIANTE B — junto al nombre\n\nSolo la etiqueta principal, abreviada, y el resto como +N. Franja de color en el borde izquierdo.\n\nGana una línea más, pero pierde legibilidad: ASMET SALUD queda en ASMET."
+    },
+    {
+      "id": "nota-base",
+      "x": 0,
+      "y": 660,
+      "w": 800,
+      "text": "Todo sale del código real: Instrument Sans, avatar 48 px con degradado #4e5fa4 → #3e4f94, nombre 15 px bold #1a1c1c, hora 11 px #767681, divisor #ececf3 desplazado tras el avatar, hover #f5f6fa, contador #2e3f84.\n\nEl indicador de estado no desaparece del sistema: sigue en la cabecera del chat abierto y en los filtros, que es donde sí distingue una conversación de otra."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

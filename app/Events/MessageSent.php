@@ -9,7 +9,7 @@ use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 
-class MessageSent implements ShouldBroadcastNow
+class MessageSent
 {
     use Dispatchable, InteractsWithSockets;
 
@@ -36,11 +36,13 @@ class MessageSent implements ShouldBroadcastNow
     /**
      * Get the channels the event should broadcast on.
      */
+    /**
+     * Ya no se difunde (no implementa ShouldBroadcast; los avisos van por App\Support\TiempoReal). Si alguien lo
+     * reactivara, saldría por el canal PRIVADO del personal y sin datos: nunca texto de pacientes por un canal público.
+     */
     public function broadcastOn(): array
     {
-        return [
-            new Channel('conversations'),
-        ];
+        return [new \Illuminate\Broadcasting\PrivateChannel('conversaciones')];
     }
 
     /**
@@ -56,12 +58,6 @@ class MessageSent implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
-        return [
-            'message_id' => $this->messageId,
-            'conversation_id' => $this->conversationId,
-            'content' => $this->content,
-            'is_from_user' => $this->isFromUser,
-            'sent_by' => $this->sentBy,
-        ];
+        return [];
     }
 }
