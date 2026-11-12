@@ -1,9 +1,9 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { AnimatePresence, motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { IconoAnimado } from '@/components/icono-animado';
 import {
     Dialog,
     DialogClose,
@@ -311,30 +311,6 @@ function InterruptorEnvio({
                 {activo && <Check className="size-2.5" strokeWidth={3.5} />}
             </span>
         </button>
-    );
-}
-
-/**
- * Ícono que aparece, desaparece o cambia (ver ↔ ocultar, girador al guardar) con escala, opacidad y desenfoque en
- * vez de saltar. `clave` null = sin ícono. Con «reducir movimiento» del sistema no se anima (MotionConfig en app.tsx).
- */
-function IconoAnimado({ clave, children }: { clave: string | null; children?: ReactNode }) {
-    return (
-        <AnimatePresence mode="popLayout" initial={false}>
-            {clave !== null && (
-                <motion.span
-                    key={clave}
-                    className="flex shrink-0"
-                    initial={{ opacity: 0, scale: 0.25, filter: 'blur(4px)' }}
-                    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                    exit={{ opacity: 0, scale: 0.25, filter: 'blur(4px)' }}
-                    transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-                    aria-hidden="true"
-                >
-                    {children}
-                </motion.span>
-            )}
-        </AnimatePresence>
     );
 }
 

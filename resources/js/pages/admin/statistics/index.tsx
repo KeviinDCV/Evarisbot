@@ -1,6 +1,7 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { IconoAnimado } from '@/components/icono-animado';
 import i18n from '@/i18n';
 import { iniciales, nombrePropio } from '@/lib/nombres';
 import { plano } from '@/lib/texto';
@@ -1033,7 +1034,7 @@ function ThOrden({
                 className={cn(
                     // Sin max-w-full: el botón puede ocupar el relleno de la celda, así «Resueltas» o «Agendadas» no se cortan.
                     '-mx-1 inline-flex cursor-pointer items-center gap-1 rounded px-1 text-[11px] leading-4 font-semibold tracking-[0.07em] whitespace-nowrap uppercase transition-colors hover:text-[#2e3f84] dark:hover:text-neutral-100',
-                    'relative pointer-coarse:after:absolute pointer-coarse:after:-inset-x-1 pointer-coarse:after:-inset-y-[14px]',
+                    'relative after:absolute after:-inset-x-1 after:-inset-y-[10px] pointer-coarse:after:-inset-y-[14px]',
                     derecha && 'flex-row-reverse',
                     activo ? TEXTO_NAVY : TEXTO_SUAVE,
                     FOCO
@@ -1795,11 +1796,13 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                     aria-busy={isExporting || undefined}
                                     className="h-9 shrink-0 gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold settings-btn-primary disabled:opacity-50 has-[>svg]:pr-4 has-[>svg]:pl-3.5 pointer-coarse:h-11"
                                 >
-                                    {isExporting ? (
-                                        <Loader2 className="size-[15px] animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" />
-                                    ) : (
-                                        <FileSpreadsheet className="size-[15px]" strokeWidth={2} aria-hidden="true" />
-                                    )}
+                                    <IconoAnimado clave={isExporting ? 'girando' : 'listo'}>
+                                        {isExporting ? (
+                                            <Loader2 className="size-[15px] animate-spin motion-reduce:animate-none" strokeWidth={2} />
+                                        ) : (
+                                            <FileSpreadsheet className="size-[15px]" strokeWidth={2} />
+                                        )}
+                                    </IconoAnimado>
                                     {isExporting ? t('statistics.exporting') : t('statistics.view.exportExcel')}
                                 </Button>
                             </div>
@@ -1884,7 +1887,13 @@ function StatisticsView({ statistics, actualizando, errorCarga, lento, onReinten
                                                 {c.valor}
                                             </span>
                                             {v && (
-                                                <span className={cn('inline-flex shrink-0 items-center gap-0.5 text-[12px] leading-4 font-semibold tabular-nums', TEXTO_SUAVE)} title={v.largo}>
+                                                <span
+                                                    className={cn(
+                                                        'inline-flex shrink-0 items-center gap-0.5 text-[12px] leading-4 font-semibold tabular-nums animate-in fade-in-0 duration-150 motion-reduce:animate-none',
+                                                        TEXTO_SUAVE
+                                                    )}
+                                                    title={v.largo}
+                                                >
                                                     <v.Icono className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden="true" />
                                                     <span aria-hidden="true">{v.corto}</span>
                                                     <span className="sr-only">{v.largo}</span>
@@ -2949,7 +2958,7 @@ function PanelAsesor({
                 </div>
                 <DialogPrimitive.Close
                     className={cn(
-                        'flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[9px] pointer-coarse:size-11 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:hover:bg-white/8 dark:hover:text-neutral-100',
+                        'relative flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-[9px] after:absolute after:-inset-1 pointer-coarse:size-11 pointer-coarse:after:inset-0 shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:hover:bg-white/8 dark:hover:text-neutral-100',
                         TEXTO_SUAVE,
                         FOCO
                     )}

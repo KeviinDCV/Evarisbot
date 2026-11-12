@@ -1,9 +1,9 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { AnimatePresence, motion } from 'framer-motion';
 import AdminLayout from '@/layouts/admin-layout';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AvisoBajoCampo, AvisoCampo } from '@/components/avisos-campo';
+import { IconoAnimado } from '@/components/icono-animado';
 import { cn } from '@/lib/utils';
 import { iniciales, nombrePropio } from '@/lib/nombres';
 import { plano } from '@/lib/texto';
@@ -522,28 +522,6 @@ function Interruptor({
             <PistaInterruptor activo={activo} />
             <span className={cn('text-[13px] leading-[18px] font-semibold', TEXTO_NAVY)}>{activo ? si : no}</span>
         </button>
-    );
-}
-
-/**
- * Ícono que cambia dentro de un botón (listo ↔ girando): entra y sale con escala, opacidad y desenfoque en vez
- * de aparecer de golpe. Con «reducir movimiento» del sistema no se anima (MotionConfig en app.tsx).
- */
-function IconoCambiante({ clave, children }: { clave: string; children: ReactNode }) {
-    return (
-        <AnimatePresence mode="popLayout" initial={false}>
-            <motion.span
-                key={clave}
-                className="flex shrink-0"
-                initial={{ opacity: 0, scale: 0.25, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 0.25, filter: 'blur(4px)' }}
-                transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-                aria-hidden="true"
-            >
-                {children}
-            </motion.span>
-        </AnimatePresence>
     );
 }
 
@@ -1119,22 +1097,22 @@ export default function SettingsIndex({ settings, advisors, equipos = [], autoRe
 
     const botonGuardar = (processing: boolean, texto: string) => (
         <>
-            <IconoCambiante clave={processing ? 'girando' : 'listo'}>
+            <IconoAnimado clave={processing ? 'girando' : 'listo'}>
                 {processing ? <Loader2 className="size-[15px] animate-spin motion-reduce:animate-none" /> : <Check className="size-[15px]" strokeWidth={2} />}
-            </IconoCambiante>
+            </IconoAnimado>
             {processing ? t('common.saving') : texto}
         </>
     );
 
     const botonComprobar = (comprobando: boolean, texto: string, onClick: () => void) => (
         <button type="button" onClick={onClick} disabled={comprobando} aria-busy={comprobando} className={BOTON_SECUNDARIO}>
-            <IconoCambiante clave={comprobando ? 'girando' : 'listo'}>
+            <IconoAnimado clave={comprobando ? 'girando' : 'listo'}>
                 {comprobando ? (
                     <Loader2 className="size-[15px] animate-spin motion-reduce:animate-none" />
                 ) : (
                     <PlugZap className="size-[15px]" strokeWidth={2} />
                 )}
-            </IconoCambiante>
+            </IconoAnimado>
             {comprobando ? t('settings.checking') : texto}
         </button>
     );
