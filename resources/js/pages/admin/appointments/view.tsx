@@ -92,8 +92,8 @@ const limpiar = (p: Parametros) => Object.fromEntries(Object.entries(p).filter((
 const Divisor = () => <div className="hidden w-px self-stretch bg-[#2e3f84]/12 @5xl/pagina:block dark:bg-white/10" aria-hidden="true" />;
 
 // Campo de fecha: la misma caja de Configuración (borde navy al 58 %, borde real en contraste alto, rojo si no vale).
-const CAMPO_FECHA = 'caja-ajuste h-9 w-[136px] rounded-[10px] px-2.5 text-[13px] leading-[18px] font-medium tabular-nums outline-hidden dark:[color-scheme:dark]';
-const CAMPO_SELECT = 'caja-ajuste h-9 min-w-0 cursor-pointer rounded-[10px] pr-8 pl-2.5 text-[13px] leading-[18px] outline-hidden';
+const CAMPO_FECHA = 'caja-ajuste h-9 w-[136px] rounded-[10px] px-2.5 text-[13px] leading-[18px] font-medium tabular-nums outline-hidden pointer-coarse:h-11 pointer-coarse:text-[16px] dark:[color-scheme:dark]';
+const CAMPO_SELECT = 'caja-ajuste h-9 min-w-0 cursor-pointer rounded-[10px] pr-8 pl-2.5 text-[13px] leading-[18px] outline-hidden pointer-coarse:h-11 pointer-coarse:text-[16px]';
 
 /** "14 de octubre de 2026" (es) · "October 14, 2026" (en): las fechas del filtro pueden ser de otro año. */
 function fechaConAnio(ymd: string, lng: string) {
@@ -504,7 +504,7 @@ export default function AppointmentsView({
                                     onClick={handleClearDates}
                                     disabled={!dateFrom && !dateTo}
                                     className={cn(
-                                        'flex h-8 cursor-pointer items-center gap-[5px] rounded-lg px-2 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors hover:bg-[#2e3f84]/6 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent dark:hover:bg-white/8',
+                                        'flex h-8 cursor-pointer items-center gap-[5px] rounded-lg px-2 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors pointer-coarse:h-11 hover:bg-[#2e3f84]/6 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent dark:hover:bg-white/8',
                                         TEXTO_NAVY,
                                         FOCO
                                     )}
@@ -561,7 +561,7 @@ export default function AppointmentsView({
                                         onClick={() => handleSort(campo)}
                                         title={campo === 'id' ? t('appointments.sortByLoadOrder') : t('appointments.sortBy', { column: etiqueta.toLocaleLowerCase(lng) })}
                                         className={cn(
-                                            '-mx-1.5 flex h-7 min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-[#2e3f84]/6 dark:hover:bg-white/8',
+                                            'relative -mx-1.5 flex h-7 min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 transition-colors pointer-coarse:after:absolute pointer-coarse:after:-inset-y-2 pointer-coarse:after:inset-x-0 hover:bg-[#2e3f84]/6 dark:hover:bg-white/8',
                                             campo === 'id' && 'justify-end',
                                             FOCO
                                         )}
@@ -642,7 +642,7 @@ export default function AppointmentsView({
                                             onClick={() => irAPagina(appointments.current_page - 1)}
                                             disabled={appointments.current_page <= 1}
                                             title={appointments.current_page <= 1 ? t('appointments.noPreviousPage') : undefined}
-                                            className={cn(BOTON_SECUNDARIO, 'h-[34px] pr-3 pl-[9px] disabled:opacity-45')}
+                                            className={cn(BOTON_SECUNDARIO, 'h-[34px] pr-3 pl-[9px] disabled:opacity-45 pointer-coarse:h-11')}
                                         >
                                             <ChevronLeft strokeWidth={2} aria-hidden="true" />
                                             {t('common.previous')}
@@ -651,7 +651,7 @@ export default function AppointmentsView({
                                             type="button"
                                             onClick={() => irAPagina(appointments.current_page + 1)}
                                             disabled={appointments.current_page >= appointments.last_page}
-                                            className={cn(BOTON_SECUNDARIO, 'h-[34px] pr-[9px] pl-3 disabled:opacity-45')}
+                                            className={cn(BOTON_SECUNDARIO, 'h-[34px] pr-[9px] pl-3 disabled:opacity-45 pointer-coarse:h-11')}
                                         >
                                             {t('common.next')}
                                             <ChevronRight strokeWidth={2} aria-hidden="true" />

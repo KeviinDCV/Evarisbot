@@ -291,13 +291,13 @@ function Banda({
             <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-[3px]">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     {/* tabIndex -1: tras enviar o detener, el foco vuelve aquí (el botón que abrió el diálogo ya no está o está apagado). */}
-                    <h2 id={id} tabIndex={-1} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em] focus-visible:outline-hidden', TEXTO_NAVY)}>
+                    <h2 id={id} tabIndex={-1} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em] text-balance focus-visible:outline-hidden', TEXTO_NAVY)}>
                         {titulo}
                     </h2>
                     {estado}
                 </div>
-                {/* Hasta dos líneas; si aún no cabe, el texto completo queda en el title. */}
-                <p title={texto} className={cn('text-[12.5px] leading-4 @3xl/hoja:line-clamp-2', TEXTO_SUAVE)}>
+                {/* Hasta tres líneas; si aún no cabe, el texto completo queda en el title. */}
+                <p title={texto} className={cn('text-[12.5px] leading-[18px] text-pretty @3xl/hoja:line-clamp-3', TEXTO_SUAVE)}>
                     {texto}
                 </p>
             </div>
@@ -1313,8 +1313,8 @@ export default function AppointmentsIndex({
                                                   ? t('appointments.metricNoMobile', { value: miles(stats.objetivo.sin_celular, lng) })
                                                   : ''
                                         }
-                                        puntoDetalle={mananaVisible ? 'bg-amber-600 dark:bg-amber-400' : undefined}
-                                        tonoDetalle={mananaVisible ? 'font-medium text-amber-700 dark:text-amber-400' : undefined}
+                                        puntoDetalle={mananaVisible && stats.manana.por_enviar > 0 ? 'bg-amber-600 dark:bg-amber-400' : undefined}
+                                        tonoDetalle={mananaVisible && stats.manana.por_enviar > 0 ? 'font-medium text-amber-800 dark:text-amber-400' : undefined}
                                     />
                                     <Divisor />
                                     <Cifra
@@ -1450,18 +1450,18 @@ export default function AppointmentsIndex({
                                         className="mt-3.5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-[#2e3f84]/8 forced-colors:border dark:bg-white/10"
                                     >
                                         <div
-                                            className="h-full bg-emerald-600 transition-[width] duration-500 ease-out forced-color-adjust-none forced-colors:bg-[Highlight] dark:bg-emerald-500"
+                                            className="h-full bg-emerald-600 transition-[width] duration-500 ease-out motion-reduce:transition-none forced-color-adjust-none forced-colors:bg-[Highlight] dark:bg-emerald-500"
                                             style={{ width: `${Math.min((barra.sent / barra.total) * 100, 100)}%` }}
                                         />
                                         {barra.failed > 0 && (
                                             <div
-                                                className="h-full min-w-[3px] bg-red-600 transition-[width] duration-500 ease-out forced-color-adjust-none forced-colors:bg-[CanvasText] dark:bg-red-500"
+                                                className="h-full min-w-[3px] bg-red-600 transition-[width] duration-500 ease-out motion-reduce:transition-none forced-color-adjust-none forced-colors:bg-[CanvasText] dark:bg-red-500"
                                                 style={{ width: `${Math.min((barra.failed / barra.total) * 100, 100)}%` }}
                                             />
                                         )}
                                         {barra.skipped > 0 && (
                                             <div
-                                                className="h-full min-w-[3px] bg-slate-400 transition-[width] duration-500 ease-out forced-color-adjust-none forced-colors:bg-[GrayText] dark:bg-neutral-500"
+                                                className="h-full min-w-[3px] bg-slate-400 transition-[width] duration-500 ease-out motion-reduce:transition-none forced-color-adjust-none forced-colors:bg-[GrayText] dark:bg-neutral-500"
                                                 style={{ width: `${Math.min((barra.skipped / barra.total) * 100, 100)}%` }}
                                             />
                                         )}
@@ -1537,7 +1537,7 @@ export default function AppointmentsIndex({
                                         {!data.file ? (
                                             <label
                                                 htmlFor="appointment-file-upload"
-                                                className="flex min-h-[136px] cursor-pointer flex-wrap items-center gap-x-[18px] gap-y-4 rounded-xl px-5 py-5 has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-[#2e3f84]/40 @3xl/hoja:flex-nowrap @3xl/hoja:px-6 dark:has-[input:focus-visible]:ring-[#8b9ae0]/60"
+                                                className="flex min-h-[136px] cursor-pointer flex-wrap items-center gap-x-[18px] gap-y-4 rounded-xl px-5 py-5 has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-[#2e3f84] @3xl/hoja:flex-nowrap @3xl/hoja:px-6 dark:has-[input:focus-visible]:outline-[#53bdeb]"
                                             >
                                                 <input
                                                     ref={campoArchivo}
@@ -1627,7 +1627,7 @@ export default function AppointmentsIndex({
                                                 <dt className={cn('flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12.5px] leading-[17px] font-semibold tracking-[0.01em]', TEXTO_NAVY)}>
                                                     <span className={MONO}>{columna}</span>
                                                     {obligatoria && (
-                                                        <span className="rounded-[5px] bg-[#2e3f84]/8 px-1.5 text-[10.5px] leading-4 font-semibold tracking-[0.02em] forced-colors:border dark:bg-white/10 dark:text-neutral-200">
+                                                        <span className="rounded-[5px] bg-[#2e3f84]/8 px-1.5 text-[11px] leading-4 font-semibold tracking-[0.02em] forced-colors:border dark:bg-white/10 dark:text-neutral-200">
                                                             {t('appointments.columnRequired')}
                                                         </span>
                                                     )}
@@ -1749,7 +1749,7 @@ export default function AppointmentsIndex({
                                             <Link
                                                 href={`${routePrefix}/view`}
                                                 className={cn(
-                                                    'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[13px] leading-[18px] font-semibold transition-colors hover:bg-[#2e3f84]/6 dark:hover:bg-white/8',
+                                                    'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[13px] leading-[18px] font-semibold transition-colors pointer-coarse:h-11 hover:bg-[#2e3f84]/6 dark:hover:bg-white/8',
                                                     TEXTO_NAVY,
                                                     FOCO
                                                 )}

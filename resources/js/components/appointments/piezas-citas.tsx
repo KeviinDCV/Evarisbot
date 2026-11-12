@@ -16,9 +16,9 @@ export const FILETE = 'border-[#2e3f84]/8 dark:border-white/8';
 export const TEXTO_NAVY = 'text-[#2e3f84] dark:text-neutral-100';
 // En oscuro el muted-foreground no llega a 4,5:1 sobre la banda tintada: sube a neutral-400.
 export const TEXTO_SUAVE = 'text-muted-foreground dark:text-neutral-400';
-// outline-hidden (no outline-none): con el contraste alto de Windows el anillo (una sombra) desaparece
-// y el contorno transparente sí se pinta. Igual que Configuración y Estadísticas.
-export const FOCO = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2e3f84]/40 dark:focus-visible:ring-[#8b9ae0]/60';
+// Contorno global de app.css (2 px navy; #53bdeb en oscuro), como Usuarios, Configuración y Estadísticas: el anillo
+// navy al 40 % daba ~2,1:1 (menos de 3:1). Al ser un contorno, también se pinta con el contraste alto de Windows.
+export const FOCO = 'focus-visible:outline-offset-2';
 export const MONO = "[font-family:ui-monospace,'Cascadia_Mono','SF_Mono',Consolas,monospace]";
 export const BANDA = 'bg-[#2e3f84]/[0.028] dark:bg-white/[0.03]';
 export const HOJA =
@@ -28,7 +28,8 @@ export const HOJA =
 const BOTON_BASE = cn(
     'inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-[10px] pr-4 pl-3.5 text-[13px] leading-[18px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed [&_svg]:size-[15px] [&_svg]:shrink-0',
     FOCO,
-    'focus-visible:ring-offset-2 focus-visible:ring-offset-card'
+    // Con el dedo, 44 px de alto (con ratón siguen en 36).
+    'pointer-coarse:h-11'
 );
 export const BOTON_PRIMARIO = cn(
     BOTON_BASE,
@@ -327,7 +328,7 @@ export function FilaCita({ cita, indice, conCedula = false }: { cita: CitaFila; 
         <span className="flex min-w-0 items-center gap-1.5 text-[12px] leading-4 text-muted-foreground tabular-nums dark:text-neutral-400">
             {conCedula && cita.citide ? (
                 <>
-                    <span className="truncate">
+                    <span className="truncate" title={`${tipoDocumento} ${cita.citide}`}>
                         {tipoDocumento} {cita.citide}
                     </span>
                     <span aria-hidden="true">·</span>
@@ -335,11 +336,13 @@ export function FilaCita({ cita, indice, conCedula = false }: { cita: CitaFila; 
             ) : (
                 <Phone className="size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
             )}
-            <span className="truncate">{cita.pactel || (cita.pactel2 ? '' : '-')}</span>
+            <span className="truncate" title={cita.pactel || undefined}>
+                {cita.pactel || (cita.pactel2 ? '' : '-')}
+            </span>
             {cita.pactel2 && (
                 <>
                     {cita.pactel && <span aria-hidden="true">·</span>}
-                    <span className="truncate" title={t('appointments.phone2')}>
+                    <span className="truncate" title={`${t('appointments.phone2')}: ${cita.pactel2}`}>
                         <span className="sr-only">{t('appointments.phone2')}: </span>
                         {cita.pactel2}
                     </span>
@@ -451,7 +454,7 @@ export function Buscador({
                 onChange={(event) => onChange(event.target.value)}
                 placeholder={placeholder}
                 className={cn(
-                    'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground forced-colors:border dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                    'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-9 pl-[38px] text-[13px] leading-[18px] text-foreground pointer-coarse:h-11 pointer-coarse:pr-12 pointer-coarse:text-[16px] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground forced-colors:border dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
                     FOCO
                 )}
             />
@@ -463,7 +466,7 @@ export function Buscador({
                         campo.current?.focus();
                     }}
                     className={cn(
-                        'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100',
+                        'absolute top-1/2 right-2 flex size-6 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-muted-foreground pointer-coarse:right-1 pointer-coarse:size-9 transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/10 dark:hover:text-neutral-100',
                         FOCO
                     )}
                     aria-label={t('common.clearSearch')}
