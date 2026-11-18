@@ -12,14 +12,14 @@ import { useTranslation } from 'react-i18next';
 
 // Campo editable. Borde navy al 58 % (#868fb7): 3,1:1 contra la hoja (WCAG 1.4.11).
 export const CAMPO = cn(
-    'h-[38px] w-full min-w-0 rounded-[9px] bg-white px-3 text-[13px] leading-[18px] font-medium text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none placeholder:font-normal placeholder:text-muted-foreground',
+    'h-[38px] w-full min-w-0 rounded-[9px] bg-white px-3 text-[13px] leading-[18px] pointer-coarse:h-11 pointer-coarse:text-[16px] font-medium text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none placeholder:font-normal placeholder:text-muted-foreground',
     'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)] disabled:cursor-not-allowed disabled:opacity-60',
     'aria-[invalid=true]:shadow-[inset_0_0_0_1px_var(--color-red-600),0_0_0_3px_rgba(220,38,38,0.14)]',
     'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)] dark:placeholder:text-neutral-400 dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]',
     'dark:aria-[invalid=true]:shadow-[inset_0_0_0_1px_var(--color-red-400),0_0_0_3px_rgba(248,113,113,0.2)]'
 );
 // Área de texto: la misma piel, con alto propio y texto de párrafo.
-export const AREA = cn(CAMPO, 'h-auto resize-y py-2.5 leading-5 font-normal');
+export const AREA = cn(CAMPO, 'h-auto resize-y py-2.5 leading-5 font-normal pointer-coarse:h-auto');
 // El disparador del desplegable (Radix Select) con la misma piel que el campo.
 export const DISPARADOR = cn(
     CAMPO,
@@ -36,13 +36,15 @@ export const ETIQUETA = cn('text-[12.5px] leading-4 font-semibold', TEXTO_NAVY);
 export const AYUDA = cn('text-[12px] leading-4', TEXTO_SUAVE);
 export const ERROR_CAMPO = 'text-[12px] leading-4 font-medium text-red-700 dark:text-red-400';
 export const BOTON_TEXTO = cn(
-    'inline-flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0',
+    'relative inline-flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0',
+    'after:absolute after:inset-x-0 after:-inset-y-[5px] pointer-coarse:after:-inset-y-[7px]',
     FOCO
 );
 export const BOTON_TEXTO_NAVY = cn(BOTON_TEXTO, TEXTO_NAVY, 'hover:bg-[#2e3f84]/7 dark:hover:bg-white/8');
 export const BOTON_TEXTO_ROJO = cn(BOTON_TEXTO, 'text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10');
 export const BOTON_ICONO = cn(
-    'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+    'relative flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+    'after:absolute after:-inset-[5px] pointer-coarse:after:-inset-[7px]',
     FOCO
 );
 
@@ -107,7 +109,7 @@ export function Interruptor({ on, className }: { on: boolean; className?: string
                 className
             )}
         >
-            <span className={cn('block size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform', on ? 'translate-x-[21px]' : 'translate-x-[3px]')} />
+            <span className={cn('block size-4 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform motion-reduce:transition-none', on ? 'translate-x-[21px]' : 'translate-x-[3px]')} />
         </span>
     );
 }
@@ -160,7 +162,7 @@ function AdjuntoEnBurbuja({ adjunto, suelto = false }: { adjunto: AdjuntoVista; 
         return (
             <div
                 className={cn(
-                    'relative flex h-28 items-center justify-center overflow-hidden rounded-[7px] bg-gradient-to-br from-[#dbe3ee] to-[#c9d4e3] text-slate-500 dark:from-[#2a3942] dark:to-[#1f2c33] dark:text-neutral-400',
+                    'relative flex h-28 items-center justify-center overflow-hidden rounded-[7px] outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10 bg-gradient-to-br from-[#dbe3ee] to-[#c9d4e3] text-slate-500 dark:from-[#2a3942] dark:to-[#1f2c33] dark:text-neutral-400',
                     suelto ? '' : '-mx-[5px] -mt-[3px] mb-1.5'
                 )}
             >
@@ -316,8 +318,8 @@ export function DialogoPlantilla({
                             <Icono className="size-[18px]" strokeWidth={2} aria-hidden="true" />
                         </span>
                         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <DialogPrimitive.Title className={cn('text-[16.5px] leading-[22px] font-semibold tracking-[-0.01em] [overflow-wrap:anywhere]', TEXTO_NAVY)}>{titulo}</DialogPrimitive.Title>
-                            {sub && <DialogPrimitive.Description className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{sub}</DialogPrimitive.Description>}
+                            <DialogPrimitive.Title className={cn('text-[16.5px] leading-[22px] font-semibold tracking-[-0.01em] text-balance [overflow-wrap:anywhere]', TEXTO_NAVY)}>{titulo}</DialogPrimitive.Title>
+                            {sub && <DialogPrimitive.Description className={cn('text-[12.5px] leading-4 text-pretty', TEXTO_SUAVE)}>{sub}</DialogPrimitive.Description>}
                         </div>
                         {cerrarConX && (
                             <DialogPrimitive.Close asChild>

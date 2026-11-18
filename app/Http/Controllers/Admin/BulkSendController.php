@@ -9,11 +9,13 @@ use App\Models\BulkSendRecipient;
 use App\Models\Conversation;
 use App\Models\WhatsappTemplate;
 use App\Models\Setting;
+use App\Support\LibroExcel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -237,6 +239,204 @@ class BulkSendController extends Controller
             ],
             'recipients' => $recipients,
         ]);
+    }
+
+    /** Nombres del resultado de cada destinatario y del estado del envío: los mismos de la pantalla. */
+    private const RESULTADOS = ['sent' => 'Enviado', 'failed' => 'Fallido', 'pending' => 'Pendiente'];
+
+    private const ESTADOS_ENVIO = [
+        'completed' => 'Completado', 'processing' => 'Enviando', 'cancelled' => 'Cancelado',
+        'failed' => 'Fallido', 'draft' => 'Borrador', 'pending' => 'Pendiente',
+    ];
+
+    /**
+     * Excel con TODOS los envíos masivos que la persona puede ver (los de su bandeja), una fila por destinatario: el
+     * envío, la plantilla, quién lo creó, el resultado, el motivo del error, la hora y los datos del Excel original.
+     */
+    public function exportar(Request $request)
+    {
+        $envios = BulkSend::query();
+        $this->alcanceEnvios($envios);
+        $archivo = 'envios_masivos_'.now('America/Bogota')->format('Y-m-d_Hi').'.xlsx';
+
+        return $this->descargarDestinatarios($request, $envios->pluck('id')->all(), $archivo, null);
+    }
+
+    /**
+     * Excel de un envío: cada destinatario con su resultado, el motivo del error, la hora y cada columna del Excel
+     * original en su propia columna (en el de todos los envíos van juntas en una celda: cada Excel trae las suyas).
+     */
+    public function exportarEnvio(Request $request, BulkSend $bulkSend)
+    {
+        abort_unless($this->envioVisible($bulkSend), 403);
+        $base = Str::slug(Str::limit((string) ($bulkSend->name ?: $bulkSend->template_name), 50, ''), '_');
+        $archivo = 'envio_masivo_'.$bulkSend->id.($base !== '' ? '_'.$base : '').'.xlsx';
+
+        return $this->descargarDestinatarios($request, [$bulkSend->id], $archivo, $bulkSend);
+    }
+
+    /** El motivo guardado, legible: sin el «?» de una codificación vieja ni el mensaje interno de la cola. */
+    private static function motivoLegible(?string $error): ?string
+    {
+        if ($error === null || trim($error) === '') {
+            return null;
+        }
+        if (str_contains($error, 'attempted too many times')) {
+            return 'No alcanzó a enviarse: se agotaron los intentos del envío.';
+        }
+
+        return str_replace('Env?o', 'Envío', $error);
+    }
+
+    private static function textoCelda(mixed $valor): string
+    {
+        if (is_array($valor) || is_object($valor)) {
+            return (string) json_encode($valor, JSON_UNESCAPED_UNICODE);
+        }
+        if (is_bool($valor)) {
+            return $valor ? 'sí' : 'no';
+        }
+
+        return trim((string) $valor);
+    }
+
+    /**
+     * Arma y descarga el Excel con LibroExcel (fila por fila a disco: ~107.000 destinatarios no caben en memoria con
+     * PhpSpreadsheet). $uno = el envío cuando es uno solo: sin las columnas del envío (serían iguales en todas las
+     * filas) y con cada columna del Excel original aparte. Solo lee: no cambia nada de los envíos.
+     */
+    private function descargarDestinatarios(Request $request, array $ids, string $archivo, ?BulkSend $uno)
+    {
+        set_time_limit(600);
+        $inicio = microtime(true);
+
+        if (BulkSendRecipient::whereIn('bulk_send_id', $ids)->count() > LibroExcel::MAX_FILAS - 1) {
+            return redirect()->back()->with('error', 'Son más destinatarios de los que caben en una hoja de Excel.');
+        }
+
+        $envios = BulkSend::with('creator:id,name')->whereIn('id', $ids)->get()->keyBy('id');
+
+        // Sin nombre guardado: el del chat, como en el detalle del envío.
+        $sinNombre = DB::table('bulk_send_recipients')->whereIn('bulk_send_id', $ids)
+            ->where(fn ($w) => $w->whereNull('contact_name')->orWhere('contact_name', ''))
+            ->distinct()->pluck('phone_number');
+        $nombresChat = [];
+        foreach ($sinNombre->chunk(1000) as $tanda) {
+            $nombresChat += Conversation::whereIn('phone_number', $tanda->values()->all())
+                ->whereNotNull('contact_name')->where('contact_name', '!=', '')
+                ->pluck('contact_name', 'phone_number')->all();
+        }
+
+        // Columnas del Excel original (solo en el de un envío), en el orden en que venían.
+        $claves = [];
+        if ($uno) {
+            foreach (DB::table('bulk_send_recipients')->where('bulk_send_id', $uno->id)->whereNotNull('params')->pluck('params') as $p) {
+                foreach (array_keys((array) json_decode((string) $p, true)) as $k) {
+                    $claves[(string) $k] = true;
+                }
+            }
+            $claves = array_keys($claves);
+        }
+
+        $titulos = $uno ? [] : ['Envío', 'N.º de envío', 'Fecha del envío (hora Colombia)', 'Plantilla', 'Creado por', 'Estado del envío'];
+        array_push($titulos, 'Teléfono', 'Nombre', 'Resultado', 'Motivo del error', 'Hora de envío (hora Colombia)');
+        $anchos = $uno ? [15, 30, 12, 50, 22] : [30, 11, 18, 32, 24, 15, 15, 30, 12, 50, 22];
+        if ($uno) {
+            foreach ($claves as $k) {
+                $titulos[] = $k;
+                $anchos[] = max(14, min(40, mb_strlen($k) + 4));
+            }
+        } else {
+            $titulos[] = 'Datos del Excel';
+            $anchos[] = 80;
+        }
+        $letras = [];
+        foreach ($anchos as $i => $ancho) {
+            $letras[\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i + 1)] = $ancho;
+        }
+
+        $carpeta = LibroExcel::carpeta();
+        $libro = new LibroExcel($uno ? 'Destinatarios' : 'Envíos masivos', $letras, $carpeta);
+        $libro->encabezados($titulos, '2e3f84');
+
+        $zona = config('app.timezone');
+        $filas = DB::table('bulk_send_recipients')
+            ->whereIn('bulk_send_id', $ids)
+            ->select(['id', 'bulk_send_id', 'phone_number', 'contact_name', 'params', 'status', 'error', 'sent_at'])
+            ->orderByDesc('bulk_send_id')
+            ->orderBy('id');
+        foreach ($filas->cursor() as $r) {
+            $envio = $envios[$r->bulk_send_id] ?? null;
+            $params = $r->params !== null ? (array) json_decode((string) $r->params, true) : [];
+            $fila = $uno ? [] : [
+                $envio?->name,
+                $r->bulk_send_id,
+                $envio?->created_at?->enColombia()->format('Y-m-d H:i'),
+                $envio?->template_name,
+                $envio ? ($envio->creator?->name ?? 'Sistema') : null,
+                $envio ? (self::ESTADOS_ENVIO[$envio->status] ?? $envio->status) : null,
+            ];
+            $nombre = trim((string) $r->contact_name) !== '' ? $r->contact_name : ($nombresChat[$r->phone_number] ?? null);
+            array_push(
+                $fila,
+                $r->phone_number,
+                $nombre,
+                self::RESULTADOS[$r->status] ?? $r->status,
+                self::motivoLegible($r->error),
+                $r->sent_at ? \Illuminate\Support\Carbon::parse($r->sent_at, $zona)->enColombia()->format('Y-m-d H:i:s') : null,
+            );
+            if ($uno) {
+                foreach ($claves as $k) {
+                    $fila[] = array_key_exists($k, $params) ? self::textoCelda($params[$k]) : null;
+                }
+            } else {
+                $partes = [];
+                foreach ($params as $k => $v) {
+                    $texto = self::textoCelda($v);
+                    if ($texto !== '') {
+                        $partes[] = $k.': '.$texto;
+                    }
+                }
+                $fila[] = $partes ? implode(' · ', $partes) : null;
+            }
+            $libro->fila($fila);
+        }
+
+        $libro->colorear($uno ? 'C' : 'I', [
+            'Enviado' => ['C6EFCE', '006100'],
+            'Fallido' => ['FFC7CE', '9C0006'],
+            'Pendiente' => ['FFEB9C', '9C6500'],
+        ]);
+
+        $temp = tempnam($carpeta, 'mas');
+        try {
+            $libro->guardar($temp);
+        } catch (\Throwable $e) {
+            @unlink($temp);
+            throw $e;
+        }
+
+        // Un clic saca los teléfonos y datos de muchos pacientes: queda quién lo hizo y cuántos.
+        Log::info('Envíos masivos exportados', [
+            'envios' => count($ids),
+            'envio_id' => $uno?->id,
+            'destinatarios' => $libro->filas() - 1,
+            'segundos' => round(microtime(true) - $inicio, 1),
+            'memoria_mb' => round(memory_get_peak_usage(true) / 1048576),
+            'user_id' => auth()->id(),
+        ]);
+
+        $respuesta = response()->download($temp, $archivo, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+
+        // La pantalla vigila esta cookie para saber que el archivo ya salió y quitar «Preparando…» (solo mira el nombre).
+        $marca = $request->query('descarga');
+        if (is_string($marca) && preg_match('/^[a-z0-9]{6,32}$/i', $marca)) {
+            $respuesta->headers->setCookie(cookie('masivos_export_'.$marca, '1', 5, '/', null, false, false));
+        }
+
+        return $respuesta;
     }
 
     /**

@@ -7,6 +7,8 @@ import { Edit3, Save, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useRef, useState, useEffect, FormEvent } from 'react';
 import { toast } from '@/lib/toast';
+import { IconoAnimado } from '@/components/icono-animado';
+import { Spinner } from '@/components/ui/spinner';
 
 interface User {
     id: number;
@@ -204,8 +206,10 @@ export default function TemplateEditModal({ isOpen, onClose, template, users }: 
                         <X strokeWidth={1.9} aria-hidden="true" />
                         {t('common.cancel')}
                     </button>
-                    <button type="submit" form="edit-template-form" disabled={enviando || form.processing} className={BOTON_PRIMARIO}>
-                        <Save strokeWidth={2} aria-hidden="true" />
+                    <button type="submit" form="edit-template-form" disabled={enviando || form.processing} aria-busy={enviando || form.processing || undefined} className={BOTON_PRIMARIO}>
+                        <IconoAnimado clave={enviando || form.processing ? 'girando' : 'guardar'}>
+                            {enviando || form.processing ? <Spinner className="motion-reduce:animate-none" /> : <Save strokeWidth={2} />}
+                        </IconoAnimado>
                         {enviando || form.processing ? t('common.saving') : t('common.saveChanges')}
                     </button>
                 </>

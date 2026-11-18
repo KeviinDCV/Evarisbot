@@ -1,6 +1,8 @@
 import { router, useForm } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@/lib/toast';
+import { IconoAnimado } from '@/components/icono-animado';
+import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BOTON_PELIGRO_LLENO, BOTON_PRIMARIO, BOTON_SECUNDARIO, FILETE, FOCO, HOJA, MONO, TEXTO_NAVY, TEXTO_SUAVE } from '@/components/appointments/piezas-citas';
 import { Banda, Nota, Rotulo, miles } from '@/components/bulk-sends/piezas-envio';
@@ -122,6 +124,8 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
     const [expandedFlowId, setExpandedFlowId] = useState<number | null>(() => welcomeFlows.find((flow) => flow.is_active)?.id ?? null);
     const [flowToDelete, setFlowToDelete] = useState<WelcomeFlow | null>(null);
     const seguroBorrar = useRef<HTMLButtonElement>(null);
+    // Flujo que se está encendiendo o apagando: uno a la vez (encender uno apaga los demás en el servidor).
+    const [cambiandoFlujo, setCambiandoFlujo] = useState<number | null>(null);
 
     const { data, setData, post, put, processing, errors, reset } = useForm<{
         name: string;
@@ -231,6 +235,8 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
     };
 
     const toggleFlowStatus = (flowId: number) => {
+        if (cambiandoFlujo !== null) return;
+        setCambiandoFlujo(flowId);
         router.post(
             `/admin/welcome-flows/${flowId}/toggle`,
             {},
@@ -238,6 +244,7 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                 preserveScroll: true,
                 onSuccess: () => toast.success(t('welcomeFlow.statusUpdated')),
                 onError: () => toast.error(t('welcomeFlow.statusUpdateError')),
+                onFinish: () => setCambiandoFlujo(null),
             }
         );
     };
@@ -441,8 +448,8 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             <span className={cn('flex size-10 items-center justify-center rounded-xl bg-white shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]', TEXTO_SUAVE)}>
                                 <Workflow className="size-[19px]" strokeWidth={1.9} aria-hidden="true" />
                             </span>
-                            <p className={cn('text-[13.5px] leading-[18px] font-semibold', TEXTO_NAVY)}>{t('welcomeFlow.emptyTitle')}</p>
-                            <p className={cn('max-w-lg text-[12.5px] leading-[18px]', TEXTO_SUAVE)}>{t('welcomeFlow.emptyDescription')}</p>
+                            <p className={cn('text-[13.5px] leading-[18px] font-semibold text-balance', TEXTO_NAVY)}>{t('welcomeFlow.emptyTitle')}</p>
+                            <p className={cn('max-w-lg text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>{t('welcomeFlow.emptyDescription')}</p>
                             <button type="button" onClick={openCreateModal} className={cn(BOTON_PRIMARIO, 'mt-2')}>
                                 <Plus strokeWidth={2} aria-hidden="true" />
                                 {t('welcomeFlow.createFlow')}
@@ -493,21 +500,25 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                                                 </div>
                                                 <p className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{detalle}</p>
                                             </div>
-                                            <div className="-mr-2 ml-auto flex flex-wrap items-center gap-1">
+                                            <div className="-mr-2 ml-auto flex flex-wrap items-center gap-x-1 gap-y-2.5">
                                                 <button
                                                     type="button"
                                                     role="switch"
                                                     aria-checked={flow.is_active}
                                                     aria-label={t('welcomeFlow.vista.switchLabel', { name: flow.name })}
                                                     onClick={() => toggleFlowStatus(flow.id)}
+                                                    aria-busy={cambiandoFlujo === flow.id || undefined}
+                                                    aria-disabled={cambiandoFlujo !== null || undefined}
                                                     title={tituloInterruptor}
                                                     className={cn(
-                                                        'inline-flex h-[30px] cursor-pointer items-center gap-2 rounded-lg pr-2.5 pl-1 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors hover:bg-[#2e3f84]/5 dark:hover:bg-white/5',
+                                                        'relative inline-flex h-[30px] cursor-pointer items-center gap-2 rounded-lg pr-2.5 pl-1 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors hover:bg-[#2e3f84]/5 dark:hover:bg-white/5',
+                                                        'after:absolute after:inset-x-0 after:-inset-y-[5px] pointer-coarse:after:-inset-y-[7px]',
+                                                        cambiandoFlujo !== null && 'cursor-progress',
                                                         flow.is_active ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-neutral-300',
                                                         FOCO
                                                     )}
                                                 >
-                                                    <Interruptor on={flow.is_active} />
+                                                    <Interruptor on={flow.is_active} className={cn(cambiandoFlujo === flow.id && 'opacity-60')} />
                                                     {flow.is_active ? t('welcomeFlow.vista.switchOn') : t('welcomeFlow.vista.switchOff')}
                                                 </button>
                                                 <button type="button" onClick={() => openEditModal(flow)} aria-haspopup="dialog" className={BOTON_TEXTO_NAVY}>
@@ -573,8 +584,10 @@ export default function WelcomeFlowSection({ welcomeFlows }: WelcomeFlowSectionP
                             <X strokeWidth={1.9} aria-hidden="true" />
                             {t('common.cancel')}
                         </button>
-                        <button type="submit" form="welcome-flow-form" disabled={processing} className={BOTON_PRIMARIO}>
-                            <Save strokeWidth={2} aria-hidden="true" />
+                        <button type="submit" form="welcome-flow-form" disabled={processing} aria-busy={processing || undefined} className={BOTON_PRIMARIO}>
+                            <IconoAnimado clave={processing ? 'girando' : 'guardar'}>
+                                {processing ? <Spinner className="motion-reduce:animate-none" /> : <Save strokeWidth={2} />}
+                            </IconoAnimado>
                             {processing ? t('common.saving') : editingFlow ? t('welcomeFlow.vista.saveFlow') : t('welcomeFlow.createFlow')}
                         </button>
                     </>

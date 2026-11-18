@@ -63,6 +63,8 @@ import {
 import { useMemo, useRef, useState, type ComponentProps, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@/lib/toast';
+import { IconoAnimado } from '@/components/icono-animado';
+import { Spinner } from '@/components/ui/spinner';
 import TemplateCreateModal from './components/TemplateCreateModal';
 import TemplateEditModal from './components/TemplateEditModal';
 import WelcomeFlowSection from './components/WelcomeFlowSection';
@@ -162,6 +164,8 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [templateToEdit, setTemplateToEdit] = useState<Template | null>(null);
     const [selectedId, setSelectedId] = useState<number | null>(null);
+    // Plantilla que se está activando o desactivando: una a la vez (un segundo clic no manda otra petición).
+    const [cambiandoId, setCambiandoId] = useState<number | null>(null);
     const panelRef = useRef<HTMLElement>(null);
     const seguroBorrar = useRef<HTMLButtonElement>(null);
 
@@ -241,6 +245,8 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
     };
 
     const toggleStatus = (templateId: number) => {
+        if (cambiandoId !== null) return;
+        setCambiandoId(templateId);
         router.post(
             `/admin/templates/${templateId}/toggle`,
             {},
@@ -248,6 +254,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                 preserveScroll: true,
                 onSuccess: () => toast.success(t('templates.statusUpdated')),
                 onError: () => toast.error(t('templates.statusUpdateError')),
+                onFinish: () => setCambiandoId(null),
             }
         );
     };
@@ -460,7 +467,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                 <>
                     <div className={cn('flex flex-col gap-1.5 border-b px-5 pt-[18px] pb-4 @3xl/hoja:px-6', FILETE)}>
                         <div className="flex items-start justify-between gap-3">
-                            <h3 id="detalle-plantilla" className={cn('min-w-0 text-[17px] leading-[22px] font-semibold tracking-[-0.01em] [overflow-wrap:anywhere]', tpl.is_active ? TEXTO_NAVY : TEXTO_SUAVE)}>
+                            <h3 id="detalle-plantilla" className={cn('min-w-0 text-[17px] leading-[22px] font-semibold tracking-[-0.01em] text-balance [overflow-wrap:anywhere]', tpl.is_active ? TEXTO_NAVY : TEXTO_SUAVE)}>
                                 {tpl.name}
                             </h3>
                             <EstadoPunto on={tpl.is_active} className="mt-[3px] text-[13px]" title={tpl.is_active ? undefined : t('templates.vista.inactiveHint')}>
@@ -499,12 +506,23 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                             {t('common.edit')}
                                         </button>
                                         <button
+                                            key={tpl.id}
                                             type="button"
                                             onClick={() => toggleStatus(tpl.id)}
+                                            aria-busy={cambiandoId === tpl.id || undefined}
+                                            aria-disabled={cambiandoId !== null || undefined}
                                             title={tpl.is_active ? t('templates.vista.deactivateHint') : t('templates.vista.activateHint')}
-                                            className={BOTON_SECUNDARIO}
+                                            className={cn(BOTON_SECUNDARIO, cambiandoId !== null && 'cursor-progress')}
                                         >
-                                            {tpl.is_active ? <PowerOff strokeWidth={1.9} aria-hidden="true" /> : <Power strokeWidth={1.9} aria-hidden="true" />}
+                                            <IconoAnimado clave={cambiandoId === tpl.id ? 'girando' : tpl.is_active ? 'apagar' : 'encender'}>
+                                                {cambiandoId === tpl.id ? (
+                                                    <Spinner className="motion-reduce:animate-none" />
+                                                ) : tpl.is_active ? (
+                                                    <PowerOff strokeWidth={1.9} />
+                                                ) : (
+                                                    <Power strokeWidth={1.9} />
+                                                )}
+                                            </IconoAnimado>
                                             {tpl.is_active ? t('common.deactivate') : t('common.activate')}
                                         </button>
                                     </div>
@@ -697,10 +715,10 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                     <span className={cn('flex size-10 items-center justify-center rounded-xl bg-white shadow-[inset_0_0_0_1px_rgba(46,63,132,0.12)] dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]', TEXTO_SUAVE)}>
                         {hasFilters ? <Search className="size-[19px]" strokeWidth={1.9} aria-hidden="true" /> : <MessageSquareText className="size-[19px]" strokeWidth={1.9} aria-hidden="true" />}
                     </span>
-                    <p className={cn('text-[13.5px] leading-[18px] font-semibold', TEXTO_NAVY)} aria-live="polite">
+                    <p className={cn('text-[13.5px] leading-[18px] font-semibold text-balance', TEXTO_NAVY)} aria-live="polite">
                         {hasFilters ? t('templates.vista.noResults') : isAdmin ? t('templates.vista.emptyAdminTitle') : t('templates.vista.emptyAdvisorTitle')}
                     </p>
-                    <p className={cn('max-w-md text-[12.5px] leading-[18px]', TEXTO_SUAVE)}>
+                    <p className={cn('max-w-md text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>
                         {hasFilters ? t('templates.vista.noResultsHint') : isAdmin ? t('templates.vista.emptyAdminText') : t('templates.vista.listTextAdvisor')}
                     </p>
                     {hasFilters ? (
@@ -760,10 +778,10 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                 <div className="@container/pagina mx-auto flex max-w-7xl flex-col gap-6">
                     {/* ── Cabecera ── */}
                     <header className="flex min-w-0 flex-wrap items-start justify-between gap-x-6 gap-y-1">
-                        <h1 className={cn(H1, 'order-1')}>{t('templates.title')}</h1>
+                        <h1 className={cn(H1, 'order-1 text-balance')}>{t('templates.title')}</h1>
                         {/* Ancho: botones a la derecha del título y el subtítulo debajo, a lo ancho (como el diseño).
                             Estrecho: título, subtítulo y luego los botones. */}
-                        <p className="order-2 basis-full text-[14px] leading-5 text-muted-foreground @3xl/pagina:order-3 dark:text-neutral-400">
+                        <p className="order-2 basis-full text-[14px] leading-5 text-pretty text-muted-foreground @3xl/pagina:order-3 dark:text-neutral-400">
                             {isAdmin ? t('templates.vista.subAdmin') : t('templates.vista.subAdvisor')}
                         </p>
                         {isAdmin && (
@@ -811,7 +829,7 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                                             onKeyDown={(event) => event.key === 'Escape' && setSearch('')}
                                             placeholder={t('templates.vista.searchPlaceholder')}
                                             className={cn(
-                                                'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-3 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                                                'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-3 pl-[38px] text-[13px] leading-[18px] pointer-coarse:h-11 pointer-coarse:text-[16px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
                                                 FOCO
                                             )}
                                         />
@@ -918,8 +936,10 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                             <X strokeWidth={1.9} aria-hidden="true" />
                             {t('common.cancel')}
                         </button>
-                        <button type="submit" form="form-personal" disabled={personalSaving} className={BOTON_PRIMARIO}>
-                            <Save strokeWidth={2} aria-hidden="true" />
+                        <button type="submit" form="form-personal" disabled={personalSaving} aria-busy={personalSaving || undefined} className={BOTON_PRIMARIO}>
+                            <IconoAnimado clave={personalSaving ? 'girando' : 'guardar'}>
+                                {personalSaving ? <Spinner className="motion-reduce:animate-none" /> : <Save strokeWidth={2} />}
+                            </IconoAnimado>
                             {personalSaving ? t('common.saving') : t('common.save')}
                         </button>
                     </>
@@ -988,8 +1008,10 @@ export default function TemplatesIndex({ templates, filters, users, welcomeFlows
                             <X strokeWidth={1.9} aria-hidden="true" />
                             {t('common.cancel')}
                         </button>
-                        <button type="button" onClick={confirmarBorrarPersonal} disabled={personalDeleting} className={BOTON_PELIGRO_LLENO}>
-                            <Trash2 strokeWidth={2} aria-hidden="true" />
+                        <button type="button" onClick={confirmarBorrarPersonal} disabled={personalDeleting} aria-busy={personalDeleting || undefined} className={BOTON_PELIGRO_LLENO}>
+                            <IconoAnimado clave={personalDeleting ? 'girando' : 'borrar'}>
+                                {personalDeleting ? <Spinner className="motion-reduce:animate-none" /> : <Trash2 strokeWidth={2} />}
+                            </IconoAnimado>
                             {personalDeleting ? t('templates.vista.deleting') : t('templates.vista.deleteYes')}
                         </button>
                     </>

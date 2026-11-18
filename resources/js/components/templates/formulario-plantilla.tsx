@@ -65,7 +65,8 @@ function FilaArchivo({ nombre, tipo, detalle, nuevo, miniatura, onQuitar }: { no
         >
             <span
                 className={cn(
-                    'flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg',
+                    'flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-[3px]',
+                    miniatura && !fallo && 'outline-1 -outline-offset-1 outline-black/10 dark:outline-white/10',
                     nuevo ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-[#2e3f84]/6 text-[#2e3f84] dark:bg-white/8 dark:text-neutral-100'
                 )}
             >
@@ -81,7 +82,7 @@ function FilaArchivo({ nombre, tipo, detalle, nuevo, miniatura, onQuitar }: { no
                 </span>
                 <span className={cn('truncate text-[12px] leading-4', nuevo ? 'text-emerald-700 dark:text-emerald-400' : TEXTO_SUAVE)}>{detalle}</span>
             </span>
-            <button type="button" onClick={onQuitar} aria-label={t('templates.vista.removeFileNamed', { name: nombre })} title={t('templates.vista.removeFile')} className={BOTON_ICONO}>
+            <button type="button" onClick={onQuitar} aria-label={t('templates.vista.removeFileNamed', { name: nombre })} title={t('templates.vista.removeFile')} className={cn(BOTON_ICONO, 'rounded-[4px]')}>
                 <X className="size-4" strokeWidth={2} aria-hidden="true" />
             </button>
         </li>
@@ -234,7 +235,7 @@ export function CamposPlantilla({
                         type="button"
                         onClick={() => inputArchivos.current?.click()}
                         className={cn(
-                            'flex h-[38px] w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] border-[1.5px] border-dashed border-[#2e3f84]/30 text-[12.5px] leading-4 font-semibold text-[#2e3f84] transition-colors hover:border-[#2e3f84]/60 hover:bg-[#2e3f84]/[0.03] dark:border-white/25 dark:text-neutral-100 dark:hover:border-white/45 dark:hover:bg-white/[0.03]',
+                            'flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-[10px] border-[1.5px] border-dashed pointer-coarse:h-11 border-[#2e3f84]/30 text-[12.5px] leading-4 font-semibold text-[#2e3f84] transition-colors hover:border-[#2e3f84]/60 hover:bg-[#2e3f84]/[0.03] dark:border-white/25 dark:text-neutral-100 dark:hover:border-white/45 dark:hover:bg-white/[0.03]',
                             FOCO
                         )}
                     >
@@ -279,7 +280,7 @@ export function CamposPlantilla({
                                     const marcado = asignados.includes(u.id);
                                     return (
                                         <li key={u.id} className={cn('border-b last:border-b-0', FILETE)}>
-                                            <label className="flex min-h-[38px] cursor-pointer items-center gap-2.5 px-2.5 py-1.5 transition-colors hover:bg-[#2e3f84]/[0.03] dark:hover:bg-white/[0.03]">
+                                            <label className="flex min-h-[38px] cursor-pointer items-center gap-2.5 px-2.5 py-1.5 transition-colors pointer-coarse:min-h-11 hover:bg-[#2e3f84]/[0.03] dark:hover:bg-white/[0.03]">
                                                 <input
                                                     type="checkbox"
                                                     checked={marcado}
