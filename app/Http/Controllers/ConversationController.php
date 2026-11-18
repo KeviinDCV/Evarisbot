@@ -35,12 +35,13 @@ class ConversationController extends Controller
 
         // Para el inicio sin chat abierto («Tu turno de un vistazo»): las del usuario con mensajes sin leer, como las
         // muestra «Todos» (activas o pendientes, sin bloqueadas ni Oncología). No depende de la búsqueda ni de filtros.
-        $counts['mine_unread'] = Conversation::where('assigned_to', auth()->id())
+        $mias = Conversation::where('assigned_to', auth()->id())
             ->where('unread_count', '>', 0)
             ->whereIn('status', ['active', 'pending'])
             ->where('is_blocked', false)
-            ->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'))
-            ->count();
+            ->whereDoesntHave('tags', fn ($q) => $q->where('name', 'Oncología'));
+        $this->ocultarRecordatoriosAlAsesor($mias);
+        $counts['mine_unread'] = $mias->count();
 
         // «Hoy respondiste N conversaciones»: conversaciones distintas a las que el usuario escribió hoy (día de
         // Colombia; la app guarda en UTC).
@@ -91,6 +92,19 @@ class ConversationController extends Controller
             return;
         }
         $user->equipo_id ? $query->where('equipo_id', $user->equipo_id) : $query->whereNull('equipo_id');
+    }
+
+    /**
+     * Solo a los asesores: fuera de «Todos», «Sin leer» y del contador de no leídos los chats de recordatorio en los que
+     * el paciente solo confirmó, canceló o dio las gracias (ver Conversation::sqlRecordatorioSinNovedad). Los
+     * administradores los siguen viendo.
+     */
+    private function ocultarRecordatoriosAlAsesor($query, ?User $user = null): void
+    {
+        $user ??= auth()->user();
+        if ($user && $user->isAdvisor()) {
+            $query->ocultarRecordatoriosSinNovedad();
+        }
     }
 
     /**
@@ -148,6 +162,9 @@ class ConversationController extends Controller
         } elseif ($filter === 'unanswered') {
             $query->where('unread_count', '>', 0)
                   ->whereNull('assigned_to');
+            if (!$hasSearchTerm) {
+                $this->ocultarRecordatoriosAlAsesor($query, $user);
+            }
         } elseif ($filter === 'pending_response') {
             $query->where('assigned_to', auth()->id())
                   ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
@@ -405,6 +422,8 @@ class ConversationController extends Controller
             if ($user->equipo_id || $user->isOnDuty()) {
                 $query->whereIn('status', ['active', 'pending']);
             }
+            // Ni suena ni cuenta un «gracias» o una confirmación tras un recordatorio: no está en su bandeja.
+            $this->ocultarRecordatoriosAlAsesor($query, $user);
         } else {
             // Si es admin, contar todas las conversaciones con mensajes no leídos (excluir resueltas)
             $query->whereIn('status', ['active', 'pending']);
@@ -451,6 +470,9 @@ class ConversationController extends Controller
                 // Filtrar conversaciones sin leer y sin asignar
                 $query->where('unread_count', '>', 0)
                       ->whereNull('assigned_to');
+                if (!$hasSearchTerm) {
+                    $this->ocultarRecordatoriosAlAsesor($query, $user);
+                }
             } elseif ($request->status === 'pending_response') {
                 // En espera: conversaciones asignadas a mí donde YO personalmente he enviado al menos un mensaje
                 $query->where('assigned_to', auth()->id())
@@ -526,6 +548,8 @@ class ConversationController extends Controller
                 $q->whereNotNull('assigned_to')
                   ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
             });
+            // Asesores: tampoco los chats de recordatorio en los que el paciente solo confirmó, canceló o dio las gracias.
+            $this->ocultarRecordatoriosAlAsesor($query, $user);
         }
 
         // Excluir conversaciones bloqueadas del listado general (solo se ven con filtro "blocked" o al buscar)
@@ -686,6 +710,9 @@ class ConversationController extends Controller
                 // Filtrar conversaciones sin leer y sin asignar
                 $query->where('unread_count', '>', 0)
                       ->whereNull('assigned_to');
+                if (!$hasSearchTerm) {
+                    $this->ocultarRecordatoriosAlAsesor($query, $user);
+                }
             } elseif ($request->status === 'pending_response') {
                 // En espera: conversaciones asignadas a mí donde YO personalmente he enviado al menos un mensaje
                 $query->where('assigned_to', auth()->id())
@@ -761,6 +788,8 @@ class ConversationController extends Controller
                 $q->whereNotNull('assigned_to')
                   ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
             });
+            // Asesores: tampoco los chats de recordatorio en los que el paciente solo confirmó, canceló o dio las gracias.
+            $this->ocultarRecordatoriosAlAsesor($query, $user);
         }
 
         // Excluir conversaciones bloqueadas del listado general (a menos que se busque)
@@ -2506,6 +2535,9 @@ class ConversationController extends Controller
         if ($request->has('status') && $request->status !== 'all') {
             if ($request->status === 'unanswered') {
                 $query->where('unread_count', '>', 0)->whereNull('assigned_to');
+                if (!$hasSearchTerm) {
+                    $this->ocultarRecordatoriosAlAsesor($query, $user);
+                }
             } elseif ($request->status === 'pending_response') {
                 $query->where('assigned_to', auth()->id())
                       ->whereHas('messages', fn ($q) => $q->where('is_from_user', false)->where('sent_by', auth()->id()))
@@ -2579,6 +2611,8 @@ class ConversationController extends Controller
                 $q->whereNotNull('assigned_to')
                   ->orWhereHas('messages', fn ($m) => $m->where('is_from_user', true)->where('is_hidden', false));
             });
+            // Asesores: tampoco los chats de recordatorio en los que el paciente solo confirmó, canceló o dio las gracias.
+            $this->ocultarRecordatoriosAlAsesor($query, $user);
         }
 
         // Excluir conversaciones bloqueadas del poll general (a menos que se busque)

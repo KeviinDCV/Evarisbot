@@ -33,12 +33,20 @@ export const miles = (n: number, lng?: string) => Math.round(n).toLocaleString(e
 
 const MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sept', 'oct', 'nov', 'dic'];
 
-/** "2026-09-12 07:52[:11]" → "12 sept 2026, 7:52[:11]" (es) · "Sep 12, 2026, 7:52" (en). Si no encaja, tal cual. */
+/**
+ * "2026-09-12 14:52[:11]" → "12 sept 2026, 2:52[:11] p. m." (es) · "Sep 12, 2026, 2:52 PM" (en). Reloj de 12 horas, como
+ * el resto de la app (pedido del 18/11/2026). Espacios duros: «p. m.» no se parte en dos líneas. Si no encaja, tal cual.
+ */
 export function fechaHora(valor?: string | null, lng?: string) {
     const m = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(valor ?? '');
     if (!m) return valor ?? '';
     const [, a, mes, d, h, mi, s] = m;
-    const hora = h ? `${Number(h)}:${mi}${s ? `:${s}` : ''}` : '';
+    let hora = '';
+    if (h) {
+        const h24 = Number(h);
+        const sufijo = esIngles(lng) ? (h24 < 12 ? 'AM' : 'PM') : h24 < 12 ? 'a.\u00a0m.' : 'p.\u00a0m.';
+        hora = `${h24 % 12 || 12}:${mi}${s ? `:${s}` : ''}\u00a0${sufijo}`;
+    }
     if (esIngles(lng)) {
         const f = new Date(Number(a), Number(mes) - 1, Number(d)).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         return hora ? `${f}, ${hora}` : f;

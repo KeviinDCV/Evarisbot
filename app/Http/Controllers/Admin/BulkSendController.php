@@ -9,6 +9,7 @@ use App\Models\BulkSendRecipient;
 use App\Models\Conversation;
 use App\Models\WhatsappTemplate;
 use App\Models\Setting;
+use App\Support\EstructuraMasivo;
 use App\Support\LibroExcel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
@@ -446,10 +447,24 @@ class BulkSendController extends Controller
     {
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv',
+            'template_id' => 'nullable|integer',
         ], [
             'file.mimes' => 'El archivo debe ser de tipo: xlsx, xls o csv.',
             'file.required' => 'Debe seleccionar un archivo.',
         ]);
+
+        // La plantilla elegida: el Excel se revisa contra ella (ver EstructuraMasivo). La pantalla la manda desde el
+        // 18/11/2026; una pantalla vieja (sin recargar) no la manda y el Excel se revisa al pulsar Enviar (start).
+        $plantilla = null;
+        if ($request->filled('template_id')) {
+            $plantilla = WhatsappTemplate::find((int) $request->input('template_id'));
+            if (!$plantilla) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La plantilla elegida ya no existe. Recargue la página y elíjala de nuevo.',
+                ], 422);
+            }
+        }
 
         try {
             set_time_limit(600);
@@ -466,6 +481,9 @@ class BulkSendController extends Controller
             ]);
 
             $rows = [];
+            // Número real de cada fila en el Excel (solo .xlsx, que se salta las vacías): para que los errores digan la
+            // fila correcta. En CSV y XLS cada fila leída es una fila del archivo.
+            $numerosDeFila = null;
 
             if ($extension === 'csv') {
                 // CSV: leer directamente con fgetcsv (ultra rápido, sin memoria)
@@ -474,7 +492,9 @@ class BulkSendController extends Controller
                     throw new \Exception('No se pudo abrir el archivo CSV');
                 }
                 while (($row = fgetcsv($handle, 0, ',', '"')) !== false) {
-                    $rows[] = $row;
+                    // Un CSV guardado en «ANSI» (Windows-1252) no es UTF-8: se convierte (si no, los textos con tildes
+                    // rompen la respuesta y la revisión de estructura).
+                    $rows[] = array_map(fn ($v) => $v === null || mb_check_encoding($v, 'UTF-8') ? $v : mb_convert_encoding($v, 'UTF-8', 'Windows-1252'), $row);
                 }
                 fclose($handle);
             } elseif ($extension === 'xlsx') {
@@ -484,7 +504,7 @@ class BulkSendController extends Controller
                 // un millón de filas vacías → PhpSpreadsheet revienta la memoria/tarda
                 // minutos). Esto es órdenes de magnitud más rápido y usa poca memoria,
                 // produciendo EXACTAMENTE la misma salida de fechas/horas que antes.
-                $rows = $this->readXlsxStreaming($filePath);
+                $rows = $this->readXlsxStreaming($filePath, $numerosDeFila);
             } else {
                 // XLS (formato binario antiguo, máx. 65.536 filas): PhpSpreadsheet con formato.
                 $reader = IOFactory::createReader('Xls');
@@ -553,24 +573,45 @@ class BulkSendController extends Controller
                 ], 422);
             }
 
+            // Estructura de la plantilla: columnas con los nombres de la guía, ni una más ni una menos, y cada fila
+            // completa y con el formato correcto. Si no, el Excel no se acepta (no se puede enviar).
+            $avisosExcel = [];
+            if ($plantilla) {
+                $numeroFila = fn (int $i) => is_array($numerosDeFila) && isset($numerosDeFila[$i + 1]) ? $numerosDeFila[$i + 1] : $i + 2;
+                $errores = EstructuraMasivo::validarExcel($rows[0] ?? [], array_slice($rows, 1), EstructuraMasivo::guia($plantilla->preview_text), $numeroFila, $avisosExcel);
+                if ($errores !== []) {
+                    Log::warning('Excel de envío masivo rechazado: no tiene la estructura de la plantilla', [
+                        'plantilla' => $plantilla->meta_template_name,
+                        'encabezados' => array_map(fn ($h) => mb_substr(trim((string) $h), 0, 40), $rows[0] ?? []),
+                        'problemas' => count($errores),
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => "El Excel no tiene la estructura de la plantilla «{$plantilla->name}». Corríjalo y vuelva a subirlo:\n\n• " . implode("\n• ", $errores),
+                        'issues' => $errores,
+                        'estructura' => true,
+                    ], 422);
+                }
+            }
+
             // Detectar encabezados
-            $rawHeaders = array_map('trim', $rows[0] ?? []);
-            $headers = array_map('strtolower', $rawHeaders);
+            // Sin la marca BOM que Excel pone al inicio de un CSV UTF-8 (si no, «telefono» no se reconoce).
+            $rawHeaders = array_map(fn ($h) => trim(str_replace(["\u{FEFF}", "\u{00A0}"], ['', ' '], (string) $h)), $rows[0] ?? []);
+            // Teléfono y nombre con el MISMO criterio que la revisión de estructura (EstructuraMasivo: sin mayúsculas ni
+            // tildes; «TELÉFONO», «Nom Pac», «phone-number»…): lo que la revisión acepta es lo que se lee aquí.
+            $headers = array_map(fn ($h) => EstructuraMasivo::clave($h), $rawHeaders);
             $phoneCol = null;
             $nameCol = null;
             $extraCols = [];
 
-            $phoneAliases = ['telefono', 'teléfono', 'phone', 'celular', 'cel', 'numero', 'número', 'pactel', 'phone_number'];
-            $nameAliases = ['nombre', 'name', 'contacto', 'paciente', 'nom_paciente', 'contact_name', 'nom_pac', 'nombrepaciente', 'nombre_paciente', 'nombrepac', 'cliente', 'destinatario', 'usuario'];
-
             foreach ($headers as $i => $header) {
-                $header = strtolower(trim($header));
-                if (in_array($header, $phoneAliases)) {
+                if ($phoneCol === null && in_array($header, EstructuraMasivo::ALIAS_TELEFONO, true)) {
                     $phoneCol = $i;
-                } elseif (in_array($header, $nameAliases)) {
+                } elseif ($nameCol === null && in_array($header, EstructuraMasivo::ALIAS_NOMBRE, true)) {
                     $nameCol = $i;
                 } else if (!empty(trim($rawHeaders[$i] ?? ''))) {
-                    $extraCols[$i] = strtolower(trim($rawHeaders[$i]));
+                    $extraCols[$i] = mb_strtolower(trim($rawHeaders[$i]));
                 }
             }
 
@@ -657,9 +698,12 @@ class BulkSendController extends Controller
 
                 if (empty($phone)) continue;
 
-                $cleanPhone = preg_replace('/[^0-9+]/', '', $phone);
+                // Solo celulares que el envío puede usar (10 dígitos, o 12-15 con el código de país; la misma regla de
+                // SendBulkMessageJob). Antes pasaban los de 11 o más de 15 y fallaban todos al enviar. Un «.0» final
+                // (número de Excel leído como texto) se quita.
+                if (!EstructuraMasivo::celularValido($phone)) continue;
+                $cleanPhone = preg_replace('/[^0-9+]/', '', (string) preg_replace('/\.0+$/', '', $phone));
                 $digits = preg_replace('/[^0-9]/', '', $cleanPhone);
-                if (strlen($digits) < 10) continue;
 
                 if (isset($seen[$digits])) continue;
                 $seen[$digits] = true;
@@ -688,6 +732,8 @@ class BulkSendController extends Controller
                 'total' => count($unique),
                 'filename' => $file->getClientOriginalName(),
                 'extra_columns' => array_values($extraCols),
+                // Filas que se quitaron por no tener un celular válido (no bloquean: la pantalla las avisa).
+                'avisos' => $avisosExcel,
             ]);
         } catch (\Exception $e) {
             Log::error('Error procesando archivo Excel para envío masivo', [
@@ -715,8 +761,11 @@ class BulkSendController extends Controller
      * fecha/hora se convierten a texto con EXACTAMENTE la misma lógica que antes, por lo
      * que la salida es idéntica a la de PhpSpreadsheet pero muchísimo más rápida.
      */
-    private function readXlsxStreaming(string $path): array
+    private function readXlsxStreaming(string $path, ?array &$numeros = null): array
     {
+        // $numeros: el número real de cada fila devuelta (atributo r de <row>), en el mismo orden: las vacías no se
+        // devuelven, y sin esto un error diría «fila 4» por la que en el Excel es la 6.
+        $numeros = [];
         $emptyRowLimit = 100; // nº de filas vacías seguidas que marcan el fin de los datos
         $zip = new \ZipArchive();
         if ($zip->open($path) !== true) {
@@ -805,6 +854,7 @@ class BulkSendController extends Controller
         while ($xr->nodeType === \XMLReader::ELEMENT && $xr->localName === 'row') {
             $rowIndex++;
             $rowXml = $xr->readOuterXml();
+            $numeroReal = preg_match('/^<row\b[^>]*?\sr="(\d+)"/', $rowXml, $nm) ? (int) $nm[1] : $rowIndex;
 
             // Parsear las celdas (<c>) de la fila.
             $cells = [];
@@ -847,6 +897,7 @@ class BulkSendController extends Controller
                     $rowData[] = (string) ($cells[$col]['val'] ?? '');
                 }
                 $rows[] = $rowData;
+                $numeros[] = $numeroReal;
                 $xr->next('row');
                 continue;
             }
@@ -889,6 +940,7 @@ class BulkSendController extends Controller
 
             if ($nonEmpty) {
                 $rows[] = $rowData;
+                $numeros[] = $numeroReal;
                 $emptyRun = 0;
             } else {
                 // Fila vacía: contar. Tras N seguidas, los datos terminaron → cortar.
@@ -929,6 +981,31 @@ class BulkSendController extends Controller
             'recipients.*.params' => 'nullable|array',
         ]);
 
+        // El Excel y el mapeo, contra la estructura de la plantilla (también aquí: una pantalla vieja no lo revisó al
+        // subirlo, y el mapeo de cada {{N}} se puede cambiar a mano después).
+        $plantilla = WhatsappTemplate::where('meta_template_name', $request->input('template_name'))->first();
+        if (!$plantilla) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encontró la plantilla elegida. Recargue la página y elíjala de nuevo.',
+            ], 422);
+        }
+        $errores = EstructuraMasivo::validarEnvio((array) $request->input('recipients'), $request->input('column_mapping'), EstructuraMasivo::guia($plantilla->preview_text));
+        if ($errores !== []) {
+            Log::warning('Envío masivo frenado: el Excel o el mapeo no tienen la estructura de la plantilla', [
+                'plantilla' => $plantilla->meta_template_name,
+                'destinatarios' => count((array) $request->input('recipients')),
+                'problemas' => count($errores),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => "No se puede enviar: los datos no corresponden a la plantilla «{$plantilla->name}». Corrija esto:\n\n• " . implode("\n• ", $errores),
+                'issues' => $errores,
+                'estructura' => true,
+            ], 422);
+        }
+
         // Varios envíos pueden salir a la vez (sus mensajes se turnan); como mucho MAXIMO_SIMULTANEOS.
         $activeCount = BulkSend::where('status', 'processing')->count();
         if ($activeCount >= BulkSend::MAXIMO_SIMULTANEOS) {
@@ -956,7 +1033,8 @@ class BulkSendController extends Controller
 
             // Crear el registro de envío masivo
             $bulkSend = BulkSend::create([
-                'name' => $request->input('name') ?: 'Envío ' . now()->enColombia()->format('Y-m-d H:i'),
+                // Sin nombre: la fecha y la hora de Colombia, en reloj de 12 horas como el resto de la página.
+                'name' => $request->input('name') ?: 'Envío ' . now()->enColombia()->format('Y-m-d g:i') . (now()->enColombia()->hour < 12 ? ' a. m.' : ' p. m.'),
                 'template_name' => $request->input('template_name'),
                 'template_params' => $request->input('template_params'),
                 'column_mapping' => $request->input('column_mapping'),

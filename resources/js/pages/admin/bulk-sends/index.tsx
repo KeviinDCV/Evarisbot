@@ -190,6 +190,10 @@ function expectedSlotType(previewText: string, idx: number): SlotType {
     return 'any';
 }
 
+/** Nombre de columna para comparar con la guía: sin mayúsculas ni tildes; «Fecha 2», «fecha-2» y «fecha_2» son la misma
+ *  (igual que EstructuraMasivo::clave en el servidor). */
+const claveColumna = (s: string) => normalizeText(s).trim().replace(/\s+/g, ' ').replace(/[\s-]+/g, '_');
+
 function columnSlotType(col: string, sample?: string): SlotType {
     const n = normalizeText(col);
     if (n.includes('hora')) return 'time';
@@ -342,6 +346,10 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
     const [selectedTemplate, setSelectedTemplate] = useState<WhatsappTemplate | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [extraColumns, setExtraColumns] = useState<string[]>([]);
+    // Problemas de estructura del último Excel rechazado (no tiene las columnas de la plantilla, celdas vacías…).
+    const [erroresExcel, setErroresExcel] = useState<string[]>([]);
+    // Avisos del último Excel aceptado: filas que se quitaron por no tener un celular válido.
+    const [avisosExcel, setAvisosExcel] = useState<string[]>([]);
     const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
     const [showConfirmSend, setShowConfirmSend] = useState(false);
     // Plantilla de Meta pendiente de borrar (null = diálogo cerrado).
@@ -447,6 +455,45 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
         return indices;
     }, [selectedTemplate]);
 
+    // Guía del Excel para la plantilla seleccionada: deriva el nombre de cada columna del
+    // contexto del texto ("a las ___" → hora) y muestra dónde se usa. Desde el 18/11/2026 es
+    // OBLIGATORIA: el servidor (App\Support\EstructuraMasivo::guia, copia de esta lógica)
+    // rechaza el Excel que no la siga tal cual. Si se cambia aquí, cambiarla allá también.
+    const excelGuide = useMemo(() => {
+        if (!selectedTemplate?.preview_text || templatePlaceholders.length === 0) return null;
+        const preview = selectedTemplate.preview_text;
+        const counts: Record<string, number> = {};
+        return templatePlaceholders.map((idx, i) => {
+            const tag = `{{${idx}}}`;
+            const pos = preview.indexOf(tag);
+            const before = pos >= 0 ? preview.slice(Math.max(0, pos - 26), pos).replace(/\s+/g, ' ').trimStart() : '';
+            const after = pos >= 0 ? preview.slice(pos + tag.length, pos + tag.length + 20).replace(/\s+/g, ' ').trimEnd() : '';
+            let base: string;
+            if (i === 0) {
+                base = 'nombre';
+            } else {
+                const t = expectedSlotType(preview, idx);
+                base = t === 'date' ? 'fecha' : t === 'time' ? 'hora' : t === 'doctor' ? 'medico'
+                    : t === 'especialidad' ? 'especialidad' : t === 'nombre' ? 'nombre' : `dato_${idx}`;
+            }
+            counts[base] = (counts[base] || 0) + 1;
+            const header = counts[base] > 1 ? `${base}_${counts[base]}` : base;
+            // Los {{N}} vecinos en el extracto confunden: se reemplazan por puntos suspensivos
+            const clean = (s: string) => s.replace(/\{\{\d+\}\}/g, '…');
+            const sample = base.startsWith('fecha') ? '20/06/2026'
+                : base.startsWith('hora') ? '8:30 AM'
+                : base.startsWith('medico') ? 'CARLOS GOMEZ RIOS'
+                : base.startsWith('especialidad') ? 'dermatologia'
+                : base.startsWith('nombre') ? 'PEREZ LOPEZ, MARIA'
+                : 'texto';
+            // esNombre: sale del nombre del paciente, no de una columna propia.
+            return { idx, header, sample, context: `…${clean(before)}___${clean(after)}…`, esNombre: base === 'nombre' };
+        });
+    }, [selectedTemplate, templatePlaceholders]);
+
+    // Las columnas exactas que debe traer el Excel (las mismas que exige el servidor al subirlo y al enviar).
+    const columnasRequeridas = useMemo(() => ['telefono', 'nombre', ...(excelGuide ?? []).filter((g) => !g.esNombre).map((g) => g.header)], [excelGuide]);
+
     // Auto-mapea por SIGNIFICADO, no por orden de columnas: el hueco tras "a las" solo
     // acepta columnas de hora, los de fecha solo fechas, el de "DR.(A)" solo médico, etc.
     // Mapear por orden causó el incidente del 10-jun: la plantilla de Cartago (5 campos,
@@ -463,12 +510,24 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
         const used = new Set<string>();
         const newMapping: ColumnMapping = {};
 
+        // Pase 0: cada hueco toma la columna que lleva el nombre de la guía («hora», «fecha_2»…). Con el Excel tal
+        // cual (el servidor ya lo exige) esto lo resuelve todo y no depende del orden de las columnas.
+        (excelGuide ?? []).forEach((g) => {
+            if (g.esNombre) return;
+            const col = extraColumns.find((c) => !used.has(c) && claveColumna(c) === g.header);
+            if (col) {
+                used.add(col);
+                newMapping[String(g.idx)] = { source: 'column', column: col };
+            }
+        });
+
         // Pase 1: huecos con tipo claro (hora/fecha/doctor/nombre) toman su columna compatible
         templatePlaceholders.forEach((idx, i) => {
             if (i === 0) {
                 newMapping[String(idx)] = { source: 'nombre' };
                 return;
             }
+            if (newMapping[String(idx)]) return; // ya lo resolvió el pase 0
             const expected = expectedSlotType(preview, idx);
             if (expected === 'any') return;
             if (expected === 'nombre') {
@@ -510,7 +569,7 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
             newMapping[String(unsetSlots[0])] = { source: 'column', column: freeCols[0] };
         }
         setColumnMapping(newMapping);
-    }, [templatePlaceholders, extraColumns, selectedTemplate]);
+    }, [templatePlaceholders, extraColumns, selectedTemplate, excelGuide]);
 
     // El mapeo está completo cuando cada {{N}} de la plantilla tiene un origen válido.
     const mappingComplete = useMemo(() => {
@@ -550,39 +609,6 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
         });
         return text;
     }, [selectedTemplate, columnMapping, recipients, t]);
-
-    // Guía del Excel ideal para la plantilla seleccionada: deriva el nombre de cada
-    // columna del contexto del texto ("a las ___" → hora) y muestra dónde se usa.
-    const excelGuide = useMemo(() => {
-        if (!selectedTemplate?.preview_text || templatePlaceholders.length === 0) return null;
-        const preview = selectedTemplate.preview_text;
-        const counts: Record<string, number> = {};
-        return templatePlaceholders.map((idx, i) => {
-            const tag = `{{${idx}}}`;
-            const pos = preview.indexOf(tag);
-            const before = pos >= 0 ? preview.slice(Math.max(0, pos - 26), pos).replace(/\s+/g, ' ').trimStart() : '';
-            const after = pos >= 0 ? preview.slice(pos + tag.length, pos + tag.length + 20).replace(/\s+/g, ' ').trimEnd() : '';
-            let base: string;
-            if (i === 0) {
-                base = 'nombre';
-            } else {
-                const t = expectedSlotType(preview, idx);
-                base = t === 'date' ? 'fecha' : t === 'time' ? 'hora' : t === 'doctor' ? 'medico'
-                    : t === 'especialidad' ? 'especialidad' : t === 'nombre' ? 'nombre' : `dato_${idx}`;
-            }
-            counts[base] = (counts[base] || 0) + 1;
-            const header = counts[base] > 1 ? `${base}_${counts[base]}` : base;
-            // Los {{N}} vecinos en el extracto confunden: se reemplazan por puntos suspensivos
-            const clean = (s: string) => s.replace(/\{\{\d+\}\}/g, '…');
-            const sample = base.startsWith('fecha') ? '20/06/2026'
-                : base.startsWith('hora') ? '8:30 AM'
-                : base.startsWith('medico') ? 'CARLOS GOMEZ RIOS'
-                : base.startsWith('especialidad') ? 'dermatologia'
-                : base.startsWith('nombre') ? 'PEREZ LOPEZ, MARIA'
-                : 'texto';
-            return { idx, header, sample, context: `…${clean(before)}___${clean(after)}…` };
-        });
-    }, [selectedTemplate, templatePlaceholders]);
 
     // Salud de la plantilla ELEGIDA, antes de hablar de columnas.
     //
@@ -631,14 +657,52 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
             if (expected === 'doctor' && (isDate || isTime)) errors.push(t('bulkSends.validation.expectsDoctorGotOther', { token: `{{${idx}}}`, value: v }));
         });
 
+        // Estructura (las mismas reglas que EstructuraMasivo::validarEnvio en el servidor): cada hueco de datos sale de SU
+        // columna de la guía; los de nombre, del nombre del paciente o de un valor fijo (en saludo_asesor_v2 el {{1}} es
+        // el asesor), nunca de una columna.
+        let nombreDelPaciente = false;
+        (excelGuide ?? []).forEach((g) => {
+            const m = columnMapping[String(g.idx)];
+            if (!m || m.source === 'unset') return; // sin origen: ya lo marca el mapeo incompleto
+            if (g.esNombre) {
+                if (m.source === 'nombre') nombreDelPaciente = true;
+                else if (m.source === 'column') errors.push(t('bulkSends.validation.mustUseName', { token: `{{${g.idx}}}` }));
+                return;
+            }
+            if (m.source !== 'column' || claveColumna(m.column || '') !== g.header) {
+                errors.push(t('bulkSends.validation.mustUseColumn', { token: `{{${g.idx}}}`, column: g.header }));
+            }
+        });
+        // Números agregados a mano: no traen los datos del Excel que pide la plantilla.
+        if ((excelGuide ?? []).some((g) => !g.esNombre)) {
+            const aMano = recipients.filter((r) => !r.params || Object.keys(r.params).length === 0).length;
+            if (aMano > 0) errors.push(t('bulkSends.validation.manualNeedsExcel', { count: aMano }));
+        }
+        // Sin nombre, el saludo saldría vacío («SR(A) ,»).
+        if (nombreDelPaciente) {
+            const sinNombre = recipients.filter((r) => !r.name?.trim()).length;
+            if (sinNombre > 0) errors.push(t('bulkSends.validation.nameMissing', { count: sinNombre }));
+        }
+
         const dup = usedCols.filter((c, i) => usedCols.indexOf(c) !== i);
         [...new Set(dup)].forEach(c => warnings.push(t('bulkSends.validation.columnDuplicated', { column: c })));
         extraColumns.filter(c => !usedCols.includes(c)).forEach(c => warnings.push(t('bulkSends.validation.columnUnused', { column: c })));
         return { errors, warnings };
-    }, [selectedTemplate, templatePlaceholders, columnMapping, recipients, extraColumns, t]);
+    }, [selectedTemplate, templatePlaceholders, columnMapping, recipients, extraColumns, excelGuide, t]);
 
     const handleSelectTemplate = (templateId: string) => {
         const template = whatsappTemplates.find(t => t.id === Number(templateId));
+        // El Excel se revisó contra la plantilla anterior: con otra plantilla hay que volver a subirlo.
+        if (uploadedFileName && template?.id !== selectedTemplate?.id) {
+            setRecipients([]);
+            setUploadedFileName('');
+            setUploadedTotal(0);
+            setExtraColumns([]);
+            setAvisosExcel([]);
+            setSuccess(t('bulkSends.templateChangedReupload'));
+            setTimeout(() => setSuccess(''), 6000);
+        }
+        setErroresExcel([]);
         if (template) {
             setSelectedTemplate(template);
             setTemplateName(template.meta_template_name);
@@ -699,11 +763,19 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
     }, [vigilar]);
 
     const handleFileUpload = async (file: File) => {
+        // El Excel se revisa contra la plantilla: sin plantilla no se puede subir.
+        if (!selectedTemplate) {
+            setError(t('bulkSends.selectTemplateFirst'));
+            return;
+        }
         setIsUploading(true);
         setError('');
+        setErroresExcel([]);
+        setAvisosExcel([]);
 
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('template_id', String(selectedTemplate.id));
 
         try {
             const controller = new AbortController();
@@ -722,6 +794,16 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
             // Si el servidor devuelve error HTTP sin JSON (ej: 413 nginx, 500 HTML)
             if (!(status >= 200 && status < 300)) {
                 const data = response.data;
+                if (data && typeof data === 'object' && data.estructura && Array.isArray(data.issues)) {
+                    // No tiene la estructura de la plantilla: fuera el archivo y la lista de errores en el paso 2.
+                    setRecipients([]);
+                    setUploadedFileName('');
+                    setUploadedTotal(0);
+                    setExtraColumns([]);
+                    setErroresExcel(data.issues as string[]);
+                    setError(t('bulkSends.excelStructureRejected'));
+                    return;
+                }
                 if (data && typeof data === 'object') {
                     if (data.errors) {
                         const firstError = Object.values(data.errors).flat()[0] as string;
@@ -742,9 +824,9 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                 setRecipients(data.recipients);
                 setUploadedFileName(data.filename);
                 setUploadedTotal(Number(data.total) || data.recipients?.length || 0);
-                if (data.extra_columns?.length > 0) {
-                    setExtraColumns(data.extra_columns);
-                }
+                // Siempre: un archivo sin columnas extra no debe heredar las del anterior.
+                setExtraColumns(Array.isArray(data.extra_columns) ? data.extra_columns : []);
+                setAvisosExcel(Array.isArray(data.avisos) ? (data.avisos as string[]) : []);
                 setSuccess(t('bulkSends.fileLoadedSuccess', { total: data.total, filename: data.filename }));
                 setTimeout(() => setSuccess(''), 5000);
             } else {
@@ -773,6 +855,8 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
         if (e.target.files?.[0]) {
             handleFileUpload(e.target.files[0]);
         }
+        // Vaciarlo: si el Excel se rechaza, se corrige y se elige el MISMO archivo, el navegador no avisaría del cambio.
+        e.target.value = '';
     };
 
     const addManualRecipient = () => {
@@ -805,6 +889,10 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
     const clearRecipients = () => {
         setRecipients([]);
         setUploadedFileName('');
+        // Sin el archivo no quedan sus columnas ni sus avisos (si no, el mapeo las seguiría ofreciendo).
+        setExtraColumns([]);
+        setErroresExcel([]);
+        setAvisosExcel([]);
     };
 
     const addParam = () => {
@@ -830,6 +918,10 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
         }
         if (!mappingComplete) {
             setError(t('bulkSends.mappingIncompleteError'));
+            return;
+        }
+        if (validationIssues.errors.length > 0) {
+            setError(t('bulkSends.fixErrorsBeforeSend'));
             return;
         }
         setError('');
@@ -875,6 +967,7 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                 setTimeout(() => setSuccess(''), 5000);
             } else {
                 setError(data.message || t('bulkSends.startSendError'));
+                if (data.estructura && Array.isArray(data.issues)) setErroresExcel(data.issues as string[]);
                 setShowConfirmSend(false);
             }
         } catch (err) {
@@ -1161,8 +1254,11 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
           ? t('bulkSends.addRecipientError')
           : !mappingComplete
             ? t('bulkSends.assignSourceBeforeSend')
-            : '';
-    const puedeEnviar = !isSending && !!selectedTemplate && mappingComplete && recipients.length > 0;
+            : validationIssues.errors.length > 0
+              ? t('bulkSends.fixErrorsBeforeSend')
+              : '';
+    // Con errores (datos cruzados, una columna que no es la de la plantilla) no se puede enviar.
+    const puedeEnviar = !isSending && !!selectedTemplate && mappingComplete && recipients.length > 0 && validationIssues.errors.length === 0;
 
     // Errores de añadir un número: se ven junto al campo (arriba quedaría fuera de la vista).
     const errorNumero = error && (error === t('bulkSends.duplicatePhone') || error === t('bulkSends.phoneMinDigits')) ? error : '';
@@ -1275,7 +1371,7 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                             {t('bulkSends.whatsappTemplateLabel')}
                         </span>
                         {whatsappTemplates.length > 0 ? (
-                            <Select value={selectedTemplate?.id ? String(selectedTemplate.id) : ''} onValueChange={(v) => handleSelectTemplate(v)}>
+                            <Select value={selectedTemplate?.id ? String(selectedTemplate.id) : ''} onValueChange={(v) => handleSelectTemplate(v)} disabled={isUploading /* el Excel se revisa contra la plantilla elegida */}>
                                 <SelectTrigger aria-labelledby="etq-plantilla" className={DISPARADOR}>
                                     <div className="flex min-w-0 flex-1 items-center gap-[9px]">
                                         <MessageSquareText className="size-[15px] shrink-0 text-muted-foreground dark:text-neutral-400" strokeWidth={1.75} aria-hidden="true" />
@@ -1423,6 +1519,7 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                             ))}
                             .
                         </p>
+                        <p className={cn('text-[12px] leading-[17px] font-semibold text-pretty', TEXTO_NAVY)}>{t('bulkSends.excelGuideStrict')}</p>
                     </div>
                 )}
             </div>
@@ -1472,10 +1569,11 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
             ) : (
                 <button
                     type="button"
-                    disabled={isUploading}
+                    disabled={isUploading || !selectedTemplate}
                     onClick={() => document.getElementById('bulk-file-input')?.click()}
                     className={cn(
-                        'flex min-h-[112px] w-full cursor-pointer flex-wrap items-center gap-x-[18px] gap-y-3 rounded-xl border-[1.5px] border-dashed border-[#2e3f84]/35 bg-[#2e3f84]/[0.035] px-5 py-5 text-left transition-colors hover:border-[#2e3f84]/60 disabled:cursor-wait dark:border-white/25 dark:bg-white/[0.03] dark:hover:border-white/40',
+                        'flex min-h-[112px] w-full cursor-pointer flex-wrap items-center gap-x-[18px] gap-y-3 rounded-xl border-[1.5px] border-dashed border-[#2e3f84]/35 bg-[#2e3f84]/[0.035] px-5 py-5 text-left transition-colors hover:border-[#2e3f84]/60 dark:border-white/25 dark:bg-white/[0.03] dark:hover:border-white/40',
+                        isUploading ? 'disabled:cursor-wait' : 'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-[#2e3f84]/35',
                         FOCO
                     )}
                 >
@@ -1490,8 +1588,10 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                                 <Upload className="size-5" strokeWidth={2} aria-hidden="true" />
                             </span>
                             <span className="flex min-w-0 flex-[1_1_14rem] flex-col gap-1">
-                                <span className={cn('text-[14px] leading-5 font-semibold', TEXTO_NAVY)}>{t('bulkSends.dragExcelHere')}</span>
-                                <span className={cn('text-[12.5px] leading-[18px]', TEXTO_SUAVE)}>{t('bulkSends.fileFormatsHelp')}</span>
+                                <span className={cn('text-[14px] leading-5 font-semibold', TEXTO_NAVY)}>{selectedTemplate ? t('bulkSends.dragExcelHere') : t('bulkSends.uploadNeedsTemplate')}</span>
+                                <span className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>
+                                    {selectedTemplate ? t('bulkSends.fileColumnsExact', { columns: columnasRequeridas.join(', ') }) : t('bulkSends.fileFormatsHelp')}
+                                </span>
                             </span>
                             <span className={cn(BOTON_SECUNDARIO, 'pointer-events-none')} aria-hidden="true">
                                 <FileSpreadsheet strokeWidth={1.9} />
@@ -1509,6 +1609,24 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
             <CabezaPaso id="paso-destinatarios" n={2} titulo={t('bulkSends.stepRecipients')} hecho={paso2Hecho} estado={estadoPaso2} />
             <div className="flex flex-col gap-4 px-4 pb-[22px] @3xl/hoja:pr-7 @3xl/hoja:pl-16">
                 {zonaArchivo}
+                {erroresExcel.length > 0 && (
+                    <Nota tipo="mal" titulo={t('bulkSends.excelStructureTitle', { template: selectedTemplate?.name ?? '' })}>
+                        <ul className="flex list-disc flex-col gap-1 pl-4">
+                            {erroresExcel.map((problema, i) => (
+                                <li key={i}>{problema}</li>
+                            ))}
+                        </ul>
+                    </Nota>
+                )}
+                {avisosExcel.length > 0 && uploadedFileName && (
+                    <Nota tipo="aviso" titulo={t('bulkSends.excelRowsRemovedTitle')}>
+                        <ul className="flex list-disc flex-col gap-1 pl-4">
+                            {avisosExcel.map((aviso, i) => (
+                                <li key={i}>{aviso}</li>
+                            ))}
+                        </ul>
+                    </Nota>
+                )}
                 <p className={cn('-mt-1.5 flex items-start gap-[7px] text-[12px] leading-4', TEXTO_SUAVE)}>
                     <Info className="mt-px size-[13px] shrink-0" strokeWidth={2} aria-hidden="true" />
                     {t('bulkSends.recipientsRules')}
