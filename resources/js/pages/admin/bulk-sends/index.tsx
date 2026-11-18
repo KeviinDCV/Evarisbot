@@ -66,6 +66,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, type ReactNod
 import axios from 'axios';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { BotonDescargarExcel } from '@/components/bulk-sends/descargar-excel';
 import { useTranslation, Trans } from 'react-i18next';
 
 // Las llamadas que MUTAN estado van por axios: así usan el token CSRF vivo (cookie
@@ -1883,6 +1884,7 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                 titulo={t('bulkSends.sendHistory')}
                 cuenta={miles(visibleBulkSends.length, lng)}
                 texto={historySearch.trim() ? t('bulkSends.historySearchSubtitle') : t('bulkSends.historyDefaultSubtitle')}
+                acciones={<BotonDescargarExcel href="/admin/bulk-sends/export" ayuda={t('bulkSends.excelAllHint')} />}
             />
             <div className={cn('flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b py-3 @3xl/hoja:min-h-[60px]', SANGRIA, FILETE)}>
                 <Segmentado opciones={filtrosHistorial} activa={historyStatusFilter} onElegir={setHistoryStatusFilter} etiqueta={t('bulkSends.filterByStatus')} />

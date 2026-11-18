@@ -1,6 +1,7 @@
 import AdminLayout from '@/layouts/admin-layout';
 import { BOTON_PELIGRO, FILETE, FOCO, HOJA, MONO, TEXTO_NAVY, TEXTO_SUAVE, nombrePropio } from '@/components/appointments/piezas-citas';
 import { AvisoAccion, Banda, Cifra, ConfirmarDetener, Estado, Franja, H1, Rotulo, Segmentado, fechaHora, miles } from '@/components/bulk-sends/piezas-envio';
+import { BotonDescargarExcel } from '@/components/bulk-sends/descargar-excel';
 import { cn } from '@/lib/utils';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, CircleAlert, CircleCheck, CircleX, Clock, MessageSquareText, Phone, Search, Square, UsersRound } from 'lucide-react';
@@ -218,19 +219,22 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                 </p>
                             </div>
 
-                            {bulkSend.status === 'processing' && (
-                                <button
-                                    type="button"
-                                    onClick={() => setConfirmarDetener(true)}
-                                    disabled={deteniendo}
-                                    aria-haspopup="dialog"
-                                    title={t('bulkSends.stopAsksConfirmation')}
-                                    className={cn(BOTON_PELIGRO, 'self-start')}
-                                >
-                                    <Square strokeWidth={2} aria-hidden="true" />
-                                    {deteniendo ? t('bulkSends.stopping') : t('bulkSends.stopButton')}
-                                </button>
-                            )}
+                            <div className="flex flex-wrap items-center gap-2.5 self-start">
+                                {bulkSend.status === 'processing' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setConfirmarDetener(true)}
+                                        disabled={deteniendo}
+                                        aria-haspopup="dialog"
+                                        title={t('bulkSends.stopAsksConfirmation')}
+                                        className={cn(BOTON_PELIGRO, 'self-start')}
+                                    >
+                                        <Square strokeWidth={2} aria-hidden="true" />
+                                        {deteniendo ? t('bulkSends.stopping') : t('bulkSends.stopButton')}
+                                    </button>
+                                )}
+                                <BotonDescargarExcel href={`/admin/bulk-sends/${bulkSend.id}/export`} ayuda={t('bulkSends.excelOneHint')} />
+                            </div>
                         </div>
                     </header>
 
