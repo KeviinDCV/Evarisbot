@@ -2,6 +2,8 @@ import AdminLayout from '@/layouts/admin-layout';
 import { BOTON_PELIGRO, FILETE, FOCO, HOJA, MONO, TEXTO_NAVY, TEXTO_SUAVE, nombrePropio } from '@/components/appointments/piezas-citas';
 import { AvisoAccion, Banda, Cifra, ConfirmarDetener, Estado, Franja, H1, Rotulo, Segmentado, fechaHora, miles } from '@/components/bulk-sends/piezas-envio';
 import { BotonDescargarExcel } from '@/components/bulk-sends/descargar-excel';
+import { IconoAnimado } from '@/components/icono-animado';
+import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { Head, Link, router } from '@inertiajs/react';
 import { ArrowLeft, CircleAlert, CircleCheck, CircleX, Clock, MessageSquareText, Phone, Search, Square, UsersRound } from 'lucide-react';
@@ -196,7 +198,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                     <header className="flex flex-col gap-2.5">
                         <Link
                             href="/admin/bulk-sends"
-                            className={cn('-mx-1.5 inline-flex w-fit items-center gap-1.5 rounded-lg px-1.5 py-0.5 text-[13px] leading-[18px] font-semibold transition-colors hover:bg-[#2e3f84]/6 dark:hover:bg-white/8', TEXTO_NAVY, FOCO)}
+                            className={cn('relative -mx-1.5 inline-flex w-fit items-center gap-1.5 rounded-lg px-1.5 py-0.5 text-[13px] leading-[18px] font-semibold transition-colors after:absolute after:inset-x-0 after:-inset-y-[9px] hover:bg-[#2e3f84]/6 pointer-coarse:after:-inset-y-[11px] dark:hover:bg-white/8', TEXTO_NAVY, FOCO)}
                         >
                             <ArrowLeft className="size-[15px]" strokeWidth={2} aria-hidden="true" />
                             {t('bulkSends.backToBulkSends')}
@@ -225,11 +227,14 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                         type="button"
                                         onClick={() => setConfirmarDetener(true)}
                                         disabled={deteniendo}
+                                        aria-busy={deteniendo || undefined}
                                         aria-haspopup="dialog"
                                         title={t('bulkSends.stopAsksConfirmation')}
                                         className={cn(BOTON_PELIGRO, 'self-start')}
                                     >
-                                        <Square strokeWidth={2} aria-hidden="true" />
+                                        <IconoAnimado clave={deteniendo ? 'girando' : 'detener'}>
+                                            {deteniendo ? <Spinner className="motion-reduce:animate-none" /> : <Square strokeWidth={2} />}
+                                        </IconoAnimado>
                                         {deteniendo ? t('bulkSends.stopping') : t('bulkSends.stopButton')}
                                     </button>
                                 )}
@@ -320,7 +325,7 @@ export default function BulkSendShow({ bulkSend, recipients }: BulkSendShowProps
                                                 onChange={(e) => setSearch(e.target.value)}
                                                 placeholder={t('bulkSends.searchRecipientsPlaceholder')}
                                                 className={cn(
-                                                    'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-3 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                                                    'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-3 pl-[38px] text-[13px] leading-[18px] pointer-coarse:h-11 pointer-coarse:text-[16px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
                                                     FOCO
                                                 )}
                                             />

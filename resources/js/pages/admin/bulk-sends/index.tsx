@@ -65,6 +65,7 @@ import {
 import React, { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import axios from 'axios';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { IconoAnimado } from '@/components/icono-animado';
 import { cn } from '@/lib/utils';
 import { BotonDescargarExcel } from '@/components/bulk-sends/descargar-excel';
 import { useTranslation, Trans } from 'react-i18next';
@@ -212,7 +213,7 @@ function columnSlotType(col: string, sample?: string): SlotType {
 
 // Campo editable. Borde navy al 58 % (#868fb7): 3,1:1 contra la hoja (WCAG 1.4.11).
 const CAMPO = cn(
-    'h-[38px] w-full min-w-0 rounded-[9px] bg-white px-3 text-[13px] leading-[18px] font-medium text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none placeholder:font-normal placeholder:text-muted-foreground',
+    'h-[38px] w-full min-w-0 rounded-[9px] bg-white px-3 text-[13px] leading-[18px] pointer-coarse:h-11 pointer-coarse:text-[16px] font-medium text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,0.58)] transition-shadow outline-none placeholder:font-normal placeholder:text-muted-foreground',
     'focus:shadow-[inset_0_0_0_1px_#2e3f84,0_0_0_3px_rgba(46,63,132,0.2)] disabled:cursor-not-allowed disabled:opacity-60',
     'dark:bg-white/[0.04] dark:text-neutral-100 dark:shadow-[inset_0_0_0_1px_var(--color-neutral-500)] dark:placeholder:text-neutral-400 dark:focus:shadow-[inset_0_0_0_1px_#8b9ae0,0_0_0_3px_rgba(139,154,224,0.3)]'
 );
@@ -236,11 +237,12 @@ const ETIQUETA = cn('text-[12.5px] leading-4 font-semibold', TEXTO_NAVY);
 const AYUDA = cn('text-[12px] leading-4', TEXTO_SUAVE);
 const ICONO_CAMPO = 'pointer-events-none absolute top-1/2 left-3 size-[15px] -translate-y-1/2 text-muted-foreground dark:text-neutral-400';
 const BOTON_TEXTO = cn(
-    'inline-flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors [&_svg]:size-3.5',
+    'relative inline-flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[12.5px] leading-4 font-semibold whitespace-nowrap transition-colors [&_svg]:size-3.5',
+    'after:absolute after:inset-x-0 after:-inset-y-[5px] pointer-coarse:after:-inset-y-[7px]',
     FOCO
 );
 const BOTON_ICONO = cn(
-    'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+    'relative flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors after:absolute after:-inset-[5px] pointer-coarse:after:-inset-[6px] hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
     FOCO
 );
 
@@ -292,7 +294,7 @@ function CabezaPaso({ id, n, titulo, hecho, estado, className }: { id: string; n
                     </span>
                 )}
             </span>
-            <h3 id={id} className={cn('min-w-0 flex-1 text-[15px] leading-5 font-semibold tracking-[-0.01em]', TEXTO_NAVY)}>
+            <h3 id={id} className={cn('min-w-0 flex-1 text-[15px] leading-5 font-semibold tracking-[-0.01em] text-balance', TEXTO_NAVY)}>
                 {titulo}
             </h3>
             {estado}
@@ -1834,23 +1836,17 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                         <button
                             type="button"
                             onClick={handleStartSend}
+                            aria-busy={isSending || undefined}
                             disabled={!puedeEnviar}
                             aria-haspopup="dialog"
                             aria-describedby="nota-enviar"
                             title={motivoApagado || undefined}
                             className={cn(puedeEnviar || isSending ? BOTON_PRIMARIO : BOTON_APAGADO, 'h-[42px] w-full text-[14px]')}
                         >
-                            {isSending ? (
-                                <>
-                                    <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" />
-                                    {t('bulkSends.startingSend')}
-                                </>
-                            ) : (
-                                <>
-                                    <Send strokeWidth={2} aria-hidden="true" />
-                                    {t('bulkSends.sendToRecipients', { value: miles(recipients.length, lng) })}
-                                </>
-                            )}
+                            <IconoAnimado clave={isSending ? 'girando' : 'listo'}>
+                                {isSending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} /> : <Send strokeWidth={2} />}
+                            </IconoAnimado>
+                            {isSending ? t('bulkSends.startingSend') : t('bulkSends.sendToRecipients', { value: miles(recipients.length, lng) })}
                         </button>
                         <p id="nota-enviar" className={cn('text-[12px] leading-[17px]', motivoApagado && selectedTemplate && recipients.length > 0 ? 'font-medium text-red-700 dark:text-red-400' : TEXTO_SUAVE)}>
                             {motivoApagado || t('bulkSends.sendNote')}
@@ -1904,7 +1900,7 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                         onChange={(e) => setHistorySearch(e.target.value)}
                         placeholder={t('bulkSends.searchPlaceholder')}
                         className={cn(
-                            'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-3 pl-[38px] text-[13px] leading-[18px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
+                            'h-9 w-full rounded-[10px] bg-[#2e3f84]/[0.035] pr-3 pl-[38px] text-[13px] leading-[18px] pointer-coarse:h-11 pointer-coarse:text-[16px] text-foreground shadow-[inset_0_0_0_1px_rgba(46,63,132,0.1)] transition-shadow placeholder:text-muted-foreground dark:bg-white/5 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:text-neutral-400',
                             FOCO
                         )}
                     />
@@ -2072,7 +2068,7 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                 className="rounded-t-2xl"
                 acciones={
                     <>
-                        <button type="button" onClick={handleSyncTemplates} disabled={isSyncing} className={BOTON_SECUNDARIO}>
+                        <button type="button" onClick={handleSyncTemplates} disabled={isSyncing} aria-busy={isSyncing || undefined} className={BOTON_SECUNDARIO}>
                             <RefreshCw className={cn(isSyncing && 'animate-spin motion-reduce:animate-none')} strokeWidth={1.9} aria-hidden="true" />
                             {isSyncing ? t('bulkSends.syncing') : t('bulkSends.syncWithMeta')}
                         </button>
@@ -2282,7 +2278,8 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                                             aria-controls={`panel-${p.value}`}
                                             onClick={() => setActiveTab(p.value)}
                                             className={cn(
-                                                'flex h-[30px] shrink-0 cursor-pointer items-center gap-[7px] rounded-lg px-3 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors',
+                                                'relative flex h-[30px] shrink-0 cursor-pointer items-center gap-[7px] rounded-[8px] px-3 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors',
+                                                'after:absolute after:inset-x-0 after:-inset-y-[3px] pointer-coarse:h-[38px]',
                                                 FOCO,
                                                 on
                                                     ? 'bg-white text-[#2e3f84] shadow-[0_0_0_1px_rgba(46,63,132,0.08),0_1px_2px_rgba(46,63,132,0.12),0_2px_6px_-2px_rgba(46,63,132,0.12)] dark:bg-white/12 dark:text-neutral-100 dark:shadow-none'
@@ -2364,18 +2361,11 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                                 {t('common.cancel')}
                             </button>
                         </DialogPrimitive.Close>
-                        <button type="button" onClick={executeSend} disabled={!confirmChecked || isSending} title={!confirmChecked ? t('bulkSends.confirmNeedsCheck') : undefined} className={BOTON_PRIMARIO}>
-                            {isSending ? (
-                                <>
-                                    <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" />
-                                    {t('bulkSends.sending')}
-                                </>
-                            ) : (
-                                <>
-                                    <Send strokeWidth={2} aria-hidden="true" />
-                                    {t('bulkSends.confirmAndSend', { value: miles(recipients.length, lng) })}
-                                </>
-                            )}
+                        <button type="button" onClick={executeSend} disabled={!confirmChecked || isSending} aria-busy={isSending || undefined} title={!confirmChecked ? t('bulkSends.confirmNeedsCheck') : undefined} className={BOTON_PRIMARIO}>
+                            <IconoAnimado clave={isSending ? 'girando' : 'listo'}>
+                                {isSending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} /> : <Send strokeWidth={2} />}
+                            </IconoAnimado>
+                            {isSending ? t('bulkSends.sending') : t('bulkSends.confirmAndSend', { value: miles(recipients.length, lng) })}
                         </button>
                     </>
                 }
@@ -2492,20 +2482,14 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                         <button
                             type="button"
                             onClick={handleCreateTemplate}
+                            aria-busy={isCreatingTemplate || undefined}
                             disabled={isCreatingTemplate || !newTplName || !newTplBody || !newTplDisplayName}
                             className={BOTON_PRIMARIO}
                         >
-                            {isCreatingTemplate ? (
-                                <>
-                                    <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" />
-                                    {t('bulkSends.sendingToMeta')}
-                                </>
-                            ) : (
-                                <>
-                                    <Send strokeWidth={2} aria-hidden="true" />
-                                    {t('bulkSends.sendForReview')}
-                                </>
-                            )}
+                            <IconoAnimado clave={isCreatingTemplate ? 'girando' : 'listo'}>
+                                {isCreatingTemplate ? <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} /> : <Send strokeWidth={2} />}
+                            </IconoAnimado>
+                            {isCreatingTemplate ? t('bulkSends.sendingToMeta') : t('bulkSends.sendForReview')}
                         </button>
                     </>
                 }
@@ -2673,7 +2657,7 @@ export default function BulkSendsIndex({ bulkSends, activeSends: initialActivos 
                                 maxLength={1024}
                                 rows={5}
                                 aria-describedby="tpl-body-help"
-                                className={cn(CAMPO, 'h-auto min-h-[112px] resize-y py-2.5 leading-5')}
+                                className={cn(CAMPO, 'h-auto min-h-[112px] resize-y py-2.5 leading-5 pointer-coarse:h-auto')}
                             />
                             <div id="tpl-body-help" className={cn('flex justify-between gap-3 tabular-nums', AYUDA)}>
                                 <span>{t('bulkSends.bodyHelp')}</span>

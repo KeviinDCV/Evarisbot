@@ -49,7 +49,7 @@ export function fechaHora(valor?: string | null, lng?: string) {
 
 /* ── Cabecera de página, franja y hoja ── */
 
-export const H1 = cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY);
+export const H1 = cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em] text-balance', TEXTO_NAVY);
 
 /** Una cifra de la franja: marca + etiqueta arriba, número grande y su detalle debajo. */
 export function Cifra({ marca, etiqueta, valor, detalle }: { marca: ReactNode; etiqueta: string; valor: string; detalle: ReactNode }) {
@@ -135,13 +135,13 @@ export function Banda({
             </span>
             <div className="flex min-w-0 flex-[1_1_16rem] flex-col gap-[3px]">
                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                    <h2 id={id} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em]', TEXTO_NAVY)}>
+                    <h2 id={id} className={cn('text-[15px] leading-5 font-semibold tracking-[-0.01em] text-balance', TEXTO_NAVY)}>
                         {titulo}
                     </h2>
                     {cuenta !== undefined && <Cuenta>{cuenta}</Cuenta>}
                     {estado}
                 </div>
-                <p className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>{texto}</p>
+                <p className={cn('text-[12.5px] leading-4 text-pretty tabular-nums', TEXTO_SUAVE)}>{texto}</p>
             </div>
             {acciones && <div className={cn('flex flex-wrap items-center gap-2.5 @5xl/hoja:shrink-0', accionesClassName)}>{acciones}</div>}
         </div>
@@ -183,7 +183,8 @@ export function Segmentado<V extends string>({
                         aria-pressed={on}
                         onClick={() => onElegir(o.value)}
                         className={cn(
-                            'flex h-[30px] shrink-0 cursor-pointer items-center gap-[7px] rounded-lg px-3 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors',
+                            'relative flex h-[30px] shrink-0 cursor-pointer items-center gap-[7px] rounded-[8px] px-3 text-[13px] leading-4 font-semibold whitespace-nowrap transition-colors',
+                            'after:absolute after:inset-x-0 after:-inset-y-[3px] pointer-coarse:h-[38px]',
                             FOCO,
                             on
                                 ? 'bg-white text-[#2e3f84] shadow-[0_0_0_1px_rgba(46,63,132,0.08),0_1px_2px_rgba(46,63,132,0.12),0_2px_6px_-2px_rgba(46,63,132,0.12)] dark:bg-white/12 dark:text-neutral-100 dark:shadow-none'
@@ -352,7 +353,7 @@ export function AvisoAccion({ tipo, texto, onCerrar }: { tipo: 'ok' | 'error'; t
                 onClick={onCerrar}
                 aria-label={t('bulkSends.closeNotice')}
                 title={t('bulkSends.closeNotice')}
-                className={cn('-my-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-black/5 dark:hover:bg-white/10', FOCO)}
+                className={cn('relative -my-1 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors after:absolute after:-inset-[6px] hover:bg-black/5 pointer-coarse:after:-inset-[8px] dark:hover:bg-white/10', FOCO)}
             >
                 <X className="size-4" aria-hidden="true" />
             </button>
@@ -419,7 +420,7 @@ export function Dialogo({
                         >
                             <Icono className="size-[18px]" strokeWidth={2} aria-hidden="true" />
                         </span>
-                        <DialogPrimitive.Title className={cn('min-w-0 flex-1 text-[16.5px] leading-[22px] font-semibold tracking-[-0.01em] tabular-nums', TEXTO_NAVY)}>
+                        <DialogPrimitive.Title className={cn('min-w-0 flex-1 text-[16.5px] leading-[22px] font-semibold tracking-[-0.01em] text-balance tabular-nums', TEXTO_NAVY)}>
                             {titulo}
                         </DialogPrimitive.Title>
                         {cerrarConX && (
@@ -429,7 +430,8 @@ export function Dialogo({
                                     aria-label={t('common.close')}
                                     title={t('common.close')}
                                     className={cn(
-                                        'flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+                                        'relative flex size-[30px] shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-[#2e3f84]/8 hover:text-[#2e3f84] dark:text-neutral-400 dark:hover:bg-white/8 dark:hover:text-neutral-100',
+                                        'after:absolute after:-inset-[5px] pointer-coarse:after:-inset-[7px]',
                                         FOCO
                                     )}
                                 >
