@@ -61,7 +61,7 @@ class BulkSendController extends Controller
                 'sent_count' => $bs->sent_count,
                 'failed_count' => $bs->failed_count,
                 'created_by_name' => $bs->creator?->name ?? 'Sistema',
-                'created_at' => $bs->created_at->format('Y-m-d H:i'),
+                'created_at' => $bs->created_at->enColombia()->format('Y-m-d H:i'),
             ]);
 
         $whatsappTemplates = WhatsappTemplate::active()
@@ -93,7 +93,7 @@ class BulkSendController extends Controller
                 'header_text' => $t->header_text,
                 'footer_text' => $t->footer_text,
                 'is_active' => $t->is_active,
-                'created_at' => $t->created_at?->format('Y-m-d H:i'),
+                'created_at' => $t->created_at?->enColombia()->format('Y-m-d H:i'),
             ]);
 
         return Inertia::render('admin/bulk-sends/index', [
@@ -157,14 +157,14 @@ class BulkSendController extends Controller
                     'sent_count' => $bs->sent_count,
                     'failed_count' => $bs->failed_count,
                     'created_by_name' => $bs->creator?->name ?? 'Sistema',
-                    'created_at' => $bs->created_at->format('Y-m-d H:i'),
+                    'created_at' => $bs->created_at->enColombia()->format('Y-m-d H:i'),
                     'matching_recipients' => $matched ? $matched->map(fn($r) => [
                         'id' => $r->id,
                         'phone_number' => $r->phone_number,
                         'contact_name' => $r->contact_name,
                         'status' => $r->status,
                         'error' => $r->error,
-                        'sent_at' => $r->sent_at?->format('Y-m-d H:i:s'),
+                        'sent_at' => $r->sent_at?->enColombia()->format('Y-m-d H:i:s'),
                         'params' => $r->params,
                     ])->values()->toArray() : null,
                 ];
@@ -219,7 +219,7 @@ class BulkSendController extends Controller
                 'params' => $r->params,
                 'status' => $r->status,
                 'error' => $r->error,
-                'sent_at' => $r->sent_at?->format('Y-m-d H:i:s'),
+                'sent_at' => $r->sent_at?->enColombia()->format('Y-m-d H:i:s'),
             ]);
 
         return Inertia::render('admin/bulk-sends/show', [
@@ -233,7 +233,7 @@ class BulkSendController extends Controller
                 'sent_count' => $bulkSend->sent_count,
                 'failed_count' => $bulkSend->failed_count,
                 'created_by_name' => $bulkSend->creator?->name ?? 'Sistema',
-                'created_at' => $bulkSend->created_at->format('Y-m-d H:i'),
+                'created_at' => $bulkSend->created_at->enColombia()->format('Y-m-d H:i'),
             ],
             'recipients' => $recipients,
         ]);
@@ -374,6 +374,21 @@ class BulkSendController extends Controller
                 }
             }
 
+            // Detectar encabezados duplicados ANTES de renombrarlos silenciosamente.
+            // Un Excel con dos columnas "medico" significa casi siempre datos desalineados
+            // (una suele ser el paciente, la otra el medico); si lo dejamos pasar, el envio
+            // llega con el valor cambiado y nadie lo detecta hasta ver un mensaje incorrecto.
+            $duplicateHeaders = [];
+            $headerSeenCount = [];
+            foreach ($extraCols as $colName) {
+                $headerSeenCount[$colName] = ($headerSeenCount[$colName] ?? 0) + 1;
+            }
+            foreach ($headerSeenCount as $colName => $count) {
+                if ($count > 1) {
+                    $duplicateHeaders[] = $colName;
+                }
+            }
+
             // Desambiguar nombres de columna duplicados (ej: "fecha cita", "fecha cita (2)")
             $colNameCounts = [];
             foreach ($extraCols as $colIdx => $colName) {
@@ -404,6 +419,34 @@ class BulkSendController extends Controller
                         }
                     }
                 }
+            }
+
+            // Validacion estructural del Excel: bloquear si el archivo tiene problemas que
+            // haran fallar el envio o produciran mensajes incorrectos. Mejor detenerse aqui
+            // que permitir el flujo y que el usuario descubra el error con miles de fallos en Meta.
+            $structuralIssues = [];
+
+            if ($nameCol === null) {
+                $structuralIssues[] = 'No se encontro columna de nombre del contacto. Renombre una columna del Excel a "paciente" o "nombre" (tambien valen: contacto, cliente, destinatario).';
+            }
+
+            if (!empty($duplicateHeaders)) {
+                $lista = implode('", "', $duplicateHeaders);
+                $structuralIssues[] = 'Hay encabezados duplicados en el Excel: "' . $lista . '". Renombrelos para que cada columna tenga un nombre unico (ej: si tiene dos "medico", una podria ser "paciente" y la otra "medico").';
+            }
+
+            if (!empty($structuralIssues)) {
+                Log::warning('Archivo Excel rechazado por problemas estructurales', [
+                    'filename' => $file->getClientOriginalName(),
+                    'issues' => $structuralIssues,
+                    'headers_detected' => $rawHeaders,
+                ]);
+                $message = "El archivo tiene problemas y no se puede usar. Corrijalo y vuelva a subirlo:\n\n• " . implode("\n\n• ", $structuralIssues);
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'issues' => $structuralIssues,
+                ], 422);
             }
 
             $seen = [];
@@ -713,7 +756,7 @@ class BulkSendController extends Controller
 
             // Crear el registro de envío masivo
             $bulkSend = BulkSend::create([
-                'name' => $request->input('name') ?: 'Envío ' . now()->format('Y-m-d H:i'),
+                'name' => $request->input('name') ?: 'Envío ' . now()->enColombia()->format('Y-m-d H:i'),
                 'template_name' => $request->input('template_name'),
                 'template_params' => $request->input('template_params'),
                 'column_mapping' => $request->input('column_mapping'),

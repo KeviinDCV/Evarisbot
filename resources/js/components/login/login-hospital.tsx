@@ -1,5 +1,6 @@
 import { useAvisosCampo } from '@/components/avisos-campo';
 import { useCapsLock } from '@/components/caps-lock-warning';
+import { IconoAnimado } from '@/components/icono-animado';
 import { LanguageSelector } from '@/components/language-selector';
 import { Spinner } from '@/components/ui/spinner';
 import { useAppearance } from '@/hooks/use-appearance';
@@ -200,7 +201,7 @@ export default function LoginHospital({ status }: { status?: string }) {
                         title={oscuro ? t('common.switchToLight') : t('common.switchToDark')}
                         aria-label={oscuro ? t('common.switchToLight') : t('common.switchToDark')}
                     >
-                        {oscuro ? <Sun className="h-[18px] w-[18px]" aria-hidden="true" /> : <Moon className="h-[18px] w-[18px]" aria-hidden="true" />}
+                        <IconoAnimado clave={oscuro ? 'sol' : 'luna'}>{oscuro ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}</IconoAnimado>
                     </button>
                     <LanguageSelector variant="translucido" />
                 </div>
@@ -240,8 +241,8 @@ export default function LoginHospital({ status }: { status?: string }) {
                             <div className="flex flex-col items-center gap-3 text-center">
                                 <img src="/images/logo.png" alt="Hospital Universitario del Valle" className="auth-logo lh-logo h-[92px] w-auto" />
                                 <div className="flex flex-col gap-1">
-                                    <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em]">{t('loginHospital.welcome')}</h1>
-                                    <p className="text-[14.5px]" style={{ color: 'var(--lh-sub)' }}>
+                                    <h1 className="text-[26px] font-semibold leading-tight tracking-[-0.02em] text-balance">{t('loginHospital.welcome')}</h1>
+                                    <p className="text-[14.5px] text-pretty" style={{ color: 'var(--lh-sub)' }}>
                                         {t('loginHospital.tagline')}
                                     </p>
                                 </div>
@@ -274,7 +275,7 @@ export default function LoginHospital({ status }: { status?: string }) {
                                         {mensajeCorreo && <MensajeCampo id="error-correo" texto={mensajeCorreo} />}
                                     </div>
                                     <div className="relative flex items-center">
-                                        <Mail aria-hidden="true" className="pointer-events-none absolute left-4 h-[18px] w-[18px]" style={{ color: 'var(--lh-icono)' }} />
+                                        <Mail aria-hidden="true" strokeWidth={1.75} className="pointer-events-none absolute left-4 h-[18px] w-[18px]" style={{ color: 'var(--lh-icono)' }} />
                                         <input
                                             id="email"
                                             type="email"
@@ -300,7 +301,7 @@ export default function LoginHospital({ status }: { status?: string }) {
                                         {mensajeClave && <MensajeCampo id="error-clave" texto={mensajeClave} />}
                                     </div>
                                     <div className="relative flex items-center">
-                                        <Lock aria-hidden="true" className="pointer-events-none absolute left-4 h-[18px] w-[18px]" style={{ color: 'var(--lh-icono)' }} />
+                                        <Lock aria-hidden="true" strokeWidth={1.75} className="pointer-events-none absolute left-4 h-[18px] w-[18px]" style={{ color: 'var(--lh-icono)' }} />
                                         <input
                                             id="password"
                                             type={verClave ? 'text' : 'password'}
@@ -330,18 +331,20 @@ export default function LoginHospital({ status }: { status?: string }) {
                                         <button
                                             type="button"
                                             onClick={() => setVerClave((v) => !v)}
-                                            className="lh-ojo absolute right-[3px] flex h-11 w-11 items-center justify-center rounded-[10px] transition-colors hover:bg-[var(--lh-anillo)]"
+                                            className="lh-ojo absolute right-[3px] flex h-11 w-11 items-center justify-center rounded-[11px] transition-colors hover:bg-[var(--lh-anillo)]"
                                             style={{ color: 'var(--lh-placeholder)' }}
                                             aria-label={t('auth.showPassword', 'Mostrar contraseña')}
                                             aria-pressed={verClave}
                                             title={verClave ? t('auth.hidePassword', 'Ocultar contraseña') : t('auth.showPassword', 'Mostrar contraseña')}
                                         >
-                                            {verClave ? <EyeOff className="h-[19px] w-[19px]" aria-hidden="true" /> : <Eye className="h-[19px] w-[19px]" aria-hidden="true" />}
+                                            <IconoAnimado clave={verClave ? 'ocultar' : 'ver'}>
+                                                {verClave ? <EyeOff className="h-[19px] w-[19px]" strokeWidth={1.75} /> : <Eye className="h-[19px] w-[19px]" strokeWidth={1.75} />}
+                                            </IconoAnimado>
                                         </button>
                                     </div>
                                 </div>
 
-                                <label className="flex min-h-10 cursor-pointer items-center gap-2.5 text-sm" style={{ color: 'var(--lh-sub)' }}>
+                                <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-sm" style={{ color: 'var(--lh-sub)' }}>
                                     <input type="checkbox" name="remember" value="1" className="lh-check h-[18px] w-[18px] cursor-pointer" style={{ accentColor: 'var(--lh-acento)' }} />
                                     {t('loginHospital.keepSession')}
                                 </label>
@@ -350,31 +353,27 @@ export default function LoginHospital({ status }: { status?: string }) {
                             <button
                                 type="submit"
                                 disabled={processing || bloqueado}
+                                aria-busy={processing || undefined}
                                 className={`lh-boton flex h-[54px] items-center justify-center gap-2.5 rounded-[14px] text-base font-semibold text-white tabular-nums disabled:cursor-not-allowed disabled:opacity-70 ${bloqueado ? 'lh-boton-espera' : ''}`}
                             >
-                                {bloqueado ? (
-                                    <>
-                                        <Clock className="h-[18px] w-[18px]" aria-hidden="true" />
-                                        {t('loginHospital.lockedButton', { tiempo: minutosYSegundos(faltan) })}
-                                    </>
-                                ) : (
-                                    <>
-                                        {processing && <Spinner />}
-                                        {t('loginHospital.submit')}
-                                        {!processing && <ArrowRight className="h-[18px] w-[18px]" aria-hidden="true" />}
-                                    </>
-                                )}
+                                <IconoAnimado clave={bloqueado ? 'reloj' : processing ? 'girando' : null}>
+                                    {bloqueado ? <Clock className="h-[18px] w-[18px]" /> : <Spinner className="motion-reduce:animate-none" />}
+                                </IconoAnimado>
+                                {bloqueado ? t('loginHospital.lockedButton', { tiempo: minutosYSegundos(faltan) }) : t('loginHospital.submit')}
+                                <IconoAnimado clave={!bloqueado && !processing ? 'flecha' : null}>
+                                    <ArrowRight className="h-[18px] w-[18px]" />
+                                </IconoAnimado>
                             </button>
 
                             {/* Dos notas distintas, cada una con su ícono: la ayuda (qué hacer) y el aviso (quién puede
                                 entrar). Antes iban en un mismo párrafo y la ayuda se perdía en la letra pequeña. */}
                             <ul className="lh-notas flex flex-col border-t text-[13px] leading-normal" style={{ borderColor: 'var(--lh-separador)', color: 'var(--lh-sub)' }}>
                                 <li className="flex items-start gap-2.5">
-                                    <KeyRound aria-hidden="true" className="mt-px h-[18px] w-[18px] shrink-0" style={{ color: 'var(--lh-escudo)' }} />
+                                    <KeyRound aria-hidden="true" strokeWidth={1.75} className="mt-px h-[18px] w-[18px] shrink-0" style={{ color: 'var(--lh-escudo)' }} />
                                     <span className="text-pretty">{t('loginHospital.forgotHelp')}</span>
                                 </li>
                                 <li className="flex items-start gap-2.5">
-                                    <ShieldCheck aria-hidden="true" className="mt-px h-[18px] w-[18px] shrink-0" style={{ color: 'var(--lh-escudo)' }} />
+                                    <ShieldCheck aria-hidden="true" strokeWidth={1.75} className="mt-px h-[18px] w-[18px] shrink-0" style={{ color: 'var(--lh-escudo)' }} />
                                     <span className="text-pretty">{t('loginHospital.securityNote')}</span>
                                 </li>
                             </ul>

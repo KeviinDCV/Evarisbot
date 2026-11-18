@@ -3,6 +3,7 @@ import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileCo
 import { AvisoBajoCampo, useAvisosCampo } from '@/components/avisos-campo';
 import { AvisoEnvio } from '@/components/aviso-envio';
 import { IndicadorMayus, useCapsLock } from '@/components/caps-lock-warning';
+import { IconoAnimado } from '@/components/icono-animado';
 import { Spinner } from '@/components/ui/spinner';
 import { type Appearance, useAppearance } from '@/hooks/use-appearance';
 import { useInitials } from '@/hooks/use-initials';
@@ -51,10 +52,10 @@ const esCorreoUsado = (m?: string) => !!m && /unique|registrad|taken/i.test(m);
 function Encabezado({ id, titulo, ayuda }: { id: string; titulo: string; ayuda: string }) {
     return (
         <div>
-            <h2 id={id} className="text-[17px] font-semibold text-foreground">
+            <h2 id={id} className="text-[17px] font-semibold text-balance text-foreground">
                 {titulo}
             </h2>
-            <p className="mt-0.5 text-[13.5px] text-muted-foreground">{ayuda}</p>
+            <p className="mt-0.5 text-[13.5px] text-pretty text-muted-foreground">{ayuda}</p>
         </div>
     );
 }
@@ -91,7 +92,7 @@ function Regla({ cumple, falta, children }: { cumple: boolean; falta: boolean; c
             )}
         >
             {cumple ? (
-                <Check className="h-4 w-4" strokeWidth={2.4} aria-hidden="true" />
+                <Check className="h-4 w-4" aria-hidden="true" />
             ) : falta ? (
                 <CircleAlert className="h-4 w-4" aria-hidden="true" />
             ) : (
@@ -232,7 +233,7 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                 </span>
                             )}
                             <div className="flex min-w-0 flex-col items-center gap-1.5">
-                                <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-foreground [overflow-wrap:anywhere]">{usuario.name}</h1>
+                                <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-balance text-foreground [overflow-wrap:anywhere]">{usuario.name}</h1>
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef1fb] px-2.5 py-1 text-[12.5px] font-semibold text-primary dark:bg-primary/15 dark:text-[hsl(231,85%,84%)]">
                                     <IconoRol className="h-3.5 w-3.5" aria-hidden="true" />
                                     {rol}
@@ -338,7 +339,7 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                                         className={CAMPO}
                                                     />
                                                     <AvisoBajoCampo id="error-correo" texto={errorCorreo} />
-                                                    <p id="ayuda-correo" className="text-[12.5px] text-muted-foreground">
+                                                    <p id="ayuda-correo" className="text-[12.5px] text-pretty text-muted-foreground">
                                                         {t('perfilCarnet.emailHelp')}
                                                     </p>
                                                 </div>
@@ -361,20 +362,18 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                                 <button
                                                     type="submit"
                                                     disabled={processing || !hayCambios || fallasDatos.bloqueado}
+                                                    aria-busy={processing || undefined}
                                                     title={!hayCambios && !processing ? t('perfilCarnet.noChanges') : undefined}
                                                     className={cn(BOTON, 'tabular-nums', fallasDatos.bloqueado && BOTON_ESPERA)}
                                                 >
-                                                    {fallasDatos.bloqueado ? (
-                                                        <>
-                                                            <Clock className="h-4 w-4" aria-hidden="true" />
-                                                            {t('fallasEnvio.lockedButton', { tiempo: minutosYSegundos(fallasDatos.faltan) })}
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            {processing && <Spinner />}
-                                                            {processing ? t('perfilCarnet.saving') : t('perfilCarnet.save')}
-                                                        </>
-                                                    )}
+                                                    <IconoAnimado clave={fallasDatos.bloqueado ? 'reloj' : processing ? 'girando' : null}>
+                                                        {fallasDatos.bloqueado ? <Clock className="h-4 w-4" /> : <Spinner className="motion-reduce:animate-none" />}
+                                                    </IconoAnimado>
+                                                    {fallasDatos.bloqueado
+                                                        ? t('fallasEnvio.lockedButton', { tiempo: minutosYSegundos(fallasDatos.faltan) })
+                                                        : processing
+                                                          ? t('perfilCarnet.saving')
+                                                          : t('perfilCarnet.save')}
                                                 </button>
                                             </div>
                                         </>
@@ -532,7 +531,7 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                                             {t('perfilCarnet.ruleNumbers')}
                                                         </Regla>
                                                     </ul>
-                                                    <label className="flex w-fit cursor-pointer items-center gap-2 text-[13px] text-muted-foreground">
+                                                    <label className="relative flex min-h-5 w-fit cursor-pointer items-center gap-2 text-[13px] text-muted-foreground after:absolute after:-inset-x-2 after:-inset-y-[10px] pointer-coarse:after:-inset-y-3">
                                                         <input
                                                             type="checkbox"
                                                             checked={verClaves}
@@ -544,18 +543,20 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     <Guardado visible={recentlySuccessful} texto={t('perfilCarnet.passwordChanged')} />
-                                                    <button type="submit" disabled={processing || fallasClave.bloqueado} className={cn(BOTON, 'tabular-nums', fallasClave.bloqueado && BOTON_ESPERA)}>
-                                                        {fallasClave.bloqueado ? (
-                                                            <>
-                                                                <Clock className="h-4 w-4" aria-hidden="true" />
-                                                                {t('fallasEnvio.lockedButton', { tiempo: minutosYSegundos(fallasClave.faltan) })}
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                {processing && <Spinner />}
-                                                                {processing ? t('perfilCarnet.changingPassword') : t('perfilCarnet.changePassword')}
-                                                            </>
-                                                        )}
+                                                    <button
+                                                        type="submit"
+                                                        disabled={processing || fallasClave.bloqueado}
+                                                        aria-busy={processing || undefined}
+                                                        className={cn(BOTON, 'tabular-nums', fallasClave.bloqueado && BOTON_ESPERA)}
+                                                    >
+                                                        <IconoAnimado clave={fallasClave.bloqueado ? 'reloj' : processing ? 'girando' : null}>
+                                                            {fallasClave.bloqueado ? <Clock className="h-4 w-4" /> : <Spinner className="motion-reduce:animate-none" />}
+                                                        </IconoAnimado>
+                                                        {fallasClave.bloqueado
+                                                            ? t('fallasEnvio.lockedButton', { tiempo: minutosYSegundos(fallasClave.faltan) })
+                                                            : processing
+                                                              ? t('perfilCarnet.changingPassword')
+                                                              : t('perfilCarnet.changePassword')}
                                                     </button>
                                                 </div>
                                             </div>
@@ -577,7 +578,7 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                             aria-pressed={appearance === tema.valor}
                                             onClick={() => updateAppearance(tema.valor)}
                                             className={cn(
-                                                'h-11 rounded-[9px] px-3.5 text-[13.5px] transition-colors sm:h-9',
+                                                'relative h-9 rounded-[8px] px-3.5 text-[13.5px] transition-colors after:absolute after:inset-x-0 after:-inset-y-0.5 pointer-coarse:h-11',
                                                 appearance === tema.valor
                                                     ? 'bg-card font-semibold text-primary shadow-[0_1px_3px_rgba(46,63,132,0.18)] dark:bg-[hsl(30,4%,26%)] dark:text-foreground'
                                                     : 'font-medium text-[#4a4f73] hover:text-foreground dark:text-[hsl(30,5%,72%)]',
@@ -596,7 +597,7 @@ export default function PerfilCarnet({ mustVerifyEmail, status }: { mustVerifyEm
                                             aria-pressed={idioma === codigo}
                                             onClick={() => cambiarIdioma(codigo)}
                                             className={cn(
-                                                'h-11 rounded-[9px] px-3.5 text-[13.5px] transition-colors sm:h-9',
+                                                'relative h-9 rounded-[8px] px-3.5 text-[13.5px] transition-colors after:absolute after:inset-x-0 after:-inset-y-0.5 pointer-coarse:h-11',
                                                 idioma === codigo
                                                     ? 'bg-card font-semibold text-primary shadow-[0_1px_3px_rgba(46,63,132,0.18)] dark:bg-[hsl(30,4%,26%)] dark:text-foreground'
                                                     : 'font-medium text-[#4a4f73] hover:text-foreground dark:text-[hsl(30,5%,72%)]',

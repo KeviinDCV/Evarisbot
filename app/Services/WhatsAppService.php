@@ -1918,7 +1918,7 @@ class WhatsAppService
                     'welcome_flow_step' => null,
                     'welcome_flow_data' => !empty($profileData) ? $profileData : null,
                     'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
-                              'Conversación reactivada automáticamente por mensaje entrante el ' . now()->format('Y-m-d H:i:s')
+                              'Conversación reactivada automáticamente por mensaje entrante el ' . now()->enColombia()->format('Y-m-d H:i:s')
                 ]);
                 
                 Log::info('Conversation reactivated from resolved (flow reset)', [
@@ -2575,7 +2575,7 @@ class WhatsAppService
      */
     private function aplicarRespuestaCita(\App\Models\Appointment $a, string $accion): array
     {
-        $marcaHora = '[' . now()->format('Y-m-d H:i') . ']';
+        $marcaHora = '[' . now()->enColombia()->format('Y-m-d H:i') . ']';
         $notas = $a->notes ?? '';
         $cual = $this->descripcionCita($a);
 
@@ -2776,7 +2776,7 @@ class WhatsAppService
 
                     foreach ($lockedAppointments as $a) {
                         $a->update([
-                            'notes' => ($a->notes ?? '') . "\n[" . now()->format('Y-m-d H:i') . "] [Advertencia de estado final enviada]"
+                            'notes' => ($a->notes ?? '') . "\n[" . now()->enColombia()->format('Y-m-d H:i') . "] [Advertencia de estado final enviada]"
                         ]);
                     }
                 }

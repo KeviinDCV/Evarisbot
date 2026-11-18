@@ -1803,7 +1803,7 @@ class ConversationController extends Controller
             'resolved_by' => auth()->id(),
             'resolved_at' => now(),
             'notes' => ($conversation->notes ? $conversation->notes . "\n\n" : '') . 
-                      'Chat marcado como resuelto por ' . auth()->user()->name . ' el ' . now()->format('Y-m-d H:i:s')
+                      'Chat marcado como resuelto por ' . auth()->user()->name . ' el ' . now()->enColombia()->format('Y-m-d H:i:s')
         ]);
 
         ConversationActivity::log($conversation->id, 'resolved');
@@ -1932,7 +1932,7 @@ class ConversationController extends Controller
             'activities' => $activities,
         ]);
 
-        $filename = 'conversacion_' . ($conversation->contact_name ?? $conversation->phone_number) . '_' . now()->format('Y-m-d') . '.pdf';
+        $filename = 'conversacion_' . ($conversation->contact_name ?? $conversation->phone_number) . '_' . now()->enColombia()->format('Y-m-d') . '.pdf';
         $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
 
         return $pdf->download($filename);

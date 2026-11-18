@@ -146,8 +146,8 @@ class TemplateController extends Controller
                 // El id además del nombre: con él la pantalla separa «Tuyas» sin depender de nombres repetidos.
                 'created_by_id' => $template->created_by,
                 'updated_by' => $template->updater->name ?? null,
-                'created_at' => $template->created_at->format('Y-m-d H:i'),
-                'updated_at' => $template->updated_at->format('Y-m-d H:i'),
+                'created_at' => $template->created_at->enColombia()->format('Y-m-d H:i'),
+                'updated_at' => $template->updated_at->enColombia()->format('Y-m-d H:i'),
                 'usage_stats' => $template->getUsageStats(),
             ];
         });

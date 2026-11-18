@@ -346,7 +346,7 @@ export function AvisoAccion({ tipo, texto, onCerrar }: { tipo: 'ok' | 'error'; t
             ) : (
                 <CircleAlert className="mt-px size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
             )}
-            <p className="min-w-0 flex-1 [overflow-wrap:anywhere]">{texto}</p>
+            <p className="min-w-0 flex-1 whitespace-pre-line [overflow-wrap:anywhere]">{texto}</p>
             <button
                 type="button"
                 onClick={onCerrar}

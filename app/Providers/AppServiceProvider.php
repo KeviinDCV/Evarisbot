@@ -19,6 +19,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Zona horaria de presentación: la app guarda timestamps en UTC, pero al mostrar
+        // (JSON de controllers, exports, etc.) convertimos a hora Colombia con esta macro.
+        // Uso: $model->created_at->enColombia()->format('Y-m-d H:i'). NUNCA aplicar a 'cithor'
+        // (ya se guarda en hora local Colombia; si se convierte, se desfasa otra vez).
+        \Carbon\Carbon::macro('enColombia', function () {
+            /** @var \Carbon\Carbon $this */
+            return $this->copy()->setTimezone('America/Bogota');
+        });
+        \Illuminate\Support\Carbon::macro('enColombia', function () {
+            /** @var \Illuminate\Support\Carbon $this */
+            return $this->copy()->setTimezone('America/Bogota');
+        });
+
         // Avisos de tiempo real (Reverb) al crear o cambiar mensajes y conversaciones. Sin efecto si
         // BROADCAST_CONNECTION no es «reverb»; nunca lanza errores (ver App\Support\TiempoReal).
         \App\Support\TiempoReal::registrar();
