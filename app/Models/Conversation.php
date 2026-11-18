@@ -248,10 +248,10 @@ class Conversation extends Model
      * «ok, muchas gracias 🙏», «Dios le pague»). De la más larga a la más corta: la alternancia toma la primera que
      * encaja («buenas» antes que «buena» y «buen»).
      */
-    private const CORTESIA_PALABRAS = 'muchísimas|muchisimas|muchas|mucha|mucho|gracias|grasias|graxias|gracia|grax|okey|okay|oki|ok|vale|listos|listo|lista|perfecto|perfecta|entendido|entendida|acuerdo|confirmadas|confirmados|confirmada|confirmado|confirmamos|confirmar|confirmo|asistencia|asistiremos|asistiré|asistire|asistir|estaremos|estaré|estare|bendigan|bendiga|bendiciones|bendición|bendicion|pague|amén|amen|igualmente|excelente|atención|atencion|amables|amable|señorita|señora|señor|doctora|doctor|saludos|gusto|claro|buenas|buenos|buena|bueno|buen|bien|hola|dios|siempre|primero|también|tambien|todos|todo|ahí|ahi|allí|alli|allá|alla|hay|que|por|muy|mil|del|de|con|sus|su|mi|la|los|lo|les|le|cita|ya|sí|si|y|días|dias|día|dia|tardes|tarde|noches|noche';
+    private const CORTESIA_PALABRAS = 'feliz|recibidos|recibidas|recibido|recibida|bendecidos|bendecida|bendecido|mañana|quiere|iremos|iré|ire|ir|voy|yo|aya|bn|muchísimas|muchisimas|muchas|mucha|mucho|gracias|grasias|graxias|gracia|grax|okey|okay|oki|ok|vale|listos|listo|lista|perfecto|perfecta|entendido|entendida|acuerdo|confirmadas|confirmados|confirmada|confirmado|confirmamos|confirmar|confirmo|asistencia|asistiremos|asistiré|asistire|asistir|estaremos|estaré|estare|bendigan|bendiga|bendiciones|bendición|bendicion|pague|amén|amen|igualmente|excelente|atención|atencion|amables|amable|señorita|señora|señor|doctora|doctor|saludos|gusto|claro|buenas|buenos|buena|bueno|buen|bien|hola|dios|siempre|primero|también|tambien|todos|todo|ahí|ahi|allí|alli|allá|alla|hay|que|por|muy|mil|del|de|con|sus|su|mi|la|los|lo|les|le|cita|ya|sí|si|y|días|dias|día|dia|tardes|tarde|noches|noche|a';
 
     /** Y debe traer al menos una de estas: «buenas tardes» u «hola» solos SÍ son para un asesor. */
-    private const CORTESIA_NUCLEO = 'gracias|grasias|graxias|gracia|grax|ok|vale|listo|lista|perfect|entendid|acuerdo|bendig|bendici|pague|amén|amen|confirm|asist|estar';
+    private const CORTESIA_NUCLEO = 'gracias|grasias|graxias|gracia|grax|ok|vale|listo|lista|perfect|entendid|acuerdo|bendig|bendici|bendecid|pague|amén|amen|recibid|feliz|dios quiere|confirm|asist|estar|voy|ir[eé]|iremos|^(si|sí)( |$)';
 
     /**
      * Confirmar con palabras («confirmo», «asistiré», «allá estaré», el botón «Confirmar») solo es cortesía si la cita
@@ -259,7 +259,7 @@ class Conversation extends Model
      * aplicó (el bot preguntó con botones, la cita estaba cancelada, falló la respuesta, o es el botón de un masivo,
      * que el sistema no procesa) y lo dejó a la vista a propósito: lo tiene que ver un asesor.
      */
-    private const CORTESIA_CONFIRMA = 'confirm|asist|estar';
+    private const CORTESIA_CONFIRMA = 'confirm|asist|estar|voy|ir[eé]|iremos|^(si|sí)( |$)';
 
     /**
      * Emojis que solos son cortesía (👍, 🙏, ❤️…), con sus tonos de piel. Se quitan con REPLACE, que compara byte a byte:
@@ -273,10 +273,18 @@ class Conversation extends Model
      * Cancelar escrito o con el botón de un masivo («Cancelar», «no puedo asistir»…), el mensaje entero. En un masivo el
      * sistema no cancela nada: solo se esconde del asesor, como pidió el usuario (18/11/2026).
      */
-    private const CANCELA_EXACTO = '^(cancelar|cancelo|cancelada|cancelado|cancelar la cita|cancelar mi cita|cancelo la cita|cancelo mi cita|no puedo asistir|no podré asistir|no podre asistir|no asistiré|no asistire|no voy a poder asistir)[ .!]*$';
+    private const CANCELA_EXACTO = '^((cancelar|cancelo|cancela|cancelada|cancelado)( (la|mi|esa) cita| cita)?|no (puedo|podré|podre|podemos|voy a poder) (asistir|ir)( a (la|mi) cita)?|no asistir[eé])([ ,.!]+(por favor|porfavor|porfa|muchas gracias|gracias))*[ ,.!]*$';
 
     /** El mensaje del paciente no cita nada o cita un envío masivo (el botón de una plantilla cita su mensaje). */
     private const RESPONDE_A_MASIVO = "(m.reply_to_id IS NULL OR EXISTS (SELECT 1 FROM messages q WHERE q.id = m.reply_to_id AND q.content LIKE '[Env_o masivo:%'))";
+
+    /**
+     * Un saludo solo («Buenas tardes», «Hola, buen día», «Feliz noche 🙏»). Si después el paciente escribió algo más
+     * (confirmó, dio las gracias…), el saludo era cortesía; si es lo ÚLTIMO que escribió, está esperando que le hablen y
+     * el chat se ve. Medido (18/11/2026): «buenas tardes/días/noches» y «hola» eran lo que más dejaba a la vista chats que
+     * solo confirmaron.
+     */
+    private const SALUDO_PALABRAS = 'holaa|hola|buenas|buenos|buena|bueno|buen|bn|tardes|tarde|noches|noche|días|dias|día|dia|saludos|saludo|cordiales|cordial|bendecidos|bendecida|bendecido|feliz|señorita|señora|señor|doctora|doctor|muy|que|tengan|tenga|una|un|todos|y|a';
 
     /** Horas antes del recordatorio en las que una pregunta del paciente sin respuesta todavía cuenta como pendiente. */
     private const HORAS_PENDIENTE_ANTES = 48;
@@ -299,6 +307,10 @@ class Conversation extends Model
         if ($modo === 'masivo') {
             $confirma = self::RESPONDE_A_MASIVO;
             $cancela = " OR (" . self::RESPONDE_A_MASIVO . " AND LOWER(TRIM(m.content)) REGEXP '" . self::CANCELA_EXACTO . "')";
+        } elseif ($modo === 'viejo') {
+            // Chat quieto hace días: confirmar o cancelar al final, a lo que fuera, ya no espera respuesta.
+            $confirma = '1';
+            $cancela = " OR LOWER(TRIM(m.content)) REGEXP '" . self::CANCELA_EXACTO . "'";
         } else {
             $confirma = "(a.reminder_status = 'confirmed' AND NOT EXISTS (SELECT 1 FROM messages b WHERE b.conversation_id = m.conversation_id"
                 . " AND b.is_from_user = 0 AND b.sent_by IS NOT NULL AND b.created_at >= a.reminder_sent_at AND b.created_at <= m.created_at"
@@ -314,6 +326,24 @@ class Conversation extends Model
             . " AND (LOWER(m.content) NOT REGEXP '" . self::CORTESIA_CONFIRMA . "' OR {$confirma}))"
             . $cancela
             . " OR TRIM({$sinEmojis}) = '')))";
+    }
+
+    /** Condición SQL sobre un mensaje del paciente «m»: ¿es solo un saludo? (ver SALUDO_PALABRAS). */
+    private static function sqlSaludo(): string
+    {
+        return "(m.message_type = 'text' AND CHAR_LENGTH(TRIM(m.content)) BETWEEN 1 AND 40"
+            . " AND INSTR(m.content, '?') = 0 AND INSTR(m.content, '¿') = 0 AND m.content NOT REGEXP '[0-9]'"
+            . " AND REGEXP_REPLACE(LOWER(m.content), '" . self::SALUDO_PALABRAS . "', '') NOT REGEXP '[a-zñáéíóúü]'"
+            . " AND LOWER(m.content) REGEXP 'hola|buen|bn|salud|feliz|bendecid')";
+    }
+
+    /**
+     * El mensaje «m» del paciente pide algo: no es cortesía, ni un saludo al que le siguió otro mensaje del paciente.
+     */
+    private static function sqlPideAlgo(string $cortesia): string
+    {
+        return "NOT IFNULL({$cortesia}, 0) AND NOT (IFNULL(" . self::sqlSaludo() . ", 0)"
+            . " AND EXISTS (SELECT 1 FROM messages n WHERE n.conversation_id = m.conversation_id AND n.is_from_user = 1 AND n.id > m.id))";
     }
 
     /**
@@ -343,7 +373,30 @@ class Conversation extends Model
      */
     public static function sqlRecordatorioSinNovedad(): string
     {
-        return '(' . self::sqlCitaSinNovedad() . ' OR ' . self::sqlMasivoSinNovedad() . ')';
+        return '(' . self::sqlCitaSinNovedad() . ' OR ' . self::sqlMasivoSinNovedad() . ' OR ' . self::sqlViejoTerminado() . ')';
+    }
+
+    /** Días sin movimiento tras los que un chat que terminó en confirmar/cancelar/gracias ya no se les muestra. */
+    private const DIAS_VIEJO_TERMINADO = 7;
+
+    /**
+     * Chats VIEJOS que terminaron en confirmar, cancelar o cortesía (pedido del 18/11/2026, tras revisar la lista de
+     * 117): sin asignar, sin ningún movimiento hace 7 días o más, y lo último que escribió el paciente es «Confirmar»,
+     * «Cancelar», «Gracias», 👍… Antes pudo escribir algo que nadie respondió, pero cerró con eso y no volvió en una
+     * semana. Los administradores los siguen viendo; si el paciente escribe, last_message_at cambia y vuelven solos.
+     *
+     * La fecha de corte va calculada en PHP (UTC, como la guarda la app): NOW() de la sesión de MariaDB está en hora de
+     * Colombia y daría 5 horas de diferencia.
+     */
+    private static function sqlViejoTerminado(): string
+    {
+        $corte = now()->subDays(self::DIAS_VIEJO_TERMINADO)->format('Y-m-d H:i:s');
+        $cortesia = self::sqlCortesia('viejo');
+
+        return "(conversations.assigned_to IS NULL AND conversations.last_message_at < '{$corte}'"
+            . " AND EXISTS (SELECT 1 FROM messages m WHERE m.id = (SELECT MAX(x.id) FROM messages x"
+            . " WHERE x.conversation_id = conversations.id AND x.is_from_user = 1 AND x.is_hidden = 0)"
+            . " AND IFNULL({$cortesia}, 0)))";
     }
 
     /**
@@ -365,7 +418,7 @@ class Conversation extends Model
             . " AND IFNULL(s.content, '') NOT LIKE '[Env_o masivo%')"
             . " AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = conversations.id"
             . " AND m.created_at >= k.created_at - INTERVAL {$horas} HOUR"
-            . " AND m.is_from_user = 1 AND m.is_hidden = 0 AND NOT IFNULL({$cortesia}, 0)"
+            . " AND m.is_from_user = 1 AND m.is_hidden = 0 AND " . self::sqlPideAlgo($cortesia)
             . " AND (m.created_at >= k.created_at OR NOT EXISTS (SELECT 1 FROM messages r"
             . " WHERE r.conversation_id = conversations.id AND r.created_at > m.created_at AND r.is_from_user = 0"
             . " AND r.sent_by IS NOT NULL AND IFNULL(r.content, '') NOT LIKE '[Env_o masivo%'))))";
@@ -389,7 +442,7 @@ class Conversation extends Model
             // Ningún mensaje del paciente que pida algo: después del recordatorio, o en las 48 h antes y sin respuesta.
             . " AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = conversations.id"
             . " AND m.created_at >= a.reminder_sent_at - INTERVAL {$horas} HOUR"
-            . " AND m.is_from_user = 1 AND m.is_hidden = 0 AND NOT IFNULL({$cortesia}, 0)"
+            . " AND m.is_from_user = 1 AND m.is_hidden = 0 AND " . self::sqlPideAlgo($cortesia)
             . " AND (m.created_at >= a.reminder_sent_at OR NOT EXISTS (SELECT 1 FROM messages r"
             . " WHERE r.conversation_id = conversations.id AND r.created_at > m.created_at AND r.is_from_user = 0"
             . " AND r.sent_by IS NOT NULL AND IFNULL(r.content, '') NOT LIKE '[Env_o masivo%'))))";
