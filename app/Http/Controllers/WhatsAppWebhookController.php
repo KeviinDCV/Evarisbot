@@ -80,6 +80,25 @@ class WhatsAppWebhookController extends Controller
                 }
 
                 foreach ($entry['changes'] as $change) {
+                    // Llamadas de WhatsApp (Calling API): aparte y sin poder tumbar el resto del aviso.
+                    if (($change['field'] ?? null) === 'calls' && is_array($change['value'] ?? null)) {
+                        // Solo con firma de Meta válida y para NUESTRO número: un aviso falso haría timbrar a todos y
+                        // conectaría el micrófono del asesor con quien lo mandó.
+                        $phoneId = (string) ($change['value']['metadata']['phone_number_id'] ?? '');
+                        if ($request->attributes->get(\App\Http\Middleware\VerifyMetaSignature::ATRIBUTO_VALIDA) !== true) {
+                            Log::warning('Webhook: aviso de llamada ignorado, sin firma de Meta válida (guarde el App Secret: php artisan whatsapp:firma)');
+                        } elseif ($phoneId === '' || $phoneId !== $ourPhoneId) {
+                            Log::warning('Webhook: aviso de llamada de otro número ignorado', ['phone_number_id' => $phoneId]);
+                        } else {
+                            try {
+                                app(\App\Services\LlamadasWhatsApp::class)->procesarCambio($change['value']);
+                            } catch (\Throwable $e) {
+                                Log::error('Webhook: fallo con un aviso de llamada', ['error' => $e->getMessage()]);
+                            }
+                        }
+                        continue;
+                    }
+
                     if (($change['field'] ?? null) !== 'messages' || !is_array($change['value'] ?? null)) {
                         continue;
                     }
@@ -148,6 +167,10 @@ class WhatsAppWebhookController extends Controller
                 foreach ((array) ($value['statuses'] ?? []) as $st) {
                     $t = (string) ($st['status'] ?? '?');
                     $statuses[$t] = ($statuses[$t] ?? 0) + 1;
+                }
+                foreach ((array) ($value['calls'] ?? []) as $c) {
+                    $t = 'llamada:'.(string) ($c['event'] ?? '?');
+                    $types[$t] = ($types[$t] ?? 0) + 1;
                 }
             }
         }

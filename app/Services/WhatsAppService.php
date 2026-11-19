@@ -2091,6 +2091,11 @@ class WhatsAppService
                 $this->transcribeAudioMessage($message);
             }
 
+            // Mensaje de voz que el paciente dejó en el buzón de una llamada (su id es el de la llamada): se une a ella.
+            if ($messageType === 'audio') {
+                \App\Services\LlamadasWhatsApp::vincularBuzon($message);
+            }
+
             // Actualizar conversación
             $conversation->update([
                 'last_message_at' => now(),

@@ -69,6 +69,22 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
     Route::delete('welcome-flows/{welcomeFlow}', [WelcomeFlowController::class, 'destroy'])->name('welcome-flows.destroy');
     Route::post('welcome-flows/{welcomeFlow}/toggle', [WelcomeFlowController::class, 'toggle'])->name('welcome-flows.toggle');
     
+    // Llamadas de WhatsApp: la pantalla del administrador (diseño aprobado: design/vista-llamadas). Lo que usan los
+    // asesores para contestar (/admin/llamadas/pendientes, contestar, colgar…) está más abajo, en el grupo de todos.
+    Route::controller(\App\Http\Controllers\Admin\LlamadasPanelController::class)->prefix('llamadas')->name('llamadas.panel.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/panel/en-vivo', 'enVivo')->name('en-vivo');
+        Route::get('/panel/cifras', 'cifras')->name('cifras');
+        Route::get('/panel/historial', 'historial')->name('historial');
+        Route::get('/panel/indicadores', 'indicadores')->name('indicadores');
+        Route::get('/panel/exportar', 'exportar')->name('exportar');
+        Route::get('/panel/buzon', 'buzon')->name('buzon');
+        Route::post('/panel/buzon/{llamada}/resolver', 'resolverBuzon')->whereNumber('llamada')->name('buzon.resolver');
+        Route::get('/panel/ajustes', 'ajustes')->name('ajustes');
+        Route::post('/panel/ajustes', 'guardarAjustes')->name('ajustes.guardar');
+        Route::get('/panel/conexion', 'conexion')->name('conexion');
+    });
+
     // Gestión de Citas
     Route::controller(\App\Http\Controllers\AppointmentController::class)->prefix('appointments')->name('appointments.')->group(function () {
         Route::get('/', 'index')->name('index');
@@ -187,6 +203,14 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('/{conversation}/typing', 'typing')->name('chat.typing');
         Route::post('/{conversation}/viewing', 'viewing')->name('chat.viewing');
         Route::get('/{conversation}/export-pdf', 'exportPdf')->name('chat.export-pdf');
+    });
+
+    // Llamadas de WhatsApp (el timbre y la llamada en curso, en el marco de todas las pantallas)
+    Route::controller(\App\Http\Controllers\LlamadaController::class)->prefix('llamadas')->name('llamadas.')->group(function () {
+        Route::get('/pendientes', 'pendientes')->name('pendientes');
+        Route::get('/{llamada}/estado', 'estado')->name('estado');
+        Route::post('/{llamada}/contestar', 'contestar')->name('contestar');
+        Route::post('/{llamada}/colgar', 'colgar')->name('colgar');
     });
 
     // Etiquetas de conversaciones

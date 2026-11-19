@@ -33,6 +33,9 @@ class VerifyMetaSignature
 
     public const MODE_OBSERVE = 'observar';
 
+    /** Marca en la petición: el aviso trae una firma de Meta válida. */
+    public const ATRIBUTO_VALIDA = 'firma_meta_valida';
+
     /** Contadores desde que se guardó el App Secret (los lee whatsapp:firma). */
     public const COUNTERS = ['validas', 'invalidas', 'sin_firma'];
 
@@ -51,6 +54,10 @@ class VerifyMetaSignature
         self::count($valid ? 'validas' : ($header === '' ? 'sin_firma' : 'invalidas'));
 
         if ($valid) {
+            // Las llamadas de WhatsApp solo se atienden con firma válida, aunque el modo sea «observar»: un aviso falso
+            // haría timbrar a todos y conectaría el micrófono del asesor con quien lo mandó (ver LlamadasWhatsApp).
+            $request->attributes->set(self::ATRIBUTO_VALIDA, true);
+
             return $next($request);
         }
 

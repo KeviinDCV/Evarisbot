@@ -1,0 +1,23 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-19T14:40:00Z" },
+  "title": "Evarisbot – Pantalla de Llamadas",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 900, "title": "1. Al entrar: en vivo, cifras e historial" },
+    "Buzon.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 900, "title": "2. Buzón de voz" },
+    "Indicadores.dc.html": { "x": 0, "y": 1380, "w": 1440, "h": 900, "title": "3. Indicadores" },
+    "Ajustes.dc.html": { "x": 1520, "y": 1380, "w": 1440, "h": 900, "title": "4. Ajustes de llamadas" }
+  },
+  "order": ["Main.dc.html", "Buzon.dc.html", "Indicadores.dc.html", "Ajustes.dc.html"],
+  "notes": {
+    "titulo": { "x": 0, "y": -330, "text": "Pantalla «Llamadas» (solo la ven los administradores)", "kind": "title1", "maxW": 2960 },
+    "pregunta": { "x": -620, "y": 0, "w": 540, "size": "l", "fill": "blue", "text": "Una sola pregunta: ¿seguimos con esta pantalla?\n\nEs una opción nueva del menú de la izquierda, «Llamadas», debajo de Conversaciones. Los asesores no la ven: ellos contestan desde la tarjeta que aparece abajo a la derecha en cualquier pantalla.\n\nArriba, lo que pasa en este momento. Debajo, cuatro pestañas: Historial, Buzón de voz, Indicadores y Ajustes.\n\nTodos los nombres, números y cifras son inventados." },
+    "nota-main": { "x": 0, "y": 940, "w": 1440, "size": "m", "text": "1. Al entrar\n• «En vivo»: quién está llamando ahora y cuánto lleva esperando (en ámbar), y quién está hablando con quién (en verde). Si una llamada se queda pegada, el administrador la puede colgar desde aquí.\n• Las seis cifras son del periodo elegido arriba (Hoy, Esta semana, Este mes).\n• El historial es una tabla, como Usuarios: hora, paciente, cómo terminó, quién atendió, cuánto esperó el paciente y cuánto duró. «Ver chat» abre la conversación." },
+    "nota-buzon": { "x": 1520, "y": 940, "w": 1440, "size": "m", "text": "2. Buzón de voz\n• Los mensajes que dejaron los pacientes cuando nadie contestó o fuera de horario, con lo que dijeron escrito (la transcripción automática que ya usa Evarisbot).\n• Se escuchan aquí mismo y se marcan como resueltos («ya le devolvimos la llamada» o «ya le escribimos»), con quién lo resolvió.\n• El número de la pestaña son los que nadie ha revisado." },
+    "nota-indicadores": { "x": 0, "y": 2320, "w": 1440, "size": "m", "text": "3. Indicadores\n• Llamadas por hora: muestra a qué horas llaman más y cuántas se pierden, para saber cuántos asesores hacen falta en cada franja.\n• Por asesor: cuántas contestó cada uno y cuánto tiempo habló.\n• También van como pestaña «Llamadas» en Estadísticas, para no buscarlas en dos sitios." },
+    "nota-ajustes": { "x": 1520, "y": 2320, "w": 1440, "size": "m", "text": "4. Ajustes\n• Arriba, el estado de la conexión con WhatsApp: qué está listo y qué falta. Esto solo se consulta; encender o apagar las llamadas en WhatsApp se hace desde el servidor, como las demás claves.\n• Lo que sí se cambia aquí: el horario (días, horas y festivos), cuántos segundos timbra antes de pasar al buzón y a quién le timbra." }
+  },
+  "designSystems": []
+}

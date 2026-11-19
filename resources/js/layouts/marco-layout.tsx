@@ -15,6 +15,8 @@ import { type CSSProperties, type FocusEvent as ReactFocusEvent, type ReactNode,
 import { useTranslation } from 'react-i18next';
 import { Avisos } from '@/components/avisos';
 import { AnuncioObligatorio } from '@/components/anuncio-obligatorio';
+import { LlamadaEntrante } from '@/components/llamada-entrante';
+import { getEstadoLlamadas, suscribirLlamadas, type EstadoLlamadas } from '@/lib/llamadas';
 
 /**
  * EL MARCO NAVY — el menú de la app (lo pinta AdminLayout en todas las páginas).
@@ -41,11 +43,11 @@ function prefiereMenosMovimiento(): boolean {
     return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
 
-type PageProps = SharedData & { unreadConversationsCount?: number; equipo?: string | null };
+type PageProps = SharedData & { unreadConversationsCount?: number; equipo?: string | null; llamadas?: boolean };
 
 export default function MarcoLayout({ children }: { children: ReactNode }) {
     const { t } = useTranslation();
-    const { auth, unreadConversationsCount: initialUnreadCount = 0, equipo = null } = usePage<PageProps>().props;
+    const { auth, unreadConversationsCount: initialUnreadCount = 0, equipo = null, llamadas = false } = usePage<PageProps>().props;
     const currentUrl = usePage().url;
     const getInitials = useInitials();
 
@@ -133,6 +135,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     const visibleGroups = GROUPS.map((group) => {
         if (group.adminOnly && isAdvisor) return null;
         const items = group.items.filter((item) => {
+            if (item.adminOnly && isAdvisor) return false;
             if (!item.needsBulk) return true;
             return !isAdvisor || Boolean(auth.user.can_bulk_send);
         });
@@ -146,7 +149,16 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     );
     const activeHref = visibleGroups.flatMap((g) => g.items).find(isActive)?.href ?? null;
 
-    const badgeFor = (item: NavEntry) => (item.badge === 'chat' ? unread.chat : item.badge === 'internal' ? unread.internal : 0);
+    // Llamadas que le timbran ahora a este usuario (el mismo estado que pinta el timbre).
+    const [estadoLlamadas, setEstadoLlamadas] = useState<EstadoLlamadas>(getEstadoLlamadas);
+    useEffect(() => {
+        setEstadoLlamadas(getEstadoLlamadas());
+        return suscribirLlamadas(setEstadoLlamadas);
+    }, []);
+    const timbrando = estadoLlamadas.fase === 'timbrando' ? 1 + estadoLlamadas.otras : 0;
+
+    const badgeFor = (item: NavEntry) =>
+        item.badge === 'chat' ? unread.chat : item.badge === 'internal' ? unread.internal : item.badge === 'llamadas' ? timbrando : 0;
 
     // ── LA CÁPSULA QUE VIAJA ──
     // El blanco del ítem activo es UN elemento que se desliza al destino. El "look" activo
@@ -299,7 +311,10 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     /** Contador: el número exacto (999+ como tope) con su significado para el lector. */
     const contador = (item: NavEntry, count: number, shownActive: boolean) => {
         const chat = item.badge === 'chat';
-        const tinta = expanded
+        const llamada = item.badge === 'llamadas';
+        const tinta = llamada
+            ? 'bg-[#b45309] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(0,0,0,.3)]'
+            : expanded
             ? chat
                 ? 'bg-[#dc2626] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(0,0,0,.3)]'
                 : shownActive
@@ -311,7 +326,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
               : 'marco-pildora-interna text-slate-100';
         return (
             <span
-                aria-label={t('navigation.unreadCount', { count })}
+                aria-label={llamada ? t('navigation.ringingCount', { count }) : t('navigation.unreadCount', { count })}
                 className={`flex flex-shrink-0 items-center justify-center rounded-full font-bold tabular-nums leading-none ${tinta} ${
                     expanded
                         ? 'relative ml-2 mr-2.5 h-5 min-w-5 px-1.5 text-[11px] tracking-[.01em]'
@@ -694,6 +709,8 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
             <AlertaSeguridad />
             <Avisos />
             <AnuncioObligatorio />
+            {/* Llamadas de WhatsApp: el timbre y la llamada en curso, en todas las pantallas (ver lib/llamadas). */}
+            {llamadas && (auth.user.role === 'admin' || auth.user.role === 'advisor') && <LlamadaEntrante />}
         </div>
     );
 }

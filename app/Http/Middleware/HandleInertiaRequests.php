@@ -68,6 +68,8 @@ class HandleInertiaRequests extends Middleware
             'unreadConversationsCount' => $unreadConversationsCount,
             // Alertas de la vigilancia del webhook (franja roja): solo para administradores.
             'alertasSeguridad' => fn () => $request->user()?->isAdmin() ? \App\Services\WebhookWatchdog::current() : [],
+            // Llamadas de WhatsApp activadas (php artisan whatsapp:llamadas --activar): solo entonces timbra la pantalla.
+            'llamadas' => fn () => \App\Services\LlamadasWhatsApp::activas(),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

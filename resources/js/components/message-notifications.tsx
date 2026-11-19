@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getUnread, subscribeUnread } from '@/lib/unread-store';
+import { quitarPrefijoLlamada } from '@/lib/llamadas';
 
 // --- Sonido (sintetizado, sin archivos) ---
 let audioCtx: AudioContext | null = null;
@@ -39,7 +40,7 @@ function playDing() {
 export function MessageNotifications() {
     const { t } = useTranslation();
     const pendingRef = useRef(0);
-    const cleanTitleRef = useRef<string>(typeof document !== 'undefined' ? document.title : '');
+    const cleanTitleRef = useRef<string>(typeof document !== 'undefined' ? quitarPrefijoLlamada(document.title) : '');
     const lastSoundRef = useRef(0);
 
     useEffect(() => {
@@ -56,7 +57,7 @@ export function MessageNotifications() {
 
         const onVisible = () => {
             if (!document.hidden) restoreTitle();
-            else cleanTitleRef.current = document.title; // capturar título limpio al ocultar
+            else cleanTitleRef.current = quitarPrefijoLlamada(document.title); // capturar título limpio al ocultar (sin el 📞 de una llamada)
         };
 
         // Con tiempo real, el contador del menú (unread-store) se pide en cuanto entra un mensaje del paciente, también con
@@ -80,7 +81,7 @@ export function MessageNotifications() {
             }
 
             // Parpadeo del título
-            if (!cleanTitleRef.current) cleanTitleRef.current = document.title;
+            if (!cleanTitleRef.current) cleanTitleRef.current = quitarPrefijoLlamada(document.title);
             pendingRef.current += 1;
             document.title = `(${pendingRef.current}) 💬 ${t('conversations.newMessageTitle')} · Evarisbot`;
 

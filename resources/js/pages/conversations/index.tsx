@@ -65,7 +65,7 @@ import {
     ArrowLeft,
     Image as ImageIcon,
 } from 'lucide-react';
-import { FormEvent, memo, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { FormEvent, Fragment, memo, useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import axios from 'axios';
 import {
@@ -98,6 +98,7 @@ import { toast } from '@/lib/toast';
 import { nombrePropio } from '@/lib/nombres';
 import { usarDisenoNuevo } from '@/lib/diseno-nuevo';
 import { InicioTurno } from '@/components/conversations/inicio-turno';
+import { EtiquetaBuzon, LineaLlamada, repartirLlamadas, type LlamadaChat } from '@/components/conversations/linea-llamada';
 import { agrupar, alAviso, avisoDe, hayTiempoReal } from '@/lib/tiempo-real';
 import { duracionLegible } from '@/lib/duracion';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
@@ -318,6 +319,8 @@ interface ConversationsIndexProps {
     inicioNuevo?: boolean;
     hasMore?: boolean;
     selectedConversation?: Conversation;
+    /** Llamadas de WhatsApp del chat abierto (líneas dentro de la conversación). */
+    llamadasChat?: LlamadaChat[];
     unreadOnOpen?: number;
     users: User[];
     // Equipos aparte de la línea general (Teleconsulta…), para la etiqueta del chat.
@@ -600,7 +603,7 @@ function etiquetaFiltroFecha(f: FiltroFecha, t: TFunction, idioma: string): stri
     return f.hasta ? t('conversations.dateUntil', { date: corta(f.hasta) }) : '';
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, unreadOnOpen = 0, users, equipos = [], allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [], inicioNuevo = false }: ConversationsIndexProps) {
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, llamadasChat, unreadOnOpen = 0, users, equipos = [], allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [], inicioNuevo = false }: ConversationsIndexProps) {
     const { t, i18n } = useTranslation();
     // Diseño nuevo del inicio sin chat abierto: ?nuevo=1 lo prueba en este navegador (ver lib/diseno-nuevo).
     const [inicioNuevoActivo] = useState(() => usarDisenoNuevo('evarisbot.inicio-chats-nuevo', inicioNuevo));
@@ -1246,6 +1249,15 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     // Local messages state — initialized from server, incrementally updated by lightweight poll
     const [localMessages, setLocalMessages] = useState<Message[]>(selectedConversation?.messages || []);
+
+    // Llamadas de WhatsApp del chat: llegan con el chat y con cada consulta de mensajes nuevos.
+    const [llamadas, setLlamadas] = useState<LlamadaChat[]>(llamadasChat ?? []);
+    useEffect(() => {
+        setLlamadas(llamadasChat ?? []);
+    }, [llamadasChat]);
+    const repartoLlamadas = useMemo(() => repartirLlamadas(localMessages, llamadas), [localMessages, llamadas]);
+    const idsBuzon = useMemo(() => new Set(llamadas.map((l) => l.buzon_message_id).filter((id): id is number => !!id)), [llamadas]);
+    const horaLlamada = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: true }) : '');
 
     // Estados para mensajes optimistas (actualización instantánea)
     const [optimisticMessages, setOptimisticMessages] = useState<OptimisticMessage[]>([]);
@@ -2083,6 +2095,12 @@ export default function ConversationsIndex({ conversations: initialConversations
                     if (maxId > lastMessageIdRef.current) {
                         lastMessageIdRef.current = maxId;
                     }
+                }
+
+                // Llamadas del chat (líneas «Llamada perdida…», «la atendió…»): solo si cambiaron.
+                if (Array.isArray(res.data.llamadas)) {
+                    const nuevas: LlamadaChat[] = res.data.llamadas;
+                    setLlamadas(prev => (JSON.stringify(prev) === JSON.stringify(nuevas) ? prev : nuevas));
                 }
 
                 // Estados de los mensajes ya en pantalla (enviado/entregado/leído/fallido): solo avanzan.
@@ -3408,6 +3426,21 @@ export default function ConversationsIndex({ conversations: initialConversations
                 return t('conversations.activity.equipoEntrada', { name, equipo: meta.equipo || '' });
             case 'equipo_salida':
                 return t('conversations.activity.equipoSalida', { name, equipo: meta.equipo || '' });
+            case 'llamada': {
+                // Llamada de WhatsApp (App\Services\LlamadasWhatsApp): una línea por llamada, al terminar.
+                if (meta.estado === 'terminada') {
+                    const s = Math.max(0, Number(meta.duracion) || 0);
+                    const datos = { name: meta.atendida_por_name || name, duracion: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` };
+                    // Se cortó: Meta la dio por fallida o el navegador perdió el audio / se cerró la pestaña.
+                    return ['cortada', 'red', 'pestana'].includes(meta.motivo)
+                        ? t('conversations.activity.llamadaCortada', datos)
+                        : t('conversations.activity.llamadaTerminada', datos);
+                }
+                if (meta.estado === 'rechazada' && meta.motivo === 'fuera_de_horario') return t('conversations.activity.llamadaFueraHorario');
+                if (meta.estado === 'rechazada') return t('conversations.activity.llamadaRechazada');
+                if (meta.estado === 'fallida') return t('conversations.activity.llamadaFallida');
+                return t('conversations.activity.llamadaPerdida');
+            }
             default:
                 return `${name}: ${activity.type}`;
         }
@@ -3415,6 +3448,7 @@ export default function ConversationsIndex({ conversations: initialConversations
 
     const getActivityColor = (type: string, meta?: Record<string, any> | null): string => {
         if (type === 'unassigned' && meta?.reason === 'auto_release') return 'bg-amber-400';
+        if (type === 'llamada') return meta?.estado === 'terminada' ? 'bg-emerald-500' : 'bg-red-400';
         switch (type) {
             case 'assigned': case 'auto_assigned': return 'bg-blue-400';
             case 'unassigned': return 'bg-gray-400';
@@ -5366,7 +5400,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                             )}
                             {openingChat ? (
                                 <ChatMessagesSkeleton />
-                            ) : localMessages.length === 0 ? (
+                            ) : localMessages.length === 0 && llamadas.length === 0 ? (
                                 <div className="flex items-center justify-center h-full text-[#767681]">
                                     <div className="text-center">
                                         <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-white/60 dark:bg-neutral-800/60 flex items-center justify-center">
@@ -5382,12 +5416,33 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         // Date separator logic
                                         const msgDate = new Date(message.created_at).toDateString();
                                         const prevDate = index > 0 ? new Date(localMessages[index - 1].created_at).toDateString() : null;
-                                        const showDateSeparator = index === 0 || msgDate !== prevDate;
+
+                                        // Llamadas de WhatsApp entre el mensaje anterior y este (cada una con su
+                                        // separador de fecha si cae en otro día).
+                                        const llamadasAntes = repartoLlamadas.antes.get(message.id) ?? [];
+                                        let diaPrevio = prevDate;
+                                        const lineasLlamada = llamadasAntes.map((l) => {
+                                            const dia = new Date(l.inicio!).toDateString();
+                                            const separador = dia !== diaPrevio;
+                                            diaPrevio = dia;
+                                            return (
+                                                <Fragment key={`llamada-${l.id}`}>
+                                                    {separador && (
+                                                        <div className="chat-date-separator">
+                                                            <span>{formatDateLabel(l.inicio!)}</span>
+                                                        </div>
+                                                    )}
+                                                    <LineaLlamada llamada={l} hora={horaLlamada(l.inicio)} />
+                                                </Fragment>
+                                            );
+                                        });
+                                        const showDateSeparator = msgDate !== diaPrevio;
 
                                         // Primer mensaje de un grupo (cambia el remitente o hay separador de
                                         // fecha) → lleva la "colita" de burbuja estilo WhatsApp.
                                         const isFirstOfGroup = showDateSeparator
                                             || index === 0
+                                            || llamadasAntes.length > 0
                                             || localMessages[index - 1].is_from_user !== message.is_from_user;
 
                                         return (
@@ -5412,6 +5467,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                         </motion.div>
                                                     )}
                                                 </AnimatePresence>
+                                                {lineasLlamada}
                                                 {showDateSeparator && (
                                                     <div className="chat-date-separator">
                                                         <span>{formatDateLabel(message.created_at)}</span>
@@ -5469,6 +5525,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                     : `rounded-xl rounded-br-sm bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] shadow-sm ${isFirstOfGroup ? 'bubble-tail-out rounded-tr-none' : ''}`
                                                     }`}
                                             >
+                                                {idsBuzon.has(message.id) && <EtiquetaBuzon />}
                                                 {/* Reply quote bubble */}
                                                 {message.reply_to && (
                                                     <div
@@ -5676,6 +5733,26 @@ export default function ConversationsIndex({ conversations: initialConversations
                                             </div>
                                         );
                                     })}
+
+                                    {/* Llamadas posteriores al último mensaje */}
+                                    {(() => {
+                                        let diaPrevio = localMessages.length ? new Date(localMessages[localMessages.length - 1].created_at).toDateString() : null;
+                                        return repartoLlamadas.alFinal.map((l) => {
+                                            const dia = new Date(l.inicio!).toDateString();
+                                            const separador = dia !== diaPrevio;
+                                            diaPrevio = dia;
+                                            return (
+                                                <Fragment key={`llamada-${l.id}`}>
+                                                    {separador && (
+                                                        <div className="chat-date-separator">
+                                                            <span>{formatDateLabel(l.inicio!)}</span>
+                                                        </div>
+                                                    )}
+                                                    <LineaLlamada llamada={l} hora={horaLlamada(l.inicio)} />
+                                                </Fragment>
+                                            );
+                                        });
+                                    })()}
 
                                     {/* Mensajes optimistas (enviándose) */}
                                     {optimisticMessages.map((message) => (

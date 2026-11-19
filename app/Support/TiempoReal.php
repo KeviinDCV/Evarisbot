@@ -86,6 +86,22 @@ class TiempoReal
         self::enviar($tipo, $datos, ['conversaciones']);
     }
 
+    /**
+     * Una llamada de WhatsApp cambió (empieza a timbrar, alguien contestó, terminó): las pantallas piden
+     * /admin/llamadas/pendientes, que aplica a quién le timbra. Solo ids, como los demás avisos.
+     */
+    public static function llamada(int $llamadaId, ?int $conversationId = null): void
+    {
+        if ($llamadaId <= 0) {
+            return;
+        }
+        $datos = ['llamada_id' => $llamadaId];
+        if ($conversationId) {
+            $datos['conversation_id'] = $conversationId;
+        }
+        self::enviar('llamada', $datos, ['conversaciones']);
+    }
+
     /** Aviso a los participantes de un chat interno. */
     public static function chatInterno(int $chatId): void
     {

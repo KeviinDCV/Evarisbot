@@ -22,6 +22,8 @@ export type TipoAviso =
     | 'conversacion'
     | 'escribiendo'
     | 'chat_interno'
+    // Llamada de WhatsApp: empieza a timbrar, alguien contestó o terminó (ver lib/llamadas)
+    | 'llamada'
     // Solo de la pantalla: el tiempo real volvió tras un corte. Pudo perderse algún aviso: cada pantalla vuelve a pedir.
     | 'reconectado';
 
@@ -30,6 +32,7 @@ export type Aviso = {
     conversation_id?: number;
     conversation_ids?: number[];
     chat_id?: number;
+    llamada_id?: number;
 };
 
 type OyenteAviso = (aviso: Aviso) => void;

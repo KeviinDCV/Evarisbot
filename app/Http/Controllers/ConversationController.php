@@ -910,6 +910,7 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'hasMore' => $hasMore,
             'selectedConversation' => $conversation,
+            'llamadasChat' => $this->llamadasDelChat($conversation),
             'unreadOnOpen' => $unreadOnOpen,
             'users' => $users,
             'equipos' => $this->equiposParaPantalla(),
@@ -2763,7 +2764,32 @@ class ConversationController extends Controller
             'unread_count' => $conversation->fresh()->unread_count,
             'typing' => $typingUsers,
             'viewing' => $viewingUsers,
+            'llamadas' => $this->llamadasDelChat($conversation),
         ]);
+    }
+
+    /**
+     * Llamadas de WhatsApp de este chat, para las líneas dentro de la conversación («Llamada perdida · dejó un mensaje
+     * de voz», «Llamada de WhatsApp · la atendió …»). Las 100 más recientes; nunca rompe la pantalla.
+     */
+    private function llamadasDelChat(Conversation $conversation): array
+    {
+        try {
+            return \App\Models\Llamada::with('atendidaPor:id,name')
+                ->where('conversation_id', $conversation->id)
+                ->latest('id')->limit(100)->get()
+                ->map(fn (\App\Models\Llamada $l) => [
+                    'id' => $l->id,
+                    'resultado' => $l->resultado(),
+                    'inicio' => $l->inicio()?->toIso8601String(),
+                    'duracion' => $l->duracion,
+                    'atendio' => $l->atendidaPor?->name,
+                    'buzon_message_id' => $l->buzon_message_id,
+                ])
+                ->sortBy('inicio')->values()->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**
