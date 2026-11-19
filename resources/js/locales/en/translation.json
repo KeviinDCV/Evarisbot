@@ -408,6 +408,9 @@
             "quitar": "Remove from {{equipo}}: moves to the general line"
         },
         "scrollToLoadMore": "Scroll to load more...",
+        "viewChat": "View",
+        "viewingChat": "Open",
+        "viewChatTitle": "Open {{name}}'s chat without losing the selection",
         "selectedCount": "{{count}} selected",
         "bulkStatusError": "Could not change the status. Select the conversations again and try once more.",
         "readOnlyAssigned": "Assigned to {{name}}. Only that person or an administrator can change its status, specialty, notes or block.",

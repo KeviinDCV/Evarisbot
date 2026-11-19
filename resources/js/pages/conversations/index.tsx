@@ -2701,18 +2701,24 @@ export default function ConversationsIndex({ conversations: initialConversations
             });
             if (!isSelectionMode) setIsSelectionMode(true);
         } else {
-            const params: Record<string, string> = {};
-            if (search) params.search = search;
-            if (statusFilter !== 'all') params.status = statusFilter;
-            if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
-            if (tagFilterId !== null) params.tag = String(tagFilterId);
-            if (specialtyFilter !== null) params.specialty = specialtyFilter;
-
-            router.get(`/admin/chat/${conversationId}`, conFecha(params), {
-                preserveScroll: true,
-                preserveState: true
-            });
+            abrirConversacion(conversationId);
         }
+    };
+
+    // Abre un chat en el panel derecho. Con preserveState la selección sigue intacta: desde el modo de selección
+    // («Ver» en cada fila) se puede revisar un chat antes de decidir qué hacer con él, sin perder lo marcado.
+    const abrirConversacion = (conversationId: number) => {
+        const params: Record<string, string> = {};
+        if (search) params.search = search;
+        if (statusFilter !== 'all') params.status = statusFilter;
+        if (filterByAdvisor !== null) params.assigned = String(filterByAdvisor);
+        if (tagFilterId !== null) params.tag = String(tagFilterId);
+        if (specialtyFilter !== null) params.specialty = specialtyFilter;
+
+        router.get(`/admin/chat/${conversationId}`, conFecha(params), {
+            preserveScroll: true,
+            preserveState: true
+        });
     };
 
     // Función para asignar múltiples conversaciones
@@ -4325,7 +4331,8 @@ export default function ConversationsIndex({ conversations: initialConversations
                                         onMouseUp={handleDragSelectEnd}
                                         aria-current={selectedConversation?.id === conversation.id ? 'true' : undefined}
                                         className={`conv-list-item w-full flex items-center gap-3 pl-3 transition-colors text-left select-none group ${selectedConversations.includes(conversation.id)
-                                                ? 'bg-green-50/80 dark:bg-green-900/20'
+                                                // Marcada: verde. Si además es el chat abierto («Ver»), conserva la barra de la izquierda.
+                                                ? `bg-green-50/80 dark:bg-green-900/20${selectedConversation?.id === conversation.id ? ' shadow-[inset_3px_0_0_var(--primary)]' : ''}`
                                                 : selectedConversation?.id === conversation.id
                                                     // Fila abierta: fondo blanco y barra de 3 px con el color de marca.
                                                     // El lavanda anterior (#e9ebf5) casi no se distinguía del fondo de
@@ -4423,6 +4430,41 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                                 {pm?.content || t('conversations.noMessages')}
                                                             </span>
                                                         </p>
+                                                        {/* Modo selección: «Ver» abre el chat a la derecha sin marcarlo ni quitar la
+                                                            selección. Va dentro del botón de la fila (como la X del equipo): no puede
+                                                            ser otro <button>, y no debe marcar la fila ni empezar el arrastre. */}
+                                                        {isSelectionMode && (() => {
+                                                            const abierta = selectedConversation?.id === conversation.id;
+                                                            return (
+                                                                <span
+                                                                    role="button"
+                                                                    tabIndex={0}
+                                                                    aria-pressed={abierta}
+                                                                    aria-label={t('conversations.viewChatTitle', { name: conversation.contact_name || t('conversations.noName') })}
+                                                                    title={t('conversations.viewChatTitle', { name: conversation.contact_name || t('conversations.noName') })}
+                                                                    onMouseDown={(e) => e.stopPropagation()}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        e.preventDefault();
+                                                                        if (!abierta) abrirConversacion(conversation.id);
+                                                                    }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                                            e.stopPropagation();
+                                                                            e.preventDefault();
+                                                                            if (!abierta) abrirConversacion(conversation.id);
+                                                                        }
+                                                                    }}
+                                                                    className={`relative flex-shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-semibold cursor-pointer transition-[background-color,color,scale] active:scale-[0.96] before:absolute before:-inset-x-1 before:-inset-y-2 before:content-[''] ${abierta
+                                                                        ? 'bg-[#2e3f84] text-white dark:bg-blue-500'
+                                                                        : 'bg-[#2e3f84]/[0.08] text-[#2e3f84] hover:bg-[#2e3f84]/[0.16] dark:bg-blue-400/15 dark:text-blue-300 dark:hover:bg-blue-400/25'
+                                                                        }`}
+                                                                >
+                                                                    <Eye className="w-3.5 h-3.5" />
+                                                                    {abierta ? t('conversations.viewingChat') : t('conversations.viewChat')}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                         {/* Badge de no-leídos a la derecha (estilo WhatsApp) */}
                                                         {!isSelectionMode && conversation.unread_count > 0 && (
                                                             <span className="flex-shrink-0 min-w-[20px] h-5 px-1.5 bg-green-500 rounded-full flex items-center justify-center text-white text-[11px] font-bold">
@@ -4641,36 +4683,25 @@ export default function ConversationsIndex({ conversations: initialConversations
                                 </div>
                             )}
 
-                            {/* Botones de cambiar estado */}
-                            <div className="flex gap-2 mt-2">
-                                <button
-                                    onClick={() => handleBulkStatusChange('active')}
-                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-blue-500/30 text-white text-xs rounded-lg flex items-center justify-center gap-1 transition-colors"
-                                >
-                                    <Check className="w-3 h-3" />
-                                    {t('conversations.statusLabels.active')}
-                                </button>
-                                <button
-                                    onClick={() => handleBulkStatusChange('pending')}
-                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-yellow-500/30 text-white text-xs rounded-lg flex items-center justify-center gap-1 transition-colors"
-                                >
-                                    <Clock className="w-3 h-3" />
-                                    {t('conversations.statusLabels.pending')}
-                                </button>
-                                <button
-                                    onClick={() => handleBulkStatusChange('resolved')}
-                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-green-500/30 text-white text-xs rounded-lg flex items-center justify-center gap-1 transition-colors"
-                                >
-                                    <CheckCheck className="w-3 h-3" />
-                                    {t('conversations.statusLabels.resolved')}
-                                </button>
-                                <button
-                                    onClick={() => handleBulkStatusChange('scheduled')}
-                                    className="flex-1 py-2 px-3 bg-card/10 hover:bg-indigo-500/30 text-white text-xs rounded-lg flex items-center justify-center gap-1 transition-colors"
-                                >
-                                    <CalendarCheck className="w-3 h-3" />
-                                    {t('conversations.statusLabels.scheduled')}
-                                </button>
+                            {/* Botones de cambiar estado. Cuatro columnas iguales con el icono encima del texto: en fila,
+                                con icono y texto al lado, no cabían en la lista (320–360 px) y «Agendado» quedaba cortado. */}
+                            <div className="grid grid-cols-4 gap-1.5 mt-2">
+                                {([
+                                    { estado: 'active', Icono: Check, hover: 'hover:bg-blue-500/30' },
+                                    { estado: 'pending', Icono: Clock, hover: 'hover:bg-yellow-500/30' },
+                                    { estado: 'resolved', Icono: CheckCheck, hover: 'hover:bg-green-500/30' },
+                                    { estado: 'scheduled', Icono: CalendarCheck, hover: 'hover:bg-indigo-500/30' },
+                                ] as const).map(({ estado, Icono, hover }) => (
+                                    <button
+                                        key={estado}
+                                        onClick={() => handleBulkStatusChange(estado)}
+                                        title={t(`conversations.statusLabels.${estado}`)}
+                                        className={`min-w-0 py-2 px-1 bg-card/10 ${hover} text-white text-[11px] leading-tight font-medium rounded-lg flex flex-col items-center justify-center gap-1 transition-[background-color,scale] active:scale-[0.96]`}
+                                    >
+                                        <Icono className="w-4 h-4 flex-shrink-0" />
+                                        <span className="max-w-full truncate">{t(`conversations.statusLabels.${estado}`)}</span>
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     )}

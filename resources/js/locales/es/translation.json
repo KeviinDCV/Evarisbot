@@ -408,6 +408,9 @@
             "quitar": "Quitar de {{equipo}}: pasa a la línea general"
         },
         "scrollToLoadMore": "Desplaza para cargar más...",
+        "viewChat": "Ver",
+        "viewingChat": "Abierto",
+        "viewChatTitle": "Abrir el chat de {{name}} sin perder la selección",
         "selectedCount": "{{count}} seleccionada(s)",
         "bulkStatusError": "No se pudo cambiar el estado. Vuelve a seleccionar las conversaciones e inténtalo de nuevo.",
         "readOnlyAssigned": "Asignada a {{name}}. Solo esa persona o un administrador puede cambiar su estado, especialidad, notas o bloqueo.",
