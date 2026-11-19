@@ -483,6 +483,119 @@ class Conversation extends Model
     }
 
     /**
+     * Condición SQL: entre lo que el paciente tiene SIN LEER no hay nada que pida algo (solo confirmar, cancelar, gracias,
+     * 👍, un saludo al que siguió otra cosa…; ver sqlPideAlgo en modo 'viejo'). Lo oculto (botones de cita) no cuenta.
+     */
+    private static function sqlSinLeerSoloCortesia(): string
+    {
+        // Lo que responde a un recordatorio del módulo Citas (el último antes del mensaje, sin un masivo entre medias) se
+        // mide con la regla de la cita: «sí muchas gracias» con la cita SIN confirmar es una confirmación que el sistema no
+        // aplicó y debe verla un asesor, aunque un masivo anterior esconda el chat (caso real: chat 84688, 18/11/2026).
+        // Solo en la última semana: más viejo, la cita ya pasó y vale la regla de los viejos.
+        $corte = now()->subDays(self::DIAS_VIEJO_TERMINADO)->format('Y-m-d H:i:s');
+        $respondeACitaSinAplicar = "(m.created_at >= '{$corte}' AND EXISTS (SELECT 1 FROM appointments a"
+            . " WHERE a.conversation_id = m.conversation_id AND a.reminder_sent = 1 AND a.reminder_sent_at IS NOT NULL"
+            . " AND a.reminder_whatsapp_message_id IS NOT NULL AND (a.reminder_status IS NULL OR a.reminder_status <> 'failed')"
+            . " AND a.reminder_sent_at <= m.created_at"
+            . " AND NOT EXISTS (SELECT 1 FROM messages k WHERE k.conversation_id = m.conversation_id AND k.is_from_user = 0"
+            . " AND k.content LIKE '[Env_o masivo:%' AND k.created_at > a.reminder_sent_at AND k.created_at <= m.created_at)"
+            . ' AND ' . self::sqlPideAlgo(self::sqlCortesia('cita')) . '))';
+        // Cita un mensaje del SISTEMA (el recordatorio) y después no salió nada: es el aviso que deja
+        // sendAppointmentAutoResponse cuando no pudo enviar «Confirmación recibida» (des-oculta el botón y suma un no
+        // leído para que un asesor se entere). Ese no se lee solo.
+        $citaAlSistemaSinRespuesta = "(m.created_at >= '{$corte}' AND m.reply_to_id IS NOT NULL"
+            . " AND EXISTS (SELECT 1 FROM messages q WHERE q.id = m.reply_to_id AND q.is_from_user = 0 AND q.sent_by IS NULL"
+            . " AND IFNULL(q.content, '') NOT LIKE '[Env_o masivo%')"
+            . " AND NOT EXISTS (SELECT 1 FROM messages o WHERE o.conversation_id = m.conversation_id AND o.is_from_user = 0 AND o.id > m.id))";
+
+        return "NOT EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = conversations.id AND m.is_from_user = 1"
+            . " AND m.is_hidden = 0 AND IFNULL(m.status, '') <> 'read' AND (" . self::sqlPideAlgo(self::sqlCortesia('viejo'))
+            . " OR {$respondeACitaSinAplicar} OR {$citaAlSistemaSinRespuesta}))"
+            // La liberación automática le quitó el chat a un asesor que no respondió y lo dejó con no leídos A PROPÓSITO
+            // (GREATEST(unread_count, 1)), aunque la pregunta ya estuviera leída: mientras ningún asesor responda después,
+            // esa marca se respeta (ver InactiveConversationReleaser::release).
+            . " AND NOT EXISTS (SELECT 1 FROM conversation_activities ca WHERE ca.conversation_id = conversations.id"
+            . " AND ca.type = 'unassigned' AND ca.user_id IS NULL AND ca.metadata LIKE '%auto_release%'"
+            . " AND NOT EXISTS (SELECT 1 FROM messages r WHERE r.conversation_id = conversations.id AND r.is_from_user = 0"
+            . " AND r.is_hidden = 0 AND r.sent_by IS NOT NULL AND IFNULL(r.content, '') NOT LIKE '[Env_o masivo%'"
+            . ' AND r.created_at > ca.created_at))';
+    }
+
+    /**
+     * Lectura automática (pedido del 19/11/2026): los chats de recordatorio o masivo sin novedad (sqlRecordatorioSinNovedad,
+     * los mismos que no ven los asesores en «Todos») quedan LEÍDOS, para que no salgan como pendientes ni sumen en los
+     * contadores de nadie (tampoco de los administradores). Solo si TODO lo que tienen sin leer es confirmar, cancelar o
+     * cortesía: un chat con una pregunta real sin leer (aunque esté escondido por la regla de 48 h o de los viejos) no se
+     * toca, la pregunta sigue contando.
+     *
+     * Solo cambia unread_count y el estado de esos mensajes por dentro: el acuse a Meta (doble check azul) ya se envía al
+     * recibir cada mensaje. No toca updated_at (el filtro «Cancelados» ordena por él) ni el estado del chat.
+     *
+     * Cada chat va en su propia transacción y se vuelve a comprobar todo en el mismo UPDATE: si entre medias llega un
+     * mensaje nuevo (id mayor que el último visto) o se lo asignan a alguien, no se toca y lo nuevo sigue sin leer.
+     *
+     * @param int[]|null $ids Chats a revisar (null: todos los que tienen no leídos).
+     * @return array<int, array{id:int, unread_count:int, mensajes:int[]}> Lo que se marcó y cómo estaba (para deshacer).
+     */
+    public static function leerRecordatoriosSinNovedad(?array $ids = null, int $limite = 5000): array
+    {
+        $regla = self::sqlRecordatorioSinNovedad();
+        $soloCortesia = self::sqlSinLeerSoloCortesia();
+        $hechos = [];
+
+        try {
+            $consulta = \Illuminate\Support\Facades\DB::table('conversations')
+                ->where('unread_count', '>', 0)->whereNull('assigned_to')
+                ->whereRaw($regla)->whereRaw($soloCortesia)
+                ->orderBy('id')->limit($limite);
+            if ($ids !== null) {
+                if ($ids === []) {
+                    return [];
+                }
+                $consulta->whereIn('id', array_map('intval', $ids));
+            }
+            $candidatos = $consulta->pluck('id')->map(fn ($id) => (int) $id)->all();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Lectura automática de recordatorios: no se pudo consultar', ['error' => $e->getMessage()]);
+
+            return [];
+        }
+
+        foreach ($candidatos as $id) {
+            try {
+                $tope = (int) \Illuminate\Support\Facades\DB::table('messages')->where('conversation_id', $id)->max('id');
+                $hecho = \Illuminate\Support\Facades\DB::transaction(function () use ($id, $tope, $regla, $soloCortesia) {
+                    $mensajes = \Illuminate\Support\Facades\DB::table('messages')
+                        ->where('conversation_id', $id)->where('is_from_user', 1)->where('id', '<=', $tope)
+                        ->whereRaw("IFNULL(status, '') <> 'read'")->pluck('id')->map(fn ($m) => (int) $m)->all();
+                    $antes = \Illuminate\Support\Facades\DB::table('conversations')->where('id', $id)->value('unread_count');
+                    $n = \Illuminate\Support\Facades\DB::table('conversations')
+                        ->where('id', $id)->where('unread_count', '>', 0)->whereNull('assigned_to')
+                        ->whereRaw($regla)->whereRaw($soloCortesia)
+                        ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('messages as z')
+                            ->whereColumn('z.conversation_id', 'conversations.id')->where('z.id', '>', $tope))
+                        ->update(['unread_count' => 0]);
+                    if ($n !== 1) {
+                        return null;
+                    }
+                    if ($mensajes !== []) {
+                        \Illuminate\Support\Facades\DB::table('messages')->whereIn('id', $mensajes)->update(['status' => 'read']);
+                    }
+
+                    return ['id' => $id, 'unread_count' => (int) $antes, 'mensajes' => $mensajes];
+                });
+                if ($hecho) {
+                    $hechos[] = $hecho;
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Lectura automática de recordatorios: falló un chat', ['conversation_id' => $id, 'error' => $e->getMessage()]);
+            }
+        }
+
+        return $hechos;
+    }
+
+    /**
      * Bandejas de los ASESORES («Todos», «Sin leer», el contador de no leídos): fuera los chats de recordatorio sin
      * novedad (ver sqlRecordatorioSinNovedad). Pedido del 18/11/2026: los recordatorios no deben llenar la bandeja;
      * el chat aparece solo si el paciente vuelve y escribe algo distinto de confirmar o cancelar. A los administradores

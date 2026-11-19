@@ -2099,6 +2099,14 @@ class WhatsAppService
             // Los mensajes ocultos no suman no-leídos ni reactivan la vista de trabajo.
             if (!$isAppointmentResponse) {
                 $conversation->incrementUnread();
+
+                // Confirmar/cancelar/gracias tras un recordatorio o un masivo (y nada más pendiente): queda leído al
+                // instante, antes del aviso a las pantallas, así no suena ni cuenta (Conversation::leerRecordatoriosSinNovedad).
+                // Un chat asignado o con algo real sin leer no se toca. ~2-10 ms; nunca lanza.
+                if (!$conversation->assigned_to && \App\Models\Conversation::leerRecordatoriosSinNovedad([$conversation->id]) !== []) {
+                    $conversation->unread_count = 0;
+                    $conversation->syncOriginalAttribute('unread_count');
+                }
             }
 
             // Marcar como leído en WhatsApp

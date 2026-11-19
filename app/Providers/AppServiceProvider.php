@@ -75,6 +75,8 @@ class AppServiceProvider extends ServiceProvider
                 \App\Services\InactiveConversationReleaser::runIfDue();
                 // Vigilancia del webhook, la cola y el disco (cada 10 minutos como mucho).
                 \App\Services\WebhookWatchdog::runIfDue();
+                // Chats de recordatorio que solo confirmaron/cancelaron/agradecieron: leídos (cada 10 minutos como mucho).
+                \App\Services\LecturaAutomaticaRecordatorios::runIfDue();
             });
         }
     }
