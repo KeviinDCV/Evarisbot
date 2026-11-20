@@ -2785,6 +2785,8 @@ class ConversationController extends Controller
                     'duracion' => $l->duracion,
                     'atendio' => $l->atendidaPor?->name,
                     'buzon_message_id' => $l->buzon_message_id,
+                    'direccion' => $l->direccion,
+                    'motivo' => $l->direccion === 'saliente' ? $l->motivo : null,
                 ])
                 ->sortBy('inicio')->values()->all();
         } catch (\Throwable) {

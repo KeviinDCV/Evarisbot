@@ -10,3 +10,6 @@ Route::controller(WhatsAppWebhookController::class)->prefix('webhook')->group(fu
     Route::get('/whatsapp', 'verify')->name('webhook.whatsapp.verify');
     Route::post('/whatsapp', 'handle')->middleware(VerifyMetaSignature::class)->name('webhook.whatsapp.handle');
 });
+
+// Avisos del robot de llamadas (recordatorios por voz; mismo PC, firmados con su clave): ver RobotLlamadasController.
+Route::post('/interno/robot-llamadas', [\App\Http\Controllers\RobotLlamadasController::class, 'evento'])->name('interno.robot-llamadas');

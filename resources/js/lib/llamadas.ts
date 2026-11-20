@@ -27,6 +27,8 @@ export type EstadoLlamadas =
     | { fase: 'libre' }
     | { fase: 'timbrando'; llamada: LlamadaPendiente; otras: number }
     | { fase: 'conectando'; llamada: LlamadaPendiente }
+    // Llamada que hace este usuario al paciente: «Llamando…» y, cuando Meta avisa que el celular suena, «Sonando…».
+    | { fase: 'llamando'; llamada: LlamadaPendiente; sonando: boolean }
     | { fase: 'en_curso'; llamada: LlamadaPendiente; inicio: number; silenciado: boolean }
     | { fase: 'terminada'; llamada: LlamadaPendiente; motivo: 'colgo' | 'otro' | 'error'; detalle?: string; duracion?: number }
     | { fase: 'huerfana'; llamada: LlamadaHuerfana };
@@ -69,6 +71,13 @@ let contestarEnviado = false;
 let conectandoDesde = 0;
 /** Último «Ignorar»: un doble clic no debe ignorar también la llamada siguiente, que aparece en el mismo sitio. */
 let ultimoIgnorar = 0;
+/** Llamada que hizo este usuario (saliente) y si ya se aplicó la respuesta SDP de Meta (llega por el webhook). */
+let salienteId = 0;
+let respuestaAplicada = false;
+/** Si después de esto sigue «Llamando…», se cuelga (Meta deja de intentar antes; es un respaldo). */
+const TOPE_LLAMANDO_MS = 90_000;
+/** Mientras falta la respuesta de Meta, se pregunta seguido: sin ella no hay audio. */
+const SONDEO_RESPUESTA_MS = 1500;
 
 /** La sesión se cerró (401/419): se apaga todo (timbre, audio). El paciente queda sin audio y Meta corta sola. */
 function sesionPerdida(): void {
@@ -134,7 +143,7 @@ async function pedirPendientes(): Promise<void> {
 
 function repartir(): void {
     // Ocupado con su llamada (o mostrando cómo terminó): no se interrumpe.
-    if (estado.fase === 'conectando' || estado.fase === 'en_curso' || estado.fase === 'terminada') return;
+    if (estado.fase === 'conectando' || estado.fase === 'en_curso' || estado.fase === 'terminada' || estado.fase === 'llamando') return;
     // Tiene una llamada abierta sin audio aquí (recargó la página u otra pestaña): primero eso.
     if (mia) {
         if (estado.fase !== 'huerfana' || estado.llamada.id !== mia.id) poner({ fase: 'huerfana', llamada: mia });
@@ -165,8 +174,11 @@ export function iniciarLlamadas(): void {
     alAviso((aviso) => {
         if (aviso.tipo === 'llamada' || aviso.tipo === 'reconectado') {
             void pedirPendientes();
-            const actual = estado.fase === 'conectando' || estado.fase === 'en_curso' ? estado.llamada : null;
-            if (actual && (aviso.tipo === 'reconectado' || aviso.llamada_id === actual.id)) void revisarEstado(actual);
+            const actual = estado.fase === 'conectando' || estado.fase === 'en_curso' || estado.fase === 'llamando' ? estado.llamada : null;
+            if (actual && (aviso.tipo === 'reconectado' || aviso.llamada_id === actual.id)) {
+                if (esperaRespuestaDeMeta()) void revisarSaliente(actual);
+                else void revisarEstado(actual);
+            }
         }
     });
     setInterval(() => {
@@ -174,10 +186,14 @@ export function iniciarLlamadas(): void {
     }, SONDEO_SIN_TIEMPO_REAL_MS);
     setInterval(() => {
         if (estado.fase === 'timbrando') void pedirPendientes();
-        if (estado.fase === 'en_curso' && !hayTiempoReal()) void revisarEstado(estado.llamada);
+        if (esperaRespuestaDeMeta() && (estado.fase === 'llamando' || estado.fase === 'en_curso')) {
+            // Saliente: por si el aviso se perdió. Y un tope: que no se quede «Llamando…» para siempre.
+            if (estado.fase === 'llamando' && Date.now() - conectandoDesde > TOPE_LLAMANDO_MS) void colgar();
+            else void revisarSaliente(estado.llamada);
+        } else if (estado.fase === 'en_curso' && !hayTiempoReal()) void revisarEstado(estado.llamada);
     }, SONDEO_TIMBRANDO_MS);
     window.addEventListener('beforeunload', (e) => {
-        if (estado.fase === 'en_curso' || estado.fase === 'conectando') {
+        if (estado.fase === 'en_curso' || estado.fase === 'conectando' || estado.fase === 'llamando') {
             e.preventDefault();
             e.returnValue = '';
         }
@@ -185,7 +201,7 @@ export function iniciarLlamadas(): void {
     // Salió igual (recargó o cerró en plena llamada): el audio muere con la pestaña, así que se cuelga en el servidor
     // para que el paciente no quede conectado en silencio. keepalive: la petición sale aunque la página se cierre.
     window.addEventListener('pagehide', () => {
-        if ((estado.fase === 'en_curso' || estado.fase === 'conectando') && contestarEnviado) {
+        if ((estado.fase === 'en_curso' || estado.fase === 'conectando' || estado.fase === 'llamando') && contestarEnviado && estado.llamada.id > 0) {
             try {
                 void fetch(`/admin/llamadas/${estado.llamada.id}/colgar`, {
                     method: 'POST',
@@ -316,6 +332,173 @@ export async function contestar(): Promise<void> {
     }
 }
 
+// ── Llamar al paciente (saliente) ───────────────────────────────────────────────────────────────────────────────────
+
+export type DestinoLlamada = { conversation_id: number; nombre: string | null; telefono: string | null };
+
+/** Es una saliente de este usuario a la que todavía le falta la respuesta de Meta (o el «contestó»). */
+function esperaRespuestaDeMeta(): boolean {
+    if (estado.fase === 'llamando') return true;
+    return estado.fase === 'en_curso' && estado.llamada.id === salienteId && !respuestaAplicada;
+}
+
+/**
+ * Llamar al paciente de un chat. Este navegador arma la OFERTA WebRTC (micrófono incluido), el servidor se la pasa a
+ * Meta y la respuesta de Meta llega después por el webhook: se recoge en /estado (aviso de tiempo real o sondeo).
+ */
+export async function llamar(destino: DestinoLlamada): Promise<void> {
+    if (estado.fase !== 'libre' && estado.fase !== 'terminada') return;
+    if (finTimer) clearTimeout(finTimer);
+    finTimer = null;
+    const borrador: LlamadaPendiente = {
+        id: 0,
+        conversation_id: destino.conversation_id,
+        nombre: destino.nombre,
+        telefono: destino.telefono,
+        desde: new Date().toISOString(),
+        sdp_oferta: '',
+    };
+    const mio = ++intento;
+    const vigente = () => mio === intento && estado.fase === 'llamando';
+    contestarEnviado = false;
+    respuestaAplicada = false;
+    salienteId = 0;
+    conectandoDesde = Date.now();
+    poner({ fase: 'llamando', llamada: borrador, sonando: false });
+
+    let flujo: MediaStream | null = null;
+    let conexion: RTCPeerConnection | null = null;
+    const soltar = () => {
+        flujo?.getTracks().forEach((p) => p.stop());
+        try {
+            conexion?.close();
+        } catch {
+            /* ya cerrada */
+        }
+    };
+
+    if (microfonoDisponible()) {
+        try {
+            flujo = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            });
+        } catch (e) {
+            if ((e as DOMException)?.name === 'NotFoundError' && escucharSinMicrofono) flujo = flujoMudo();
+        }
+    }
+    if (!flujo) {
+        if (vigente()) terminar(borrador, 'error', microfonoDisponible() ? 'microfono_denegado' : 'microfono_bloqueado');
+        return;
+    }
+    if (!vigente()) return soltar();
+
+    try {
+        conexion = new RTCPeerConnection();
+        const esta = conexion;
+        microfono = flujo;
+        pc = esta;
+        esta.ontrack = (ev) => {
+            if (pc !== esta) return;
+            if (!audioRemoto) {
+                audioRemoto = new Audio();
+                audioRemoto.autoplay = true;
+            }
+            audioRemoto.srcObject = ev.streams[0] ?? new MediaStream([ev.track]);
+            void audioRemoto.play().catch(() => {});
+        };
+        esta.onconnectionstatechange = () => {
+            if (pc !== esta || esta.connectionState !== 'failed') return;
+            const actual = estado.fase === 'llamando' || estado.fase === 'en_curso' ? estado.llamada : borrador;
+            if (actual.id > 0) void colgarEnServidor(actual, 'red');
+            intento++;
+            cerrarMedios();
+            terminar(actual, 'error', 'red');
+        };
+        flujo.getAudioTracks().forEach((pista) => esta.addTrack(pista, flujo!));
+        const oferta = await esta.createOffer();
+        await esta.setLocalDescription(oferta);
+        await esperarCandidatos(esta);
+        if (!vigente()) return; // colgó mientras se preparaba (cerrarMedios ya soltó todo)
+        const sdp = esta.localDescription?.sdp ?? oferta.sdp ?? '';
+
+        contestarEnviado = true;
+        const { data } = await axios.post<{ ok: boolean; error?: string | null; llamada?: LlamadaHuerfana | null }>(
+            `/admin/llamadas/llamar/${destino.conversation_id}`,
+            { sdp },
+        );
+        if (!data?.ok || !data.llamada) throw Object.assign(new Error(data?.error || 'meta'), { codigo: data?.error ?? undefined });
+        const llamada: LlamadaPendiente = { ...borrador, id: data.llamada.id, nombre: data.llamada.nombre ?? borrador.nombre, telefono: data.llamada.telefono ?? borrador.telefono };
+        salienteId = llamada.id;
+        if (!vigente()) {
+            // Colgó mientras el servidor llamaba: se cuelga allá también.
+            void colgarEnServidor(llamada);
+            return;
+        }
+        poner({ fase: 'llamando', llamada, sonando: false });
+        void revisarSaliente(llamada);
+        // La respuesta de Meta llega por el webhook (y el aviso de tiempo real); por si el aviso se demora, se pregunta.
+        void (async () => {
+            const sigue = () => estado.fase === 'llamando' && estado.llamada.id === llamada.id && !respuestaAplicada;
+            for (let i = 0; i < 40 && sigue(); i++) {
+                await new Promise((r) => setTimeout(r, SONDEO_RESPUESTA_MS));
+                if (sigue()) await revisarSaliente(llamada);
+            }
+        })();
+    } catch (e) {
+        if (mio !== intento) return; // de un intento ya cancelado: no toca nada
+        const err = e as { response?: { status?: number; data?: { error?: string | null } }; codigo?: string };
+        intento++;
+        cerrarMedios();
+        soltar();
+        terminar(borrador, 'error', err.response?.data?.error ?? err.codigo ?? 'conexion');
+    }
+}
+
+/** Cómo va la saliente: aplica la respuesta de Meta cuando llega y sigue «sonando» → «en curso» → fin. */
+async function revisarSaliente(llamada: LlamadaPendiente): Promise<void> {
+    if (!llamada.id) return;
+    try {
+        const { data } = await axios.get<{ estado: string; duracion: number | null; motivo?: string | null; sdp_respuesta?: string | null }>(
+            `/admin/llamadas/${llamada.id}/estado`,
+        );
+        const sigue = () => (estado.fase === 'llamando' || estado.fase === 'en_curso') && estado.llamada.id === llamada.id;
+        if (!sigue()) return;
+
+        const esta = pc;
+        if (data.sdp_respuesta && !respuestaAplicada && esta) {
+            respuestaAplicada = true;
+            try {
+                await esta.setRemoteDescription({ type: 'answer', sdp: data.sdp_respuesta });
+            } catch {
+                if (!sigue()) return;
+                intento++;
+                cerrarMedios();
+                void colgarEnServidor(llamada);
+                terminar(llamada, 'error', 'conexion');
+                return;
+            }
+            if (!sigue()) return;
+        }
+
+        const ahora = estado;
+        if (data.estado === 'sonando' && ahora.fase === 'llamando' && !ahora.sonando) {
+            poner({ ...ahora, sonando: true });
+        } else if (data.estado === 'en_curso' && ahora.fase === 'llamando') {
+            poner({ fase: 'en_curso', llamada: ahora.llamada, inicio: Date.now(), silenciado: false });
+        } else if (['rechazada', 'perdida', 'fallida', 'terminada'].includes(data.estado)) {
+            intento++;
+            cerrarMedios();
+            if (data.estado === 'terminada') terminar(llamada, 'colgo', undefined, data.duracion ?? undefined);
+            else if (data.estado === 'rechazada') terminar(llamada, 'error', 'rechazo');
+            else if (data.estado === 'perdida') terminar(llamada, 'error', data.motivo === 'cancelo' ? 'cancelada' : 'no_contesto');
+            else terminar(llamada, 'error', (data.motivo ?? '').split(':')[0] || 'meta');
+        }
+    } catch (e) {
+        if (esSesionPerdida(e)) sesionPerdida();
+        /* sin red: se reintenta con el próximo aviso o sondeo */
+    }
+}
+
 export function silenciar(): void {
     if (estado.fase !== 'en_curso' || !microfono) return;
     const silenciado = !estado.silenciado;
@@ -332,15 +515,18 @@ export async function colgar(): Promise<void> {
         await colgarEnServidor({ id: llamada.id });
         return;
     }
-    if (estado.fase !== 'en_curso' && estado.fase !== 'conectando') return;
+    if (estado.fase !== 'en_curso' && estado.fase !== 'conectando' && estado.fase !== 'llamando') return;
     // Doble clic en «Contestar»: el segundo cae en «Colgar» (en «Conectando…» o ya en curso, si conectó muy rápido).
     if (Date.now() - conectandoDesde < IGNORAR_COLGAR_MS) return;
     const llamada = estado.llamada;
     const duracion = estado.fase === 'en_curso' ? Math.round((Date.now() - estado.inicio) / 1000) : undefined;
-    const avisar = contestarEnviado;
-    intento++; // cancela lo que venga en camino de contestar()
+    const cancelada = estado.fase === 'llamando';
+    // Saliente: el servidor solo la conoce cuando ya tiene número (si el POST de llamar va en camino, lo cuelga llamar()).
+    const avisar = contestarEnviado && llamada.id > 0;
+    intento++; // cancela lo que venga en camino de contestar() o llamar()
     cerrarMedios();
-    terminar(llamada, 'colgo', undefined, duracion);
+    if (cancelada) terminar(llamada, 'error', 'cancelada');
+    else terminar(llamada, 'colgo', undefined, duracion);
     if (avisar) await colgarEnServidor(llamada);
 }
 

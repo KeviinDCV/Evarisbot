@@ -15,7 +15,7 @@ import {
     type LlamadaPendiente,
 } from '@/lib/llamadas';
 import { Link } from '@inertiajs/react';
-import { Loader2, MessageSquare, Mic, MicOff, Phone, PhoneOff, X } from 'lucide-react';
+import { Loader2, MessageSquare, Mic, MicOff, Phone, PhoneOff, PhoneOutgoing, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
@@ -108,7 +108,13 @@ export function LlamadaEntrante() {
         >
             <div className="mb-3 flex items-center justify-between gap-2">
                 <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    {estado.fase === 'en_curso' ? t('llamadas.enCurso') : estado.fase === 'huerfana' ? t('llamadas.abierta') : t('llamadas.titulo')}
+                    {estado.fase === 'en_curso'
+                        ? t('llamadas.enCurso')
+                        : estado.fase === 'huerfana'
+                          ? t('llamadas.abierta')
+                          : estado.fase === 'llamando'
+                            ? t('llamadas.saliente')
+                            : t('llamadas.titulo')}
                 </span>
                 {estado.fase === 'terminada' && (
                     <button
@@ -124,8 +130,16 @@ export function LlamadaEntrante() {
 
             <div className="flex items-center gap-3">
                 <div className="relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
-                    {estado.fase === 'timbrando' && <span className="absolute inset-0 rounded-full bg-emerald-500/25 motion-safe:animate-ping" />}
-                    {estado.fase === 'conectando' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Phone className="relative h-5 w-5" />}
+                    {(estado.fase === 'timbrando' || (estado.fase === 'llamando' && estado.sonando)) && (
+                        <span className="absolute inset-0 rounded-full bg-emerald-500/25 motion-safe:animate-ping" />
+                    )}
+                    {estado.fase === 'conectando' ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : estado.fase === 'llamando' ? (
+                        <PhoneOutgoing className="relative h-5 w-5" />
+                    ) : (
+                        <Phone className="relative h-5 w-5" />
+                    )}
                 </div>
                 <div className="min-w-0 flex-1">
                     <Quien llamada={estado.llamada} />
@@ -133,6 +147,9 @@ export function LlamadaEntrante() {
                         <p className="text-xs font-medium text-emerald-700 tabular-nums dark:text-emerald-400">{reloj((ahora - estado.inicio) / 1000)}</p>
                     )}
                     {estado.fase === 'conectando' && <p className="text-xs text-muted-foreground">{t('llamadas.conectando')}</p>}
+                    {estado.fase === 'llamando' && (
+                        <p className="text-xs text-muted-foreground">{estado.sonando ? t('llamadas.sonando') : t('llamadas.llamando')}</p>
+                    )}
                 </div>
             </div>
 
@@ -159,7 +176,7 @@ export function LlamadaEntrante() {
                 </>
             )}
 
-            {(estado.fase === 'en_curso' || estado.fase === 'conectando') && (
+            {(estado.fase === 'en_curso' || estado.fase === 'conectando' || estado.fase === 'llamando') && (
                 <div className="mt-4 flex items-center justify-between gap-2">
                     <VerChat llamada={estado.llamada} />
                     <div className="flex gap-2">

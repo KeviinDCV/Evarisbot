@@ -207,6 +207,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
     // Llamadas de WhatsApp (el timbre y la llamada en curso, en el marco de todas las pantallas)
     Route::controller(\App\Http\Controllers\LlamadaController::class)->prefix('llamadas')->name('llamadas.')->group(function () {
+        Route::post('/llamar/{conversation}', 'llamar')->whereNumber('conversation')->middleware('throttle:6,1')->name('llamar');
         Route::get('/pendientes', 'pendientes')->name('pendientes');
         Route::get('/{llamada}/estado', 'estado')->name('estado');
         Route::post('/{llamada}/contestar', 'contestar')->name('contestar');

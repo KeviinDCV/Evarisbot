@@ -1,6 +1,6 @@
 import { nombrePropio } from '@/lib/nombres';
 import { cn } from '@/lib/utils';
-import { CalendarCheck2, CalendarX, Clock, Phone, Search, X } from 'lucide-react';
+import { CalendarCheck2, CalendarX, Clock, Phone, PhoneCall, Search, X } from 'lucide-react';
 import { useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -159,7 +159,13 @@ export interface CitaFila {
     recordatorio: EstadoRecordatorio;
     respuesta: RespuestaCita | null;
     motivo: string | null;
+    /** La llamada de recordatorio del robot por esta cita (si la hubo): qué pasó y a qué hora (Colombia, 'Y-m-d H:i'). */
+    llamada?: { resultado: ResultadoLlamada; hora: string | null } | null;
+    /** Su fecha tuvo ronda de llamadas, no respondió y no se le llamó porque el número no dio permiso. */
+    sin_permiso_llamada?: boolean;
 }
+
+export type ResultadoLlamada = 'confirmo' | 'cancelo' | 'en_curso' | 'sin_marcar' | 'no_se_pudo' | 'rechazo' | 'no_contesto';
 
 const RECORDATORIO = {
     con_error: { clave: 'appointments.recordatorio.con_error', tono: 'error' },
@@ -268,10 +274,47 @@ function Pastilla({ tono, children }: { tono: 'ok' | 'mal'; children: ReactNode 
     );
 }
 
+/**
+ * Debajo de la respuesta: lo de la llamada de recordatorio («Por llamada · 23 nov, 10:31», «Llamada: no contestó»…) o
+ * «No se llamó: sin permiso». Sin llamada ni ronda en su fecha, nada.
+ */
+function LineaLlamadaCita({ cita, respuesta }: { cita: CitaFila; respuesta: RespuestaCita | null }) {
+    const { t, i18n } = useTranslation();
+    const l = cita.llamada;
+    if (!l) {
+        return cita.sin_permiso_llamada ? <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('appointments.callLine.noPermission')}</span> : null;
+    }
+    const hora = l.hora ? fechaEnvio(l.hora, i18n.language) : '';
+    const texto =
+        (l.resultado === 'confirmo' && respuesta === 'confirmada') || (l.resultado === 'cancelo' && (respuesta === 'cancelada' || respuesta === 'cancelada_hospital'))
+            ? [t('appointments.callLine.byCall'), hora].filter(Boolean).join(' · ')
+            : t(`appointments.callLine.${l.resultado}`);
+    return (
+        <span
+            className={cn('inline-flex min-w-0 items-start gap-[5px] text-[12px] leading-4', l.resultado === 'sin_marcar' ? TONO_TEXTO.aviso : TEXTO_SUAVE)}
+            title={l.hora ?? undefined}
+        >
+            <PhoneCall className="mt-px size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
+            <span className="line-clamp-2 min-w-0">{texto}</span>
+        </span>
+    );
+}
+
 /** Qué hizo el paciente. La cancelación del hospital se distingue (y se ve aunque no saliera recordatorio). */
 export function CeldaRespuesta({ cita }: { cita: CitaFila }) {
-    const { t } = useTranslation();
     const respuesta = respuestaDe(cita);
+    const linea = cita.llamada || cita.sin_permiso_llamada ? <LineaLlamadaCita cita={cita} respuesta={respuesta} /> : null;
+    if (!linea) return <CeldaRespuestaSola respuesta={respuesta} />;
+    return (
+        <span className="inline-flex min-w-0 flex-col items-start gap-1">
+            <CeldaRespuestaSola respuesta={respuesta} />
+            {linea}
+        </span>
+    );
+}
+
+function CeldaRespuestaSola({ respuesta }: { respuesta: RespuestaCita | null }) {
+    const { t } = useTranslation();
     const columna = <span className="sr-only">{t('appointments.columnResponse')}: </span>;
 
     if (respuesta === 'confirmada') {

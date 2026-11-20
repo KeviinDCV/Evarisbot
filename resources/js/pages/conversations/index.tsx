@@ -99,6 +99,7 @@ import { nombrePropio } from '@/lib/nombres';
 import { usarDisenoNuevo } from '@/lib/diseno-nuevo';
 import { InicioTurno } from '@/components/conversations/inicio-turno';
 import { EtiquetaBuzon, LineaLlamada, repartirLlamadas, type LlamadaChat } from '@/components/conversations/linea-llamada';
+import { BotonLlamar } from '@/components/conversations/boton-llamar';
 import { agrupar, alAviso, avisoDe, hayTiempoReal } from '@/lib/tiempo-real';
 import { duracionLegible } from '@/lib/duracion';
 import { autoCorrectText, type CorrectionEvent } from '@/hooks/use-autocorrect';
@@ -5266,6 +5267,8 @@ export default function ConversationsIndex({ conversations: initialConversations
 
                             {/* Acciones y Cerrar */}
                             <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+                                {/* Llamar al paciente por WhatsApp (solo con las llamadas activas) */}
+                                <BotonLlamar conversacion={selectedConversation} />
                                 {/* Buscar en la conversación */}
                                 <button
                                     onClick={() => setShowInChatSearch(v => !v)}

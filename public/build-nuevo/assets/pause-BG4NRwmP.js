@@ -1,0 +1,1 @@
+import{c as e}from"./utils-DvFBZg_Y.js";const t=[["rect",{x:"14",y:"4",width:"4",height:"16",rx:"1",key:"zuxfzm"}],["rect",{x:"6",y:"4",width:"4",height:"16",rx:"1",key:"1okwgv"}]],o=e("Pause",t);export{o as P};

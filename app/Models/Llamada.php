@@ -16,6 +16,7 @@ class Llamada extends Model
         'conversation_id', 'wa_call_id', 'direccion', 'estado', 'telefono', 'iniciada_en', 'sdp_oferta', 'atendida_por',
         'contestada_en', 'terminada_en', 'duracion', 'fin_meta', 'motivo',
         'buzon_message_id', 'buzon_resuelto_por', 'buzon_resuelto_en',
+        'origen', 'cita_id', 'tecla', 'resultado_robot',
     ];
 
     protected $casts = [
@@ -28,8 +29,8 @@ class Llamada extends Model
 
     protected $hidden = ['sdp_oferta'];
 
-    /** Estados en los que la llamada todavía está viva. */
-    public const VIVAS = ['timbrando', 'conectando', 'en_curso'];
+    /** Estados en los que la llamada todavía está viva (llamando / sonando: las que hace Evarisbot). */
+    public const VIVAS = ['timbrando', 'conectando', 'en_curso', 'llamando', 'sonando'];
 
     /** Motivos de una llamada atendida que se cortó (Meta la dio por fallida, red del navegador, pestaña cerrada). */
     public const CORTADA = ['cortada', 'red', 'pestana'];
@@ -68,6 +69,20 @@ class Llamada extends Model
     {
         // Si se perdió el aviso de fin, la llamada no se queda «timbrando» o «en curso» para siempre en el historial.
         $vieja = fn (string $campo, int $minutos) => $this->{$campo} && $this->{$campo}->lt(now()->subMinutes($minutos));
+
+        // Las que hace Evarisbot: «timbrando» = suena en el celular del paciente; «rechazada» = el paciente la rechazó.
+        if ($this->direccion === 'saliente') {
+            return match (true) {
+                in_array($this->estado, ['llamando', 'sonando'], true) && ! $vieja('created_at', 3) => 'timbrando',
+                $this->estado === 'en_curso' && ! $vieja('updated_at', 180) => 'en_curso',
+                $this->estado === 'en_curso' => 'cortada',
+                $this->estado === 'terminada' && in_array($this->motivo, self::CORTADA, true) => 'cortada',
+                $this->estado === 'terminada' => 'atendida',
+                $this->estado === 'rechazada' => 'rechazada',
+                $this->estado === 'fallida' => 'fallida',
+                default => 'perdida',
+            };
+        }
 
         return match (true) {
             $this->estado === 'timbrando' && ! $vieja('created_at', 3) => 'timbrando',

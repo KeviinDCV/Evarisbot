@@ -29,7 +29,7 @@ class LlamadaController extends Controller
             ->values();
 
         $mia = Llamada::with('conversation:id,contact_name')
-            ->whereIn('estado', ['conectando', 'en_curso'])
+            ->whereIn('estado', ['conectando', 'en_curso', 'llamando', 'sonando'])
             ->where('atendida_por', $user->id)
             ->where('updated_at', '>=', now()->subHours(3))
             ->latest('id')->first();
@@ -58,11 +58,21 @@ class LlamadaController extends Controller
     {
         abort_unless($this->puede($llamada), 403);
 
+        // La que hizo este usuario: si la respuesta de Meta llegó antes que su id, se aplica ahora.
+        $mia = $llamada->direccion === 'saliente' && (int) $llamada->atendida_por === (int) auth()->id();
+        if ($mia && $llamada->sdp_oferta === null && in_array($llamada->estado, ['llamando', 'sonando'], true) && ! str_starts_with($llamada->wa_call_id, 'pendiente.')) {
+            app(LlamadasWhatsApp::class)->repetirTempranos($llamada->wa_call_id);
+            $llamada->refresh();
+        }
+
         return response()->json([
             'id' => $llamada->id,
             'estado' => $llamada->estado,
             'atendida_por' => $llamada->atendida_por,
             'duracion' => $llamada->duracion,
+            'motivo' => $mia ? $llamada->motivo : null,
+            // Respuesta SDP de Meta (solo a quien llamó, mientras la llamada está viva).
+            'sdp_respuesta' => $mia && in_array($llamada->estado, ['llamando', 'sonando', 'en_curso'], true) ? $llamada->sdp_oferta : null,
         ]);
     }
 
@@ -74,6 +84,38 @@ class LlamadaController extends Controller
         $r = $servicio->contestar($llamada, auth()->user(), $datos['sdp']);
 
         return response()->json($r, $r['ok'] ? 200 : 409);
+    }
+
+    /**
+     * Llamar al paciente de este chat. El navegador manda su oferta WebRTC; la respuesta de Meta llega después (el
+     * navegador la recoge en /estado). Solo quien puede abrir el chat, con las llamadas activas (y en ensayo, solo los
+     * usuarios y números del ensayo).
+     */
+    public function llamar(Request $request, \App\Models\Conversation $conversation, LlamadasWhatsApp $servicio): JsonResponse
+    {
+        $user = auth()->user();
+        abort_unless($user && ($user->isAdmin() || $user->isAdvisor()) && $conversation->visiblePara($user), 403);
+        $datos = $request->validate(['sdp' => 'required|string|min:20|max:30000']);
+
+        $error = match (true) {
+            ! LlamadasWhatsApp::activas() => 'desactivadas',
+            (bool) $conversation->is_blocked => 'bloqueado',
+            LlamadasWhatsApp::usuariosEnsayo() !== [] && (! in_array((int) $user->id, LlamadasWhatsApp::usuariosEnsayo(), true)
+                || ! in_array(preg_replace('/\D/', '', (string) $conversation->phone_number), LlamadasWhatsApp::numerosEnsayo(), true)) => 'ensayo',
+            Llamada::where('atendida_por', $user->id)->whereIn('estado', Llamada::VIVAS)->where('updated_at', '>=', now()->subMinutes(30))->exists() => 'ocupado',
+            default => null,
+        };
+        if ($error) {
+            return response()->json(['ok' => false, 'error' => $error], 409);
+        }
+
+        $r = $servicio->llamar($conversation, $user, $datos['sdp']);
+
+        return response()->json([
+            'ok' => $r['ok'],
+            'error' => $r['error'] ?? null,
+            'llamada' => isset($r['llamada']) ? $this->paraPantalla($r['llamada']->loadMissing('conversation:id,contact_name')) + ['estado' => $r['llamada']->estado] : null,
+        ], $r['ok'] ? 200 : 409);
     }
 
     public function colgar(Request $request, Llamada $llamada, LlamadasWhatsApp $servicio): JsonResponse

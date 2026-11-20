@@ -35,3 +35,10 @@ yarn-error.log
 /.vscode
 /.zed
 /.claude
+
+# Robot de llamadas (Python): entorno, clave y audios fabricados
+robot-llamadas/.venv/
+robot-llamadas/clave.txt
+robot-llamadas/cache-voz/
+robot-llamadas/__pycache__/
+robot-llamadas/*.log

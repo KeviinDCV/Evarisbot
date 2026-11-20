@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Support\TiempoReal;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -236,6 +237,8 @@ class LlamadasWhatsApp
                 $evento = (string) ($call['event'] ?? '');
                 if ($evento === 'connect' && ($call['direction'] ?? 'USER_INITIATED') === 'USER_INITIATED') {
                     $this->entrante($call);
+                } elseif ($evento === 'connect') {
+                    $this->respuestaSaliente($call);
                 } elseif ($evento === 'terminate') {
                     $this->terminada($call);
                 } else {
@@ -245,7 +248,246 @@ class LlamadasWhatsApp
                 Log::error('Llamada de WhatsApp: no se pudo procesar el evento', ['error' => $e->getMessage()]);
             }
         }
+        // Estados de las llamadas que hace Evarisbot (el celular del paciente suena, contestó o la rechazó).
+        foreach ((array) ($value['statuses'] ?? []) as $st) {
+            try {
+                if (is_array($st) && ($st['type'] ?? '') === 'call' && ! empty($st['id'])) {
+                    $this->estadoSaliente($st);
+                }
+            } catch (\Throwable $e) {
+                Log::error('Llamada de WhatsApp: no se pudo procesar el estado', ['error' => $e->getMessage()]);
+            }
+        }
     }
+
+    // ── Llamadas que hace Evarisbot (salientes) ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Llamar a un paciente. El navegador del asesor ya armó su OFERTA WebRTC (micrófono incluido); se la pasa a Meta
+     * (action «connect») y la RESPUESTA de Meta llega después por el webhook (respuestaSaliente). Mientras tanto la fila
+     * queda «llamando» → «sonando» (RINGING) → «en_curso» (ACCEPTED) o «rechazada» (REJECTED); el fin llega con
+     * «terminate» como en las entrantes. La llamada la cobra Meta por minuto (las entrantes son gratis).
+     *
+     * @return array{ok: bool, llamada?: Llamada, error?: string}
+     */
+    public function llamar(Conversation $conversation, User $user, string $sdp): array
+    {
+        $telefono = preg_replace('/\D/', '', (string) $conversation->phone_number);
+        if (! preg_match('/^\d{8,15}$/', $telefono)) {
+            return ['ok' => false, 'error' => 'sin_numero'];
+        }
+
+        $llamada = Llamada::create([
+            'conversation_id' => $conversation->id,
+            // Provisional hasta que Meta dé el id de la llamada (la columna es única y obligatoria).
+            'wa_call_id' => 'pendiente.'.bin2hex(random_bytes(8)),
+            'direccion' => 'saliente',
+            'estado' => 'llamando',
+            'telefono' => $telefono,
+            'iniciada_en' => now(),
+            'atendida_por' => $user->id,
+        ]);
+        Log::info('Llamada de WhatsApp saliente', ['llamada_id' => $llamada->id, 'conversation_id' => $conversation->id, 'user_id' => $user->id]);
+
+        $r = $this->metaConectar($telefono, self::sdpConFinal($sdp), $llamada->id);
+        if (! $r['ok']) {
+            $llamada->update(['estado' => 'fallida', 'motivo' => mb_substr(($r['error'] ?? 'meta').': '.($r['detalle'] ?? ''), 0, 120), 'terminada_en' => now()]);
+            $this->anotar($llamada->fresh());
+            TiempoReal::llamada($llamada->id, $conversation->id);
+
+            return ['ok' => false, 'error' => $r['error'] ?? 'meta', 'llamada' => $llamada->fresh()];
+        }
+
+        $llamada->update(['wa_call_id' => $r['id']]);
+        $this->repetirTempranos($r['id']);
+        TiempoReal::llamada($llamada->id, $conversation->id);
+
+        return ['ok' => true, 'llamada' => $llamada->fresh()];
+    }
+
+    /**
+     * Llamada del ROBOT (recordatorio de cita por voz, ver App\Services\RobotLlamadas): el robot arma la oferta, Evarisbot
+     * se la pasa a Meta y le reenvía al robot la respuesta y el «contestó». Nadie de Evarisbot la atiende.
+     *
+     * @param  array<string, string>  $textos
+     * @return array{ok: bool, llamada?: Llamada, error?: string}
+     */
+    public function llamarRobot(Conversation $conversation, array $textos, ?int $citaId = null): array
+    {
+        $telefono = preg_replace('/\D/', '', (string) $conversation->phone_number);
+        if (! preg_match('/^\d{8,15}$/', $telefono)) {
+            return ['ok' => false, 'error' => 'sin_numero'];
+        }
+        $llamada = Llamada::create([
+            'conversation_id' => $conversation->id,
+            'cita_id' => $citaId,
+            'wa_call_id' => 'pendiente.'.bin2hex(random_bytes(8)),
+            'direccion' => 'saliente',
+            'origen' => 'robot',
+            'estado' => 'llamando',
+            'telefono' => $telefono,
+            'iniciada_en' => now(),
+        ]);
+        Log::info('Llamada del robot', ['llamada_id' => $llamada->id, 'conversation_id' => $conversation->id, 'cita_id' => $citaId]);
+
+        $oferta = RobotLlamadas::ofertar($llamada->id, $textos);
+        if (! $oferta['ok']) {
+            RobotLlamadas::cerrar($llamada->id);
+            $llamada->update(['estado' => 'fallida', 'motivo' => mb_substr('robot: '.($oferta['error'] ?? ''), 0, 120), 'terminada_en' => now()]);
+
+            return ['ok' => false, 'error' => $oferta['error'] ?? 'robot_no_disponible', 'llamada' => $llamada->fresh()];
+        }
+        $r = $this->metaConectar($telefono, self::sdpConFinal($oferta['sdp']), $llamada->id);
+        if (! $r['ok']) {
+            RobotLlamadas::cerrar($llamada->id);
+            $llamada->update(['estado' => 'fallida', 'motivo' => mb_substr(($r['error'] ?? 'meta').': '.($r['detalle'] ?? ''), 0, 120), 'terminada_en' => now()]);
+            $this->anotar($llamada->fresh());
+
+            return ['ok' => false, 'error' => $r['error'] ?? 'meta', 'llamada' => $llamada->fresh()];
+        }
+        $llamada->update(['wa_call_id' => $r['id']]);
+        $this->repetirTempranos($r['id']);
+        TiempoReal::llamada($llamada->id, $conversation->id);
+
+        return ['ok' => true, 'llamada' => $llamada->fresh()];
+    }
+
+    /** Meta mandó su respuesta SDP de una llamada que hizo Evarisbot: el navegador del asesor la aplica (pide /estado). */
+    private function respuestaSaliente(array $call): void
+    {
+        $llamada = Llamada::where('wa_call_id', (string) $call['id'])->first();
+        if (! $llamada) {
+            $this->guardarTemprano((string) $call['id'], ['calls' => [$call]]);
+
+            return;
+        }
+        if ($llamada->direccion !== 'saliente' || ! in_array($llamada->estado, ['llamando', 'sonando', 'en_curso'], true)) {
+            return;
+        }
+        $sdp = self::sdpConFinal((string) ($call['session']['sdp'] ?? ''));
+        if (($call['session']['sdp_type'] ?? '') !== 'answer' || $sdp === '') {
+            Log::warning('Llamada saliente: el aviso de Meta no trae la respuesta SDP', ['llamada_id' => $llamada->id]);
+
+            return;
+        }
+        if (Llamada::whereKey($llamada->id)->whereNull('sdp_oferta')->update(['sdp_oferta' => $sdp]) !== 1) {
+            return; // Meta repitió el aviso «connect»: la respuesta ya se aplicó
+        }
+        if ($llamada->origen === 'robot' && ! RobotLlamadas::respuesta($llamada->id, $sdp)) {
+            Log::warning('Llamada del robot: el robot no aplicó la respuesta de Meta', ['llamada_id' => $llamada->id]);
+            $this->colgar($llamada->fresh(), 'robot');
+
+            return;
+        }
+        TiempoReal::llamada($llamada->id, $llamada->conversation_id);
+    }
+
+    /** RINGING / ACCEPTED / REJECTED de una llamada que hizo Evarisbot. */
+    private function estadoSaliente(array $st): void
+    {
+        $llamada = Llamada::where('wa_call_id', (string) $st['id'])->first();
+        if (! $llamada) {
+            $this->guardarTemprano((string) $st['id'], ['statuses' => [$st]]);
+
+            return;
+        }
+        if ($llamada->direccion !== 'saliente') {
+            return;
+        }
+        $cambio = match (strtoupper((string) ($st['status'] ?? ''))) {
+            'RINGING' => Llamada::whereKey($llamada->id)->where('estado', 'llamando')->update(['estado' => 'sonando']),
+            'ACCEPTED' => Llamada::whereKey($llamada->id)->whereIn('estado', ['llamando', 'sonando'])->update(['estado' => 'en_curso', 'contestada_en' => now()]),
+            'REJECTED' => Llamada::whereKey($llamada->id)->whereIn('estado', ['llamando', 'sonando'])->update(['estado' => 'rechazada', 'motivo' => 'paciente', 'terminada_en' => now()]),
+            default => 0,
+        };
+        if ($cambio) {
+            if ($llamada->origen === 'robot') {
+                $estado = strtoupper((string) ($st['status'] ?? ''));
+                if ($estado === 'ACCEPTED') {
+                    RobotLlamadas::contesto($llamada->id);
+                } elseif ($estado === 'REJECTED') {
+                    RobotLlamadas::cerrar($llamada->id);
+                }
+            }
+            TiempoReal::llamada($llamada->id, $llamada->conversation_id);
+        }
+    }
+
+    /**
+     * Un aviso de Meta llegó antes de que Evarisbot supiera el id de la llamada (Meta respondió al «connect» después de
+     * mandar el aviso): se guarda un momento y se repite en cuanto se conoce el id.
+     */
+    private function guardarTemprano(string $wacid, array $valor): void
+    {
+        $clave = 'llamada_temprana.'.$wacid;
+        $lista = (array) Cache::get($clave, []);
+        $lista[] = $valor;
+        Cache::put($clave, array_slice($lista, -10), now()->addMinutes(3));
+        // Si mientras tanto se supo el id de la llamada (llamar/llamarRobot ya repitió y vació), se repite aquí.
+        if (Llamada::where('wa_call_id', $wacid)->exists()) {
+            $this->repetirTempranos($wacid);
+        }
+    }
+
+    public function repetirTempranos(string $wacid): void
+    {
+        try {
+            foreach ((array) Cache::pull('llamada_temprana.'.$wacid, []) as $valor) {
+                if (is_array($valor)) {
+                    $this->procesarCambio($valor);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Llamada saliente: no se pudieron repetir los avisos tempranos', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * POST /{phone_number_id}/calls con action «connect». Nunca lanza.
+     *
+     * @return array{ok: bool, id?: string, error?: string, detalle?: string}
+     */
+    private function metaConectar(string $to, string $sdp, int $llamadaId): array
+    {
+        try {
+            $r = Http::withToken((string) Setting::get('whatsapp_token'))
+                ->timeout(12)->connectTimeout(3)
+                ->post(self::API.'/'.Setting::get('whatsapp_phone_id').'/calls', [
+                    'messaging_product' => 'whatsapp',
+                    'to' => $to,
+                    'action' => 'connect',
+                    'session' => ['sdp_type' => 'offer', 'sdp' => $sdp],
+                    'biz_opaque_callback_data' => 'evarisbot:'.$llamadaId,
+                ]);
+            $id = $r->json('calls.0.id');
+            if ($r->successful() && is_string($id) && $id !== '') {
+                return ['ok' => true, 'id' => $id];
+            }
+            $codigo = (int) $r->json('error.code');
+            $mensaje = (string) ($r->json('error.message') ?? ('HTTP '.$r->status()));
+            Log::warning('Llamada saliente: Meta no la aceptó', ['status' => $r->status(), 'codigo' => $codigo, 'error' => mb_substr($mensaje, 0, 200), 'detalle' => mb_substr((string) $r->json('error.error_data.details'), 0, 300)]);
+
+            return ['ok' => false, 'error' => self::ERRORES_SALIENTE[$codigo] ?? 'meta', 'detalle' => $codigo.' '.mb_substr($mensaje, 0, 80)];
+        } catch (\Throwable $e) {
+            Log::warning('Llamada saliente: no se pudo hablar con Meta', ['error' => mb_substr($e->getMessage(), 0, 200)]);
+
+            return ['ok' => false, 'error' => 'sin_conexion'];
+        }
+    }
+
+    /** Códigos de error de Meta al llamar → clave que entiende la pantalla (llamadas.errores.*). */
+    public const ERRORES_SALIENTE = [
+        138000 => 'desactivadas',  // llamadas no activadas en el número
+        138001 => 'no_disponible', // sin WhatsApp, sin aceptar condiciones o versión que no recibe llamadas de empresas
+        138003 => 'ocupado',       // ya hay una llamada con ese paciente
+        138005 => 'limite',        // demasiadas llamadas seguidas
+        138006 => 'sin_permiso',   // el paciente negó o quitó el permiso de llamadas
+        138012 => 'limite',        // tope de llamadas conectadas a ese paciente en 24 h
+        138013 => 'no_disponible', // llamadas de empresas no disponibles para ese número
+        138014 => 'limite',        // llamadas pausadas por calidad
+        138037 => 'limite',        // tope diario de intentos del número
+        131044 => 'sin_pago',
+    ];
 
     /**
      * El SDP termina en CRLF (RFC 8866; Meta lo pide con «\r\n»), pero el middleware global TrimStrings de Laravel le
@@ -338,6 +580,11 @@ class LlamadasWhatsApp
         $duracion = isset($call['duration']) && is_numeric($call['duration']) ? (int) $call['duration'] : null;
 
         $llamada = Llamada::where('wa_call_id', (string) $call['id'])->first();
+        if (! $llamada && strtoupper((string) ($call['direction'] ?? '')) === 'BUSINESS_INITIATED') {
+            $this->guardarTemprano((string) $call['id'], ['calls' => [$call]]);
+
+            return;
+        }
         if (! $llamada) {
             // El fin llegó antes que el inicio (avisos fuera de orden): se deja registrada ya cerrada, para que un
             // «connect» tardío del mismo id no haga timbrar una llamada que ya terminó. Si trae el número, queda en el
@@ -379,6 +626,9 @@ class LlamadasWhatsApp
             'sdp_oferta' => null,
         ]);
         $this->anotar($llamada->fresh());
+        if ($llamada->origen === 'robot') {
+            RobotLlamadas::cerrar($llamada->id);
+        }
         TiempoReal::llamada($llamada->id, $llamada->conversation_id);
     }
 
@@ -436,8 +686,11 @@ class LlamadasWhatsApp
      */
     public function colgar(Llamada $llamada, ?string $motivo = null): bool
     {
-        $r = $this->meta('terminate', $llamada->wa_call_id);
+        $r = str_starts_with((string) $llamada->wa_call_id, 'pendiente.') ? ['ok' => true] : $this->meta('terminate', $llamada->wa_call_id);
         $contestada = $llamada->contestada_en || $llamada->estado === 'en_curso';
+        if (! $contestada && $llamada->direccion === 'saliente') {
+            $motivo ??= 'cancelo';
+        }
         Llamada::whereKey($llamada->id)->whereIn('estado', Llamada::VIVAS)->update([
             'estado' => $contestada ? 'terminada' : 'perdida',
             'motivo' => $motivo ?? $llamada->motivo,

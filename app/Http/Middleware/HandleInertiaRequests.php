@@ -70,6 +70,10 @@ class HandleInertiaRequests extends Middleware
             'alertasSeguridad' => fn () => $request->user()?->isAdmin() ? \App\Services\WebhookWatchdog::current() : [],
             // Llamadas de WhatsApp activadas (php artisan whatsapp:llamadas --activar): solo entonces timbra la pantalla.
             'llamadas' => fn () => \App\Services\LlamadasWhatsApp::activas(),
+            // Botón «Llamar» del chat: llamadas activas y, en ensayo, solo para los usuarios del ensayo.
+            'llamarPermitido' => fn () => $request->user() && ($request->user()->isAdmin() || $request->user()->isAdvisor())
+                && \App\Services\LlamadasWhatsApp::activas()
+                && (\App\Services\LlamadasWhatsApp::usuariosEnsayo() === [] || in_array((int) $request->user()->id, \App\Services\LlamadasWhatsApp::usuariosEnsayo(), true)),
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

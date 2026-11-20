@@ -1,6 +1,6 @@
 import { nombrePropio } from '@/lib/nombres';
 import { cn } from '@/lib/utils';
-import { CircleAlert, Clock, Phone, PhoneIncoming, PhoneMissed, PhoneOff, Voicemail } from 'lucide-react';
+import { CircleAlert, Clock, Phone, PhoneIncoming, PhoneMissed, PhoneOff, PhoneOutgoing, Voicemail } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -13,11 +13,16 @@ import { useTranslation } from 'react-i18next';
 
 export type LlamadaChat = {
     id: number;
-    resultado: 'timbrando' | 'en_curso' | 'atendida' | 'cortada' | 'buzon' | 'fuera_horario' | 'fallida' | 'perdida';
+    resultado: 'timbrando' | 'en_curso' | 'atendida' | 'cortada' | 'buzon' | 'fuera_horario' | 'fallida' | 'perdida' | 'rechazada';
     inicio: string | null;
     duracion: number | null;
     atendio: string | null;
     buzon_message_id: number | null;
+    /** 'saliente' = la hizo Evarisbot (un asesor llamó al paciente). */
+    direccion?: 'entrante' | 'saliente';
+    motivo?: string | null;
+    /** Llamada del ROBOT (recordatorio de cita por voz): qué pasó con la cita. */
+    robot?: 'confirmo' | 'cancelo' | 'en_curso' | 'sin_marcar' | 'no_se_pudo' | 'rechazo' | 'no_contesto' | null;
 };
 
 type ConFecha = { id: number; created_at: string };
@@ -58,7 +63,53 @@ export function LineaLlamada({ llamada, hora }: { llamada: LlamadaChat; hora: st
     let Icono = Phone;
     let titulo = '';
     let detalle = '';
-    switch (llamada.resultado) {
+    if (llamada.robot) {
+        // Recordatorio por llamada (voz automática): «Recordatorio por llamada · confirmó la cita», «· no contestó»…
+        Icono = PhoneOutgoing;
+        titulo = t('llamadas.chat.robot');
+        detalle = t(`llamadas.chat.robotResultado.${llamada.robot}`);
+        tono = { confirmo: 'verde', cancelo: 'rojo', en_curso: 'ambar', sin_marcar: 'ambar', no_se_pudo: 'rojo', rechazo: 'gris', no_contesto: 'gris' }[llamada.robot] as typeof tono;
+        if (llamada.robot === 'no_contesto' || llamada.robot === 'rechazo') Icono = PhoneMissed;
+        if (llamada.robot === 'no_se_pudo') Icono = CircleAlert;
+    } else if (llamada.direccion === 'saliente') {
+        // Las que hizo un asesor: «Llamada saliente · llamó Andrea · duró 2:10», «· el paciente no contestó»…
+        Icono = PhoneOutgoing;
+        titulo = t('llamadas.chat.saliente');
+        switch (llamada.resultado) {
+            case 'atendida':
+                tono = 'verde';
+                detalle = quien ? t('llamadas.chat.laHizo', { nombre: quien, duracion: mmss(llamada.duracion) }) : t('llamadas.chat.duro', { duracion: mmss(llamada.duracion) });
+                break;
+            case 'cortada':
+                tono = 'ambar';
+                Icono = PhoneOff;
+                detalle = t('llamadas.chat.seCorto', { duracion: mmss(llamada.duracion) });
+                break;
+            case 'en_curso':
+                tono = 'verde';
+                titulo = t('llamadas.chat.enCurso');
+                detalle = quien ? t('llamadas.chat.laHace', { nombre: quien }) : '';
+                break;
+            case 'timbrando':
+                tono = 'ambar';
+                detalle = t('llamadas.chat.sonandoPaciente');
+                break;
+            case 'rechazada':
+                tono = 'rojo';
+                Icono = PhoneMissed;
+                detalle = t('llamadas.chat.laRechazo');
+                break;
+            case 'fallida':
+                tono = 'rojo';
+                Icono = CircleAlert;
+                detalle = t('llamadas.chat.noSePudoLlamar');
+                break;
+            default:
+                tono = llamada.motivo === 'cancelo' ? 'gris' : 'rojo';
+                Icono = PhoneMissed;
+                detalle = llamada.motivo === 'cancelo' ? t('llamadas.chat.cancelada') : t('llamadas.chat.noContesto');
+        }
+    } else switch (llamada.resultado) {
         case 'atendida':
             tono = 'verde';
             titulo = t('llamadas.chat.deWhatsApp');
