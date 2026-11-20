@@ -365,6 +365,8 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
 
     // Filtros del historial (también los usa «Exportar a Excel»).
     const [filtros, setFiltros] = useState({ resultado: '', atendio: '', buscar: '' });
+    // Cuántas llamadas hay con el periodo y los filtros del historial (null mientras carga): con 0 no se exporta.
+    const [totalHistorial, setTotalHistorial] = useState<number | null>(null);
     const exportar = `${BASE}/exportar?${paramsDe({ ...paramsPeriodo(periodo), ...filtros })}`;
 
     const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ historial: null, buzon: null, indicadores: null, ajustes: null });
@@ -403,10 +405,18 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                         {conPeriodo && (
                             <div className="flex max-w-full flex-wrap items-center gap-2.5">
                                 <SelectorPeriodo periodo={periodo} onCambiar={setPeriodo} />
-                                <a href={exportar} className={BOTON_SECUNDARIO}>
-                                    <Download className="size-4" strokeWidth={2} aria-hidden="true" />
-                                    {t('llamadas.panel.exportar')}
-                                </a>
+                                {tab === 'historial' &&
+                                    (totalHistorial === 0 ? (
+                                        <button type="button" disabled title={t('llamadas.panel.exportarVacio')} className={BOTON_SECUNDARIO}>
+                                            <Download className="size-4" strokeWidth={2} aria-hidden="true" />
+                                            {t('llamadas.panel.exportar')}
+                                        </button>
+                                    ) : (
+                                        <a href={exportar} className={BOTON_SECUNDARIO}>
+                                            <Download className="size-4" strokeWidth={2} aria-hidden="true" />
+                                            {t('llamadas.panel.exportar')}
+                                        </a>
+                                    ))}
                             </div>
                         )}
                     </header>
@@ -465,7 +475,7 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                             <div className="flex flex-col gap-4">
                                 {/* Las cifras son del periodo del historial: van dentro de su pestaña, sobre la tabla. */}
                                 <Cifras url={`${BASE}/cifras?${paramsDe(paramsPeriodo(periodo))}`} version={version} />
-                                <PestanaHistorial periodo={periodo} sufijoPeriodo={sufijoPeriodo} filtros={filtros} onFiltros={setFiltros} version={version} activas={activas} />
+                                <PestanaHistorial periodo={periodo} sufijoPeriodo={sufijoPeriodo} filtros={filtros} onFiltros={setFiltros} version={version} activas={activas} onTotal={setTotalHistorial} />
                             </div>
                         )}
                         {tab === 'buzon' && <PestanaBuzon version={version} onSinResolver={setSinResolver} />}
@@ -637,7 +647,7 @@ function EnVivo({
                         aria-hidden="true"
                         className={cn(
                             'size-[9px] rounded-full',
-                            vivo?.horario.abierto ? 'bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.16)]' : 'bg-[#9aa1bd] shadow-[0_0_0_4px_rgba(154,161,189,.18)]',
+                            vivo?.activas && vivo.horario.abierto ? 'bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.16)]' : 'bg-[#9aa1bd] shadow-[0_0_0_4px_rgba(154,161,189,.18)]',
                         )}
                     />
                     <h2 id="en-vivo-titulo" className={cn('text-[15px] leading-5 font-semibold', NAVY)}>
@@ -678,6 +688,19 @@ function EnVivo({
                             </span>
                         )}
                         <Clock className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                        <span
+                            className={cn(
+                                'font-semibold',
+                                !vivo.activas ? MEDIO : vivo.horario.abierto ? 'text-emerald-700 dark:text-emerald-400' : MEDIO,
+                            )}
+                        >
+                            {!vivo.activas
+                                ? t('llamadas.panel.vivo.apagadasAhora')
+                                : vivo.horario.abierto
+                                  ? t('llamadas.panel.vivo.abiertoAhora')
+                                  : t('llamadas.panel.vivo.fueraDeHorarioAhora')}
+                        </span>
+                        <span aria-hidden="true">·</span>
                         <span>
                             {t('llamadas.panel.vivo.horario', {
                                 dias: textoDias(vivo.horario.dias, {
@@ -688,16 +711,6 @@ function EnVivo({
                                 desde: horaDeReloj(vivo.horario.desde),
                                 hasta: horaDeReloj(vivo.horario.hasta),
                             })}
-                        </span>
-                        <span
-                            className={cn(
-                                'flex h-[22px] items-center rounded-full px-2 font-semibold',
-                                vivo.horario.abierto
-                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                    : 'bg-[#eef0f7] text-[#3c4570] dark:bg-white/[0.06] dark:text-neutral-300',
-                            )}
-                        >
-                            {vivo.horario.abierto ? t('llamadas.panel.vivo.abierto') : t('llamadas.panel.vivo.cerrado')}
                         </span>
                     </div>
                 )}
@@ -987,6 +1000,7 @@ function PestanaHistorial({
     onFiltros,
     version,
     activas,
+    onTotal,
 }: {
     periodo: Periodo;
     sufijoPeriodo: string;
@@ -994,6 +1008,7 @@ function PestanaHistorial({
     onFiltros: (f: Filtros) => void;
     version: number;
     activas: boolean;
+    onTotal: (total: number | null) => void;
 }) {
     const { t } = useTranslation();
     const [texto, setTexto] = useState(filtros.buscar);
@@ -1019,6 +1034,9 @@ function PestanaHistorial({
 
     const url = `${BASE}/historial?${paramsDe({ ...paramsPeriodo(periodo), ...filtros, pagina })}`;
     const { datos, cargando, error, reintentar } = useDatos<Historial>(url, version);
+    useEffect(() => {
+        onTotal(datos ? datos.total : null);
+    }, [datos, onTotal]);
     useEffect(() => {
         if (datos?.asesores?.length) setAsesores(datos.asesores);
     }, [datos]);
@@ -1234,18 +1252,11 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
         if (dia === ayer) return t('llamadas.panel.buzon.ayerA', { hora: hora(iso) });
         return `${fechaCorta(iso)}, ${hora(iso)}`;
     };
-    const desdeCuando = (iso: string | null) => {
-        if (!iso) return '';
-        const dia = diaDe(new Date(iso));
-        if (dia === hoy) return '';
-        return dia === ayer ? t('llamadas.panel.buzon.desdeAyer') : t('llamadas.panel.buzon.desdeEl', { fecha: fechaCorta(iso) });
-    };
-
     const columnas = 'grid grid-cols-[110px_minmax(0,1fr)_minmax(0,2.3fr)_230px] items-start gap-x-4';
 
     return (
         <div className="flex flex-col gap-4">
-            <p className={cn('max-w-3xl text-[13px] leading-5 text-pretty', MEDIO)}>{t('llamadas.panel.buzon.explicacion')}</p>
+            <p className={cn('max-w-[68ch] text-[13px] leading-5 text-pretty', MEDIO)}>{t('llamadas.panel.buzon.explicacion')}</p>
             <section aria-label={t('llamadas.panel.tabs.buzon')} className={TARJETA}>
                 <div className={cn('flex flex-wrap items-center gap-2.5 border-b px-4 py-3', FILETE)}>
                     <div role="group" aria-label={t('llamadas.panel.buzon.filtro')} className={cn(SEGMENTADO, 'max-w-full overflow-x-auto')}>
@@ -1346,10 +1357,11 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                 </>
                                             ) : (
                                                 <>
-                                                    <span className="flex h-6 items-center rounded-full bg-amber-50 px-2.5 text-[12px] font-semibold text-amber-800 shadow-[inset_0_0_0_1px_#fde68a] dark:bg-amber-500/10 dark:text-amber-300 dark:shadow-none">
-                                                        {t('llamadas.panel.buzon.sinResolver')}
-                                                        {desdeCuando(f.cuando) && ` · ${desdeCuando(f.cuando)}`}
-                                                    </span>
+                                                    {filtro !== 'sin_resolver' && (
+                                                        <span className="flex h-6 items-center rounded-full bg-amber-50 px-2.5 text-[12px] font-semibold text-amber-800 shadow-[inset_0_0_0_1px_#fde68a] dark:bg-amber-500/10 dark:text-amber-300 dark:shadow-none">
+                                                            {t('llamadas.panel.buzon.sinResolver')}
+                                                        </span>
+                                                    )}
                                                     <div className="flex items-center gap-3">
                                                         {f.conversation_id && <VerChat id={f.conversation_id} fila={f} />}
                                                         <button
@@ -1452,7 +1464,8 @@ function AudioBuzon({ src, resuelto }: { src: string; resuelto: boolean }) {
 
 // ── Indicadores ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
-const COLOR = { atendidas: 'bg-[#2e3f84] dark:bg-[#7d8fdc]', buzon: 'bg-amber-600', perdidas: 'bg-red-600' };
+// Buzón en ámbar claro: el ámbar oscuro junto al rojo de las perdidas se confundía (1,5:1).
+const COLOR = { atendidas: 'bg-[#2e3f84] dark:bg-[#7d8fdc]', buzon: 'bg-amber-400', perdidas: 'bg-red-600' };
 
 function PestanaIndicadores({ url, version }: { url: string; version: number }) {
     const { t } = useTranslation();
@@ -1537,8 +1550,11 @@ function PorHora({ barras, fuera }: { barras: Barra[]; fuera: Barra }) {
     const { t } = useTranslation();
     const todas = [...barras, fuera];
     const total = (b: Barra) => b.atendidas + b.buzon + b.perdidas;
-    const max = Math.max(1, ...todas.map(total));
+    // La escala la ponen las horas: «Fuera de horario» suma muchas horas y aplastaría las demás (si las pasa, va al tope
+    // y su número dice cuántas son).
+    const max = Math.max(1, ...barras.map(total));
     const alto = 170;
+    const vacia = todas.every((b) => total(b) === 0);
 
     const etiqueta = (b: Barra, i: number) => {
         if (b.hora === null) return t('llamadas.panel.indicadores.fueraDeHorario');
@@ -1578,6 +1594,9 @@ function PorHora({ barras, fuera }: { barras: Barra[]; fuera: Barra }) {
                     ))}
                 </div>
             </div>
+            {vacia ? (
+                <p className={cn('py-6 text-[13px]', SUAVE)}>{t('llamadas.panel.indicadores.sinDatos')}</p>
+            ) : (
             <div className="overflow-x-auto">
                 <div className="min-w-[480px]">
                     <ul
@@ -1593,7 +1612,7 @@ function PorHora({ barras, fuera }: { barras: Barra[]; fuera: Barra }) {
                                     <span aria-hidden="true" className={cn('text-[11px] font-semibold tabular-nums', n === max && n > 0 ? NAVY : MEDIO)}>
                                         {n || ''}
                                     </span>
-                                    <span aria-hidden="true" className="flex w-full max-w-[34px] flex-col-reverse gap-px overflow-hidden rounded-t-[5px]" style={{ height: n ? Math.max(3, Math.round((n / max) * alto)) : 0 }}>
+                                    <span aria-hidden="true" className="flex w-full max-w-[34px] flex-col-reverse gap-px overflow-hidden rounded-t-[5px]" style={{ height: n ? Math.min(alto, Math.max(3, Math.round((n / max) * alto))) : 0 }}>
                                         {b.atendidas > 0 && <span className={COLOR.atendidas} style={{ flexGrow: b.atendidas }} />}
                                         {b.buzon > 0 && <span className={COLOR.buzon} style={{ flexGrow: b.buzon }} />}
                                         {b.perdidas > 0 && <span className={COLOR.perdidas} style={{ flexGrow: b.perdidas }} />}
@@ -1611,6 +1630,7 @@ function PorHora({ barras, fuera }: { barras: Barra[]; fuera: Barra }) {
                     </div>
                 </div>
             </div>
+            )}
             {frase && <p className={cn('text-[13px] leading-5 text-pretty', MEDIO)}>{frase}</p>}
         </section>
     );
@@ -1674,6 +1694,8 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
     const [guardando, setGuardando] = useState(false);
     const [falla, setFalla] = useState<string | null>(null);
     const [nuevoFestivo, setNuevoFestivo] = useState<string | null>(null);
+    // Lo que se está escribiendo en «Timbra durante» (null: se muestra lo guardado en el formulario).
+    const [esperaTexto, setEsperaTexto] = useState<string | null>(null);
 
     const [visto, setVisto] = useState<AjustesRespuesta | null>(null);
     if (datos && datos !== visto) {
@@ -1871,7 +1893,7 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
                             <h2 className={cn('text-[15px] font-semibold', NAVY)}>{t('llamadas.panel.ajustes.antesDelBuzon')}</h2>
                             <div className={cn('flex flex-wrap items-center gap-2 text-[13px]', MEDIO)}>
                                 {t('llamadas.panel.ajustes.timbraDurante')}
-                                <span className={cn(CAMPO, 'flex h-9 items-center rounded-[10px]')}>
+                                <span className={cn(CAMPO, ANILLO_CAMPO, 'flex h-9 items-center rounded-[10px]')}>
                                     <button
                                         type="button"
                                         onClick={() => poner({ espera: Math.max(5, form.espera - 1) })}
@@ -1881,9 +1903,24 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
                                     >
                                         <Minus className="size-4" strokeWidth={2} aria-hidden="true" />
                                     </button>
-                                    <span aria-live="polite" className={cn('w-7 text-center font-semibold tabular-nums', NAVY)}>
-                                        {form.espera}
-                                    </span>
+                                    <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={5}
+                                        max={30}
+                                        value={esperaTexto ?? String(form.espera)}
+                                        aria-label={t('llamadas.panel.ajustes.segundosEtiqueta')}
+                                        onChange={(e) => {
+                                            setEsperaTexto(e.target.value);
+                                            const n = Number.parseInt(e.target.value, 10);
+                                            if (n >= 5 && n <= 30) poner({ espera: n });
+                                        }}
+                                        onBlur={() => setEsperaTexto(null)}
+                                        className={cn(
+                                            'w-9 bg-transparent text-center text-[16px] font-semibold tabular-nums outline-hidden [appearance:textfield] sm:text-[13px] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+                                            NAVY,
+                                        )}
+                                    />
                                     <button
                                         type="button"
                                         onClick={() => poner({ espera: Math.min(30, form.espera + 1) })}
@@ -2080,8 +2117,8 @@ function ConexionWhatsApp() {
                     ))}
                 </ul>
             )}
-            <p className={cn('flex items-center gap-1.5 text-[11px]', SUAVE)}>
-                <Mic className="size-3" strokeWidth={2} aria-hidden="true" />
+            <p className={cn('flex items-center gap-1.5 text-[12px]', SUAVE)}>
+                <Mic className="size-3.5" strokeWidth={2} aria-hidden="true" />
                 {t('llamadas.panel.conexion.pie')}
             </p>
         </section>
