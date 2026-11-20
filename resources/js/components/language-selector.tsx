@@ -7,13 +7,14 @@ import {
     DropdownMenuRadioItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Languages } from 'lucide-react';
+import { Check, ChevronDown, Languages } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 
 interface LanguageSelectorProps {
-    /** 'translucido': para fondos navy (login "Tarjeta sobre el hospital"). */
-    variant?: 'default' | 'admin' | 'translucido';
+    /** 'translucido': para fondos navy (login "Tarjeta sobre el hospital"). 'fila': «Idioma … Español ˅» (tarjeta
+     *  del usuario del menú). */
+    variant?: 'default' | 'admin' | 'translucido' | 'fila';
 }
 
 export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps) {
@@ -62,6 +63,31 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
     ];
 
     const currentLang = languages.find(lang => lang.code === currentLanguage) || languages[0];
+
+    if (variant === 'fila') {
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button
+                        type="button"
+                        aria-label={`${t('common.language')}: ${currentLang?.name}`}
+                        className="relative inline-flex h-8 items-center gap-1.5 rounded-lg pr-2 pl-2.5 text-[13px] font-medium text-foreground transition-colors after:absolute after:inset-x-0 after:-inset-y-1 hover:bg-muted"
+                    >
+                        {currentLang?.name}
+                        <ChevronDown className="size-3.5 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                    {languages.map((language) => (
+                        <DropdownMenuItem key={language.code} onClick={() => changeLanguage(language.code)} className="cursor-pointer gap-2">
+                            <span className={currentLanguage === language.code ? 'font-semibold' : ''}>{language.name}</span>
+                            {currentLanguage === language.code && <Check className="ml-auto size-3.5" strokeWidth={2} aria-hidden="true" />}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    }
 
     if (variant === 'admin') {
         return (

@@ -1,5 +1,6 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AdminLayout from '@/layouts/admin-layout';
+import { copiarTexto } from '@/lib/portapapeles';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -105,33 +106,6 @@ function generarClave(largo = 12) {
         [caracteres[i], caracteres[j]] = [caracteres[j], caracteres[i]];
     }
     return caracteres.join('');
-}
-
-/** Copiar al portapapeles también por http (la red interna no tiene https: navigator.clipboard no existe). */
-async function copiarTexto(texto: string): Promise<boolean> {
-    try {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(texto);
-            return true;
-        }
-    } catch {
-        // se intenta a la antigua
-    }
-    const area = document.createElement('textarea');
-    area.value = texto;
-    area.setAttribute('readonly', '');
-    area.style.position = 'fixed';
-    area.style.opacity = '0';
-    document.body.appendChild(area);
-    area.select();
-    let ok = false;
-    try {
-        ok = document.execCommand('copy');
-    } catch {
-        ok = false;
-    }
-    area.remove();
-    return ok;
 }
 
 /** Requisitos de la contraseña, marcándose mientras se escribe (y si las dos coinciden). */

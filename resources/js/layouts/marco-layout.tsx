@@ -10,6 +10,7 @@ import { getUnread, seedUnreadChat, subscribeUnread, type UnreadState } from '@/
 import { logout } from '@/routes';
 import { type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Lock, LogOut, Menu, PanelLeftClose, PanelLeftOpen, UserCircle, X } from 'lucide-react';
 import { type CSSProperties, type FocusEvent as ReactFocusEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -37,6 +38,12 @@ const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : use
  *  navegación (no es un layout persistente de Inertia): sin esta memoria la cápsula
  *  aparecería de golpe en su sitio en vez de viajar desde el ítem que se acaba de dejar. */
 let capsulaPrevia: { top: number; href: string } | null = null;
+
+/** Cambio de icono en el mismo botón (☰ ↔ ✕, fijar ↔ contraer): se funden con escala y desenfoque en vez de saltar.
+ *  Con «reducir movimiento» lo apaga el MotionConfig de app.tsx. */
+const ICONO_FUERA = { opacity: 0, scale: 0.25, filter: 'blur(4px)' };
+const ICONO_DENTRO = { opacity: 1, scale: 1, filter: 'blur(0px)' };
+const ICONO_TRANSICION = { type: 'spring', duration: 0.3, bounce: 0 } as const;
 
 /** Menos movimiento pedido por el sistema: la cápsula salta en vez de viajar. */
 function prefiereMenosMovimiento(): boolean {
@@ -355,13 +362,26 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                 cajón, para no tapar la baldosa del logo. Cerrado va bajo las ventanas (z-50). */}
             <button
                 onClick={() => setIsMobileOpen((v) => !v)}
-                className={`fixed top-4 rounded-xl bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] p-3 text-white shadow-lg transition-[left] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] lg:hidden ${
+                className={`fixed top-4 rounded-xl bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] p-3 text-white shadow-lg transition-[left,scale] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] active:scale-[0.96] lg:hidden ${
                     isMobileOpen ? 'z-[60] left-[min(252px,calc(100vw-60px))]' : 'z-[45] left-4'
                 }`}
                 aria-label={isMobileOpen ? t('common.closeMenu') : t('common.menu')}
                 aria-expanded={isMobileOpen}
             >
-                {isMobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                <span className="grid">
+                    <AnimatePresence initial={false}>
+                        <motion.span
+                            key={isMobileOpen ? 'cerrar' : 'abrir'}
+                            initial={ICONO_FUERA}
+                            animate={ICONO_DENTRO}
+                            exit={ICONO_FUERA}
+                            transition={ICONO_TRANSICION}
+                            className="col-start-1 row-start-1 flex"
+                        >
+                            {isMobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                        </motion.span>
+                    </AnimatePresence>
+                </span>
             </button>
 
             {isMobileOpen && <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden" onClick={() => setIsMobileOpen(false)} />}
@@ -429,13 +449,26 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                     onClick={togglePin}
                                     aria-label={pinned ? t('navigation.collapseMenu', 'Contraer menú') : t('navigation.pinMenu', 'Fijar menú abierto')}
                                     title={pinned ? t('navigation.collapseMenu', 'Contraer menú') : t('navigation.pinMenu', 'Fijar menú abierto')}
-                                    className="ml-auto mr-5 mt-[17px] hidden h-[30px] w-[30px] flex-shrink-0 bajo:mt-[7px] items-center justify-center rounded-[10px] bg-white/[0.06] text-white/[0.72] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)] transition-colors hover:bg-white/[0.12] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 lg:inline-flex"
+                                    className="relative ml-auto mr-5 mt-[17px] hidden h-[30px] w-[30px] flex-shrink-0 bajo:mt-[7px] items-center justify-center rounded-[10px] bg-white/[0.06] text-white/[0.72] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)] transition-[background-color,color,scale] duration-150 after:absolute after:-inset-[5px] hover:bg-white/[0.12] hover:text-white active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 lg:inline-flex"
                                 >
-                                    {pinned ? (
-                                        <PanelLeftClose className="h-[18px] w-[18px]" strokeWidth={1.75} />
-                                    ) : (
-                                        <PanelLeftOpen className="h-[18px] w-[18px]" strokeWidth={1.75} />
-                                    )}
+                                    <span className="grid">
+                                        <AnimatePresence initial={false}>
+                                            <motion.span
+                                                key={pinned ? 'contraer' : 'fijar'}
+                                                initial={ICONO_FUERA}
+                                                animate={ICONO_DENTRO}
+                                                exit={ICONO_FUERA}
+                                                transition={ICONO_TRANSICION}
+                                                className="col-start-1 row-start-1 flex"
+                                            >
+                                                {pinned ? (
+                                                    <PanelLeftClose className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                                                ) : (
+                                                    <PanelLeftOpen className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                                                )}
+                                            </motion.span>
+                                        </AnimatePresence>
+                                    </span>
                                 </button>
                             )}
                         </div>
@@ -549,7 +582,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                         onClick={toggleCarnet}
                         aria-haspopup="dialog"
                         aria-expanded={carnetOpen}
-                        className={`ml-3 mt-4 flex h-[54px] flex-shrink-0 items-center rounded-[14px] text-left bajo:mt-2 transition-[width,background-color,box-shadow] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 ${
+                        className={`ml-3 mt-4 flex h-[54px] flex-shrink-0 items-center rounded-[14px] text-left bajo:mt-2 transition-[width,background-color,box-shadow,scale] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 ${
                             expanded
                                 ? 'bg-white/[0.07] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08),inset_0_1px_0_rgba(255,255,255,.05)] hover:bg-white/[0.1]'
                                 : 'hover:bg-white/[0.08]'
@@ -628,14 +661,14 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                     <div
                         role="dialog"
                         aria-label={t('navigation.yourStation', 'Tu puesto')}
-                        className="absolute bottom-[72px] left-3 z-[80] max-h-[calc(100dvh-88px)] w-[248px] max-w-[calc(100vw-24px)] overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-3 shadow-2xl"
+                        className="absolute bottom-[72px] left-3 z-[80] max-h-[calc(100dvh-88px)] w-[248px] max-w-[calc(100vw-24px)] origin-bottom-left animate-in fade-in-0 zoom-in-95 overflow-y-auto overscroll-contain rounded-[20px] border border-border bg-card p-3 shadow-2xl duration-150 motion-reduce:animate-none"
                     >
                         {isAdvisor && (
                             <>
                                 <p className="text-[13px] font-semibold text-foreground">
                                     {onDuty ? equipo || t('navigation.onDuty', 'De turno') : t('navigation.offDuty', 'Fuera de turno')}
                                 </p>
-                                <p className="mb-2 text-[11px] text-muted-foreground">
+                                <p className="mb-2 text-[12px] text-pretty text-muted-foreground">
                                     {equipo
                                         ? t('navigation.equipoHint', 'Recibes los chats de tu equipo.')
                                         : onDuty
@@ -647,9 +680,9 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                     interruptor propio se borraría al siguiente guardado. */}
                                 {/* En un equipo no hay turno que asignar. */}
                                 {!equipo && (
-                                    <div className="mb-3 flex items-start gap-2 rounded-lg bg-muted p-2 text-[11px] leading-snug text-muted-foreground">
-                                        <Lock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                                        <span>{t('navigation.dutyReadOnly', 'Tu turno lo asigna coordinación desde Configuración.')}</span>
+                                    <div className="mb-3 flex items-start gap-2 rounded-lg bg-muted p-2 text-[12px] leading-snug text-muted-foreground">
+                                        <Lock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.5} aria-hidden="true" />
+                                        <span className="text-pretty">{t('navigation.dutyReadOnly', 'Tu turno lo asigna coordinación desde Configuración.')}</span>
                                     </div>
                                 )}
                                 <div className="mb-2 h-px bg-border" />
@@ -658,11 +691,11 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
 
                         <div className="flex items-center justify-between py-1">
                             <span className="text-[13px] text-foreground">{t('common.theme', 'Tema')}</span>
-                            <AppearanceToggleDropdown />
+                            <AppearanceToggleDropdown variante="fila" />
                         </div>
                         <div className="flex items-center justify-between py-1">
                             <span className="text-[13px] text-foreground">{t('common.language', 'Idioma')}</span>
-                            <LanguageSelector variant="admin" />
+                            <LanguageSelector variant="fila" />
                         </div>
 
                         <div className="my-2 h-px bg-border" />
@@ -670,18 +703,18 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                         <Link
                             href="/settings/profile"
                             onClick={() => setCarnetOpen(false)}
-                            className="flex w-full items-center gap-2 rounded-lg p-2 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
+                            className="flex h-10 w-full items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
                         >
-                            <UserCircle className="h-4 w-4" />
+                            <UserCircle className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                             {t('navigation.profile', 'Perfil')}
                         </Link>
                         <Link
                             href={logout()}
                             method="post"
                             as="button"
-                            className="flex w-full items-center gap-2 rounded-lg p-2 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                            className="flex h-10 w-full items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                         >
-                            <LogOut className="h-4 w-4" />
+                            <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                             {t('common.logout')}
                         </Link>
                     </div>

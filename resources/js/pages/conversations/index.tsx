@@ -96,6 +96,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { toast } from '@/lib/toast';
 import { nombrePropio } from '@/lib/nombres';
+import { copiarTexto } from '@/lib/portapapeles';
 import { usarDisenoNuevo } from '@/lib/diseno-nuevo';
 import { InicioTurno } from '@/components/conversations/inicio-turno';
 import { EtiquetaBuzon, LineaLlamada, repartirLlamadas, type LlamadaChat } from '@/components/conversations/linea-llamada';
@@ -5607,7 +5608,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                                                 </button>
                                                 {message.content && (
                                                 <button
-                                                    onClick={() => { navigator.clipboard?.writeText(message.content || ''); toast.success(t('conversations.messageCopied')); }}
+                                                    onClick={() => { void copiarTexto(message.content || '').then(ok => (ok ? toast.success(t('conversations.messageCopied')) : toast.error(t('conversations.copyFailed')))); }}
                                                     aria-label={t('conversations.copyMessage')} title={t('conversations.copyMessage')}
                                                     className="p-1.5 rounded-full hover:bg-muted dark:hover:bg-neutral-700 text-[#667781] dark:text-neutral-400 hover:text-[#2e3f84] dark:hover:text-blue-300"
                                                 >

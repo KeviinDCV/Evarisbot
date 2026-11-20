@@ -1,4 +1,5 @@
 // Credit: https://usehooks-ts.com/
+import { copiarTexto } from '@/lib/portapapeles';
 import { useCallback, useState } from 'react';
 
 type CopiedValue = string | null;
@@ -9,23 +10,11 @@ export function useClipboard(): [CopiedValue, CopyFn] {
     const [copiedText, setCopiedText] = useState<CopiedValue>(null);
 
     const copy: CopyFn = useCallback(async (text) => {
-        if (!navigator?.clipboard) {
-            console.warn('Clipboard not supported');
+        // También por http (la IP de la red interna), donde navigator.clipboard no existe.
+        const ok = await copiarTexto(text);
+        setCopiedText(ok ? text : null);
 
-            return false;
-        }
-
-        try {
-            await navigator.clipboard.writeText(text);
-            setCopiedText(text);
-
-            return true;
-        } catch (error) {
-            console.warn('Copy failed', error);
-            setCopiedText(null);
-
-            return false;
-        }
+        return ok;
     }, []);
 
     return [copiedText, copy];

@@ -28,7 +28,6 @@ import {
     Plus,
     RotateCw,
     Search,
-    Users,
     Voicemail,
     X,
 } from 'lucide-react';
@@ -105,6 +104,9 @@ const NAVY = 'text-[#1e2550] dark:text-neutral-100';
 const SUAVE = 'text-[#5c6485] dark:text-neutral-400';
 const MEDIO = 'text-[#3c4570] dark:text-neutral-300';
 const ENLACE = 'font-semibold text-[#2e3f84] underline-offset-2 hover:underline dark:text-[#aab6ee]';
+/** Los enlaces de texto miden 15–18 px de alto: el área de clic crece por fuera (≈40 px) sin mover nada. Solo donde lo
+ *  vecino interactivo queda a 12 px o más (si no, las áreas se pisarían). */
+const AREA_ENLACE = 'relative after:absolute after:-inset-x-1.5 after:-inset-y-3';
 const CAMPO =
     'bg-[#f2f4f9] shadow-[inset_0_0_0_1px_#d4d8e8] dark:bg-white/[0.04] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]';
 const SEGMENTADO = 'flex shrink-0 rounded-[12px] bg-[#e7ebf4] p-[3px] shadow-[inset_0_0_0_1px_#d4d8e8] dark:bg-white/[0.05] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]';
@@ -560,7 +562,7 @@ function AvisoApagadas({ onAjustes, enAjustes }: { onAjustes: () => void; enAjus
             <PhoneOff className="size-4 shrink-0 text-[#5c6485] dark:text-neutral-400" strokeWidth={2} aria-hidden="true" />
             <p className="min-w-0 flex-1 text-pretty">{t('llamadas.panel.apagadas')}</p>
             {!enAjustes && (
-                <button type="button" onClick={onAjustes} className={cn('text-[13px]', ENLACE)}>
+                <button type="button" onClick={onAjustes} className={cn('text-[13px]', ENLACE, AREA_ENLACE)}>
                     {t('llamadas.panel.verQueFalta')}
                 </button>
             )}
@@ -638,7 +640,7 @@ function SelectorPeriodo({ periodo, onCambiar }: { periodo: Periodo; onCambiar: 
                         onCambiar({ tipo: 'rango', desde: desde <= hasta ? desde : hasta, hasta: desde <= hasta ? hasta : desde });
                         setAbierto(false);
                     }}
-                    className={cn(TARJETA, 'absolute right-0 z-30 mt-2 flex w-[280px] flex-col gap-3 p-4')}
+                    className={cn(TARJETA, 'absolute right-0 z-30 mt-2 flex w-[280px] origin-top-right animate-in fade-in-0 zoom-in-95 duration-150 motion-reduce:animate-none shadow-[0_0_0_1px_rgba(46,63,132,0.08),0_2px_4px_rgba(46,63,132,0.06),0_16px_36px_-10px_rgba(30,37,80,0.3)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_16px_36px_-10px_rgba(0,0,0,0.7)] flex-col gap-3 p-4')}
                 >
                     <label className={cn('flex flex-col gap-1 text-[12px] font-medium', MEDIO)}>
                         {t('llamadas.panel.periodo.desde')}
@@ -703,20 +705,12 @@ function EnVivo({
         "grid grid-cols-[36px_minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-t py-2.5 [grid-template-areas:'i_p_a'_'i_e_e'_'i_d_d'] lg:min-h-11 lg:grid-cols-[36px_minmax(0,1.25fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_150px] lg:items-center lg:gap-x-3.5 lg:py-1 lg:[grid-template-areas:'i_p_e_d_a']";
 
     return (
-        <section aria-labelledby="en-vivo-titulo" className={cn(TARJETA, 'px-4 sm:px-5')}>
-            {/* Sin llamadas, una sola línea: el estado, quién está conectado y el horario. Las filas solo aparecen si hay. */}
+        // Sin título ni punto con halo (20/11/2026, se veía «de IA»): la franja dice solo lo que pasa. El nombre «En vivo»
+        // queda para el lector de pantalla.
+        <section aria-label={t('llamadas.panel.vivo.titulo')} className={cn(TARJETA, 'px-4 sm:px-5')}>
+            {/* Sin llamadas, una sola línea: lo que pasa, quién está conectado y el horario. Las filas solo aparecen si hay. */}
             <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5">
                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
-                    <span
-                        aria-hidden="true"
-                        className={cn(
-                            'size-[9px] rounded-full',
-                            vivo?.activas && vivo.horario.abierto ? 'bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.16)]' : 'bg-[#9aa1bd] shadow-[0_0_0_4px_rgba(154,161,189,.18)]',
-                        )}
-                    />
-                    <h2 id="en-vivo-titulo" className={cn('text-[15px] leading-5 font-semibold', NAVY)}>
-                        {t('llamadas.panel.vivo.titulo')}
-                    </h2>
                     {!vivo &&
                         (sinConexion ? (
                             <span role="alert" className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-red-700 dark:text-red-400">
@@ -724,7 +718,7 @@ function EnVivo({
                                     <CircleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
                                     {t('llamadas.panel.errorCarga')}
                                 </span>
-                                <button type="button" onClick={onReintentar} className={cn('text-[13px]', ENLACE)}>
+                                <button type="button" onClick={onReintentar} className={cn('text-[13px]', ENLACE, AREA_ENLACE)}>
                                     {t('llamadas.panel.reintentar')}
                                 </button>
                             </span>
@@ -735,29 +729,32 @@ function EnVivo({
                             </span>
                         ))}
                     {vivo && (
-                        <div className="flex flex-wrap items-center gap-2" aria-live="polite">
-                            {filas === 0 && <span className={cn('text-[13px]', SUAVE)}>{t('llamadas.panel.vivo.nada')}</span>}
+                        // Una frase: «2 timbrando · 2 en curso · 6 asesores de turno conectados», o «No hay llamadas en este
+                        // momento · …». El color va en las palabras, sin píldoras.
+                        <p className="text-[14px] leading-5 text-pretty tabular-nums" aria-live="polite">
+                            {filas === 0 && <span className={NAVY}>{t('llamadas.panel.vivo.nada')}</span>}
                             {!!vivo.timbrando.length && (
-                                <span className="flex h-6 items-center rounded-full bg-amber-100 px-2.5 text-[12px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                                <span className="font-semibold text-amber-800 dark:text-amber-300">
                                     {t('llamadas.panel.vivo.timbrandoCuenta', { count: vivo.timbrando.length })}
                                 </span>
                             )}
+                            {!!vivo.timbrando.length && !!vivo.en_curso.length && <span className={SUAVE}> · </span>}
                             {!!vivo.en_curso.length && (
-                                <span className="flex h-6 items-center rounded-full bg-emerald-100 px-2.5 text-[12px] font-semibold text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
+                                <span className="font-semibold text-emerald-700 dark:text-emerald-300">
                                     {t('llamadas.panel.vivo.enCursoCuenta', { count: vivo.en_curso.length })}
                                 </span>
                             )}
-                            <span className="flex h-6 items-center gap-1.5 rounded-full bg-[#eef0f7] px-2.5 text-[12px] font-semibold text-[#3c4570] dark:bg-white/[0.06] dark:text-neutral-300">
-                                <Users className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                            <span className={SUAVE}>
+                                {' · '}
                                 {t('llamadas.panel.vivo.asesoresConectados', { count: vivo.asesores_turno_conectados })}
                             </span>
-                        </div>
+                        </p>
                     )}
                 </div>
                 {vivo && (
                     <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-[18px]', SUAVE)}>
                         {sinConexion && (
-                            <span role="status" className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300">
+                            <span role="status" className="flex items-center gap-1.5 font-semibold text-amber-800 tabular-nums dark:text-amber-300">
                                 <CircleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
                                 {t('llamadas.panel.vivo.sinConexion', { tiempo: haceCuanto(pasado) })}
                             </span>
@@ -819,7 +816,7 @@ function EnVivo({
                                                       ? t('llamadas.panel.vivo.nadieBuzonEn', { tiempo: mmss(restante) })
                                                       : t('llamadas.panel.vivo.nadieAlBuzon')}
                                             </span>
-                                            <button type="button" onClick={onIrAjustes} className={cn('text-[12px] whitespace-nowrap', ENLACE)}>
+                                            <button type="button" onClick={onIrAjustes} className={cn('text-[12px] whitespace-nowrap', ENLACE, AREA_ENLACE)}>
                                                 {t('llamadas.panel.vivo.verAQuien')}
                                             </button>
                                         </p>
@@ -891,7 +888,7 @@ function VerChat({ id, fila }: { id: number; fila: Fila }) {
         <Link
             href={`/admin/chat/${id}`}
             aria-label={t('llamadas.verChatDe', { nombre: nombreDe(fila, t('llamadas.panel.sinNombre')) })}
-            className={cn('text-[12px] whitespace-nowrap', ENLACE)}
+            className={cn('text-[12px] whitespace-nowrap', ENLACE, AREA_ENLACE)}
         >
             {t('llamadas.verChat')}
         </Link>
@@ -932,7 +929,7 @@ function BotonColgar({ id, fila, onColgada }: { id: number; fila: Fila; onColgad
             aria-disabled={paso === 'enviando'}
             aria-label={paso === 'confirmar' ? t('llamadas.panel.vivo.colgarConfirmarDe', { nombre }) : t('llamadas.colgarDe', { nombre })}
             className={cn(
-                'flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-[12px] font-semibold whitespace-nowrap transition-[background-color,scale] duration-150 active:scale-[0.96]',
+                'relative flex h-7 items-center gap-1.5 rounded-[8px] after:absolute after:inset-x-0 after:-inset-y-1.5 px-2.5 text-[12px] font-semibold whitespace-nowrap transition-[background-color,scale] duration-150 active:scale-[0.96]',
                 paso === 'confirmar'
                     ? 'bg-red-600 text-white'
                     : 'bg-red-50 text-red-700 shadow-[inset_0_0_0_1px_#fecaca] hover:bg-red-100 dark:bg-red-500/10 dark:text-red-300 dark:shadow-[inset_0_0_0_1px_rgba(248,113,113,.3)]',
@@ -1143,7 +1140,7 @@ function PestanaHistorial({
         <section aria-label={t('llamadas.panel.tabs.historial')} className={TARJETA}>
             <div className={cn('flex flex-wrap items-center gap-2.5 border-b px-4 py-3', FILETE)}>
                 <label className={cn(CAMPO, ANILLO_CAMPO, 'flex h-9 w-full items-center gap-2 rounded-[10px] px-3 sm:w-[300px]', SUAVE)}>
-                    <Search className="size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                    <Search className="size-4 shrink-0" strokeWidth={1.5} aria-hidden="true" />
                     <span className="sr-only">{t('llamadas.panel.historial.buscar')}</span>
                     <input
                         type="search"
@@ -1363,7 +1360,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                         ))}
                     </div>
                     <label className={cn(CAMPO, ANILLO_CAMPO, 'flex h-9 w-full items-center gap-2 rounded-[10px] px-3 sm:w-[320px]', SUAVE)}>
-                        <Search className="size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                        <Search className="size-4 shrink-0" strokeWidth={1.5} aria-hidden="true" />
                         <span className="sr-only">{t('llamadas.panel.buzon.buscar')}</span>
                         <input
                             type="search"
@@ -1453,7 +1450,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                             type="button"
                                                             aria-disabled={ocupado !== null}
                                                             onClick={() => ocupado === null && void resolver(f, true)}
-                                                            className={cn('text-[12px]', ENLACE)}
+                                                            className={cn('text-[12px]', ENLACE, AREA_ENLACE)}
                                                         >
                                                             {t('llamadas.panel.buzon.marcarSinResolver')}
                                                         </button>
@@ -1936,7 +1933,7 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
                                                 type="button"
                                                 onClick={() => poner({ festivos: form.festivos.filter((x) => x !== f) })}
                                                 aria-label={t('llamadas.panel.ajustes.quitarFestivo', { fecha: fechaLarga(f) })}
-                                                className="relative flex size-6 items-center justify-center rounded-full text-[#5c6485] hover:bg-black/5 after:absolute after:-inset-1 dark:text-neutral-400 dark:hover:bg-white/10"
+                                                className="relative flex size-6 items-center justify-center rounded-full text-[#5c6485] hover:bg-black/5 after:absolute after:-inset-x-2 after:-inset-y-1.5 dark:text-neutral-400 dark:hover:bg-white/10"
                                             >
                                                 <X className="size-3.5" strokeWidth={2} aria-hidden="true" />
                                             </button>
@@ -1995,7 +1992,7 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
                                         onClick={() => poner({ espera: Math.max(5, form.espera - 1) })}
                                         aria-label={t('llamadas.panel.ajustes.menos')}
                                         disabled={form.espera <= 5}
-                                        className="flex size-9 items-center justify-center text-[#2e3f84] disabled:opacity-40 dark:text-[#aab6ee]"
+                                        className="relative m-0.5 flex size-8 items-center justify-center rounded-[8px] text-[#2e3f84] transition-[background-color,scale] duration-150 after:absolute after:-inset-0.5 hover:bg-[#2e3f84]/8 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40 dark:text-[#aab6ee] dark:hover:bg-white/10"
                                     >
                                         <Minus className="size-4" strokeWidth={2} aria-hidden="true" />
                                     </button>
@@ -2022,7 +2019,7 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
                                         onClick={() => poner({ espera: Math.min(30, form.espera + 1) })}
                                         aria-label={t('llamadas.panel.ajustes.mas')}
                                         disabled={form.espera >= 30}
-                                        className="flex size-9 items-center justify-center text-[#2e3f84] disabled:opacity-40 dark:text-[#aab6ee]"
+                                        className="relative m-0.5 flex size-8 items-center justify-center rounded-[8px] text-[#2e3f84] transition-[background-color,scale] duration-150 after:absolute after:-inset-0.5 hover:bg-[#2e3f84]/8 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-40 dark:text-[#aab6ee] dark:hover:bg-white/10"
                                     >
                                         <Plus className="size-4" strokeWidth={2} aria-hidden="true" />
                                     </button>
@@ -2227,7 +2224,7 @@ function ConexionWhatsApp() {
                 </ul>
             )}
             <p className={cn('flex items-center gap-1.5 text-[12px]', SUAVE)}>
-                <Mic className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                <Mic className="size-3.5" strokeWidth={1.5} aria-hidden="true" />
                 {t('llamadas.panel.conexion.pie')}
             </p>
         </section>
