@@ -5,12 +5,12 @@ import { nombrePropio } from '@/lib/nombres';
 import { agrupar, alAviso } from '@/lib/tiempo-real';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
 import {
     CalendarRange,
     Check,
-    ChevronDown,
     CircleAlert,
     CircleCheck,
     CircleHelp,
@@ -1258,23 +1258,38 @@ function fechaCorta(iso: string): string {
     return new Intl.DateTimeFormat(idioma(), { timeZone: ZONA, day: 'numeric', month: 'short' }).format(new Date(iso));
 }
 
-/** Un <select> nativo con la cara del diseño ("Resultado: Todos ˅"). */
+/** «Resultado: Todos ˅» con el Select de la app (el mismo menú y las mismas opciones que Masivos y Usuarios). Radix no
+ *  admite el valor vacío, así que «Todos» ('') viaja como TODOS. */
+const TODOS = '__todos__';
+const MENU_OPCIONES =
+    'max-h-[320px] rounded-xl border-0 shadow-[0_0_0_1px_rgba(46,63,132,0.12),0_12px_28px_-10px_rgba(46,63,132,0.4)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.12),0_12px_28px_-10px_rgba(0,0,0,0.7)]';
+const OPCION =
+    'cursor-pointer rounded-lg py-2 pr-8 pl-2.5 text-[13px] leading-[18px] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:focus:bg-white/8 dark:focus:text-neutral-100';
+
 function Desplegable({ etiqueta, valor, opciones, onCambiar }: { etiqueta: string; valor: string; opciones: { id: string; texto: string }[]; onCambiar: (v: string) => void }) {
     const actual = opciones.find((o) => o.id === valor)?.texto ?? opciones[0]?.texto;
     return (
-        <label className={cn(CAMPO, 'relative flex h-9 items-center gap-1.5 rounded-[10px] pr-2.5 pl-3 text-[13px] has-[select:focus-visible]:outline-2 has-[select:focus-visible]:outline-offset-2 has-[select:focus-visible]:outline-[#2e3f84] dark:has-[select:focus-visible]:outline-[#53bdeb]', MEDIO)}>
-            <span aria-hidden="true">
-                {etiqueta}: <strong className={cn('font-semibold', NAVY)}>{actual}</strong>
-            </span>
-            <ChevronDown className="size-3.5" strokeWidth={2} aria-hidden="true" />
-            <select value={valor} onChange={(e) => onCambiar(e.target.value)} aria-label={etiqueta} className="absolute inset-0 cursor-pointer opacity-0">
+        <Select value={valor || TODOS} onValueChange={(v) => onCambiar(v === TODOS ? '' : v)}>
+            <SelectTrigger
+                aria-label={`${etiqueta}: ${actual}`}
+                className={cn(
+                    CAMPO,
+                    'h-9 w-auto gap-1.5 rounded-[10px] border-0 pr-2.5 pl-3 text-[13px] focus-visible:ring-0 dark:bg-white/[0.04]',
+                    MEDIO,
+                )}
+            >
+                <span aria-hidden="true">
+                    {etiqueta}: <strong className={cn('font-semibold', NAVY)}>{actual}</strong>
+                </span>
+            </SelectTrigger>
+            <SelectContent className={MENU_OPCIONES}>
                 {opciones.map((o) => (
-                    <option key={o.id} value={o.id}>
+                    <SelectItem key={o.id || TODOS} value={o.id || TODOS} className={OPCION}>
                         {o.texto}
-                    </option>
+                    </SelectItem>
                 ))}
-            </select>
-        </label>
+            </SelectContent>
+        </Select>
     );
 }
 
