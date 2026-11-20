@@ -210,6 +210,48 @@ function paramsPeriodo(p: Periodo): Record<string, string> {
     return p.tipo === 'rango' ? { periodo: 'rango', desde: p.desde, hasta: p.hasta } : { periodo: p.tipo };
 }
 
+/** Cambia parámetros de la dirección sin recargar ni pedir nada (null quita el parámetro). */
+function ponerEnDireccion(cambios: Record<string, string | null>) {
+    try {
+        const url = new URL(window.location.href);
+        Object.entries(cambios).forEach(([k, v]) => (v ? url.searchParams.set(k, v) : url.searchParams.delete(k)));
+        window.history.replaceState(window.history.state, '', url.toString());
+    } catch {
+        // sin dirección: no pasa nada
+    }
+}
+
+/** El periodo guardado en la dirección (?periodo=semana, o rango con desde y hasta); si falta o no sirve, «hoy». */
+function periodoDeDireccion(): Periodo {
+    const hoy = hoyEnColombia();
+    try {
+        const p = new URLSearchParams(window.location.search);
+        const tipo = p.get('periodo');
+        if (tipo === 'semana' || tipo === 'mes') return { tipo, desde: hoy, hasta: hoy };
+        const desde = p.get('desde') ?? '';
+        const hasta = p.get('hasta') ?? '';
+        const dia = /^\d{4}-\d{2}-\d{2}$/;
+        if (tipo === 'rango' && dia.test(desde) && dia.test(hasta) && desde <= hasta && hasta <= hoy) return { tipo: 'rango', desde, hasta };
+    } catch {
+        // sin dirección: hoy
+    }
+    return { tipo: 'hoy', desde: hoy, hasta: hoy };
+}
+
+const RESULTADOS_FILTRABLES = ['atendida', 'buzon', 'perdida', 'cortada', 'fuera_horario', 'fallida', 'en_curso'];
+
+/** Los filtros del historial guardados en la dirección (la búsqueda escrita no se guarda). */
+function filtrosDeDireccion(): Filtros {
+    try {
+        const p = new URLSearchParams(window.location.search);
+        const resultado = p.get('resultado') ?? '';
+        const atendio = p.get('atendio') ?? '';
+        return { resultado: RESULTADOS_FILTRABLES.includes(resultado) ? resultado : '', atendio: /^\d+$/.test(atendio) ? atendio : '', buscar: '' };
+    } catch {
+        return { resultado: '', atendio: '', buscar: '' };
+    }
+}
+
 /** Pide JSON cada vez que cambia la dirección o la versión; ignora respuestas viejas. `reintentar` vuelve a pedirlo. */
 function useDatos<T>(url: string | null, version: number) {
     const [datos, setDatos] = useState<T | null>(null);
@@ -265,7 +307,12 @@ type Props = { activas: boolean; tabInicial: Tab };
 export default function LlamadasIndex({ activas, tabInicial }: Props) {
     const { t } = useTranslation();
     const [tab, setTab] = useState<Tab>(tabInicial);
-    const [periodo, setPeriodo] = useState<Periodo>(() => ({ tipo: 'hoy', desde: hoyEnColombia(), hasta: hoyEnColombia() }));
+    // El periodo y los filtros quedan en la dirección (como en Estadísticas): al recargar o compartir el enlace se conservan.
+    const [periodo, setPeriodoEstado] = useState<Periodo>(periodoDeDireccion);
+    const setPeriodo = useCallback((p: Periodo) => {
+        setPeriodoEstado(p);
+        ponerEnDireccion(p.tipo === 'rango' ? { periodo: 'rango', desde: p.desde, hasta: p.hasta } : { periodo: p.tipo === 'hoy' ? null : p.tipo, desde: null, hasta: null });
+    }, []);
     /** Sube con cada aviso de llamada: las pestañas vuelven a pedir sus datos. */
     const [version, setVersion] = useState(0);
     const [vivo, setVivo] = useState<Vivo | null>(null);
@@ -334,14 +381,7 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
     const cambiarTab = useCallback((nueva: Tab) => {
         setTab(nueva);
         if (nueva === 'ajustes') setAjustesAbierto(true);
-        try {
-            const url = new URL(window.location.href);
-            if (nueva === 'historial') url.searchParams.delete('tab');
-            else url.searchParams.set('tab', nueva);
-            window.history.replaceState(window.history.state, '', url.toString());
-        } catch {
-            // sin URL: no pasa nada
-        }
+        ponerEnDireccion({ tab: nueva === 'historial' ? null : nueva });
     }, []);
 
     const conPeriodo = tab === 'historial' || tab === 'indicadores';
@@ -367,7 +407,11 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
     }[periodo.tipo];
 
     // Filtros del historial (también los usa «Exportar a Excel»).
-    const [filtros, setFiltros] = useState({ resultado: '', atendio: '', buscar: '' });
+    const [filtros, setFiltrosEstado] = useState<Filtros>(filtrosDeDireccion);
+    const setFiltros = useCallback((f: Filtros) => {
+        setFiltrosEstado(f);
+        ponerEnDireccion({ resultado: f.resultado || null, atendio: f.atendio || null });
+    }, []);
     // Cuántas llamadas hay con el periodo y los filtros del historial (null mientras carga): con 0 no se exporta.
     const [totalHistorial, setTotalHistorial] = useState<number | null>(null);
     const exportar = `${BASE}/exportar?${paramsDe({ ...paramsPeriodo(periodo), ...filtros })}`;
@@ -442,7 +486,7 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                         onIrAjustes={() => cambiarTab('ajustes')}
                     />
 
-                    <div role="tablist" aria-label={t('llamadas.panel.tabs.etiqueta')} onKeyDown={alTeclaTabs} className={cn('-mb-1 flex gap-1 overflow-x-auto border-b [scrollbar-width:none]', FILETE)}>
+                    <div role="tablist" aria-label={t('llamadas.panel.tabs.etiqueta')} onKeyDown={alTeclaTabs} className={cn('-mb-1 flex overflow-x-auto border-b [scrollbar-width:none] sm:gap-1', FILETE)}>
                         {TABS.map((id) => {
                             const si = id === tab;
                             return (
@@ -459,7 +503,7 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                                     tabIndex={si ? 0 : -1}
                                     onClick={() => cambiarTab(id)}
                                     className={cn(
-                                        'flex h-[38px] shrink-0 items-center gap-2 px-3.5 text-[13px] whitespace-nowrap transition-colors duration-150 focus-visible:outline-offset-[-2px]',
+                                        'flex h-[38px] shrink-0 items-center gap-2 px-2.5 text-[13px] whitespace-nowrap transition-colors duration-150 focus-visible:outline-offset-[-2px] sm:px-3.5',
                                         si
                                             ? 'font-semibold text-[#2e3f84] shadow-[inset_0_-2px_0_#2e3f84] dark:text-white dark:shadow-[inset_0_-2px_0_#aab6ee]'
                                             : 'font-medium text-[#4a5378] hover:text-[#1e2550] dark:text-neutral-400 dark:hover:text-neutral-100',
@@ -822,7 +866,7 @@ function Paciente({ fila, enLinea = false, celda = false, className }: { fila: F
     const nombre = fila.nombre ? nombrePropio(fila.nombre) : t('llamadas.panel.sinNombre');
     if (enLinea) {
         return (
-            <span role={celda ? 'cell' : undefined} className="min-w-0 truncate">
+            <span role={celda ? 'cell' : undefined} className={cn('min-w-0 truncate', className)}>
                 <strong className={cn('font-semibold', NAVY)}>{nombre}</strong>{' '}
                 <span className={cn('text-[12px] tabular-nums', SUAVE)}>{telefono(fila.telefono)}</span>
             </span>
@@ -1078,8 +1122,10 @@ function PestanaHistorial({
         onTotal(datos ? datos.total : null);
     }, [datos, onTotal]);
     useEffect(() => {
-        if (datos?.asesores?.length) setAsesores(datos.asesores);
-    }, [datos]);
+        if (!datos?.asesores?.length) return;
+        setAsesores(datos.asesores);
+        if (filtros.atendio && !datos.asesores.some((a) => String(a.id) === filtros.atendio)) onFiltros({ ...filtros, atendio: '' });
+    }, [datos, filtros, onFiltros]);
 
     const resultados: { id: string; texto: string }[] = [
         { id: '', texto: t('llamadas.panel.historial.todos') },
@@ -1293,7 +1339,9 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
         if (dia === ayer) return t('llamadas.panel.buzon.ayerA', { hora: hora(iso) });
         return `${fechaCorta(iso)}, ${hora(iso)}`;
     };
-    const columnas = 'grid grid-cols-[110px_minmax(0,1fr)_minmax(0,2.3fr)_230px] items-start gap-x-4';
+    // Angosto: apilado (paciente y hora; audio y lo que dijo; botones). Desde lg, las cuatro columnas de la tabla.
+    const columnas =
+        "grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 [grid-template-areas:'p_c'_'m_m'_'a_a'] lg:grid-cols-[110px_minmax(0,1fr)_minmax(0,2.3fr)_230px] lg:items-start lg:[grid-template-areas:'c_p_m_a']";
 
     return (
         <div className="flex flex-col gap-4">
@@ -1344,24 +1392,38 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                     </div>
                 ) : (
                     <div className="relative overflow-x-auto">
-                        <div role="table" aria-label={t('llamadas.panel.tabs.buzon')} className="min-w-[880px]">
-                            <div role="row" className={cn(columnas, 'items-center border-b bg-[#f4f5f9]/70 px-4 py-2 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
-                                <span role="columnheader">{t('llamadas.panel.buzon.col.cuando')}</span>
-                                <span role="columnheader">{t('llamadas.panel.buzon.col.paciente')}</span>
-                                <span role="columnheader">{t('llamadas.panel.buzon.col.loQueDijo')}</span>
-                                <span role="columnheader">
+                        <div role="table" aria-label={t('llamadas.panel.tabs.buzon')} className="lg:min-w-[880px]">
+                            {/* Encabezados: a la vista solo con columnas; apilado los sigue leyendo el lector de pantalla. */}
+                            <div
+                                role="row"
+                                className={cn(
+                                    columnas,
+                                    // max-lg:sr-only y no lg:not-sr-only: este último pone el relleno en 0 y la fila perdía su forma.
+                                    'items-center border-b bg-[#f4f5f9]/70 px-4 py-2 text-[11px] font-semibold tracking-[.04em] uppercase max-lg:sr-only dark:bg-white/[0.03]',
+                                    FILETE,
+                                    SUAVE,
+                                )}
+                            >
+                                <span role="columnheader" className="[grid-area:c]">{t('llamadas.panel.buzon.col.cuando')}</span>
+                                <span role="columnheader" className="[grid-area:p]">{t('llamadas.panel.buzon.col.paciente')}</span>
+                                <span role="columnheader" className="[grid-area:m]">{t('llamadas.panel.buzon.col.loQueDijo')}</span>
+                                <span role="columnheader" className="[grid-area:a]">
                                     <span className="sr-only">{t('llamadas.panel.acciones')}</span>
                                 </span>
                             </div>
                             <div role="rowgroup">
                                 {datos.filas.map((f) => (
-                                    <div role="row" key={f.id} className={cn(columnas, 'border-b px-4 py-3.5 text-[13px] last:border-b-0', FILETE, f.resuelto_en && 'bg-[#f4f5f9]/45 dark:bg-white/[0.02]')}>
-                                        <div role="cell">
+                                    <div
+                                        role="row"
+                                        key={f.id}
+                                        className={cn(columnas, 'gap-y-3 border-b px-4 py-3.5 text-[13px] last:border-b-0 lg:gap-y-0', FILETE, f.resuelto_en && 'bg-[#f4f5f9]/45 dark:bg-white/[0.02]')}
+                                    >
+                                        <div role="cell" className="text-right [grid-area:c] lg:text-left">
                                             <p className={cn('tabular-nums', MEDIO)}>{cuando(f.cuando)}</p>
                                             <p className={cn('text-[12px]', SUAVE)}>{f.fuera_de_horario ? t('llamadas.panel.buzon.fueraDeHorario') : t('llamadas.panel.buzon.nadieContesto')}</p>
                                         </div>
-                                        <Paciente fila={f} celda />
-                                        <div role="cell" className="flex min-w-0 flex-col gap-1.5">
+                                        <Paciente fila={f} celda className="[grid-area:p]" />
+                                        <div role="cell" className="flex min-w-0 flex-col gap-1.5 [grid-area:m]">
                                             {f.audio ? (
                                                 <AudioBuzon src={f.audio} resuelto={!!f.resuelto_en} />
                                             ) : (
@@ -1373,7 +1435,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                 <p className={cn('text-[12px] italic', SUAVE)}>{t('llamadas.panel.buzon.sinTranscripcion')}</p>
                                             )}
                                         </div>
-                                        <div role="cell" className="flex flex-col items-end gap-2">
+                                        <div role="cell" className="flex flex-col items-end gap-2 [grid-area:a]">
                                             {f.resuelto_en ? (
                                                 <>
                                                     <span className="flex h-6 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -1836,11 +1898,11 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
                             </div>
                             <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]', MEDIO)}>
                                 <label className="flex items-center gap-2">
-                                    {t('llamadas.panel.ajustes.desde')}
+                                    <span className="w-11 sm:w-auto">{t('llamadas.panel.ajustes.desde')}</span>
                                     <input type="time" step={300} value={form.desde} onChange={(e) => poner({ desde: e.target.value })} className={cn(CAMPO, 'h-9 rounded-[9px] px-2.5 text-[16px] tabular-nums sm:text-[13px]', NAVY)} />
                                 </label>
                                 <label className="flex items-center gap-2">
-                                    {t('llamadas.panel.ajustes.hasta')}
+                                    <span className="w-11 sm:w-auto">{t('llamadas.panel.ajustes.hasta')}</span>
                                     <input
                                         type="time"
                                         step={300}
