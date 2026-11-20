@@ -480,7 +480,8 @@ export default function AppointmentsIndex({
             enVuelo = true;
             ultimaVez = Date.now();
             router.reload({
-                only: ESTADO,
+                // Al volver a la pestaña también las cifras de llamadas (horario, robot, tope de Meta pudieron cambiar).
+                only: [...ESTADO, 'llamadasStats'],
                 onFinish: () => {
                     enVuelo = false;
                 },

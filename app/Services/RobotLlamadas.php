@@ -12,7 +12,9 @@ use Illuminate\Support\Facades\Log;
  */
 class RobotLlamadas
 {
-    public const VOZ = 'es-MX-DaliaNeural'; // elegida por el usuario el 19/11/2026 (muestra 3)
+    // Voz LOCAL Supertonic 3, voz F5 (elegida por el usuario el 20/11/2026, muestra «5b-final-a»): sin internet ni cuentas.
+    // El robot la fabrica en el propio PC; si falla, usa Dalia (es-MX-DaliaNeural, la del 19/11) de respaldo.
+    public const VOZ = 'supertonic:F5';
 
     public static function url(): string
     {

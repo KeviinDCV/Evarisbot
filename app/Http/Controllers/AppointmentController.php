@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Support\EnvioRecordatorios;
 use App\Support\LibroExcel;
 use App\Support\Recordatorios;
+use App\Support\RondaLlamadas;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -142,16 +143,45 @@ class AppointmentController extends Controller
             'appointments' => Inertia::defer(function () {
                 $hoy = Recordatorios::hoy();
 
-                return $this->serviceQuery()->orderBy('id', 'desc')
+                return RondaLlamadas::anotarFilas($this->serviceQuery()->orderBy('id', 'desc')
                     ->limit(50)
                     ->get(Recordatorios::COLUMNAS_FILA)
-                    ->map(fn ($apt) => Recordatorios::fila($apt, $hoy));
+                    ->map(fn ($apt) => Recordatorios::fila($apt, $hoy))
+                    ->all(), $this->service);
             }),
 
             'totalAppointments' => Inertia::defer(fn () => $this->serviceQuery()->count()),
 
             'remindersStats' => Inertia::defer(fn () => $this->estadisticasEnvio()),
+
+            // Recordatorio por llamada: la ronda (barata: settings + llamadas de sus citas) va al instante; las cifras
+            // de la próxima fecha (permisos, robot, tope de Meta) en su propio grupo diferido, sin frenar las demás.
+            'rondaLlamadas' => $this->rondaLlamadas(),
+            'llamadasStats' => Inertia::defer(fn () => $this->cifrasLlamadas(), 'llamadas'),
         ]);
+    }
+
+    /** La ronda de llamadas del ámbito, o null (también si algo falla: la página no se cae por esto). */
+    protected function rondaLlamadas(): ?array
+    {
+        try {
+            return RondaLlamadas::resumen($this->service);
+        } catch (\Throwable $e) {
+            Log::warning('Citas: no se pudo leer la ronda de llamadas', ['service' => $this->service, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    protected function cifrasLlamadas(): array
+    {
+        try {
+            return RondaLlamadas::cifras($this->service);
+        } catch (\Throwable $e) {
+            Log::warning('Citas: no se pudieron calcular las cifras de llamadas', ['service' => $this->service, 'error' => $e->getMessage()]);
+
+            return ['activas' => false];
+        }
     }
 
     /**
@@ -202,6 +232,8 @@ class AppointmentController extends Controller
         $appointments = $query->paginate(20)
             ->withQueryString()
             ->through(fn ($apt) => Recordatorios::fila($apt, $hoy));
+        // Lo de la llamada de recordatorio (si la hubo) en la columna Respuesta.
+        $appointments->setCollection(collect(RondaLlamadas::anotarFilas($appointments->getCollection()->all(), $this->service)));
 
         return Inertia::render($this->inertiaViewPage, [
             'appointments' => $appointments,
@@ -1161,5 +1193,142 @@ class AppointmentController extends Controller
             'sin_avanzar' => $estado['sin_avanzar'],
             'ultimo_envio' => EnvioRecordatorios::ultimoEnvio($this->service),
         ])->header('Cache-Control', 'no-store');
+    }
+
+    /* ── Recordatorio por llamada (App\Support\RondaLlamadas) ─────────────────────────────────────── */
+
+    /**
+     * Inicia una ronda de llamadas. Como el envío por WhatsApp: la fecha y las citas las decide el servidor; lo que mandó
+     * la página (fecha_citas, esperadas = lo que dijo la confirmación) solo se compara, y si cambió se responde 409
+     * 'cambio' con las cifras nuevas para volver a confirmar.
+     */
+    public function startCalls(Request $request)
+    {
+        $lock = Cache::lock('ronda-llamadas-inicio-'.$this->service, 60);
+        if (! $lock->get()) {
+            return $this->rondaEnCurso();
+        }
+
+        try {
+            $validacion = Validator::make($request->all(), [
+                'fecha_citas' => ['required', 'date_format:Y-m-d'],
+                'esperadas' => ['required', 'integer', 'min:1', 'max:10000'],
+            ]);
+            if ($validacion->fails()) {
+                return response()->json(['success' => false, 'code' => 'datos_invalidos'], 422);
+            }
+            if (RondaLlamadas::activa(RondaLlamadas::leer($this->service))) {
+                return $this->rondaEnCurso();
+            }
+
+            $cifras = RondaLlamadas::cifras($this->service);
+            $error = match (true) {
+                ! ($cifras['activas'] ?? false) => 'desactivadas',
+                ! ($cifras['robot'] ?? false) => 'robot',
+                ! ($cifras['en_horario'] ?? false) => 'horario',
+                ($cifras['quedan'] ?? 0) <= 0 => 'limite',
+                default => null,
+            };
+            if ($error !== null) {
+                return response()->json(['success' => false, 'code' => $error, 'cifras' => $cifras], 422);
+            }
+
+            $candidatos = RondaLlamadas::candidatos($this->service, $cifras['fecha']);
+            $ids = array_slice($candidatos['ids'], 0, (int) $cifras['quedan']);
+            if ($request->input('fecha_citas') !== $cifras['fecha'] || (int) $request->input('esperadas') !== count($ids) || $ids === []) {
+                return response()->json(['success' => false, 'code' => 'cambio', 'cifras' => $cifras], 409);
+            }
+
+            RondaLlamadas::iniciar($this->service, $cifras['fecha'], $ids, auth()->user()?->name);
+            Log::info('Ronda de llamadas iniciada', [
+                'user_id' => auth()->id(),
+                'service' => $this->service,
+                'fecha_citas' => $cifras['fecha'],
+                'total' => count($ids),
+            ]);
+
+            return response()->json(['success' => true, 'ronda' => RondaLlamadas::resumen($this->service)]);
+        } catch (\Throwable $e) {
+            Log::error('Error al iniciar la ronda de llamadas', ['service' => $this->service, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'code' => 'fallo'], 500);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function pauseCalls()
+    {
+        return $this->cambiarRonda('pausar');
+    }
+
+    public function resumeCalls()
+    {
+        return $this->cambiarRonda('reanudar');
+    }
+
+    public function stopCalls()
+    {
+        return $this->cambiarRonda('detener');
+    }
+
+    private function cambiarRonda(string $accion)
+    {
+        try {
+            $antes = RondaLlamadas::leer($this->service);
+            $esperado = ['pausar' => ['en_curso'], 'reanudar' => ['pausada'], 'detener' => ['en_curso', 'pausada']][$accion];
+            if (! $antes || ! in_array($antes['estado'] ?? '', $esperado, true)) {
+                return response()->json(['success' => false, 'code' => 'sin_ronda', 'ronda' => RondaLlamadas::resumen($this->service)], 409);
+            }
+            if ($accion === 'reanudar') {
+                $cifras = RondaLlamadas::cifras($this->service);
+                $error = match (true) {
+                    ! ($cifras['activas'] ?? false) => 'desactivadas',
+                    ! ($cifras['robot'] ?? false) => 'robot',
+                    ! ($cifras['en_horario'] ?? false) => 'horario',
+                    ($cifras['quedan'] ?? 0) <= 0 => 'limite',
+                    default => null,
+                };
+                if ($error !== null) {
+                    return response()->json(['success' => false, 'code' => $error, 'cifras' => $cifras, 'ronda' => RondaLlamadas::resumen($this->service)], 422);
+                }
+            }
+
+            match ($accion) {
+                'pausar' => RondaLlamadas::pausar($this->service),
+                'reanudar' => RondaLlamadas::reanudar($this->service),
+                'detener' => RondaLlamadas::detener($this->service),
+            };
+            Log::info('Ronda de llamadas: '.$accion, ['user_id' => auth()->id(), 'service' => $this->service]);
+
+            return response()->json(['success' => true, 'ronda' => RondaLlamadas::resumen($this->service)]);
+        } catch (\Throwable $e) {
+            Log::error('Error al cambiar la ronda de llamadas', ['service' => $this->service, 'accion' => $accion, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'code' => 'fallo'], 500);
+        }
+    }
+
+    /** 409: ya hay una ronda en marcha o en pausa (la página se pone a seguirla). */
+    private function rondaEnCurso()
+    {
+        return response()->json(['success' => false, 'code' => 'en_curso', 'ronda' => RondaLlamadas::resumen($this->service)], 409);
+    }
+
+    /**
+     * Estado de la ronda para el sondeo de la página (solo JSON). Si no se puede leer responde 500 (la página reintenta);
+     * nunca {ronda: null}, que la página tomaría como «terminó» con la ronda corriendo.
+     */
+    public function getCallsStatus()
+    {
+        try {
+            $ronda = RondaLlamadas::resumen($this->service);
+        } catch (\Throwable $e) {
+            Log::warning('Citas: no se pudo leer la ronda de llamadas (sondeo)', ['service' => $this->service, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'code' => 'fallo'], 500)->header('Cache-Control', 'no-store');
+        }
+
+        return response()->json(['ronda' => $ronda])->header('Cache-Control', 'no-store');
     }
 }

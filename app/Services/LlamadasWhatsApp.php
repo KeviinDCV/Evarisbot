@@ -309,10 +309,14 @@ class LlamadasWhatsApp
      * Llamada del ROBOT (recordatorio de cita por voz, ver App\Services\RobotLlamadas): el robot arma la oferta, Evarisbot
      * se la pasa a Meta y le reenvía al robot la respuesta y el «contestó». Nadie de Evarisbot la atiende.
      *
+     * $sigue (opcional): se pregunta justo antes de marcar, después de que el robot armó la oferta (eso tarda unos
+     * segundos). Si devuelve false (pausaron o detuvieron la ronda mientras tanto) no se llama: la fila se borra, como si
+     * nunca se hubiera intentado, y se responde error 'cancelada'.
+     *
      * @param  array<string, string>  $textos
      * @return array{ok: bool, llamada?: Llamada, error?: string}
      */
-    public function llamarRobot(Conversation $conversation, array $textos, ?int $citaId = null): array
+    public function llamarRobot(Conversation $conversation, array $textos, ?int $citaId = null, ?callable $sigue = null): array
     {
         $telefono = preg_replace('/\D/', '', (string) $conversation->phone_number);
         if (! preg_match('/^\d{8,15}$/', $telefono)) {
@@ -336,6 +340,13 @@ class LlamadasWhatsApp
             $llamada->update(['estado' => 'fallida', 'motivo' => mb_substr('robot: '.($oferta['error'] ?? ''), 0, 120), 'terminada_en' => now()]);
 
             return ['ok' => false, 'error' => $oferta['error'] ?? 'robot_no_disponible', 'llamada' => $llamada->fresh()];
+        }
+        if ($sigue !== null && ! $sigue()) {
+            RobotLlamadas::cerrar($llamada->id);
+            $llamada->delete();
+            Log::info('Llamada del robot: no se marcó (la ronda se pausó o se detuvo mientras se preparaba)', ['cita_id' => $citaId]);
+
+            return ['ok' => false, 'error' => 'cancelada'];
         }
         $r = $this->metaConectar($telefono, self::sdpConFinal($oferta['sdp']), $llamada->id);
         if (! $r['ok']) {
@@ -482,7 +493,7 @@ class LlamadasWhatsApp
         138003 => 'ocupado',       // ya hay una llamada con ese paciente
         138005 => 'limite',        // demasiadas llamadas seguidas
         138006 => 'sin_permiso',   // el paciente negó o quitó el permiso de llamadas
-        138012 => 'limite',        // tope de llamadas conectadas a ese paciente en 24 h
+        138012 => 'limite_paciente', // tope de llamadas conectadas a ESE paciente en 24 h (no corta una ronda entera)
         138013 => 'no_disponible', // llamadas de empresas no disponibles para ese número
         138014 => 'limite',        // llamadas pausadas por calidad
         138037 => 'limite',        // tope diario de intentos del número

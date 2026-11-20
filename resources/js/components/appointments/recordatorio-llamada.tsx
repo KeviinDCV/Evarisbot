@@ -103,6 +103,9 @@ const MOTIVOS_CORTE = {
     vencida: 'appointments.calls.cut.vencida',
 } as const;
 
+/** Llamadas de la ronda: sus citas menos las que se saltaron (respondieron mientras tanto, ya no aplicaban…). */
+const llamadasDe = (r: RondaLlamadas) => Math.max(0, r.total - r.omitidas);
+
 const claveDe = <T extends Record<string, string>>(mapa: T, clave: string | null | undefined, porDefecto: keyof T) =>
     clave && Object.hasOwn(mapa, clave) ? mapa[clave as keyof T] : mapa[porDefecto];
 
@@ -235,7 +238,7 @@ export default function RecordatorioLlamada({
             }
             return {
                 tipo: 'ok',
-                texto: [t('appointments.calls.finishedSummary', { count: r.total, value: miles(r.total, lng) }), detalle ? `${detalle}.` : '', t('appointments.calls.finishedUpdated')]
+                texto: [t('appointments.calls.finishedSummary', { count: llamadasDe(r), value: miles(llamadasDe(r), lng) }), detalle ? `${detalle}.` : '', t('appointments.calls.finishedUpdated')]
                     .filter(Boolean)
                     .join(' '),
             };
@@ -248,7 +251,7 @@ export default function RecordatorioLlamada({
             setRonda(r);
             setFallosSondeo(0);
             if (r) {
-                setFinal(r.total > 0 ? r : null);
+                setFinal(llamadasDe(r) > 0 ? r : null);
                 const resumen = resumenDe(r);
                 setAviso(resumen);
                 anunciar(resumen.texto);
@@ -259,11 +262,12 @@ export default function RecordatorioLlamada({
     );
 
     /**
-     * Sondeo de la ronda en marcha: SECUENCIAL (Windows agota los sockets con peticiones en paralelo), cada 4 s (+ azar)
-     * después de que vuelva la anterior, solo con la pestaña visible; ante errores espera 8, 15 y 30 s.
+     * Sondeo de la ronda en marcha o en pausa: SECUENCIAL (Windows agota los sockets con peticiones en paralelo), cada 4 s
+     * (15 s en pausa) después de que vuelva la anterior, solo con la pestaña visible; ante errores espera 8, 15 y 30 s.
+     * Así se ve también lo que hace otra persona (pausar, reanudar) desde otra pestaña.
      */
     useEffect(() => {
-        if (!enMarcha) return;
+        if (!activa) return;
         let vivo = true;
         let enCurso = false;
         let fallos = 0;
@@ -286,11 +290,12 @@ export default function RecordatorioLlamada({
                 setFallosSondeo(0);
                 if (v === version.current) {
                     const r = data.ronda as RondaLlamadas | null;
-                    if (!r || r.estado !== 'en_curso') {
+                    if (!r || (r.estado !== 'en_curso' && r.estado !== 'pausada')) {
                         vivo = false;
                         alTerminar(r);
                         return;
                     }
+                    if (r.estado === 'pausada') espera = 15000;
                     setRonda(r);
                 }
             } catch (error) {
@@ -325,7 +330,7 @@ export default function RecordatorioLlamada({
             clearTimeout(temporizador);
             document.removeEventListener('visibilitychange', alVolver);
         };
-    }, [enMarcha, routePrefix, t, alTerminar]);
+    }, [activa, routePrefix, t, alTerminar]);
 
     // Si la ronda cambia por debajo, los diálogos que ya no aplican se cierran.
     useEffect(() => {
@@ -357,7 +362,10 @@ export default function RecordatorioLlamada({
             if (data?.code === 'cambio' && data.cifras) {
                 setStats(data.cifras);
                 setCambio(true);
-                if (!data.cifras.salen) setConfirmarInicio(false);
+                if (!data.cifras.salen) {
+                    setConfirmarInicio(false);
+                    setAviso({ tipo: 'aviso', texto: t('appointments.calls.nothingLeft') });
+                }
                 return;
             }
             setConfirmarInicio(false);
@@ -402,7 +410,7 @@ export default function RecordatorioLlamada({
     };
 
     // Con las llamadas de WhatsApp apagadas y sin ninguna ronda que mostrar, la sección no aparece.
-    if (stats && !stats.activas && !ronda) return null;
+    if (stats && !stats.activas && !ronda && !aviso) return null;
 
     const estadoBanda: { tipo: 'enviando' | 'pausa' | 'sin_avanzar' | 'quieto'; texto: string } = enMarcha
         ? ronda!.sin_avanzar
@@ -507,7 +515,7 @@ export default function RecordatorioLlamada({
             {stats?.activas && stats.ensayo && <FilaAviso etiqueta={t('appointments.calls.testLabel')}>{t('appointments.calls.testText')}</FilaAviso>}
             {stats?.activas && stats.robot === false && !activa && <FilaAviso>{t('appointments.calls.robotOff')}</FilaAviso>}
 
-            {barra && barra.total > 0 && (
+            {barra && llamadasDe(barra) > 0 && (
                 <div className={cn('border-b pt-[18px] pb-3.5', SANGRIA, FILETE)}>
                     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
                         <div className="flex min-w-0 flex-col gap-1.5">
@@ -522,9 +530,9 @@ export default function RecordatorioLlamada({
                                         ronda?.estado === 'pausada' ? 'text-amber-700 dark:text-amber-400' : TEXTO_NAVY
                                     )}
                                 >
-                                    {t('appointments.calls.ofTotal', { done: miles(barra.terminadas, lng), total: miles(barra.total, lng) })}
+                                    {t('appointments.calls.ofTotal', { done: miles(barra.terminadas, lng), total: miles(llamadasDe(barra), lng) })}
                                 </span>
-                                <span className={cn('text-[14px] leading-5', TEXTO_SUAVE)}>{t('appointments.calls.callsDone', { count: barra.total })}</span>
+                                <span className={cn('text-[14px] leading-5', TEXTO_SUAVE)}>{t('appointments.calls.callsDone', { count: llamadasDe(barra) })}</span>
                             </div>
                         </div>
                         <div className={cn('flex flex-wrap items-center gap-x-[22px] gap-y-1.5 pb-1.5 text-[13px] leading-[18px] font-medium whitespace-nowrap tabular-nums', TEXTO_NAVY)}>
@@ -546,16 +554,16 @@ export default function RecordatorioLlamada({
                         role="progressbar"
                         aria-label={activa ? t('appointments.calls.progressTitle') : t('appointments.calls.resultTitle')}
                         aria-valuemin={0}
-                        aria-valuemax={barra.total}
+                        aria-valuemax={llamadasDe(barra)}
                         aria-valuenow={barra.terminadas}
-                        aria-valuetext={t('appointments.calls.ofTotal', { done: miles(barra.terminadas, lng), total: miles(barra.total, lng) })}
+                        aria-valuetext={t('appointments.calls.ofTotal', { done: miles(barra.terminadas, lng), total: miles(llamadasDe(barra), lng) })}
                         className="mt-3.5 flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-[#2e3f84]/8 forced-colors:border dark:bg-white/10"
                     >
-                        <Tramo valor={barra.confirmaron} total={barra.total} color="bg-emerald-600 dark:bg-emerald-500" />
-                        <Tramo valor={barra.cancelaron} total={barra.total} color="bg-red-600 dark:bg-red-500" />
-                        <Tramo valor={barra.no_contestaron} total={barra.total} color="bg-slate-400 dark:bg-neutral-500" />
-                        <Tramo valor={barra.no_marcaron} total={barra.total} color="bg-amber-600 dark:bg-amber-500" />
-                        <Tramo valor={barra.no_se_pudo} total={barra.total} color="bg-slate-700 dark:bg-neutral-300" />
+                        <Tramo valor={barra.confirmaron} total={llamadasDe(barra)} color="bg-emerald-600 dark:bg-emerald-500" />
+                        <Tramo valor={barra.cancelaron} total={llamadasDe(barra)} color="bg-red-600 dark:bg-red-500" />
+                        <Tramo valor={barra.no_contestaron} total={llamadasDe(barra)} color="bg-slate-400 dark:bg-neutral-500" />
+                        <Tramo valor={barra.no_marcaron} total={llamadasDe(barra)} color="bg-amber-600 dark:bg-amber-500" />
+                        <Tramo valor={barra.no_se_pudo} total={llamadasDe(barra)} color="bg-slate-700 dark:bg-neutral-300" />
                     </div>
                     {activa && barra.en_curso > 0 && (
                         <p className={cn('mt-3 flex items-center gap-2 text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>
@@ -567,7 +575,7 @@ export default function RecordatorioLlamada({
             )}
 
             {/* Sin ronda en marcha: cómo fue la última (o por qué se cortó). */}
-            {ronda && !activa && !final && ronda.total > 0 && (
+            {ronda && !activa && !final && llamadasDe(ronda) > 0 && (
                 ronda.estado === 'cortada' ? (
                     <FilaAviso>{resumenDe(ronda).texto}</FilaAviso>
                 ) : (
@@ -577,7 +585,7 @@ export default function RecordatorioLlamada({
                         </span>
                         <p className={cn('text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>
                             {[
-                                t('appointments.calls.lastRound', { date: fechaTexto(ronda.fecha_citas), count: ronda.total, value: miles(ronda.total, lng) }),
+                                t('appointments.calls.lastRound', { date: fechaTexto(ronda.fecha_citas), count: llamadasDe(ronda), value: miles(llamadasDe(ronda), lng) }),
                                 partesResultado(ronda) ? `${partesResultado(ronda)}.` : '',
                                 ronda.fin
                                     ? conPunto(

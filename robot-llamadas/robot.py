@@ -29,6 +29,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -93,8 +94,76 @@ class OyenteTeclado:
             self.primer_audio = time.monotonic()
 
 
+# ── Voz LOCAL: Supertonic 3 (sin internet ni cuentas; licencia OpenRAIL-M). Elegida por el usuario el 20/11/2026: voz F5,
+#    muestra «5b-final-a»: el mensaje ágil (1,25) y lo demás frase por frase, más despacio (1,10) y con media pausa entre
+#    frases. Si falla, se usa Dalia (edge-tts) para que la llamada no se caiga. ──
+VOZ_LOCAL = re.compile(r"supertonic:([FM][1-5])")
+MODELO_LOCAL = AQUI / "modelos" / "supertonic3"
+AJUSTES_LOCAL = {"mensaje": (1.25, 0.2), "frases": (1.10, 0.5)}  # (velocidad, pausa entre frases en s)
+VOZ_RESPALDO = ("es-MX-DaliaNeural", "-4%")
+_motor = None
+_candado_motor = threading.Lock()  # una síntesis a la vez (usa 4 hilos de CPU)
+
+
+def _motor_local():  # type: ignore[no-untyped-def]
+    global _motor
+    if _motor is None:
+        from supertonic import TTS
+
+        _motor = TTS(model="supertonic-3", model_dir=str(MODELO_LOCAL), auto_download=False, intra_op_num_threads=4)
+    return _motor
+
+
+def _fabricar_local(texto: str, estilo: str, tipo: str) -> bytes:
+    import numpy as np
+
+    with _candado_motor:
+        tts = _motor_local()
+        voz = tts.get_voice_style(estilo)
+        velocidad, pausa = AJUSTES_LOCAL[tipo]
+        sr = tts.sample_rate
+        partes = [texto.strip()] if tipo == "mensaje" else [p for p in re.split(r"(?<=[.!?])\s+", texto.strip()) if p]
+        trozos = []
+        for i, parte in enumerate(partes):
+            wav, _ = tts.synthesize(parte, voice_style=voz, lang="es", total_steps=12, speed=velocidad, silence_duration=0.2)
+            trozos.append(np.asarray(wav, dtype=np.float32).reshape(-1))
+            if i < len(partes) - 1:
+                trozos.append(np.zeros(int(sr * pausa), dtype=np.float32))
+        audio = np.clip(np.concatenate(trozos), -1.0, 1.0)
+    cuadro = av.AudioFrame.from_ndarray(audio.reshape(1, -1), format="flt", layout="mono")
+    cuadro.sample_rate = sr
+    remuestreo = av.AudioResampler(format="s16", layout="mono", rate=TASA)
+    salida = bytearray()
+    for f in remuestreo.resample(cuadro):
+        salida += bytes(f.planes[0])[: f.samples * 2]
+    for f in remuestreo.resample(None):
+        salida += bytes(f.planes[0])[: f.samples * 2]
+    return bytes(salida)
+
+
+async def _sintetizar_local(texto: str, estilo: str, tipo: str) -> bytes:
+    CACHE_VOZ.mkdir(exist_ok=True)
+    velocidad, pausa = AJUSTES_LOCAL[tipo]
+    clave = hashlib.sha1(f"supertonic-3|{estilo}|{tipo}|{velocidad}|{pausa}|{texto}".encode()).hexdigest()
+    pcm = CACHE_VOZ / f"{clave}.pcm"
+    if pcm.exists():
+        return pcm.read_bytes()
+    datos = await asyncio.to_thread(_fabricar_local, texto, estilo, tipo)
+    temporal = pcm.with_suffix(f".{os.getpid()}.{id(asyncio.current_task())}.tmp")
+    temporal.write_bytes(datos)
+    os.replace(temporal, pcm)
+    return datos
+
+
 # ── Voz: texto → audio PCM 48 kHz mono (con caché en disco: los mismos textos no se vuelven a fabricar) ──
-async def sintetizar(texto: str, voz: str, velocidad: str) -> bytes:
+async def sintetizar(texto: str, voz: str, velocidad: str, tipo: str = "frases") -> bytes:
+    local = VOZ_LOCAL.fullmatch(voz)
+    if local:
+        try:
+            return await _sintetizar_local(texto, local.group(1), tipo if tipo in AJUSTES_LOCAL else "frases")
+        except Exception as e:  # noqa: BLE001
+            log.warning("la voz local falló (%s); se usa %s", e, VOZ_RESPALDO[0])
+            voz, velocidad = VOZ_RESPALDO
     CACHE_VOZ.mkdir(exist_ok=True)
     clave = hashlib.sha1(f"{voz}|{velocidad}|{texto}".encode()).hexdigest()
     mp3 = CACHE_VOZ / f"{clave}.mp3"
@@ -295,12 +364,13 @@ async def llamar(request: web.Request) -> web.Response:
     textos = {k: str(v) for k, v in dict(datos["textos"]).items()}
     voz_nombre = str(datos.get("voz") or "es-MX-DaliaNeural")
     velocidad = str(datos.get("velocidad") or "-4%")
-    if not re.fullmatch(r"[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural", voz_nombre) or not re.fullmatch(r"[+-]\d{1,2}%", velocidad):
+    voz_valida = VOZ_LOCAL.fullmatch(voz_nombre) or re.fullmatch(r"[a-z]{2}-[A-Z]{2}-[A-Za-z]+Neural", voz_nombre)
+    if not voz_valida or not re.fullmatch(r"[+-]\d{1,2}%", velocidad):
         return web.json_response({"error": "voz"}, status=422)
 
-    # Primero los audios (si la voz falla, no se llama).
+    # Primero los audios (si la voz falla, no se llama). El mensaje de la cita va ágil; lo demás, frase por frase.
     try:
-        audios = {k: await sintetizar(t, voz_nombre, velocidad) for k, t in textos.items() if t.strip()}
+        audios = {k: await sintetizar(t, voz_nombre, velocidad, "mensaje" if k == "mensaje" else "frases") for k, t in textos.items() if t.strip()}
     except Exception as e:  # noqa: BLE001
         log.warning("llamada %s: no se pudo fabricar la voz: %s", lid, e)
         return web.json_response({"error": "voz_no_disponible"}, status=503)
@@ -395,8 +465,18 @@ async def limpiar_viejas(app: web.Application) -> None:
                 log.info("llamada %s: soltada por vieja", lid)
 
 
+async def precargar_voz() -> None:
+    """Carga el modelo de la voz local al arrancar (unos segundos), para que la primera llamada no espere."""
+    try:
+        await asyncio.to_thread(_motor_local)
+        log.info("voz local lista (%s)", MODELO_LOCAL)
+    except Exception as e:  # noqa: BLE001
+        log.warning("no se pudo cargar la voz local: %s (se usará %s)", e, VOZ_RESPALDO[0])
+
+
 async def al_iniciar(app: web.Application) -> None:
     app["limpieza"] = asyncio.create_task(limpiar_viejas(app))
+    app["precarga"] = asyncio.create_task(precargar_voz())
 
 
 def main() -> None:

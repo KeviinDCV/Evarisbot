@@ -362,13 +362,13 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
 
             <div className="min-h-screen bg-background px-4 pt-5 pb-10 md:px-7 md:pt-7">
                 <div className="mx-auto flex max-w-7xl flex-col gap-5">
-                    {/* ── Cabecera: título; a la derecha el periodo (o, en Buzón y Ajustes, lo que timbra ahora) ── */}
-                    <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+                    {/* ── Cabecera: título; a la derecha el periodo (solo en las pestañas que lo usan) ── */}
+                    <header className="flex min-h-[38px] flex-wrap items-end justify-between gap-x-6 gap-y-3">
                         <div className="min-w-0">
                             <h1 className={cn('text-[24px] leading-[30px] font-semibold tracking-[-0.02em] text-balance', NAVY)}>{t('llamadas.panel.titulo')}</h1>
                             <p className={cn('mt-0.5 text-[13px] leading-[18px]', SUAVE)}>{subtitulo}</p>
                         </div>
-                        {conPeriodo ? (
+                        {conPeriodo && (
                             <div className="flex max-w-full flex-wrap items-center gap-2.5">
                                 <SelectorPeriodo periodo={periodo} onCambiar={setPeriodo} />
                                 <a href={exportar} className={BOTON_SECUNDARIO}>
@@ -376,19 +376,14 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                                     {t('llamadas.panel.exportar')}
                                 </a>
                             </div>
-                        ) : (
-                            vivo && <ChipsVivo vivo={vivo} />
                         )}
                     </header>
 
                     {!activas && <AvisoApagadas onAjustes={() => cambiarTab('ajustes')} enAjustes={tab === 'ajustes'} />}
 
-                    {tab === 'historial' && (
-                        <>
-                            <EnVivo vivo={vivo} ahora={ahora} />
-                            <Cifras url={`${BASE}/cifras?${paramsDe(paramsPeriodo(periodo))}`} version={version} />
-                        </>
-                    )}
+                    {/* En vivo es de toda la pantalla: la misma franja en las cuatro pestañas, así las pestañas no se mueven al
+                        cambiar de una a otra. Solo crece cuando hay llamadas sonando o en curso. */}
+                    <EnVivo vivo={vivo} ahora={ahora} />
 
                     <div role="tablist" aria-label={t('llamadas.panel.tabs.etiqueta')} onKeyDown={alTeclaTabs} className={cn('-mb-1 flex gap-1 overflow-x-auto border-b [scrollbar-width:none]', FILETE)}>
                         {TABS.map((id) => {
@@ -429,7 +424,11 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
 
                     <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} tabIndex={-1} className="outline-none">
                         {tab === 'historial' && (
-                            <PestanaHistorial periodo={periodo} sufijoPeriodo={sufijoPeriodo} filtros={filtros} onFiltros={setFiltros} version={version} activas={activas} />
+                            <div className="flex flex-col gap-4">
+                                {/* Las cifras son del periodo del historial: van dentro de su pestaña, sobre la tabla. */}
+                                <Cifras url={`${BASE}/cifras?${paramsDe(paramsPeriodo(periodo))}`} version={version} />
+                                <PestanaHistorial periodo={periodo} sufijoPeriodo={sufijoPeriodo} filtros={filtros} onFiltros={setFiltros} version={version} activas={activas} />
+                            </div>
                         )}
                         {tab === 'buzon' && <PestanaBuzon version={version} onSinResolver={setSinResolver} />}
                         {tab === 'indicadores' && <PestanaIndicadores url={`${BASE}/indicadores?${paramsDe(paramsPeriodo(periodo))}`} version={version} />}
@@ -549,26 +548,6 @@ function SelectorPeriodo({ periodo, onCambiar }: { periodo: Periodo; onCambiar: 
 
 // ── En vivo ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-function ChipsVivo({ vivo }: { vivo: Vivo }) {
-    const { t } = useTranslation();
-    if (!vivo.timbrando.length && !vivo.en_curso.length) return null;
-    return (
-        <div className="flex flex-wrap items-center gap-2" aria-live="polite">
-            {!!vivo.timbrando.length && (
-                <span className="flex h-6 items-center gap-1.5 rounded-full bg-amber-100 px-2.5 text-[12px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
-                    <span aria-hidden="true" className="size-[7px] rounded-full bg-amber-600" />
-                    {t('llamadas.panel.vivo.timbrandoAhora', { count: vivo.timbrando.length })}
-                </span>
-            )}
-            {!!vivo.en_curso.length && (
-                <span className="flex h-6 items-center rounded-full bg-emerald-100 px-2.5 text-[12px] font-semibold text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
-                    {t('llamadas.panel.vivo.enCursoCuenta', { count: vivo.en_curso.length })}
-                </span>
-            )}
-        </div>
-    );
-}
-
 function textoDias(dias: number[], textos: { lunesAViernes: string; todos: string; ninguno: string }): string {
     const orden = [...dias].sort((a, b) => a - b);
     if (orden.join() === '1,2,3,4,5') return textos.lunesAViernes;
@@ -584,9 +563,10 @@ function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
     const columnas = 'grid grid-cols-[36px_minmax(0,1.25fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_150px] items-center gap-x-3.5';
 
     return (
-        <section aria-labelledby="en-vivo-titulo" className={cn(TARJETA, 'px-4 pt-3 pb-1.5 sm:px-5')}>
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pb-2.5">
-                <div className="flex flex-wrap items-center gap-2.5">
+        <section aria-labelledby="en-vivo-titulo" className={cn(TARJETA, 'px-4 sm:px-5')}>
+            {/* Sin llamadas, una sola línea: el estado, quién está conectado y el horario. Las filas solo aparecen si hay. */}
+            <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2.5">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                     <span
                         aria-hidden="true"
                         className={cn(
@@ -597,8 +577,15 @@ function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
                     <h2 id="en-vivo-titulo" className={cn('text-[15px] leading-5 font-semibold', NAVY)}>
                         {t('llamadas.panel.vivo.titulo')}
                     </h2>
+                    {!vivo && (
+                        <span className={cn('flex items-center gap-1.5 text-[13px]', SUAVE)}>
+                            <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                            {t('llamadas.panel.cargando')}
+                        </span>
+                    )}
                     {vivo && (
                         <div className="flex flex-wrap items-center gap-2" aria-live="polite">
+                            {filas === 0 && <span className={cn('text-[13px]', SUAVE)}>{t('llamadas.panel.vivo.nada')}</span>}
                             {!!vivo.timbrando.length && (
                                 <span className="flex h-6 items-center rounded-full bg-amber-100 px-2.5 text-[12px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
                                     {t('llamadas.panel.vivo.timbrandoCuenta', { count: vivo.timbrando.length })}
@@ -644,15 +631,8 @@ function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
                 )}
             </div>
 
-            {!vivo ? (
-                <div className={cn('flex h-11 items-center gap-2 border-t text-[13px]', FILETE, SUAVE)}>
-                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                    {t('llamadas.panel.cargando')}
-                </div>
-            ) : filas === 0 ? (
-                <p className={cn('flex h-11 items-center border-t text-[13px]', FILETE, SUAVE)}>{t('llamadas.panel.vivo.nada')}</p>
-            ) : (
-                <div className="overflow-x-auto">
+            {vivo && filas > 0 && (
+                <div className="overflow-x-auto pb-1.5">
                     <ul className="min-w-[720px]">
                         {vivo.timbrando.map((l) => {
                             const nadie = l.le_timbra_asesores + l.le_timbra_admins === 0;

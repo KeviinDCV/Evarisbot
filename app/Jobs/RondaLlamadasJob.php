@@ -67,6 +67,23 @@ class RondaLlamadasJob implements ShouldQueue
         }
     }
 
+    /**
+     * El trabajo se dio por fallido (el worker murió a mitad de la vuelta y venció su reserva, o un error fuera del try):
+     * si la cadena sigue siendo la vigente, se vuelve a encolar para que la ronda no se quede quieta.
+     */
+    public function failed(?\Throwable $e): void
+    {
+        try {
+            $r = RondaLlamadas::leer($this->service);
+            if (($r['token'] ?? null) === $this->token && ($r['estado'] ?? '') === 'en_curso') {
+                Log::warning('Ronda de llamadas: una vuelta falló; se reencola', ['service' => $this->service, 'error' => mb_substr((string) $e?->getMessage(), 0, 200)]);
+                $this->siguiente();
+            }
+        } catch (\Throwable) {
+            // Sin base de datos no hay nada que hacer: la pantalla la mostrará «sin avanzar».
+        }
+    }
+
     private function siguiente(): void
     {
         self::dispatch($this->service, $this->token)->delay(now()->addSeconds(RondaLlamadas::SEGUNDOS_ENTRE_VUELTAS));

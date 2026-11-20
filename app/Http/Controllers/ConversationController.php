@@ -2787,6 +2787,8 @@ class ConversationController extends Controller
                     'buzon_message_id' => $l->buzon_message_id,
                     'direccion' => $l->direccion,
                     'motivo' => $l->direccion === 'saliente' ? $l->motivo : null,
+                    // Recordatorio por llamada (robot): qué pasó con la cita (confirmo, cancelo, sin_marcar, no_contesto…).
+                    'robot' => $l->origen === 'robot' ? \App\Support\RondaLlamadas::resultadoFila($l) : null,
                 ])
                 ->sortBy('inicio')->values()->all();
         } catch (\Throwable) {

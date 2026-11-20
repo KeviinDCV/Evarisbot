@@ -1,1 +1,0 @@
-function r(t,n){if(typeof window>"u")return n;try{const e=new URLSearchParams(window.location.search).get("nuevo");(e==="1"||e==="0")&&window.localStorage.setItem(t,e);const o=window.localStorage.getItem(t);if(o==="1")return!0;if(o==="0")return!1}catch{}return n}export{r as u};

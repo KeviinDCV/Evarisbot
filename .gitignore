@@ -42,3 +42,4 @@ robot-llamadas/clave.txt
 robot-llamadas/cache-voz/
 robot-llamadas/__pycache__/
 robot-llamadas/*.log
+robot-llamadas/modelos/

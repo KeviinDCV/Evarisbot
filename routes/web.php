@@ -97,6 +97,12 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
         Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
+        // Recordatorio por llamada (rondas del robot): App\Support\RondaLlamadas.
+        Route::post('/calls/start', 'startCalls')->middleware('throttle:10,1,ronda-llamadas')->name('calls.start');
+        Route::post('/calls/pause', 'pauseCalls')->name('calls.pause');
+        Route::post('/calls/resume', 'resumeCalls')->name('calls.resume');
+        Route::post('/calls/stop', 'stopCalls')->name('calls.stop');
+        Route::get('/calls/status', 'getCallsStatus')->name('calls.status');
     });
     
     // Gestión de Citas de Oncología
@@ -111,6 +117,12 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::post('/reminders/resume', 'resumeReminders')->name('reminders.resume');
         Route::post('/reminders/stop', 'stopReminders')->name('reminders.stop');
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
+        // Recordatorio por llamada (rondas del robot): App\Support\RondaLlamadas.
+        Route::post('/calls/start', 'startCalls')->middleware('throttle:10,1,ronda-llamadas')->name('calls.start');
+        Route::post('/calls/pause', 'pauseCalls')->name('calls.pause');
+        Route::post('/calls/resume', 'resumeCalls')->name('calls.resume');
+        Route::post('/calls/stop', 'stopCalls')->name('calls.stop');
+        Route::get('/calls/status', 'getCallsStatus')->name('calls.status');
     });
     
     // Configuración del sistema

@@ -1,1 +1,0 @@
-import{j as e}from"./app-BXUO-0wB.js";import{a as o}from"./utils-DvFBZg_Y.js";function m({className:t,...a}){return e.jsx("div",{"data-slot":"skeleton",className:o("bg-primary/10 animate-pulse rounded-md",t),...a})}export{m as S};

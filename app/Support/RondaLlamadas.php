@@ -110,13 +110,76 @@ class RondaLlamadas
 
     /* ── Horario, fecha y tope de Meta ─────────────────────────────────────────────────────────────── */
 
+    /** Festivo: los de Colombia (calculados) y los que el administrador anotó en Llamadas → Ajustes. */
     public static function esFestivo(string $ymd): bool
     {
+        if (in_array($ymd, self::festivosColombia((int) substr($ymd, 0, 4)), true)) {
+            return true;
+        }
         try {
             return in_array($ymd, LlamadasWhatsApp::ajustes()['festivos'], true);
         } catch (\Throwable) {
             return false;
         }
+    }
+
+    /**
+     * Festivos de Colombia de un año ('Y-m-d'): fijos, los que la ley Emiliani (ley 51 de 1983) corre al lunes siguiente y
+     * los que dependen de la Pascua.
+     *
+     * @return string[]
+     */
+    public static function festivosColombia(int $anio): array
+    {
+        static $cache = [];
+        if (isset($cache[$anio])) {
+            return $cache[$anio];
+        }
+        $fecha = fn (int $m, int $d) => Carbon::create($anio, $m, $d, 0, 0, 0, Recordatorios::ZONA);
+        $alLunes = fn (Carbon $d) => $d->dayOfWeekIso === 1 ? $d : $d->copy()->next(Carbon::MONDAY);
+
+        // Domingo de Pascua (algoritmo anónimo gregoriano).
+        $a = $anio % 19;
+        $b = intdiv($anio, 100);
+        $c = $anio % 100;
+        $d = intdiv($b, 4);
+        $e = $b % 4;
+        $f = intdiv($b + 8, 25);
+        $g = intdiv($b - $f + 1, 3);
+        $h = (19 * $a + $b - $d - $g + 15) % 30;
+        $i = intdiv($c, 4);
+        $k = $c % 4;
+        $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7;
+        $m = intdiv($a + 11 * $h + 22 * $l, 451);
+        $mes = intdiv($h + $l - 7 * $m + 114, 31);
+        $dia = (($h + $l - 7 * $m + 114) % 31) + 1;
+        $pascua = $fecha($mes, $dia);
+
+        $dias = [
+            $fecha(1, 1), $fecha(5, 1), $fecha(7, 20), $fecha(8, 7), $fecha(12, 8), $fecha(12, 25),
+            $alLunes($fecha(1, 6)), $alLunes($fecha(3, 19)), $alLunes($fecha(6, 29)), $alLunes($fecha(8, 15)),
+            $alLunes($fecha(10, 12)), $alLunes($fecha(11, 1)), $alLunes($fecha(11, 11)),
+            $pascua->copy()->subDays(3), $pascua->copy()->subDays(2),   // Jueves y Viernes Santo
+            $pascua->copy()->addDays(43), $pascua->copy()->addDays(64), $pascua->copy()->addDays(71), // Ascensión, Corpus, Sagrado Corazón (lunes)
+        ];
+
+        return $cache[$anio] = array_values(array_unique(array_map(fn (Carbon $x) => $x->format('Y-m-d'), $dias)));
+    }
+
+    /**
+     * Modo de prueba de las llamadas (el mismo criterio que las entrantes, las del asesor y la prueba del robot): hay
+     * ensayo si hay usuarios de ensayo; entonces solo se llama a los números invitados, y con la lista vacía, a nadie.
+     *
+     * @return array{activo: bool, invitados: string[]}
+     */
+    public static function ensayo(): array
+    {
+        return ['activo' => LlamadasWhatsApp::usuariosEnsayo() !== [], 'invitados' => LlamadasWhatsApp::numerosEnsayo()];
+    }
+
+    private static function fueraDelEnsayo(array $ensayo, string $telefono): bool
+    {
+        return $ensayo['activo'] && ! in_array(PermisoLlamada::digitos($telefono), $ensayo['invitados'], true);
     }
 
     public static function enHorario(?Carbon $momento = null): bool
@@ -197,9 +260,9 @@ class RondaLlamadas
         $chats = Conversation::whereIn('id', $filas->pluck('conversation_id')->filter()->unique()->values()->all())
             ->get(['id', 'phone_number', 'is_blocked'])->keyBy('id');
         $permisos = self::permisos($chats->pluck('phone_number')->all());
-        $ensayo = LlamadasWhatsApp::numerosEnsayo();
+        $ensayo = self::ensayo();
 
-        $cuenta = ['con_permiso' => 0, 'sin_permiso' => 0, 'ya_llamadas' => 0, 'fuera_ensayo' => 0, 'otras' => 0];
+        $cuenta =['con_permiso' => 0, 'sin_permiso' => 0, 'ya_llamadas' => 0, 'fuera_ensayo' => 0, 'otras' => 0];
         $elegibles = [];
         foreach ($filas as $f) {
             if (isset($llamadas[(int) $f->id])) {
@@ -219,7 +282,7 @@ class RondaLlamadas
 
                 continue;
             }
-            if ($ensayo !== [] && ! in_array($tel, $ensayo, true)) {
+            if (self::fueraDelEnsayo($ensayo, $tel)) {
                 $cuenta['fuera_ensayo']++;
 
                 continue;
@@ -335,7 +398,8 @@ class RondaLlamadas
         $c['omitidas'] = count(array_diff(array_intersect($omitidas, $ids), array_keys($hechas)));
         $c['en_curso'] = $c['sonando'] + $c['hablando'];
         $c['por_llamar'] = max(0, $c['total'] - count($hechas) - $c['omitidas']);
-        $c['terminadas'] = max(0, $c['total'] - $c['por_llamar'] - $c['en_curso']);
+        // Terminadas = llamadas hechas que ya acabaron (las omitidas no son llamadas): total = por_llamar + en_curso + terminadas + omitidas.
+        $c['terminadas'] = max(0, count($hechas) - $c['en_curso']);
 
         return $c;
     }
@@ -387,7 +451,7 @@ class RondaLlamadas
         return [
             'activas' => true,
             'robot' => RobotLlamadas::disponible(),
-            'ensayo' => LlamadasWhatsApp::numerosEnsayo() !== [],
+            'ensayo' => self::ensayo()['activo'],
             'en_horario' => self::enHorario(),
             'abre' => self::proximaApertura(),
             'limite' => self::LIMITE_META_24H,
@@ -543,12 +607,11 @@ class RondaLlamadas
             }
             $cita = Appointment::find($citaId);
             $chat = $cita?->conversation_id ? Conversation::find($cita->conversation_id) : null;
-            $ensayo = LlamadasWhatsApp::numerosEnsayo();
             $motivo = match (true) {
                 ! $cita => 'no_existe',
                 ! RecordatoriosPorLlamada::sePuedeLlamar($cita, $chat) => 'ya_no_aplica',
                 ! self::aTiempo($cita) => 'tarde',
-                $ensayo !== [] && ! in_array(PermisoLlamada::digitos($chat->phone_number), $ensayo, true) => 'ensayo',
+                self::fueraDelEnsayo(self::ensayo(), (string) $chat->phone_number) => 'ensayo',
                 default => null,
             };
             if ($motivo !== null) {
@@ -557,7 +620,25 @@ class RondaLlamadas
                 return;
             }
 
-            $resultado = app(LlamadasWhatsApp::class)->llamarRobot($chat, RecordatoriosPorLlamada::textos($cita), $cita->id);
+            // El mismo número ya está en otra llamada (otra cita suya, de este u otro ámbito): Meta respondería «ocupado».
+            // No se omite: queda «por llamar» y una vuelta siguiente la intenta cuando termine la otra.
+            $tel = PermisoLlamada::digitos($chat->phone_number);
+            if (Llamada::where('telefono', $tel)->whereIn('estado', Llamada::VIVAS)->where('created_at', '>', now()->subMinutes(5))->exists()) {
+                return;
+            }
+
+            // ¿Sigue en marcha? (la vuelta revisó el token al empezar; el admin pudo pausar o detener desde entonces). Se
+            // pregunta aquí y otra vez justo antes de marcar, después de que el robot fabrica los audios (tarda segundos).
+            $sigue = function () use ($service, $token) {
+                $r = self::leer($service);
+
+                return ($r['token'] ?? null) === $token && ($r['estado'] ?? '') === 'en_curso';
+            };
+            if (! $sigue()) {
+                return;
+            }
+
+            $resultado = app(LlamadasWhatsApp::class)->llamarRobot($chat, RecordatoriosPorLlamada::textos($cita), $cita->id, $sigue);
             if ($resultado['ok'] ?? false) {
                 self::mutar($service, fn (array $r) => ($r['token'] ?? null) === $token ? array_merge($r, ['fallos_seguidos' => 0]) : $r);
 
@@ -565,12 +646,24 @@ class RondaLlamadas
             }
 
             $error = (string) ($resultado['error'] ?? 'meta');
-            Log::warning('Ronda de llamadas: no se pudo llamar', ['cita_id' => $citaId, 'error' => $error]);
-            if (! isset($resultado['llamada'])) {
-                self::omitir($service, $token, $citaId, $error); // sin fila de llamada (p. ej. número inválido)
+            if ($error === 'cancelada') {
+                return; // pausaron o detuvieron mientras se preparaba: no se marcó ni cuenta como fallo
             }
-            // Lo que es de toda la cuenta corta la ronda; lo de un paciente (sin permiso de Meta, sin WhatsApp,
-            // ocupado) cuenta como «no se pudo» y se sigue. Tres fallos seguidos también cortan: algo general falla.
+            Log::warning('Ronda de llamadas: no se pudo llamar', ['cita_id' => $citaId, 'error' => $error]);
+            $fila = $resultado['llamada'] ?? null;
+            // Un fallo que no es del paciente (el robot, la red, la cuenta de Meta) no «gasta» su cita: la fila deja de
+            // apuntar a ella y la cita se omite solo en ESTA ronda (otra ronda la puede volver a intentar).
+            $general = ! $fila
+                || str_starts_with((string) $fila->motivo, 'robot:')
+                || in_array($error, ['sin_conexion', 'limite', 'desactivadas', 'sin_pago', 'meta', 'ocupado'], true);
+            if ($general) {
+                if ($fila) {
+                    Llamada::whereKey($fila->id)->update(['cita_id' => null]);
+                }
+                self::omitir($service, $token, $citaId, $error);
+            }
+            // Lo que es de toda la cuenta corta la ronda; lo de un paciente (sin permiso de Meta, sin WhatsApp, tope de
+            // llamadas a ese paciente) cuenta como «no se pudo» y se sigue. Tres fallos seguidos también cortan.
             $corte = match ($error) {
                 'limite' => 'limite',
                 'desactivadas' => 'desactivadas',
