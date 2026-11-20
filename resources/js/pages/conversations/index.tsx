@@ -604,7 +604,19 @@ function etiquetaFiltroFecha(f: FiltroFecha, t: TFunction, idioma: string): stri
     return f.hasta ? t('conversations.dateUntil', { date: corta(f.hasta) }) : '';
 }
 
-export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, llamadasChat, unreadOnOpen = 0, users, equipos = [], allTags: initialAllTags = [], allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [], inicioNuevo = false }: ConversationsIndexProps) {
+/**
+ * Dónde quedó la lista de conversaciones, por pestaña (sessionStorage). Sirve para devolverla a su sitio cuando la página
+ * se recarga entera sin que la persona lo pida: tras publicar una versión nueva, la siguiente visita de Inertia de cada
+ * pestaña abierta recibe un 409 y la página se recarga (ver restaurarPosicionLista).
+ */
+const CLAVE_POSICION_LISTA = 'evarisbot:conversaciones:posicion-lista';
+/** La posición guardada vale para la misma lista (mismos filtros) y por poco tiempo. */
+const POSICION_LISTA_VALE_MS = 60_000;
+const FILTROS_DE_LA_LISTA = ['status', 'assigned', 'search', 'tag', 'specialty', 'desde', 'hasta'] as const;
+/** Solo la primera vez que se monta la pantalla en esta carga de la página (no al volver desde otro menú). */
+let posicionListaPorRestaurar = true;
+
+export default function ConversationsIndex({ conversations: initialConversations, hasMore: initialHasMore = false, selectedConversation, llamadasChat, unreadOnOpen = 0, users, equipos = [], allTags: initialAllTags, allSpecialties: initialAllSpecialties = [], filters, filterCounts = DEFAULT_FILTER_COUNTS, advisorCounts = {}, templates = [], whatsappTemplates = [], inicioNuevo = false }: ConversationsIndexProps) {
     const { t, i18n } = useTranslation();
     // Diseño nuevo del inicio sin chat abierto: ?nuevo=1 lo prueba en este navegador (ver lib/diseno-nuevo).
     const [inicioNuevoActivo] = useState(() => usarDisenoNuevo('evarisbot.inicio-chats-nuevo', inicioNuevo));
@@ -786,7 +798,7 @@ export default function ConversationsIndex({ conversations: initialConversations
     const [selectedTemplateIndex, setSelectedTemplateIndex] = useState(0);
 
     // Estados para etiquetas
-    const [allTags, setAllTags] = useState<TagItem[]>(initialAllTags);
+    const [allTags, setAllTags] = useState<TagItem[]>(initialAllTags ?? []);
     const [localFilterCounts, setLocalFilterCounts] = useState<FilterCounts>({ ...DEFAULT_FILTER_COUNTS, ...filterCounts });
     const [showTagSubmenu, setShowTagSubmenu] = useState(false);
     const [showSpecialtyInput, setShowSpecialtyInput] = useState(false);
@@ -1580,9 +1592,12 @@ export default function ConversationsIndex({ conversations: initialConversations
         });
     }, [initialConversations, filters.search, filters.status, filters.assigned, initialHasMore, selectedConversation?.id]);
 
-    // Sincronizar allTags con props de Inertia
+    // Sincronizar allTags con props de Inertia. En la lista sin chat abierto llegan diferidas: mientras tanto no hay
+    // prop y se quedan las que había. Antes el valor por defecto era un `[]` nuevo en cada render: este efecto lo copiaba,
+    // eso volvía a dibujar la pantalla y el efecto corría otra vez, unas 55 veces por segundo hasta que llegaban (tras cada
+    // «Resuelta», por ejemplo).
     useEffect(() => {
-        setAllTags(initialAllTags);
+        if (initialAllTags) setAllTags(initialAllTags);
     }, [initialAllTags]);
 
     useEffect(() => {
@@ -1696,6 +1711,102 @@ export default function ConversationsIndex({ conversations: initialConversations
     }, [ordenLista, anotarAnclaLista]);
 
     /**
+     * La lista vuelve a su sitio tras una recarga completa de la página.
+     *
+     * Cada vez que se publica una versión nueva de la app, la siguiente visita de Inertia de cada pestaña abierta
+     * (resolver un chat, abrir otro, buscar…) recibe un 409 e Inertia recarga la página entera: la lista volvía arriba.
+     * En el registro de Apache se ve como un «409» seguido de la descarga de /build/assets (20/11/2026: tras cada
+     * publicación, en cada equipo). Se guarda en sessionStorage la primera fila visible y su distancia al borde (por
+     * filtros) y, en la primera carga de la pantalla, si es de hace menos de un minuto, se deja igual. Si esa fila estaba
+     * más abajo de lo que trae la primera página, el scroll infinito va pidiendo páginas hasta llegar (8 s como mucho).
+     * Si la persona toca la lista mientras tanto, se deja de insistir.
+     */
+    const claveLista = useMemo(() => JSON.stringify(FILTROS_DE_LA_LISTA.map(k => filters?.[k] ?? '')), [filters]);
+    const claveListaRef = useRef(claveLista);
+    useEffect(() => {
+        claveListaRef.current = claveLista;
+    }, [claveLista]);
+    const guardarPosicionLista = useCallback(() => {
+        const el = conversationsListRef.current;
+        // Oculta (móvil con un chat abierto) no tiene posición: no se pisa la buena.
+        if (!el || el.clientHeight === 0) return;
+        const filas = anclaListaRef.current?.filas.slice(0, 4) ?? [];
+        try {
+            sessionStorage.setItem(CLAVE_POSICION_LISTA, JSON.stringify({ clave: claveListaRef.current, top: el.scrollTop, filas, t: Date.now() }));
+        } catch {
+            // Sin almacenamiento (ventana privada, bloqueado): no se recuerda, nada más.
+        }
+    }, []);
+    const restaurandoListaRef = useRef<{ top: number; filas: { id: number; offset: number }[]; hasta: number } | null>(null);
+    const intentarRestaurarLista = useCallback(() => {
+        const r = restaurandoListaRef.current;
+        const el = conversationsListRef.current;
+        if (!r || !el) return;
+        if (Date.now() > r.hasta || el.clientHeight === 0) {
+            restaurandoListaRef.current = null;
+            return;
+        }
+        const borde = el.getBoundingClientRect().top;
+        for (const f of r.filas) {
+            const nodo = el.querySelector<HTMLElement>(`[data-conversacion="${f.id}"]`);
+            if (nodo) {
+                el.scrollTop += nodo.getBoundingClientRect().top - borde - f.offset;
+                restaurandoListaRef.current = null;
+                anotarAnclaLista();
+                return;
+            }
+        }
+        // Ninguna de esas filas está cargada todavía (o ya no está, p. ej. la que se resolvió): a la misma altura. Si no
+        // alcanza, queda al final de lo cargado, el scroll infinito pide la página siguiente y al llegar se reintenta.
+        el.scrollTop = r.top;
+        if (el.scrollTop >= r.top - 2) restaurandoListaRef.current = null;
+        anotarAnclaLista();
+    }, [anotarAnclaLista]);
+    useLayoutEffect(() => {
+        if (!posicionListaPorRestaurar) return;
+        posicionListaPorRestaurar = false;
+        let guardada: { clave?: string; top?: number; filas?: { id: number; offset: number }[]; t?: number } | null = null;
+        try {
+            guardada = JSON.parse(sessionStorage.getItem(CLAVE_POSICION_LISTA) ?? 'null');
+        } catch {
+            guardada = null;
+        }
+        if (!guardada || guardada.clave !== claveLista || !guardada.t || Date.now() - guardada.t > POSICION_LISTA_VALE_MS) return;
+        if (!guardada.top || guardada.top <= 2) return;
+        restaurandoListaRef.current = { top: guardada.top, filas: Array.isArray(guardada.filas) ? guardada.filas : [], hasta: Date.now() + 8000 };
+        intentarRestaurarLista();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al montar
+    }, []);
+    // Al llegar más filas (scroll infinito) mientras se está devolviendo la lista a su sitio.
+    useLayoutEffect(() => {
+        if (restaurandoListaRef.current) intentarRestaurarLista();
+    }, [ordenLista, intentarRestaurarLista]);
+    useEffect(() => {
+        const el = conversationsListRef.current;
+        // La persona toca la lista: manda ella.
+        const soltar = () => {
+            restaurandoListaRef.current = null;
+        };
+        // Justo antes de irse (la recarga del 409 también pasa por aquí): la posición final.
+        const alIrse = () => {
+            anotarAnclaLista();
+            guardarPosicionLista();
+        };
+        el?.addEventListener('wheel', soltar, { passive: true });
+        el?.addEventListener('touchstart', soltar, { passive: true });
+        el?.addEventListener('pointerdown', soltar);
+        el?.addEventListener('keydown', soltar);
+        window.addEventListener('pagehide', alIrse);
+        return () => {
+            el?.removeEventListener('wheel', soltar);
+            el?.removeEventListener('touchstart', soltar);
+            el?.removeEventListener('pointerdown', soltar);
+            el?.removeEventListener('keydown', soltar);
+            window.removeEventListener('pagehide', alIrse);
+        };
+    }, [anotarAnclaLista, guardarPosicionLista]);
+
+    /**
      * Preservar el scroll de la lista frente al bloqueo de scroll de Radix.
      *
      * Dialog/Select/DropdownMenu usan react-remove-scroll, que al abrirse aplica
@@ -1766,6 +1877,7 @@ export default function ConversationsIndex({ conversations: initialConversations
             if (!convScrollRafRef.current) {
                 convScrollRafRef.current = requestAnimationFrame(() => {
                     anotarAnclaLista();
+                    guardarPosicionLista();
                     const { scrollTop, scrollHeight, clientHeight } = container;
                     // Si llegamos al 80% del scroll, cargar más
                     if (scrollTop + clientHeight >= scrollHeight * 0.8 && hasMore && !isLoadingMore) {
@@ -1787,7 +1899,7 @@ export default function ConversationsIndex({ conversations: initialConversations
                 convScrollRafRef.current = null;
             }
         };
-    }, [hasMore, isLoadingMore, loadMoreConversations, anotarAnclaLista]);
+    }, [hasMore, isLoadingMore, loadMoreConversations, anotarAnclaLista, guardarPosicionLista]);
 
     // Detectar tecla Escape para cerrar el chat
     useEffect(() => {

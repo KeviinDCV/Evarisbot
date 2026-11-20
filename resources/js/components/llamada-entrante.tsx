@@ -14,7 +14,7 @@ import {
     type LlamadaHuerfana,
     type LlamadaPendiente,
 } from '@/lib/llamadas';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Loader2, MessageSquare, Mic, MicOff, Phone, PhoneOff, PhoneOutgoing, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -50,11 +50,17 @@ function Quien({ llamada }: { llamada: LlamadaPendiente | LlamadaHuerfana }) {
 
 function VerChat({ llamada }: { llamada: LlamadaPendiente | LlamadaHuerfana }) {
     const { t } = useTranslation();
+    const { url } = usePage();
     if (!llamada.conversation_id) return null;
+    // Desde Conversaciones abre el chat como una fila más: con los mismos filtros y sin volver a montar la pantalla.
+    // Sin preserveState la lista se rehacía desde cero y volvía arriba (y sin los filtros, a «Todos»).
+    const enConversaciones = url === '/admin/chat' || url.startsWith('/admin/chat?') || url.startsWith('/admin/chat/');
+    const consulta = enConversaciones ? url.split('?')[1] ?? '' : '';
     return (
         <Link
-            href={`/admin/chat/${llamada.conversation_id}`}
+            href={`/admin/chat/${llamada.conversation_id}${consulta ? `?${consulta}` : ''}`}
             preserveScroll
+            preserveState={enConversaciones}
             className="inline-flex items-center gap-1 text-xs font-medium text-[#2e3f84] hover:underline dark:text-blue-300"
         >
             <MessageSquare className="h-3.5 w-3.5" /> {t('llamadas.verChat')}
