@@ -14,6 +14,11 @@ class User extends Authenticatable
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     /**
+     * Email reservado del usuario especial "IA - Prueba" (chatbot del chat interno).
+     */
+    public const AI_EMAIL = 'ia-prueba@evarisbot.local';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -25,6 +30,7 @@ class User extends Authenticatable
         'role',
         'is_on_duty',
         'can_bulk_send',
+        'equipo_id',
     ];
 
     /**
@@ -59,6 +65,33 @@ class User extends Authenticatable
      *
      * @return bool
      */
+    /**
+     * Al borrar un usuario se llevan sus plantillas personales.
+     *
+     * Sin esto quedaban huérfanas: templates.created_by es ON DELETE SET NULL mientras
+     * que template_user.user_id es ON DELETE CASCADE, así que la plantilla sobrevivía
+     * sin autor y sin nadie asignado — invisible para todos y ocupando sitio para siempre.
+     *
+     * Va aquí y no en el controlador porque hay DOS caminos de borrado: el admin desde
+     * la gestión de usuarios y el propio usuario desde sus ajustes de perfil.
+     *
+     * El filtro por is_global es la salvaguarda que importa: el catálogo institucional
+     * lo creó un admin, y borrar a ese admin no puede llevarse las plantillas que usan
+     * los 30 asesores.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (self $usuario) {
+            $suyas = Template::where('created_by', $usuario->id)
+                ->where('is_global', false)
+                ->get();
+
+            foreach ($suyas as $plantilla) {
+                $plantilla->assignedUsers()->detach();
+                $plantilla->delete();
+            }
+        });
+    }
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
@@ -73,6 +106,22 @@ class User extends Authenticatable
     {
         return $this->role === 'advisor';
     }
+
+    /**
+     * ¿Es el usuario especial de IA (chatbot del chat interno)?
+     */
+    public function isAi(): bool
+    {
+        return $this->role === 'ai' || $this->email === self::AI_EMAIL;
+    }
+
+    /**
+     * Obtener el usuario de IA, si existe.
+     */
+    public static function aiUser(): ?self
+    {
+        return static::where('email', self::AI_EMAIL)->first();
+    }
     
     /**
      * Check if the user is on duty (receiving all conversations).
@@ -82,6 +131,12 @@ class User extends Authenticatable
     public function isOnDuty(): bool
     {
         return (bool) $this->is_on_duty;
+    }
+
+    /** Equipo aparte de la línea general (Teleconsulta…): ver App\Models\Equipo. Sin equipo, línea general. */
+    public function equipo(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Equipo::class, 'equipo_id');
     }
     
     /**

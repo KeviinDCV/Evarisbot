@@ -1,0 +1,25 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-15T14:40:00Z" },
+  "title": "Perfil de Evarisbot",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Hoy.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Hoy", "expand": "fill" },
+    "Main.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 900, "title": "A · Carnet y ajustes (recomendada)", "expand": "fill" },
+    "Columna.dc.html": { "x": 3040, "y": 0, "w": 1440, "h": 900, "title": "B · Portada y lista", "expand": "fill" },
+    "Pestanas.dc.html": { "x": 0, "y": 1380, "w": 1440, "h": 900, "title": "C · Menú de ajustes", "expand": "fill" },
+    "Seguridad.dc.html": { "x": 1520, "y": 1380, "w": 1440, "h": 900, "title": "D · Seguridad primero", "expand": "fill" }
+  },
+  "order": ["Hoy.dc.html", "Main.dc.html", "Columna.dc.html", "Pestanas.dc.html", "Seguridad.dc.html"],
+  "notes": {
+    "titulo": { "x": 0, "y": -320, "text": "Página de tu perfil: ¿qué forma le damos?", "kind": "title1", "maxW": 4480 },
+    "nota-hoy": { "x": 0, "y": 940, "w": 700, "maxH": 380, "size": "m", "fill": "gray", "text": "Así se ve hoy.\nDos tarjetas: tus datos y el cambio de contraseña. La verificación en dos pasos y el tema (claro/oscuro) existen, pero no hay ningún enlace a ellos desde aquí: casi nadie los encuentra." },
+    "nota-a": { "x": 1520, "y": 940, "w": 700, "maxH": 380, "size": "m", "fill": "blue", "text": "A · Carnet y ajustes (la que recomiendo).\nA la izquierda, tu carnet de Evarisbot con el azul del login: tu nombre, tu cargo y desde cuándo estás. A la derecha, todo lo tuyo en tarjetas: datos, contraseña (con los requisitos a la vista), verificación en dos pasos y apariencia/idioma.\nLa más bonita y completa.\n\nCoste: en pantallas bajas hay que bajar para ver las últimas tarjetas." },
+    "nota-b": { "x": 3040, "y": 940, "w": 700, "maxH": 380, "size": "m", "fill": "gray", "text": "B · Portada y lista.\nUna franja azul con tu nombre arriba y, debajo, una sola lista: cada cosa en una fila con su botón (Editar, Cambiar, Activar). Todo cabe sin bajar.\n\nCoste: para cambiar algo hay que hacer un clic más: la fila se abre y ahí se escribe." },
+    "nota-c": { "x": 0, "y": 2320, "w": 700, "maxH": 380, "size": "m", "fill": "gray", "text": "C · Menú de ajustes.\nUn menú pequeño dentro de la página (Perfil, Contraseña, Verificación, Apariencia) y una sola sección a la vista. La forma clásica de muchos programas; crece bien si luego hay más ajustes.\n\nCoste: quedan dos menús uno al lado del otro, y lo que no está abierto no se ve." },
+    "nota-d": { "x": 1520, "y": 2320, "w": 700, "maxH": 380, "size": "m", "fill": "gray", "text": "D · Seguridad primero.\nArriba, tres tarjetas con el estado de tu cuenta; la de verificación en dos pasos resalta en ámbar hasta que la actives. Debajo, tus datos y la contraseña.\nLa que más empuja a proteger las cuentas, después de lo que pasó esta semana.\n\nCoste: la página se siente más técnica que personal." },
+    "nota-pregunta": { "x": 3040, "y": 1380, "w": 700, "maxH": 560, "size": "l", "text": "Una sola pregunta: ¿cuál de las cuatro formas?\n\nLa persona es de ejemplo (Sofía Quintero Ramos). Los textos, el modo oscuro y el celular se ajustan después, sobre la que elijas.\n\nEn todas, la verificación en dos pasos y la apariencia quedan a un clic desde tu perfil." }
+  },
+  "designSystems": []
+}

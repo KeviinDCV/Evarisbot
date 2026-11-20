@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js" integrity="sha384-sG0Hv1tP1lZCk9KQmrIbY/XNwi+OY84GQqhMscbnsoBFqAz8KNCil1kvfL3Hbbk2" crossorigin="anonymous"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #000;
+      }
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #ffffff;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-ltbq" id="root" data-composition-id="main" data-start="0" data-duration="71" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-qykz" id="el-01-apertura" class="scene" data-composition-id="01-apertura" data-composition-src="compositions/frames/01-apertura.html" data-start="0" data-duration="5.5" data-track-index="0"></div>
+
+      <div data-hf-id="hf-sw25" id="el-02-conversaciones" class="scene" data-composition-id="02-conversaciones" data-composition-src="compositions/frames/02-conversaciones.html" data-start="5" data-duration="13.5" data-track-index="1"></div>
+
+      <div data-hf-id="hf-2vl4" id="el-03-recordatorios" class="scene" data-composition-id="03-recordatorios" data-composition-src="compositions/frames/03-recordatorios.html" data-start="18" data-duration="14.5" data-track-index="0"></div>
+
+      <div data-hf-id="hf-yjtv" id="el-04-estadisticas" class="scene" data-composition-id="04-estadisticas" data-composition-src="compositions/frames/04-estadisticas.html" data-start="32" data-duration="10.5" data-track-index="1"></div>
+
+      <div data-hf-id="hf-edq8" id="el-05-envios-masivos" class="scene" data-composition-id="05-envios-masivos" data-composition-src="compositions/frames/05-envios-masivos.html" data-start="42" data-duration="9.5" data-track-index="0"></div>
+
+      <div data-hf-id="hf-9379" id="el-06-chat-interno" class="scene" data-composition-id="06-chat-interno" data-composition-src="compositions/frames/06-chat-interno.html" data-start="51" data-duration="7.5" data-track-index="1"></div>
+
+      <div data-hf-id="hf-9q75" id="el-07-cifras" class="scene" data-composition-id="07-cifras" data-composition-src="compositions/frames/07-cifras.html" data-start="58" data-duration="8.5" data-track-index="0"></div>
+
+      <div data-hf-id="hf-sj52" id="el-08-cierre" class="scene" data-composition-id="08-cierre" data-composition-src="compositions/frames/08-cierre.html" data-start="66" data-duration="5" data-track-index="1"></div>
+
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = gsap.timeline({ paused: true });
+      // ── frame transitions (injected by transitions.mjs) ──
+      (function () { var tl = window.__timelines["main"];
+        tl.to("#el-01-apertura", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 5);
+        tl.fromTo("#el-02-conversaciones", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 5);
+        tl.to("#el-02-conversaciones", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 18);
+        tl.fromTo("#el-03-recordatorios", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 18);
+        tl.to("#el-03-recordatorios", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 32);
+        tl.fromTo("#el-04-estadisticas", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 32);
+        tl.to("#el-04-estadisticas", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 42);
+        tl.fromTo("#el-05-envios-masivos", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 42);
+        tl.to("#el-05-envios-masivos", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 51);
+        tl.fromTo("#el-06-chat-interno", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 51);
+        tl.to("#el-06-chat-interno", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 58);
+        tl.fromTo("#el-07-cifras", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 58);
+        tl.to("#el-07-cifras", { opacity: 0, duration: 0.5, ease: "power2.inOut" }, 66);
+        tl.fromTo("#el-08-cierre", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 66);
+        tl.to({}, { duration: 71 }, 0); // full-span anchor — main.duration() == composition total (Studio master duration)
+      })();
+    </script>
+  </body>
+</html>

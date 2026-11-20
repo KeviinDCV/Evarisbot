@@ -21,6 +21,9 @@ class ProfileController extends Controller
         return Inertia::render('settings/profile', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => $request->session()->get('status'),
+            // Diseño "Carnet y ajustes" (design/perfil): para todos cuando perfil_diseno = 'carnet';
+            // mientras tanto se ve con /settings/profile?nuevo=1 (ver pages/settings/profile.tsx).
+            'disenoNuevo' => \App\Models\Setting::get('perfil_diseno') === 'carnet',
         ]);
     }
 

@@ -9,22 +9,50 @@ use App\Models\BulkSendRecipient;
 use App\Models\Conversation;
 use App\Models\WhatsappTemplate;
 use App\Models\Setting;
+use App\Support\EstructuraMasivo;
+use App\Support\LibroExcel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class BulkSendController extends Controller
 {
     /**
+     * Equipos (Teleconsulta…): un asesor ve los envíos masivos de su bandeja: los de su equipo o, si es de la línea
+     * general, los de la línea general (también los de los administradores). Los administradores ven todos. El equipo
+     * es el que tenía quien lo creó al crearlo (bulk_sends.equipo_id), no el de hoy.
+     */
+    private function alcanceEnvios($query): void
+    {
+        $user = auth()->user();
+        if (!$user || !$user->isAdvisor()) {
+            return;
+        }
+        $user->equipo_id ? $query->where('equipo_id', $user->equipo_id) : $query->whereNull('equipo_id');
+    }
+
+    private function envioVisible(BulkSend $envio): bool
+    {
+        $q = BulkSend::whereKey($envio->id);
+        $this->alcanceEnvios($q);
+
+        return $q->exists();
+    }
+
+    /**
      * Mostrar página de envíos masivos
      */
     public function index()
     {
+        $activos = $this->enviosEnCurso();
+
         $bulkSends = BulkSend::with('creator')
+            ->tap(fn ($q) => $this->alcanceEnvios($q))
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(fn($bs) => [
@@ -36,48 +64,8 @@ class BulkSendController extends Controller
                 'sent_count' => $bs->sent_count,
                 'failed_count' => $bs->failed_count,
                 'created_by_name' => $bs->creator?->name ?? 'Sistema',
-                'created_at' => $bs->created_at->format('Y-m-d H:i'),
+                'created_at' => $bs->created_at->enColombia()->format('Y-m-d H:i'),
             ]);
-
-        // Verificar si hay un envío en proceso
-        $activeSend = BulkSend::where('status', 'processing')->first();
-        $activeProgress = null;
-
-        if ($activeSend) {
-            $activeProgress = [
-                'id' => $activeSend->id,
-                'name' => $activeSend->name,
-                'template_name' => $activeSend->template_name,
-                'total' => $activeSend->total_recipients,
-                'sent' => $activeSend->sent_count,
-                'failed' => $activeSend->failed_count,
-                'pending' => max(0, $activeSend->total_recipients - $activeSend->sent_count - $activeSend->failed_count),
-                'percentage' => $activeSend->total_recipients > 0
-                    ? round(($activeSend->sent_count + $activeSend->failed_count) / $activeSend->total_recipients * 100)
-                    : 0,
-            ];
-
-            // Verificar si el batch realmente terminó
-            if ($activeSend->batch_id) {
-                try {
-                    $batch = Bus::findBatch($activeSend->batch_id);
-                    if ($batch && ($batch->finished() || $batch->cancelled())) {
-                        // Reconciliar contadores desde recipients reales
-                        $actualSent = $activeSend->recipients()->where('status', 'sent')->count();
-                        $actualFailed = $activeSend->recipients()->where('status', 'failed')->count();
-
-                        $activeSend->update([
-                            'status' => $batch->cancelled() ? 'cancelled' : 'completed',
-                            'sent_count' => $actualSent,
-                            'failed_count' => $actualFailed,
-                        ]);
-                        $activeProgress = null;
-                    }
-                } catch (\Exception $e) {
-                    Log::warning('Error verificando batch de envío masivo', ['error' => $e->getMessage()]);
-                }
-            }
-        }
 
         $whatsappTemplates = WhatsappTemplate::active()
             ->orderBy('name')
@@ -108,12 +96,12 @@ class BulkSendController extends Controller
                 'header_text' => $t->header_text,
                 'footer_text' => $t->footer_text,
                 'is_active' => $t->is_active,
-                'created_at' => $t->created_at?->format('Y-m-d H:i'),
+                'created_at' => $t->created_at?->enColombia()->format('Y-m-d H:i'),
             ]);
 
         return Inertia::render('admin/bulk-sends/index', [
             'bulkSends' => $bulkSends,
-            'activeProgress' => $activeProgress,
+            'activeSends' => $activos,
             'whatsappTemplates' => $whatsappTemplates,
             'allTemplates' => $allTemplates,
         ]);
@@ -130,20 +118,27 @@ class BulkSendController extends Controller
             return response()->json([]);
         }
 
+        // Envíos de su bandeja (equipos): la búsqueda no cruza a los de otro equipo.
+        $visibles = BulkSend::query();
+        $this->alcanceEnvios($visibles);
+        $visibles = $visibles->pluck('id');
+
         // Buscar en destinatarios que coincidan
-        $matchingRecipients = BulkSendRecipient::where('phone_number', 'like', "%{$q}%")
-            ->orWhere('contact_name', 'like', "%{$q}%")
-            ->orWhere('params', 'like', "%{$q}%")
-            ->orWhere('error', 'like', "%{$q}%")
+        $matchingRecipients = BulkSendRecipient::whereIn('bulk_send_id', $visibles)
+            ->where(fn ($w) => $w->where('phone_number', 'like', "%{$q}%")
+                ->orWhere('contact_name', 'like', "%{$q}%")
+                ->orWhere('params', 'like', "%{$q}%")
+                ->orWhere('error', 'like', "%{$q}%"))
             ->limit(200)
             ->get()
             ->groupBy('bulk_send_id');
 
         // Buscar bulk sends que coincidan por metadata
-        $metaMatchIds = BulkSend::where('name', 'like', "%{$q}%")
-            ->orWhere('template_name', 'like', "%{$q}%")
-            ->orWhere('status', 'like', "%{$q}%")
-            ->orWhereHas('creator', fn($cq) => $cq->where('name', 'like', "%{$q}%"))
+        $metaMatchIds = BulkSend::whereIn('id', $visibles)
+            ->where(fn ($w) => $w->where('name', 'like', "%{$q}%")
+                ->orWhere('template_name', 'like', "%{$q}%")
+                ->orWhere('status', 'like', "%{$q}%")
+                ->orWhereHas('creator', fn($cq) => $cq->where('name', 'like', "%{$q}%")))
             ->pluck('id');
 
         $allIds = $matchingRecipients->keys()->merge($metaMatchIds)->unique();
@@ -165,14 +160,14 @@ class BulkSendController extends Controller
                     'sent_count' => $bs->sent_count,
                     'failed_count' => $bs->failed_count,
                     'created_by_name' => $bs->creator?->name ?? 'Sistema',
-                    'created_at' => $bs->created_at->format('Y-m-d H:i'),
+                    'created_at' => $bs->created_at->enColombia()->format('Y-m-d H:i'),
                     'matching_recipients' => $matched ? $matched->map(fn($r) => [
                         'id' => $r->id,
                         'phone_number' => $r->phone_number,
                         'contact_name' => $r->contact_name,
                         'status' => $r->status,
                         'error' => $r->error,
-                        'sent_at' => $r->sent_at?->format('Y-m-d H:i:s'),
+                        'sent_at' => $r->sent_at?->enColombia()->format('Y-m-d H:i:s'),
                         'params' => $r->params,
                     ])->values()->toArray() : null,
                 ];
@@ -185,6 +180,7 @@ class BulkSendController extends Controller
      */
     public function show(BulkSend $bulkSend)
     {
+        abort_unless($this->envioVisible($bulkSend), 403);
         $bulkSend->load('creator');
 
         // Reconciliar contadores si el envío ya está completado
@@ -226,7 +222,7 @@ class BulkSendController extends Controller
                 'params' => $r->params,
                 'status' => $r->status,
                 'error' => $r->error,
-                'sent_at' => $r->sent_at?->format('Y-m-d H:i:s'),
+                'sent_at' => $r->sent_at?->enColombia()->format('Y-m-d H:i:s'),
             ]);
 
         return Inertia::render('admin/bulk-sends/show', [
@@ -240,10 +236,208 @@ class BulkSendController extends Controller
                 'sent_count' => $bulkSend->sent_count,
                 'failed_count' => $bulkSend->failed_count,
                 'created_by_name' => $bulkSend->creator?->name ?? 'Sistema',
-                'created_at' => $bulkSend->created_at->format('Y-m-d H:i'),
+                'created_at' => $bulkSend->created_at->enColombia()->format('Y-m-d H:i'),
             ],
             'recipients' => $recipients,
         ]);
+    }
+
+    /** Nombres del resultado de cada destinatario y del estado del envío: los mismos de la pantalla. */
+    private const RESULTADOS = ['sent' => 'Enviado', 'failed' => 'Fallido', 'pending' => 'Pendiente'];
+
+    private const ESTADOS_ENVIO = [
+        'completed' => 'Completado', 'processing' => 'Enviando', 'cancelled' => 'Cancelado',
+        'failed' => 'Fallido', 'draft' => 'Borrador', 'pending' => 'Pendiente',
+    ];
+
+    /**
+     * Excel con TODOS los envíos masivos que la persona puede ver (los de su bandeja), una fila por destinatario: el
+     * envío, la plantilla, quién lo creó, el resultado, el motivo del error, la hora y los datos del Excel original.
+     */
+    public function exportar(Request $request)
+    {
+        $envios = BulkSend::query();
+        $this->alcanceEnvios($envios);
+        $archivo = 'envios_masivos_'.now('America/Bogota')->format('Y-m-d_Hi').'.xlsx';
+
+        return $this->descargarDestinatarios($request, $envios->pluck('id')->all(), $archivo, null);
+    }
+
+    /**
+     * Excel de un envío: cada destinatario con su resultado, el motivo del error, la hora y cada columna del Excel
+     * original en su propia columna (en el de todos los envíos van juntas en una celda: cada Excel trae las suyas).
+     */
+    public function exportarEnvio(Request $request, BulkSend $bulkSend)
+    {
+        abort_unless($this->envioVisible($bulkSend), 403);
+        $base = Str::slug(Str::limit((string) ($bulkSend->name ?: $bulkSend->template_name), 50, ''), '_');
+        $archivo = 'envio_masivo_'.$bulkSend->id.($base !== '' ? '_'.$base : '').'.xlsx';
+
+        return $this->descargarDestinatarios($request, [$bulkSend->id], $archivo, $bulkSend);
+    }
+
+    /** El motivo guardado, legible: sin el «?» de una codificación vieja ni el mensaje interno de la cola. */
+    private static function motivoLegible(?string $error): ?string
+    {
+        if ($error === null || trim($error) === '') {
+            return null;
+        }
+        if (str_contains($error, 'attempted too many times')) {
+            return 'No alcanzó a enviarse: se agotaron los intentos del envío.';
+        }
+
+        return str_replace('Env?o', 'Envío', $error);
+    }
+
+    private static function textoCelda(mixed $valor): string
+    {
+        if (is_array($valor) || is_object($valor)) {
+            return (string) json_encode($valor, JSON_UNESCAPED_UNICODE);
+        }
+        if (is_bool($valor)) {
+            return $valor ? 'sí' : 'no';
+        }
+
+        return trim((string) $valor);
+    }
+
+    /**
+     * Arma y descarga el Excel con LibroExcel (fila por fila a disco: ~107.000 destinatarios no caben en memoria con
+     * PhpSpreadsheet). $uno = el envío cuando es uno solo: sin las columnas del envío (serían iguales en todas las
+     * filas) y con cada columna del Excel original aparte. Solo lee: no cambia nada de los envíos.
+     */
+    private function descargarDestinatarios(Request $request, array $ids, string $archivo, ?BulkSend $uno)
+    {
+        set_time_limit(600);
+        $inicio = microtime(true);
+
+        if (BulkSendRecipient::whereIn('bulk_send_id', $ids)->count() > LibroExcel::MAX_FILAS - 1) {
+            return redirect()->back()->with('error', 'Son más destinatarios de los que caben en una hoja de Excel.');
+        }
+
+        $envios = BulkSend::with('creator:id,name')->whereIn('id', $ids)->get()->keyBy('id');
+
+        // Sin nombre guardado: el del chat, como en el detalle del envío.
+        $sinNombre = DB::table('bulk_send_recipients')->whereIn('bulk_send_id', $ids)
+            ->where(fn ($w) => $w->whereNull('contact_name')->orWhere('contact_name', ''))
+            ->distinct()->pluck('phone_number');
+        $nombresChat = [];
+        foreach ($sinNombre->chunk(1000) as $tanda) {
+            $nombresChat += Conversation::whereIn('phone_number', $tanda->values()->all())
+                ->whereNotNull('contact_name')->where('contact_name', '!=', '')
+                ->pluck('contact_name', 'phone_number')->all();
+        }
+
+        // Columnas del Excel original (solo en el de un envío), en el orden en que venían.
+        $claves = [];
+        if ($uno) {
+            foreach (DB::table('bulk_send_recipients')->where('bulk_send_id', $uno->id)->whereNotNull('params')->pluck('params') as $p) {
+                foreach (array_keys((array) json_decode((string) $p, true)) as $k) {
+                    $claves[(string) $k] = true;
+                }
+            }
+            $claves = array_keys($claves);
+        }
+
+        $titulos = $uno ? [] : ['Envío', 'N.º de envío', 'Fecha del envío (hora Colombia)', 'Plantilla', 'Creado por', 'Estado del envío'];
+        array_push($titulos, 'Teléfono', 'Nombre', 'Resultado', 'Motivo del error', 'Hora de envío (hora Colombia)');
+        $anchos = $uno ? [15, 30, 12, 50, 22] : [30, 11, 18, 32, 24, 15, 15, 30, 12, 50, 22];
+        if ($uno) {
+            foreach ($claves as $k) {
+                $titulos[] = $k;
+                $anchos[] = max(14, min(40, mb_strlen($k) + 4));
+            }
+        } else {
+            $titulos[] = 'Datos del Excel';
+            $anchos[] = 80;
+        }
+        $letras = [];
+        foreach ($anchos as $i => $ancho) {
+            $letras[\PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i + 1)] = $ancho;
+        }
+
+        $carpeta = LibroExcel::carpeta();
+        $libro = new LibroExcel($uno ? 'Destinatarios' : 'Envíos masivos', $letras, $carpeta);
+        $libro->encabezados($titulos, '2e3f84');
+
+        $zona = config('app.timezone');
+        $filas = DB::table('bulk_send_recipients')
+            ->whereIn('bulk_send_id', $ids)
+            ->select(['id', 'bulk_send_id', 'phone_number', 'contact_name', 'params', 'status', 'error', 'sent_at'])
+            ->orderByDesc('bulk_send_id')
+            ->orderBy('id');
+        foreach ($filas->cursor() as $r) {
+            $envio = $envios[$r->bulk_send_id] ?? null;
+            $params = $r->params !== null ? (array) json_decode((string) $r->params, true) : [];
+            $fila = $uno ? [] : [
+                $envio?->name,
+                $r->bulk_send_id,
+                $envio?->created_at?->enColombia()->format('Y-m-d H:i'),
+                $envio?->template_name,
+                $envio ? ($envio->creator?->name ?? 'Sistema') : null,
+                $envio ? (self::ESTADOS_ENVIO[$envio->status] ?? $envio->status) : null,
+            ];
+            $nombre = trim((string) $r->contact_name) !== '' ? $r->contact_name : ($nombresChat[$r->phone_number] ?? null);
+            array_push(
+                $fila,
+                $r->phone_number,
+                $nombre,
+                self::RESULTADOS[$r->status] ?? $r->status,
+                self::motivoLegible($r->error),
+                $r->sent_at ? \Illuminate\Support\Carbon::parse($r->sent_at, $zona)->enColombia()->format('Y-m-d H:i:s') : null,
+            );
+            if ($uno) {
+                foreach ($claves as $k) {
+                    $fila[] = array_key_exists($k, $params) ? self::textoCelda($params[$k]) : null;
+                }
+            } else {
+                $partes = [];
+                foreach ($params as $k => $v) {
+                    $texto = self::textoCelda($v);
+                    if ($texto !== '') {
+                        $partes[] = $k.': '.$texto;
+                    }
+                }
+                $fila[] = $partes ? implode(' · ', $partes) : null;
+            }
+            $libro->fila($fila);
+        }
+
+        $libro->colorear($uno ? 'C' : 'I', [
+            'Enviado' => ['C6EFCE', '006100'],
+            'Fallido' => ['FFC7CE', '9C0006'],
+            'Pendiente' => ['FFEB9C', '9C6500'],
+        ]);
+
+        $temp = tempnam($carpeta, 'mas');
+        try {
+            $libro->guardar($temp);
+        } catch (\Throwable $e) {
+            @unlink($temp);
+            throw $e;
+        }
+
+        // Un clic saca los teléfonos y datos de muchos pacientes: queda quién lo hizo y cuántos.
+        Log::info('Envíos masivos exportados', [
+            'envios' => count($ids),
+            'envio_id' => $uno?->id,
+            'destinatarios' => $libro->filas() - 1,
+            'segundos' => round(microtime(true) - $inicio, 1),
+            'memoria_mb' => round(memory_get_peak_usage(true) / 1048576),
+            'user_id' => auth()->id(),
+        ]);
+
+        $respuesta = response()->download($temp, $archivo, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+
+        // La pantalla vigila esta cookie para saber que el archivo ya salió y quitar «Preparando…» (solo mira el nombre).
+        $marca = $request->query('descarga');
+        if (is_string($marca) && preg_match('/^[a-z0-9]{6,32}$/i', $marca)) {
+            $respuesta->headers->setCookie(cookie('masivos_export_'.$marca, '1', 5, '/', null, false, false));
+        }
+
+        return $respuesta;
     }
 
     /**
@@ -253,10 +447,24 @@ class BulkSendController extends Controller
     {
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv',
+            'template_id' => 'nullable|integer',
         ], [
             'file.mimes' => 'El archivo debe ser de tipo: xlsx, xls o csv.',
             'file.required' => 'Debe seleccionar un archivo.',
         ]);
+
+        // La plantilla elegida: el Excel se revisa contra ella (ver EstructuraMasivo). La pantalla la manda desde el
+        // 18/11/2026; una pantalla vieja (sin recargar) no la manda y el Excel se revisa al pulsar Enviar (start).
+        $plantilla = null;
+        if ($request->filled('template_id')) {
+            $plantilla = WhatsappTemplate::find((int) $request->input('template_id'));
+            if (!$plantilla) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La plantilla elegida ya no existe. Recargue la página y elíjala de nuevo.',
+                ], 422);
+            }
+        }
 
         try {
             set_time_limit(600);
@@ -273,6 +481,9 @@ class BulkSendController extends Controller
             ]);
 
             $rows = [];
+            // Número real de cada fila en el Excel (solo .xlsx, que se salta las vacías): para que los errores digan la
+            // fila correcta. En CSV y XLS cada fila leída es una fila del archivo.
+            $numerosDeFila = null;
 
             if ($extension === 'csv') {
                 // CSV: leer directamente con fgetcsv (ultra rápido, sin memoria)
@@ -281,13 +492,22 @@ class BulkSendController extends Controller
                     throw new \Exception('No se pudo abrir el archivo CSV');
                 }
                 while (($row = fgetcsv($handle, 0, ',', '"')) !== false) {
-                    $rows[] = $row;
+                    // Un CSV guardado en «ANSI» (Windows-1252) no es UTF-8: se convierte (si no, los textos con tildes
+                    // rompen la respuesta y la revisión de estructura).
+                    $rows[] = array_map(fn ($v) => $v === null || mb_check_encoding($v, 'UTF-8') ? $v : mb_convert_encoding($v, 'UTF-8', 'Windows-1252'), $row);
                 }
                 fclose($handle);
+            } elseif ($extension === 'xlsx') {
+                // XLSX: lector en streaming propio (ver readXlsxStreaming). Lee fila por
+                // fila con XMLReader y se detiene al terminar los datos reales, ignorando
+                // las filas fantasma que inflan el archivo (un .xlsx puede declarar más de
+                // un millón de filas vacías → PhpSpreadsheet revienta la memoria/tarda
+                // minutos). Esto es órdenes de magnitud más rápido y usa poca memoria,
+                // produciendo EXACTAMENTE la misma salida de fechas/horas que antes.
+                $rows = $this->readXlsxStreaming($filePath, $numerosDeFila);
             } else {
-                // Excel: leer con formato para que fechas/horas se conviertan correctamente
-                $readerType = $extension === 'xls' ? 'Xls' : 'Xlsx';
-                $reader = IOFactory::createReader($readerType);
+                // XLS (formato binario antiguo, máx. 65.536 filas): PhpSpreadsheet con formato.
+                $reader = IOFactory::createReader('Xls');
                 // NO usar setReadDataOnly(true) — destruye el formato de fechas/horas
                 $spreadsheet = $reader->load($filePath);
                 $worksheet = $spreadsheet->getActiveSheet();
@@ -353,24 +573,60 @@ class BulkSendController extends Controller
                 ], 422);
             }
 
+            // Estructura de la plantilla: columnas con los nombres de la guía, ni una más ni una menos, y cada fila
+            // completa y con el formato correcto. Si no, el Excel no se acepta (no se puede enviar).
+            $avisosExcel = [];
+            if ($plantilla) {
+                $numeroFila = fn (int $i) => is_array($numerosDeFila) && isset($numerosDeFila[$i + 1]) ? $numerosDeFila[$i + 1] : $i + 2;
+                $errores = EstructuraMasivo::validarExcel($rows[0] ?? [], array_slice($rows, 1), EstructuraMasivo::guia($plantilla->preview_text), $numeroFila, $avisosExcel);
+                if ($errores !== []) {
+                    Log::warning('Excel de envío masivo rechazado: no tiene la estructura de la plantilla', [
+                        'plantilla' => $plantilla->meta_template_name,
+                        'encabezados' => array_map(fn ($h) => mb_substr(trim((string) $h), 0, 40), $rows[0] ?? []),
+                        'problemas' => count($errores),
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => "El Excel no tiene la estructura de la plantilla «{$plantilla->name}». Corríjalo y vuelva a subirlo:\n\n• " . implode("\n• ", $errores),
+                        'issues' => $errores,
+                        'estructura' => true,
+                    ], 422);
+                }
+            }
+
             // Detectar encabezados
-            $rawHeaders = array_map('trim', $rows[0] ?? []);
-            $headers = array_map('strtolower', $rawHeaders);
+            // Sin la marca BOM que Excel pone al inicio de un CSV UTF-8 (si no, «telefono» no se reconoce).
+            $rawHeaders = array_map(fn ($h) => trim(str_replace(["\u{FEFF}", "\u{00A0}"], ['', ' '], (string) $h)), $rows[0] ?? []);
+            // Teléfono y nombre con el MISMO criterio que la revisión de estructura (EstructuraMasivo: sin mayúsculas ni
+            // tildes; «TELÉFONO», «Nom Pac», «phone-number»…): lo que la revisión acepta es lo que se lee aquí.
+            $headers = array_map(fn ($h) => EstructuraMasivo::clave($h), $rawHeaders);
             $phoneCol = null;
             $nameCol = null;
             $extraCols = [];
 
-            $phoneAliases = ['telefono', 'teléfono', 'phone', 'celular', 'cel', 'numero', 'número', 'pactel', 'phone_number'];
-            $nameAliases = ['nombre', 'name', 'contacto', 'paciente', 'nom_paciente', 'contact_name', 'nom_pac', 'nombrepaciente', 'nombre_paciente', 'nombrepac', 'cliente', 'destinatario', 'usuario'];
-
             foreach ($headers as $i => $header) {
-                $header = strtolower(trim($header));
-                if (in_array($header, $phoneAliases)) {
+                if ($phoneCol === null && in_array($header, EstructuraMasivo::ALIAS_TELEFONO, true)) {
                     $phoneCol = $i;
-                } elseif (in_array($header, $nameAliases)) {
+                } elseif ($nameCol === null && in_array($header, EstructuraMasivo::ALIAS_NOMBRE, true)) {
                     $nameCol = $i;
                 } else if (!empty(trim($rawHeaders[$i] ?? ''))) {
-                    $extraCols[$i] = strtolower(trim($rawHeaders[$i]));
+                    $extraCols[$i] = mb_strtolower(trim($rawHeaders[$i]));
+                }
+            }
+
+            // Detectar encabezados duplicados ANTES de renombrarlos silenciosamente.
+            // Un Excel con dos columnas "medico" significa casi siempre datos desalineados
+            // (una suele ser el paciente, la otra el medico); si lo dejamos pasar, el envio
+            // llega con el valor cambiado y nadie lo detecta hasta ver un mensaje incorrecto.
+            $duplicateHeaders = [];
+            $headerSeenCount = [];
+            foreach ($extraCols as $colName) {
+                $headerSeenCount[$colName] = ($headerSeenCount[$colName] ?? 0) + 1;
+            }
+            foreach ($headerSeenCount as $colName => $count) {
+                if ($count > 1) {
+                    $duplicateHeaders[] = $colName;
                 }
             }
 
@@ -406,6 +662,34 @@ class BulkSendController extends Controller
                 }
             }
 
+            // Validacion estructural del Excel: bloquear si el archivo tiene problemas que
+            // haran fallar el envio o produciran mensajes incorrectos. Mejor detenerse aqui
+            // que permitir el flujo y que el usuario descubra el error con miles de fallos en Meta.
+            $structuralIssues = [];
+
+            if ($nameCol === null) {
+                $structuralIssues[] = 'No se encontro columna de nombre del contacto. Renombre una columna del Excel a "paciente" o "nombre" (tambien valen: contacto, cliente, destinatario).';
+            }
+
+            if (!empty($duplicateHeaders)) {
+                $lista = implode('", "', $duplicateHeaders);
+                $structuralIssues[] = 'Hay encabezados duplicados en el Excel: "' . $lista . '". Renombrelos para que cada columna tenga un nombre unico (ej: si tiene dos "medico", una podria ser "paciente" y la otra "medico").';
+            }
+
+            if (!empty($structuralIssues)) {
+                Log::warning('Archivo Excel rechazado por problemas estructurales', [
+                    'filename' => $file->getClientOriginalName(),
+                    'issues' => $structuralIssues,
+                    'headers_detected' => $rawHeaders,
+                ]);
+                $message = "El archivo tiene problemas y no se puede usar. Corrijalo y vuelva a subirlo:\n\n• " . implode("\n\n• ", $structuralIssues);
+                return response()->json([
+                    'success' => false,
+                    'message' => $message,
+                    'issues' => $structuralIssues,
+                ], 422);
+            }
+
             $seen = [];
             $unique = [];
             for ($i = 1; $i < count($rows); $i++) {
@@ -414,9 +698,12 @@ class BulkSendController extends Controller
 
                 if (empty($phone)) continue;
 
-                $cleanPhone = preg_replace('/[^0-9+]/', '', $phone);
+                // Solo celulares que el envío puede usar (10 dígitos, o 12-15 con el código de país; la misma regla de
+                // SendBulkMessageJob). Antes pasaban los de 11 o más de 15 y fallaban todos al enviar. Un «.0» final
+                // (número de Excel leído como texto) se quita.
+                if (!EstructuraMasivo::celularValido($phone)) continue;
+                $cleanPhone = preg_replace('/[^0-9+]/', '', (string) preg_replace('/\.0+$/', '', $phone));
                 $digits = preg_replace('/[^0-9]/', '', $cleanPhone);
-                if (strlen($digits) < 10) continue;
 
                 if (isset($seen[$digits])) continue;
                 $seen[$digits] = true;
@@ -445,6 +732,8 @@ class BulkSendController extends Controller
                 'total' => count($unique),
                 'filename' => $file->getClientOriginalName(),
                 'extra_columns' => array_values($extraCols),
+                // Filas que se quitaron por no tener un celular válido (no bloquean: la pantalla las avisa).
+                'avisos' => $avisosExcel,
             ]);
         } catch (\Exception $e) {
             Log::error('Error procesando archivo Excel para envío masivo', [
@@ -456,6 +745,224 @@ class BulkSendController extends Controller
                 'message' => 'Error al procesar el archivo: ' . $e->getMessage(),
             ], 422);
         }
+    }
+
+    /**
+     * Lee un archivo .xlsx en streaming con XMLReader, fila por fila, deteniéndose en
+     * cuanto terminan los datos reales (tras N filas vacías seguidas).
+     *
+     * Por qué: un .xlsx exportado puede declarar más de 1.000.000 de filas (rango usado
+     * inflado con celdas fantasma). PhpSpreadsheet carga TODO en memoria (estilos
+     * incluidos) → minutos de espera y consumo de memoria de varios GB. Aquí leemos solo
+     * lo necesario: cadenas compartidas + formatos (ambos pequeños) y luego la hoja en
+     * streaming sobre el wrapper zip:// (nunca se materializan los 186 MB de XML).
+     *
+     * Devuelve un array de filas (la primera fila es el encabezado). Las columnas de
+     * fecha/hora se convierten a texto con EXACTAMENTE la misma lógica que antes, por lo
+     * que la salida es idéntica a la de PhpSpreadsheet pero muchísimo más rápida.
+     */
+    private function readXlsxStreaming(string $path, ?array &$numeros = null): array
+    {
+        // $numeros: el número real de cada fila devuelta (atributo r de <row>), en el mismo orden: las vacías no se
+        // devuelven, y sin esto un error diría «fila 4» por la que en el Excel es la 6.
+        $numeros = [];
+        $emptyRowLimit = 100; // nº de filas vacías seguidas que marcan el fin de los datos
+        $zip = new \ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new \Exception('No se pudo abrir el archivo Excel.');
+        }
+
+        // 1) Tabla de cadenas compartidas (sharedStrings). Suele ser pequeña.
+        $shared = [];
+        $ssXml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($ssXml !== false && $ssXml !== '') {
+            $sr = new \XMLReader();
+            $sr->XML($ssXml);
+            while ($sr->read()) {
+                if ($sr->nodeType === \XMLReader::ELEMENT && $sr->localName === 'si') break;
+            }
+            while ($sr->nodeType === \XMLReader::ELEMENT && $sr->localName === 'si') {
+                $node = $sr->readOuterXml();
+                $txt = '';
+                if (preg_match_all('/<t[^>]*>(.*?)<\/t>/s', $node, $mm)) {
+                    foreach ($mm[1] as $piece) {
+                        $txt .= html_entity_decode($piece, ENT_QUOTES | ENT_XML1, 'UTF-8');
+                    }
+                }
+                $shared[] = $txt;
+                $sr->next('si');
+            }
+            $sr->close();
+        }
+
+        // 2) Estilos → qué índice de estilo es un formato de fecha/hora.
+        $styleIsDate = [];
+        $stylesXml = $zip->getFromName('xl/styles.xml');
+        if ($stylesXml !== false && $stylesXml !== '') {
+            $sx = @simplexml_load_string($stylesXml);
+            if ($sx !== false) {
+                $numFmtMap = [];
+                if (isset($sx->numFmts)) {
+                    foreach ($sx->numFmts->numFmt as $nf) {
+                        $numFmtMap[(int) $nf['numFmtId']] = (string) $nf['formatCode'];
+                    }
+                }
+                if (isset($sx->cellXfs)) {
+                    $idx = 0;
+                    foreach ($sx->cellXfs->xf as $xf) {
+                        $numFmtId = (int) $xf['numFmtId'];
+                        $code = $numFmtMap[$numFmtId]
+                            ?? \PhpOffice\PhpSpreadsheet\Style\NumberFormat::builtInFormatCode($numFmtId);
+                        $styleIsDate[$idx] = ($code !== null && $code !== ''
+                            && \PhpOffice\PhpSpreadsheet\Shared\Date::isDateTimeFormatCode((string) $code));
+                        $idx++;
+                    }
+                }
+            }
+        }
+
+        // 3) Localizar la primera hoja (casi siempre sheet1.xml).
+        $sheetPath = 'xl/worksheets/sheet1.xml';
+        if ($zip->locateName($sheetPath) === false) {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if ($name !== false && preg_match('#^xl/worksheets/sheet[^/]+\.xml$#i', $name)) {
+                    $sheetPath = $name;
+                    break;
+                }
+            }
+        }
+        $zip->close();
+
+        // 4) Hoja en streaming con XMLReader sobre zip:// (no se carga el XML completo).
+        $timeColumnAliases = ['cithor', 'hora', 'hour', 'time', 'horario'];
+        $headerNames = [];
+        $maxCol = 0;
+        $rows = [];
+        $emptyRun = 0;
+        $rowIndex = 0;
+
+        $xr = new \XMLReader();
+        if (!@$xr->open('zip://' . $path . '#' . $sheetPath)) {
+            throw new \Exception('No se pudo leer la hoja del archivo Excel.');
+        }
+        // Avanzar hasta la primera <row>.
+        while ($xr->read()) {
+            if ($xr->nodeType === \XMLReader::ELEMENT && $xr->localName === 'row') break;
+        }
+
+        while ($xr->nodeType === \XMLReader::ELEMENT && $xr->localName === 'row') {
+            $rowIndex++;
+            $rowXml = $xr->readOuterXml();
+            $numeroReal = preg_match('/^<row\b[^>]*?\sr="(\d+)"/', $rowXml, $nm) ? (int) $nm[1] : $rowIndex;
+
+            // Parsear las celdas (<c>) de la fila.
+            $cells = [];
+            $rowMaxCol = 0;
+            if (preg_match_all('/<c\s+([^>]*?)(?:\/>|>(.*?)<\/c>)/s', $rowXml, $cm, PREG_SET_ORDER)) {
+                foreach ($cm as $c) {
+                    $attrs = $c[1];
+                    $inner = $c[2] ?? '';
+                    if (!preg_match('/r="([A-Z]+)\d+"/', $attrs, $rm)) continue;
+                    $colIdx = $this->colLettersToIndex($rm[1]);
+                    $t = preg_match('/t="([^"]+)"/', $attrs, $tm) ? $tm[1] : 'n';
+                    $s = preg_match('/\ss="(\d+)"/', $attrs, $sm) ? (int) $sm[1] : 0;
+
+                    if ($t === 'inlineStr') {
+                        $val = preg_match('/<t[^>]*>(.*?)<\/t>/s', $inner, $vm)
+                            ? html_entity_decode($vm[1], ENT_QUOTES | ENT_XML1, 'UTF-8') : '';
+                    } else {
+                        $raw = preg_match('/<v[^>]*>(.*?)<\/v>/s', $inner, $vm) ? $vm[1] : '';
+                        if ($t === 's') {
+                            $val = $shared[(int) $raw] ?? '';
+                        } elseif ($t === 'str') {
+                            $val = html_entity_decode($raw, ENT_QUOTES | ENT_XML1, 'UTF-8');
+                        } else {
+                            $val = $raw;
+                        }
+                    }
+                    $cells[$colIdx] = ['t' => $t, 's' => $s, 'val' => $val];
+                    if ($colIdx > $rowMaxCol) $rowMaxCol = $colIdx;
+                }
+            }
+
+            // Fila 1 = encabezados: define columnas y detecta columnas de hora.
+            if ($rowIndex === 1) {
+                $maxCol = $rowMaxCol;
+                for ($col = 1; $col <= $maxCol; $col++) {
+                    $headerNames[$col] = strtolower(trim((string) ($cells[$col]['val'] ?? '')));
+                }
+                $rowData = [];
+                for ($col = 1; $col <= $maxCol; $col++) {
+                    $rowData[] = (string) ($cells[$col]['val'] ?? '');
+                }
+                $rows[] = $rowData;
+                $numeros[] = $numeroReal;
+                $xr->next('row');
+                continue;
+            }
+
+            // Filas de datos.
+            $rowData = [];
+            $nonEmpty = false;
+            for ($col = 1; $col <= $maxCol; $col++) {
+                $cell = $cells[$col] ?? null;
+                if ($cell === null) { $rowData[] = ''; continue; }
+                $val = $cell['val'];
+                $isText = in_array($cell['t'], ['s', 'str', 'inlineStr'], true);
+
+                // Numérico con formato de fecha/hora → convertir (misma lógica de antes).
+                if (!$isText && is_numeric($val) && (float) $val > 0 && ($styleIsDate[$cell['s']] ?? false)) {
+                    try {
+                        $dateObj = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $val);
+                        $isTimeColumn = in_array($headerNames[$col] ?? '', $timeColumnAliases, true);
+                        if ($isTimeColumn) {
+                            $rowData[] = $dateObj->format('g:i A');
+                        } elseif (fmod((float) $val, 1) > 0 && (float) $val < 1) {
+                            $rowData[] = $dateObj->format('g:i A');
+                        } elseif (fmod((float) $val, 1) > 0) {
+                            $rowData[] = $dateObj->format('d/m/Y g:i A');
+                        } else {
+                            $rowData[] = $dateObj->format('d/m/Y');
+                        }
+                        $nonEmpty = true;
+                        continue;
+                    } catch (\Throwable $e) {
+                        // Si falla la conversión, cae al valor de texto de abajo.
+                    }
+                }
+
+                // Normalizar numéricos como (string)(float): "3001234567.0" -> "3001234567".
+                $sval = ($cell['t'] === 'n' && is_numeric($val)) ? (string) (float) $val : (string) $val;
+                $rowData[] = $sval;
+                if (trim($sval) !== '') $nonEmpty = true;
+            }
+
+            if ($nonEmpty) {
+                $rows[] = $rowData;
+                $numeros[] = $numeroReal;
+                $emptyRun = 0;
+            } else {
+                // Fila vacía: contar. Tras N seguidas, los datos terminaron → cortar.
+                $emptyRun++;
+                if ($emptyRun >= $emptyRowLimit) break;
+            }
+            $xr->next('row');
+        }
+        $xr->close();
+
+        return $rows;
+    }
+
+    /** Convierte letras de columna de Excel (A, B, ..., AA, AB) a índice 1-based. */
+    private function colLettersToIndex(string $letters): int
+    {
+        $n = 0;
+        $len = strlen($letters);
+        for ($i = 0; $i < $len; $i++) {
+            $n = $n * 26 + (ord($letters[$i]) - 64);
+        }
+        return $n;
     }
 
     /**
@@ -474,12 +981,37 @@ class BulkSendController extends Controller
             'recipients.*.params' => 'nullable|array',
         ]);
 
-        // Verificar que no haya un envío en proceso
-        $activeCount = BulkSend::where('status', 'processing')->count();
-        if ($activeCount > 0) {
+        // El Excel y el mapeo, contra la estructura de la plantilla (también aquí: una pantalla vieja no lo revisó al
+        // subirlo, y el mapeo de cada {{N}} se puede cambiar a mano después).
+        $plantilla = WhatsappTemplate::where('meta_template_name', $request->input('template_name'))->first();
+        if (!$plantilla) {
             return response()->json([
                 'success' => false,
-                'message' => 'Ya hay un envío masivo en proceso. Espere a que termine.',
+                'message' => 'No se encontró la plantilla elegida. Recargue la página y elíjala de nuevo.',
+            ], 422);
+        }
+        $errores = EstructuraMasivo::validarEnvio((array) $request->input('recipients'), $request->input('column_mapping'), EstructuraMasivo::guia($plantilla->preview_text));
+        if ($errores !== []) {
+            Log::warning('Envío masivo frenado: el Excel o el mapeo no tienen la estructura de la plantilla', [
+                'plantilla' => $plantilla->meta_template_name,
+                'destinatarios' => count((array) $request->input('recipients')),
+                'problemas' => count($errores),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => "No se puede enviar: los datos no corresponden a la plantilla «{$plantilla->name}». Corrija esto:\n\n• " . implode("\n• ", $errores),
+                'issues' => $errores,
+                'estructura' => true,
+            ], 422);
+        }
+
+        // Varios envíos pueden salir a la vez (sus mensajes se turnan); como mucho MAXIMO_SIMULTANEOS.
+        $activeCount = BulkSend::where('status', 'processing')->count();
+        if ($activeCount >= BulkSend::MAXIMO_SIMULTANEOS) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ya hay ' . BulkSend::MAXIMO_SIMULTANEOS . ' envíos masivos en curso. Espere a que termine alguno.',
             ], 400);
         }
 
@@ -501,7 +1033,8 @@ class BulkSendController extends Controller
 
             // Crear el registro de envío masivo
             $bulkSend = BulkSend::create([
-                'name' => $request->input('name') ?: 'Envío ' . now()->format('Y-m-d H:i'),
+                // Sin nombre: la fecha y la hora de Colombia, en reloj de 12 horas como el resto de la página.
+                'name' => $request->input('name') ?: 'Envío ' . now()->enColombia()->format('Y-m-d g:i') . (now()->enColombia()->hour < 12 ? ' a. m.' : ' p. m.'),
                 'template_name' => $request->input('template_name'),
                 'template_params' => $request->input('template_params'),
                 'column_mapping' => $request->input('column_mapping'),
@@ -511,6 +1044,8 @@ class BulkSendController extends Controller
                 'sent_count' => 0,
                 'failed_count' => 0,
                 'created_by' => auth()->id(),
+                // Las respuestas de un envío de un equipo le llegan a ese equipo (ver SendBulkMessageJob).
+                'equipo_id' => auth()->user()->isAdvisor() ? auth()->user()->equipo_id : null,
             ]);
 
             // Insertar destinatarios en lotes de 200 para no sobrecargar MySQL
@@ -532,11 +1067,9 @@ class BulkSendController extends Controller
                 BulkSendRecipient::insert($rows);
             }
 
-            // Obtener los IDs insertados
+            // El primer destinatario: los demás se encolan en cadena (SendBulkMessageJob::$encadenado).
             DB::reconnect();
-            $recipientIds = BulkSendRecipient::where('bulk_send_id', $bulkSend->id)
-                ->pluck('id')
-                ->toArray();
+            $primero = (int) BulkSendRecipient::where('bulk_send_id', $bulkSend->id)->min('id');
 
             // Crear el batch VACÍO primero (transacción pequeña)
             DB::reconnect();
@@ -544,18 +1077,8 @@ class BulkSendController extends Controller
                 ->name('Envío masivo: ' . ($bulkSend->name ?? $bulkSend->template_name))
                 ->allowFailures()
                 ->finally(function ($batch) use ($bulkSend) {
-                    $bs = BulkSend::find($bulkSend->id);
-                    if ($bs) {
-                        // Reconciliar contadores desde los recipients reales
-                        $actualSent = $bs->recipients()->where('status', 'sent')->count();
-                        $actualFailed = $bs->recipients()->where('status', 'failed')->count();
-
-                        $bs->update([
-                            'status' => 'completed',
-                            'sent_count' => $actualSent,
-                            'failed_count' => $actualFailed,
-                        ]);
-                    }
+                    // Contadores desde los destinatarios reales; lo que quedó pendiente, como vencido.
+                    BulkSend::find($bulkSend->id)?->cerrar($batch->cancelled());
                     Log::info('Batch de envío masivo completado', [
                         'bulk_send_id' => $bulkSend->id,
                         'batch_id' => $batch->id,
@@ -565,16 +1088,9 @@ class BulkSendController extends Controller
 
             $bulkSend->update(['batch_id' => $batch->id]);
 
-            // Agregar jobs al batch en chunks pequeños (100 a la vez)
-            $idChunks = array_chunk($recipientIds, 100);
-            foreach ($idChunks as $idChunk) {
-                DB::reconnect();
-                $jobs = array_map(
-                    fn($recipientId) => new SendBulkMessageJob($recipientId, $bulkSend->id),
-                    $idChunk
-                );
-                $batch->add($jobs);
-            }
+            // Solo el primero: cada mensaje deja en la fila al siguiente al empezar. Antes se encolaban todos de una vez
+            // y un segundo envío quedaba detrás del primero entero (por eso solo se permitía uno a la vez).
+            $batch->add([new SendBulkMessageJob($primero, $bulkSend->id, true)]);
 
             Log::info('Envío masivo iniciado', [
                 'bulk_send_id' => $bulkSend->id,
@@ -603,66 +1119,104 @@ class BulkSendController extends Controller
     }
 
     /**
-     * Obtener estado del envío masivo activo
+     * Envíos en curso (pueden ser varios a la vez), del más viejo al más nuevo. Los que ya terminaron su lote se
+     * cierran aquí y dejan de salir.
+     */
+    private function enviosEnCurso(): array
+    {
+        $activos = [];
+        $enCurso = BulkSend::where('status', 'processing');
+        $this->alcanceEnvios($enCurso);
+        foreach ($enCurso->orderBy('id')->get() as $envio) {
+            if ($envio->batch_id) {
+                try {
+                    $batch = Bus::findBatch($envio->batch_id);
+                    if ($batch && ($batch->finished() || $batch->cancelled())) {
+                        $envio->cerrar($batch->cancelled());
+                        continue;
+                    }
+                } catch (\Exception $e) {
+                    // Sigue con lo que hay en la base.
+                }
+            }
+            $activos[] = [
+                'id' => $envio->id,
+                'name' => $envio->name,
+                'template_name' => $envio->template_name,
+                'created_by_name' => $envio->creator?->name,
+                'total' => $envio->total_recipients,
+                'sent' => $envio->sent_count,
+                'failed' => $envio->failed_count,
+                'pending' => max(0, $envio->total_recipients - $envio->sent_count - $envio->failed_count),
+                'percentage' => $envio->total_recipients > 0
+                    ? round(($envio->sent_count + $envio->failed_count) / $envio->total_recipients * 100)
+                    : 0,
+            ];
+        }
+
+        return $activos;
+    }
+
+    /**
+     * Estado de los envíos en curso (la pantalla lo pide cada 3 s mientras haya alguno).
      */
     public function status()
     {
-        $activeSend = BulkSend::where('status', 'processing')->first();
+        $activos = $this->enviosEnCurso();
 
-        if (!$activeSend) {
-            return response()->json([
-                'processing' => false,
-            ]);
-        }
-
-        // Verificar si el batch terminó
-        if ($activeSend->batch_id) {
-            try {
-                $batch = Bus::findBatch($activeSend->batch_id);
-                if ($batch && ($batch->finished() || $batch->cancelled())) {
-                    // Reconciliar contadores desde recipients reales antes de marcar como completado
-                    $actualSent = $activeSend->recipients()->where('status', 'sent')->count();
-                    $actualFailed = $activeSend->recipients()->where('status', 'failed')->count();
-
-                    $activeSend->update([
-                        'status' => $batch->cancelled() ? 'cancelled' : 'completed',
-                        'sent_count' => $actualSent,
-                        'failed_count' => $actualFailed,
-                    ]);
-
-                    return response()->json([
-                        'processing' => false,
-                        'completed' => true,
-                        'sent' => $actualSent,
-                        'failed' => $actualFailed,
-                        'total' => $activeSend->total_recipients,
-                    ]);
-                }
-            } catch (\Exception $e) {
-                // Continue with local data
-            }
-        }
-
-        return response()->json([
-            'processing' => true,
-            'id' => $activeSend->id,
-            'name' => $activeSend->name,
-            'template_name' => $activeSend->template_name,
-            'total' => $activeSend->total_recipients,
-            'sent' => $activeSend->sent_count,
-            'failed' => $activeSend->failed_count,
-            'pending' => max(0, $activeSend->total_recipients - $activeSend->sent_count - $activeSend->failed_count),
-            'percentage' => $activeSend->total_recipients > 0
-                ? round(($activeSend->sent_count + $activeSend->failed_count) / $activeSend->total_recipients * 100)
-                : 0,
-        ]);
+        return response()->json(['processing' => $activos !== [], 'activos' => $activos]);
     }
 
     /**
      * Cancelar envío masivo
      */
+    /**
+     * Borra de la cola los SendBulkMessageJob de unos destinatarios concretos.
+     *
+     * Solo toca trabajos aún NO reservados (reserved_at nulo): si el worker ya cogió
+     * uno, dejarlo terminar es más seguro que arrancárselo — como mucho enviará ese.
+     * El id del destinatario se lee del payload serializado, así que un job de otro
+     * envío jamás se ve afectado.
+     */
+    private function purgarTrabajosEncolados($recipientIds): int
+    {
+        $buscar = collect($recipientIds)->map(fn ($id) => (int) $id)->flip();
+        if ($buscar->isEmpty()) {
+            return 0;
+        }
+
+        $borrados = 0;
+        DB::table('jobs')->whereNull('reserved_at')->orderBy('id')
+            ->select('id', 'payload')->chunk(500, function ($lote) use ($buscar, &$borrados) {
+                $aBorrar = [];
+                foreach ($lote as $job) {
+                    if (! str_contains($job->payload, 'SendBulkMessageJob')) {
+                        continue;
+                    }
+                    // Hay que decodificar el JSON antes de buscar. En el texto crudo del
+                    // payload las comillas van escapadas (s:11:\"recipientId\";) y una
+                    // expresión regular directa no casa nunca: falla en silencio, que es
+                    // lo peor de todo — parece que purga y deja la cola igual.
+                    $datos = json_decode($job->payload, true);
+                    $cmd = $datos['data']['command'] ?? '';
+                    if (preg_match('/"recipientId";i:(\d+);/', $cmd, $m)
+                        && $buscar->has((int) $m[1])) {
+                        $aBorrar[] = $job->id;
+                    }
+                }
+                if ($aBorrar) {
+                    $borrados += DB::table('jobs')->whereIn('id', $aBorrar)->delete();
+                }
+            });
+
+        Log::info('Trabajos de envío masivo purgados de la cola tras cancelar', ['borrados' => $borrados]);
+
+        return $borrados;
+    }
+
     public function cancel(BulkSend $bulkSend)
     {
+        abort_unless($this->envioVisible($bulkSend), 403);
         if ($bulkSend->status !== 'processing') {
             return response()->json([
                 'success' => false,
@@ -681,9 +1235,22 @@ class BulkSendController extends Controller
             $bulkSend->update(['status' => 'cancelled']);
 
             // Marcar destinatarios pendientes como cancelados
+            $idsCancelados = BulkSendRecipient::where('bulk_send_id', $bulkSend->id)
+                ->where('status', 'pending')
+                ->pluck('id');
+
             BulkSendRecipient::where('bulk_send_id', $bulkSend->id)
                 ->where('status', 'pending')
                 ->update(['status' => 'failed', 'error' => 'Envío cancelado por el usuario']);
+
+            // Y sacar sus trabajos de la cola. Marcar el envío en la base NO bastaba:
+            // los jobs seguían encolados y el worker los iba masticando uno a uno a
+            // ~3 s cada uno. Con miles pendientes, el SIGUIENTE envío se quedaba media
+            // hora detrás de basura, mostrando 0% mientras la consola parecía a tope.
+            // Pasó dos veces el 12-ago y desconcertó a todo el mundo.
+            $this->purgarTrabajosEncolados($idsCancelados);
+            // Contadores al día (los pendientes acaban de pasar a fallidos «cancelado»).
+            $bulkSend->cerrar(true);
 
             return response()->json([
                 'success' => true,
@@ -930,7 +1497,26 @@ class BulkSendController extends Controller
                         'status' => $mt['status'],
                         'category' => $mt['category'] ?? $local->category,
                         'meta_template_id' => $mt['id'],
-                        'is_active' => $mt['status'] === 'APPROVED',
+                        // La sincronización solo puede APAGAR (si Meta deja de aprobarla),
+                        // nunca encender. Antes ponía is_active = (status === APPROVED) a secas,
+                        // así que cada sincronización resucitaba lo que un administrador había
+                        // desactivado a mano: volvía hello_world, volvería cancelacion_de_cita
+                        // (rota, sin parámetros), y se reactivaba la nueva_conversacion vieja
+                        // deshaciendo el trabajo del comando que activa la v2. Como no hay
+                        // interruptor en la interfaz, resucitarlas dejaba a los asesores
+                        // eligiendo plantillas retiradas a propósito.
+                        // Distinguimos dos situaciones que antes se confundían:
+                        //
+                        // 1) La plantilla acaba de pasar a APPROVED (estaba PENDING o
+                        //    REJECTED): se activa, porque nadie la había retirado — solo
+                        //    estaba esperando a Meta. Sin esto quedaba aprobada pero
+                        //    invisible, y había que activarla a mano cada vez.
+                        // 2) Ya estaba APPROVED y alguien la desactivó a propósito
+                        //    (hello_world, la cancelacion_de_cita rota): se respeta.
+                        //
+                        // Y si Meta le retira la aprobación, se apaga en cualquier caso.
+                        'is_active' => $mt['status'] === 'APPROVED'
+                            && ($local->status !== 'APPROVED' || $local->is_active),
                     ];
 
                     if ($headerFormat) {
