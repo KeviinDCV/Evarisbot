@@ -5,7 +5,7 @@ import { nombrePropio } from '@/lib/nombres';
 import { agrupar, alAviso } from '@/lib/tiempo-real';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
 import {
     CalendarRange,
@@ -63,6 +63,8 @@ type Vivo = {
     asesores_turno_conectados: number;
     horario: { dias: number[]; desde: string; hasta: string; abierto: boolean };
     buzon_sin_resolver: number;
+    /** Segundos que timbra una llamada antes de irse al buzón (el ajuste «antes del buzón»). */
+    segundos_timbre?: number;
     /** Cuándo llegó (para que los contadores sigan corriendo entre una consulta y otra). */
     recibido: number;
 };
@@ -109,6 +111,9 @@ const SEGMENTADO = 'flex shrink-0 rounded-[12px] bg-[#e7ebf4] p-[3px] shadow-[in
 const SEG_BOTON = 'flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[9px] px-3.5 text-[13px] transition-[background-color,color,box-shadow] duration-150';
 const SEG_SI = 'bg-white font-semibold text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,.12),0_2px_6px_rgba(46,63,132,.08)] dark:bg-white/[0.12] dark:text-white';
 const SEG_NO = 'font-medium text-[#4a5378] hover:text-[#1e2550] dark:text-neutral-400 dark:hover:text-neutral-100';
+/** El input del buscador no pinta borde propio: el anillo de foco va en su contenedor (el mismo del resto de la app). */
+const ANILLO_CAMPO =
+    'has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-[#2e3f84] dark:has-[input:focus-visible]:outline-[#53bdeb]';
 const BOTON_PRIMARIO =
     'inline-flex h-9 items-center justify-center gap-2 rounded-[10px] bg-gradient-to-b from-[#3e4f94] to-[#2e3f84] px-3.5 text-[13px] font-semibold text-white shadow-[0_1px_2px_rgba(30,37,80,.25),inset_0_1px_0_rgba(255,255,255,.12)] transition-[filter,scale] duration-150 hover:brightness-110 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50';
 const BOTON_SECUNDARIO =
@@ -202,11 +207,13 @@ function paramsPeriodo(p: Periodo): Record<string, string> {
     return p.tipo === 'rango' ? { periodo: 'rango', desde: p.desde, hasta: p.hasta } : { periodo: p.tipo };
 }
 
-/** Pide JSON cada vez que cambia la dirección o la versión; ignora respuestas viejas. */
+/** Pide JSON cada vez que cambia la dirección o la versión; ignora respuestas viejas. `reintentar` vuelve a pedirlo. */
 function useDatos<T>(url: string | null, version: number) {
     const [datos, setDatos] = useState<T | null>(null);
     const [cargando, setCargando] = useState(false);
     const [error, setError] = useState(false);
+    const [intento, setIntento] = useState(0);
+    const reintentar = useCallback(() => setIntento((n) => n + 1), []);
     useEffect(() => {
         if (!url) return;
         let vigente = true;
@@ -227,8 +234,25 @@ function useDatos<T>(url: string | null, version: number) {
         return () => {
             vigente = false;
         };
-    }, [url, version]);
-    return { datos, setDatos, cargando, error };
+    }, [url, version, intento]);
+    return { datos, setDatos, cargando, error, reintentar };
+}
+
+/** No se pudieron traer los datos: lo dice y deja volver a intentarlo ahí mismo. */
+function ErrorCarga({ onReintentar, className }: { onReintentar: () => void; className?: string }) {
+    const { t } = useTranslation();
+    return (
+        <div role="alert" className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-8 text-[13px] text-red-700 dark:text-red-400', className)}>
+            <p className="flex items-center gap-2">
+                <CircleAlert className="size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                {t('llamadas.panel.errorCarga')}
+            </p>
+            <button type="button" onClick={onReintentar} className={BOTON_SECUNDARIO}>
+                <RotateCw className="size-4" strokeWidth={2} aria-hidden="true" />
+                {t('llamadas.panel.reintentar')}
+            </button>
+        </div>
+    );
 }
 
 // ── La página ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -242,8 +266,12 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
     /** Sube con cada aviso de llamada: las pestañas vuelven a pedir sus datos. */
     const [version, setVersion] = useState(0);
     const [vivo, setVivo] = useState<Vivo | null>(null);
+    // La última consulta de «En vivo» falló: lo que se ve puede estar viejo (la franja lo dice).
+    const [vivoSinConexion, setVivoSinConexion] = useState(false);
     const [sinResolver, setSinResolver] = useState<number | null>(null);
-    const [ahora, setAhora] = useState(() => Date.now());
+    // Ajustes se queda montado (oculto) una vez abierto: así los cambios sin guardar no se pierden al cambiar de pestaña.
+    const [ajustesAbierto, setAjustesAbierto] = useState(tabInicial === 'ajustes');
+    const [ajustesPendientes, setAjustesPendientes] = useState(false);
 
     // ── En vivo: al entrar, con cada aviso de llamada y, de respaldo, cada ~20 s con la pestaña a la vista ──
     const pedirVivo = useCallback(async () => {
@@ -251,8 +279,10 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
             const r = await axios.get<Omit<Vivo, 'recibido'>>(`${BASE}/en-vivo`);
             setVivo({ ...r.data, recibido: Date.now() });
             setSinResolver(r.data.buzon_sin_resolver);
+            setVivoSinConexion(false);
         } catch {
-            // Sin red: se queda lo último que llegó; el siguiente ciclo lo vuelve a intentar.
+            // Sin red: se queda lo último que llegó (la franja avisa que puede estar viejo); el siguiente ciclo reintenta.
+            setVivoSinConexion(true);
         }
     }, []);
 
@@ -289,16 +319,18 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
         };
     }, [pedirVivo]);
 
-    // Los contadores de «espera» y «en curso» corren cada segundo solo mientras hay llamadas vivas.
-    const hayVivas = !!vivo && vivo.timbrando.length + vivo.en_curso.length > 0;
-    useEffect(() => {
-        if (!hayVivas) return;
-        const id = setInterval(() => setAhora(Date.now()), 1000);
-        return () => clearInterval(id);
-    }, [hayVivas]);
+    /** Colgó desde aquí: la fila sale al instante (sin esperar al aviso de Meta) y luego se confirma con el servidor. */
+    const alColgar = useCallback(
+        (id: number) => {
+            setVivo((v) => (v ? { ...v, en_curso: v.en_curso.filter((l) => l.id !== id) } : v));
+            void pedirVivo();
+        },
+        [pedirVivo],
+    );
 
     const cambiarTab = useCallback((nueva: Tab) => {
         setTab(nueva);
+        if (nueva === 'ajustes') setAjustesAbierto(true);
         try {
             const url = new URL(window.location.href);
             if (nueva === 'historial') url.searchParams.delete('tab');
@@ -383,7 +415,7 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
 
                     {/* En vivo es de toda la pantalla: la misma franja en las cuatro pestañas, así las pestañas no se mueven al
                         cambiar de una a otra. Solo crece cuando hay llamadas sonando o en curso. */}
-                    <EnVivo vivo={vivo} ahora={ahora} />
+                    <EnVivo vivo={vivo} sinConexion={vivoSinConexion} onColgada={alColgar} onIrAjustes={() => cambiarTab('ajustes')} />
 
                     <div role="tablist" aria-label={t('llamadas.panel.tabs.etiqueta')} onKeyDown={alTeclaTabs} className={cn('-mb-1 flex gap-1 overflow-x-auto border-b [scrollbar-width:none]', FILETE)}>
                         {TABS.map((id) => {
@@ -398,7 +430,7 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                                     role="tab"
                                     id={`tab-${id}`}
                                     aria-selected={si}
-                                    aria-controls={`panel-${id}`}
+                                    aria-controls={si ? `panel-${id}` : undefined}
                                     tabIndex={si ? 0 : -1}
                                     onClick={() => cambiarTab(id)}
                                     className={cn(
@@ -409,6 +441,12 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                                     )}
                                 >
                                     {nombreTab[id]}
+                                    {id === 'ajustes' && ajustesPendientes && (
+                                        <>
+                                            <span aria-hidden="true" title={t('llamadas.panel.ajustes.cambiosSinGuardar')} className="size-2 rounded-full bg-amber-600 dark:bg-amber-400" />
+                                            <span className="sr-only">({t('llamadas.panel.ajustes.cambiosSinGuardar')})</span>
+                                        </>
+                                    )}
                                     {id === 'buzon' && !!sinResolver && (
                                         <span
                                             aria-label={t('llamadas.panel.buzon.sinResolverCuenta', { count: sinResolver })}
@@ -432,7 +470,11 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                         )}
                         {tab === 'buzon' && <PestanaBuzon version={version} onSinResolver={setSinResolver} />}
                         {tab === 'indicadores' && <PestanaIndicadores url={`${BASE}/indicadores?${paramsDe(paramsPeriodo(periodo))}`} version={version} />}
-                        {tab === 'ajustes' && <PestanaAjustes />}
+                        {(tab === 'ajustes' || ajustesAbierto) && (
+                            <div hidden={tab !== 'ajustes'}>
+                                <PestanaAjustes onPendientes={setAjustesPendientes} />
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -556,8 +598,32 @@ function textoDias(dias: number[], textos: { lunesAViernes: string; todos: strin
     return orden.map((d) => nombreDia(d, 'long')).join(', ');
 }
 
-function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
+/** «40 s» o «3 min»: hace cuánto llegó lo último de «En vivo». */
+function haceCuanto(segundos: number): string {
+    return segundos < 60 ? `${segundos} s` : `${Math.floor(segundos / 60)} min`;
+}
+
+function EnVivo({
+    vivo,
+    sinConexion,
+    onColgada,
+    onIrAjustes,
+}: {
+    vivo: Vivo | null;
+    sinConexion: boolean;
+    onColgada: (id: number) => void;
+    onIrAjustes: () => void;
+}) {
     const { t } = useTranslation();
+    // Los contadores (espera, en curso, «actualizado hace…») corren cada segundo solo aquí y solo cuando hace falta.
+    const [ahora, setAhora] = useState(() => Date.now());
+    const corre = sinConexion || (!!vivo && vivo.timbrando.length + vivo.en_curso.length > 0);
+    useEffect(() => {
+        if (!corre) return;
+        setAhora(Date.now());
+        const id = setInterval(() => setAhora(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [corre]);
     const pasado = vivo ? Math.max(0, Math.floor((ahora - vivo.recibido) / 1000)) : 0;
     const filas = vivo ? vivo.timbrando.length + vivo.en_curso.length : 0;
     const columnas = 'grid grid-cols-[36px_minmax(0,1.25fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_150px] items-center gap-x-3.5';
@@ -605,6 +671,12 @@ function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
                 </div>
                 {vivo && (
                     <div className={cn('flex flex-wrap items-center gap-2 text-[12px]', SUAVE)}>
+                        {sinConexion && (
+                            <span role="status" className="mr-1 flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300">
+                                <CircleAlert className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                                {t('llamadas.panel.vivo.sinConexion', { tiempo: haceCuanto(pasado) })}
+                            </span>
+                        )}
                         <Clock className="size-3.5" strokeWidth={2} aria-hidden="true" />
                         <span>
                             {t('llamadas.panel.vivo.horario', {
@@ -636,6 +708,8 @@ function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
                     <ul className="min-w-[720px]">
                         {vivo.timbrando.map((l) => {
                             const nadie = l.le_timbra_asesores + l.le_timbra_admins === 0;
+                            // Cuánto le falta para irse al buzón (si el servidor manda el ajuste).
+                            const restante = typeof vivo.segundos_timbre === 'number' ? Math.max(0, vivo.segundos_timbre - (l.espera + pasado)) : null;
                             return (
                                 <li key={`t${l.id}`} className={cn(columnas, 'h-11 border-t', FILETE)}>
                                     <span className="flex size-8 items-center justify-center rounded-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
@@ -645,15 +719,29 @@ function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
                                     <p className="text-[13px] font-semibold text-amber-800 dark:text-amber-300">
                                         {t('llamadas.panel.vivo.timbrandoEspera')} <span className="tabular-nums">{mmss(l.espera + pasado)}</span>
                                     </p>
-                                    <p className={cn('text-[12px]', nadie ? 'font-semibold text-red-700 dark:text-red-400' : SUAVE)}>
-                                        {nadie
-                                            ? t('llamadas.panel.vivo.nadieConectado')
-                                            : t('llamadas.panel.vivo.leTimbra', {
-                                                  asesores: t('llamadas.panel.vivo.asesores', { count: l.le_timbra_asesores }),
-                                                  admins: t('llamadas.panel.vivo.admins', { count: l.le_timbra_admins }),
-                                              })}
-                                    </p>
-                                    <span className="justify-self-end">{l.conversation_id && <VerChat id={l.conversation_id} />}</span>
+                                    {nadie ? (
+                                        // Nadie la puede contestar: decir cuándo pasa al buzón y dónde se cambia a quién le timbra.
+                                        <p className="flex flex-wrap items-baseline gap-x-2 text-[12px]">
+                                            <span className="font-semibold text-red-700 tabular-nums dark:text-red-400">
+                                                {restante === null
+                                                    ? t('llamadas.panel.vivo.nadieConectado')
+                                                    : restante > 0
+                                                      ? t('llamadas.panel.vivo.nadieBuzonEn', { tiempo: mmss(restante) })
+                                                      : t('llamadas.panel.vivo.nadieAlBuzon')}
+                                            </span>
+                                            <button type="button" onClick={onIrAjustes} className={cn('text-[12px] whitespace-nowrap', ENLACE)}>
+                                                {t('llamadas.panel.vivo.verAQuien')}
+                                            </button>
+                                        </p>
+                                    ) : (
+                                        <p className={cn('text-[12px]', SUAVE)}>
+                                            {t('llamadas.panel.vivo.leTimbra', {
+                                                asesores: t('llamadas.panel.vivo.asesores', { count: l.le_timbra_asesores }),
+                                                admins: t('llamadas.panel.vivo.admins', { count: l.le_timbra_admins }),
+                                            })}
+                                        </p>
+                                    )}
+                                    <span className="justify-self-end">{l.conversation_id && <VerChat id={l.conversation_id} fila={l} />}</span>
                                 </li>
                             );
                         })}
@@ -671,8 +759,8 @@ function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
                                     {t('llamadas.panel.vivo.con')} <strong className="font-semibold">{l.atendio ? nombrePropio(l.atendio) : '—'}</strong>
                                 </p>
                                 <span className="flex items-center gap-3 justify-self-end">
-                                    {l.conversation_id && <VerChat id={l.conversation_id} />}
-                                    <BotonColgar id={l.id} />
+                                    {l.conversation_id && <VerChat id={l.conversation_id} fila={l} />}
+                                    <BotonColgar id={l.id} fila={l} onColgada={onColgada} />
                                 </span>
                             </li>
                         ))}
@@ -683,41 +771,51 @@ function EnVivo({ vivo, ahora }: { vivo: Vivo | null; ahora: number }) {
     );
 }
 
-function Paciente({ fila, enLinea = false }: { fila: Fila; enLinea?: boolean }) {
+function Paciente({ fila, enLinea = false, celda = false }: { fila: Fila; enLinea?: boolean; celda?: boolean }) {
     const { t } = useTranslation();
     const nombre = fila.nombre ? nombrePropio(fila.nombre) : t('llamadas.panel.sinNombre');
     if (enLinea) {
         return (
-            <span className="min-w-0 truncate">
+            <span role={celda ? 'cell' : undefined} className="min-w-0 truncate">
                 <strong className={cn('font-semibold', NAVY)}>{nombre}</strong>{' '}
                 <span className={cn('text-[12px] tabular-nums', SUAVE)}>{telefono(fila.telefono)}</span>
             </span>
         );
     }
     return (
-        <div className="min-w-0">
+        <div role={celda ? 'cell' : undefined} className="min-w-0">
             <p className={cn('truncate text-[13px] font-semibold', NAVY)}>{nombre}</p>
             <p className={cn('text-[12px] tabular-nums', SUAVE)}>{telefono(fila.telefono)}</p>
         </div>
     );
 }
 
-function VerChat({ id }: { id: number }) {
+/** Nombre del paciente para leerlo en voz (botones de la fila): su nombre, si no su número. */
+function nombreDe(fila: Fila, sinNombre: string): string {
+    return fila.nombre ? nombrePropio(fila.nombre) : fila.telefono ? telefono(fila.telefono) : sinNombre;
+}
+
+function VerChat({ id, fila }: { id: number; fila: Fila }) {
     const { t } = useTranslation();
     return (
-        <Link href={`/admin/chat/${id}`} className={cn('text-[12px] whitespace-nowrap', ENLACE)}>
+        <Link
+            href={`/admin/chat/${id}`}
+            aria-label={t('llamadas.verChatDe', { nombre: nombreDe(fila, t('llamadas.panel.sinNombre')) })}
+            className={cn('text-[12px] whitespace-nowrap', ENLACE)}
+        >
             {t('llamadas.verChat')}
         </Link>
     );
 }
 
-/** Colgar una llamada ajena es fuerte: pide un segundo clic (4 s para confirmarlo). */
-function BotonColgar({ id }: { id: number }) {
+/** Colgar una llamada ajena es fuerte: pide un segundo clic (8 s para confirmarlo; el lector de pantalla lo anuncia). */
+function BotonColgar({ id, fila, onColgada }: { id: number; fila: Fila; onColgada: (id: number) => void }) {
     const { t } = useTranslation();
+    const nombre = nombreDe(fila, t('llamadas.panel.sinNombre'));
     const [paso, setPaso] = useState<'listo' | 'confirmar' | 'enviando'>('listo');
     useEffect(() => {
         if (paso !== 'confirmar') return;
-        const tiempo = setTimeout(() => setPaso('listo'), 4000);
+        const tiempo = setTimeout(() => setPaso('listo'), 8000);
         return () => clearTimeout(tiempo);
     }, [paso]);
     const alPulsar = async () => {
@@ -729,6 +827,8 @@ function BotonColgar({ id }: { id: number }) {
         setPaso('enviando');
         try {
             await axios.post(`/admin/llamadas/${id}/colgar`);
+            toast.success(t('llamadas.panel.vivo.colgada'));
+            onColgada(id);
         } catch {
             toast.error(t('llamadas.panel.vivo.noColgo'));
         } finally {
@@ -740,6 +840,7 @@ function BotonColgar({ id }: { id: number }) {
             type="button"
             onClick={alPulsar}
             aria-disabled={paso === 'enviando'}
+            aria-label={paso === 'confirmar' ? t('llamadas.panel.vivo.colgarConfirmarDe', { nombre }) : t('llamadas.colgarDe', { nombre })}
             className={cn(
                 'flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-[12px] font-semibold whitespace-nowrap transition-[background-color,scale] duration-150 active:scale-[0.96]',
                 paso === 'confirmar'
@@ -749,6 +850,10 @@ function BotonColgar({ id }: { id: number }) {
         >
             {paso === 'enviando' && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
             {paso === 'confirmar' ? t('llamadas.panel.vivo.colgarSeguro') : t('llamadas.colgar')}
+            {/* Siempre montada: así el aviso se lee al aparecer el segundo paso. */}
+            <span className="sr-only" aria-live="assertive">
+                {paso === 'confirmar' ? t('llamadas.panel.vivo.colgarAviso', { nombre }) : ''}
+            </span>
         </button>
     );
 }
@@ -913,7 +1018,7 @@ function PestanaHistorial({
     }
 
     const url = `${BASE}/historial?${paramsDe({ ...paramsPeriodo(periodo), ...filtros, pagina })}`;
-    const { datos, cargando, error } = useDatos<Historial>(url, version);
+    const { datos, cargando, error, reintentar } = useDatos<Historial>(url, version);
     useEffect(() => {
         if (datos?.asesores?.length) setAsesores(datos.asesores);
     }, [datos]);
@@ -933,7 +1038,7 @@ function PestanaHistorial({
     return (
         <section aria-label={t('llamadas.panel.tabs.historial')} className={TARJETA}>
             <div className={cn('flex flex-wrap items-center gap-2.5 border-b px-4 py-3', FILETE)}>
-                <label className={cn(CAMPO, 'flex h-9 w-full items-center gap-2 rounded-[10px] px-3 sm:w-[300px]', SUAVE)}>
+                <label className={cn(CAMPO, ANILLO_CAMPO, 'flex h-9 w-full items-center gap-2 rounded-[10px] px-3 sm:w-[300px]', SUAVE)}>
                     <Search className="size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
                     <span className="sr-only">{t('llamadas.panel.historial.buscar')}</span>
                     <input
@@ -941,7 +1046,7 @@ function PestanaHistorial({
                         value={texto}
                         onChange={(e) => setTexto(e.target.value)}
                         placeholder={t('llamadas.panel.historial.buscar')}
-                        className={cn('h-full min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-[#8a91ad] sm:text-[13px]', NAVY)}
+                        className={cn('h-full min-w-0 flex-1 bg-transparent text-[16px] outline-hidden placeholder:text-[#5c6485] sm:text-[13px] dark:placeholder:text-neutral-400', NAVY)}
                     />
                 </label>
                 <Desplegable
@@ -969,9 +1074,7 @@ function PestanaHistorial({
             </div>
 
             {error && !datos ? (
-                <p role="alert" className="px-5 py-8 text-[13px] text-red-700 dark:text-red-400">
-                    {t('llamadas.panel.errorCarga')}
-                </p>
+                <ErrorCarga onReintentar={reintentar} />
             ) : !datos ? (
                 <div className={cn('flex items-center gap-2 px-5 py-8 text-[13px]', SUAVE)}>
                     <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -987,20 +1090,22 @@ function PestanaHistorial({
             ) : (
                 <>
                     <div className="overflow-x-auto">
-                        <div className="min-w-[860px]">
-                            <div className={cn(columnas, 'h-[34px] border-b bg-[#f4f5f9]/70 px-4 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
-                                <span>{t('llamadas.panel.historial.col.hora')}</span>
-                                <span>{t('llamadas.panel.historial.col.paciente')}</span>
-                                <span>{t('llamadas.panel.historial.col.resultado')}</span>
-                                <span>{t('llamadas.panel.historial.col.atendio')}</span>
-                                <span className="text-right">{t('llamadas.panel.historial.col.espero')}</span>
-                                <span className="text-right">{t('llamadas.panel.historial.col.duracion')}</span>
-                                <span />
+                        <div role="table" aria-label={t('llamadas.panel.tabs.historial')} className="min-w-[860px]">
+                            <div role="row" className={cn(columnas, 'h-[34px] border-b bg-[#f4f5f9]/70 px-4 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
+                                <span role="columnheader">{t('llamadas.panel.historial.col.hora')}</span>
+                                <span role="columnheader">{t('llamadas.panel.historial.col.paciente')}</span>
+                                <span role="columnheader">{t('llamadas.panel.historial.col.resultado')}</span>
+                                <span role="columnheader">{t('llamadas.panel.historial.col.atendio')}</span>
+                                <span role="columnheader" className="text-right">{t('llamadas.panel.historial.col.espero')}</span>
+                                <span role="columnheader" className="text-right">{t('llamadas.panel.historial.col.duracion')}</span>
+                                <span role="columnheader">
+                                    <span className="sr-only">{t('llamadas.panel.acciones')}</span>
+                                </span>
                             </div>
-                            <ul>
+                            <div role="rowgroup">
                                 {datos.filas.map((f) => (
-                                    <li key={f.id} className={cn(columnas, 'h-[46px] border-b px-4 text-[13px] last:border-b-0', FILETE)}>
-                                        <span className={cn('tabular-nums', MEDIO)}>
+                                    <div role="row" key={f.id} className={cn(columnas, 'h-[46px] border-b px-4 text-[13px] last:border-b-0', FILETE)}>
+                                        <span role="cell" className={cn('tabular-nums', MEDIO)}>
                                             {periodo.tipo !== 'hoy' && f.inicio && diaDe(new Date(f.inicio)) !== hoyEnColombia() ? (
                                                 <>
                                                     <span className="block text-[11px] leading-3">{fechaCorta(f.inicio)}</span>
@@ -1010,21 +1115,23 @@ function PestanaHistorial({
                                                 hora(f.inicio)
                                             )}
                                         </span>
-                                        <Paciente fila={f} enLinea />
-                                        <PildoraResultado resultado={f.resultado} />
-                                        <span className={cn('truncate', f.atendio ? NAVY : SUAVE)}>
+                                        <Paciente fila={f} enLinea celda />
+                                        <span role="cell">
+                                            <PildoraResultado resultado={f.resultado} />
+                                        </span>
+                                        <span role="cell" className={cn('truncate', f.atendio ? NAVY : SUAVE)}>
                                             {f.atendio
                                                 ? nombrePropio(f.atendio)
                                                 : f.resultado === 'buzon' || f.resultado === 'perdida'
                                                   ? t('llamadas.panel.historial.nadieContesto')
                                                   : '—'}
                                         </span>
-                                        <span className={cn('text-right tabular-nums', MEDIO)}>{mmss(f.espera)}</span>
-                                        <span className={cn('text-right tabular-nums', MEDIO)}>{f.duracion ? mmss(f.duracion) : '—'}</span>
-                                        <span className="justify-self-end">{f.conversation_id && <VerChat id={f.conversation_id} />}</span>
-                                    </li>
+                                        <span role="cell" className={cn('text-right tabular-nums', MEDIO)}>{mmss(f.espera)}</span>
+                                        <span role="cell" className={cn('text-right tabular-nums', MEDIO)}>{f.duracion ? mmss(f.duracion) : '—'}</span>
+                                        <span role="cell" className="justify-self-end">{f.conversation_id && <VerChat id={f.conversation_id} fila={f} />}</span>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
                         </div>
                     </div>
                     {datos.paginas > 1 && (
@@ -1084,7 +1191,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
         return () => clearTimeout(tiempo);
     }, [texto]);
 
-    const { datos, setDatos, cargando, error } = useDatos<Buzon>(`${BASE}/buzon?${paramsDe({ filtro, buscar })}`, version + propia);
+    const { datos, setDatos, cargando, error, reintentar } = useDatos<Buzon>(`${BASE}/buzon?${paramsDe({ filtro, buscar })}`, version + propia);
     useEffect(() => {
         if (datos) onSinResolver(datos.sin_resolver);
     }, [datos, onSinResolver]);
@@ -1154,7 +1261,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                             </button>
                         ))}
                     </div>
-                    <label className={cn(CAMPO, 'flex h-9 w-full items-center gap-2 rounded-[10px] px-3 sm:w-[320px]', SUAVE)}>
+                    <label className={cn(CAMPO, ANILLO_CAMPO, 'flex h-9 w-full items-center gap-2 rounded-[10px] px-3 sm:w-[320px]', SUAVE)}>
                         <Search className="size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
                         <span className="sr-only">{t('llamadas.panel.buzon.buscar')}</span>
                         <input
@@ -1162,16 +1269,14 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                             value={texto}
                             onChange={(e) => setTexto(e.target.value)}
                             placeholder={t('llamadas.panel.buzon.buscar')}
-                            className={cn('h-full min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-[#8a91ad] sm:text-[13px]', NAVY)}
+                            className={cn('h-full min-w-0 flex-1 bg-transparent text-[16px] outline-hidden placeholder:text-[#5c6485] sm:text-[13px] dark:placeholder:text-neutral-400', NAVY)}
                         />
                     </label>
                     {cargando && <Loader2 className={cn('ml-auto size-4 animate-spin', SUAVE)} aria-label={t('llamadas.panel.cargando')} />}
                 </div>
 
                 {error && !datos ? (
-                    <p role="alert" className="px-5 py-8 text-[13px] text-red-700 dark:text-red-400">
-                        {t('llamadas.panel.errorCarga')}
-                    </p>
+                    <ErrorCarga onReintentar={reintentar} />
                 ) : !datos ? (
                     <div className={cn('flex items-center gap-2 px-5 py-8 text-[13px]', SUAVE)}>
                         <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -1186,22 +1291,24 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        <div className="min-w-[880px]">
-                            <div className={cn(columnas, 'items-center border-b bg-[#f4f5f9]/70 px-4 py-2 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
-                                <span>{t('llamadas.panel.buzon.col.cuando')}</span>
-                                <span>{t('llamadas.panel.buzon.col.paciente')}</span>
-                                <span>{t('llamadas.panel.buzon.col.loQueDijo')}</span>
-                                <span />
+                        <div role="table" aria-label={t('llamadas.panel.tabs.buzon')} className="min-w-[880px]">
+                            <div role="row" className={cn(columnas, 'items-center border-b bg-[#f4f5f9]/70 px-4 py-2 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
+                                <span role="columnheader">{t('llamadas.panel.buzon.col.cuando')}</span>
+                                <span role="columnheader">{t('llamadas.panel.buzon.col.paciente')}</span>
+                                <span role="columnheader">{t('llamadas.panel.buzon.col.loQueDijo')}</span>
+                                <span role="columnheader">
+                                    <span className="sr-only">{t('llamadas.panel.acciones')}</span>
+                                </span>
                             </div>
-                            <ul>
+                            <div role="rowgroup">
                                 {datos.filas.map((f) => (
-                                    <li key={f.id} className={cn(columnas, 'border-b px-4 py-3.5 text-[13px] last:border-b-0', FILETE, f.resuelto_en && 'bg-[#f4f5f9]/45 dark:bg-white/[0.02]')}>
-                                        <div>
+                                    <div role="row" key={f.id} className={cn(columnas, 'border-b px-4 py-3.5 text-[13px] last:border-b-0', FILETE, f.resuelto_en && 'bg-[#f4f5f9]/45 dark:bg-white/[0.02]')}>
+                                        <div role="cell">
                                             <p className={cn('tabular-nums', MEDIO)}>{cuando(f.cuando)}</p>
                                             <p className={cn('text-[12px]', SUAVE)}>{f.fuera_de_horario ? t('llamadas.panel.buzon.fueraDeHorario') : t('llamadas.panel.buzon.nadieContesto')}</p>
                                         </div>
-                                        <Paciente fila={f} />
-                                        <div className="flex min-w-0 flex-col gap-1.5">
+                                        <Paciente fila={f} celda />
+                                        <div role="cell" className="flex min-w-0 flex-col gap-1.5">
                                             {f.audio ? (
                                                 <AudioBuzon src={f.audio} resuelto={!!f.resuelto_en} />
                                             ) : (
@@ -1213,7 +1320,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                 <p className={cn('text-[12px] italic', SUAVE)}>{t('llamadas.panel.buzon.sinTranscripcion')}</p>
                                             )}
                                         </div>
-                                        <div className="flex flex-col items-end gap-2">
+                                        <div role="cell" className="flex flex-col items-end gap-2">
                                             {f.resuelto_en ? (
                                                 <>
                                                     <span className="flex h-6 items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 text-[12px] font-semibold text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -1226,7 +1333,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                         </p>
                                                     )}
                                                     <div className="flex items-center gap-3">
-                                                        {f.conversation_id && <VerChat id={f.conversation_id} />}
+                                                        {f.conversation_id && <VerChat id={f.conversation_id} fila={f} />}
                                                         <button
                                                             type="button"
                                                             aria-disabled={ocupado === f.id}
@@ -1244,7 +1351,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                         {desdeCuando(f.cuando) && ` · ${desdeCuando(f.cuando)}`}
                                                     </span>
                                                     <div className="flex items-center gap-3">
-                                                        {f.conversation_id && <VerChat id={f.conversation_id} />}
+                                                        {f.conversation_id && <VerChat id={f.conversation_id} fila={f} />}
                                                         <button
                                                             type="button"
                                                             aria-disabled={ocupado === f.id}
@@ -1258,9 +1365,9 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                 </>
                                             )}
                                         </div>
-                                    </li>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -1349,13 +1456,11 @@ const COLOR = { atendidas: 'bg-[#2e3f84] dark:bg-[#7d8fdc]', buzon: 'bg-amber-60
 
 function PestanaIndicadores({ url, version }: { url: string; version: number }) {
     const { t } = useTranslation();
-    const { datos, error } = useDatos<Indicadores>(url, version);
+    const { datos, error, reintentar } = useDatos<Indicadores>(url, version);
 
     if (error && !datos) {
         return (
-            <p role="alert" className={cn(TARJETA, 'px-5 py-8 text-[13px] text-red-700 dark:text-red-400')}>
-                {t('llamadas.panel.errorCarga')}
-            </p>
+            <ErrorCarga onReintentar={reintentar} className={TARJETA} />
         );
     }
     if (!datos) {
@@ -1531,27 +1636,27 @@ function PorAsesorTabla({ filas }: { filas: PorAsesor[] }) {
                 <p className={cn('border-t px-5 py-6 text-[13px]', FILETE, SUAVE)}>{t('llamadas.panel.indicadores.sinAtendidas')}</p>
             ) : (
                 <div className="overflow-x-auto">
-                    <div className="min-w-[760px]">
-                        <div className={cn(columnas, 'h-[34px] border-y bg-[#f4f5f9]/70 px-5 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
-                            <span>{t('llamadas.panel.indicadores.col.asesor')}</span>
-                            <span className="text-right">{t('llamadas.panel.indicadores.col.atendidas')}</span>
-                            <span className="text-right">{t('llamadas.panel.indicadores.col.hablando')}</span>
-                            <span className="text-right">{t('llamadas.panel.indicadores.col.duracion')}</span>
-                            <span className="text-right">{t('llamadas.panel.indicadores.col.espera')}</span>
-                            <span className="text-right">{t('llamadas.panel.indicadores.col.cortadas')}</span>
+                    <div role="table" aria-labelledby="por-asesor" className="min-w-[760px]">
+                        <div role="row" className={cn(columnas, 'h-[34px] border-y bg-[#f4f5f9]/70 px-5 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
+                            <span role="columnheader">{t('llamadas.panel.indicadores.col.asesor')}</span>
+                            <span role="columnheader" className="text-right">{t('llamadas.panel.indicadores.col.atendidas')}</span>
+                            <span role="columnheader" className="text-right">{t('llamadas.panel.indicadores.col.hablando')}</span>
+                            <span role="columnheader" className="text-right">{t('llamadas.panel.indicadores.col.duracion')}</span>
+                            <span role="columnheader" className="text-right">{t('llamadas.panel.indicadores.col.espera')}</span>
+                            <span role="columnheader" className="text-right">{t('llamadas.panel.indicadores.col.cortadas')}</span>
                         </div>
-                        <ul>
+                        <div role="rowgroup">
                             {filas.map((f) => (
-                                <li key={f.id} className={cn(columnas, 'h-11 border-b px-5 text-[13px] last:border-b-0', FILETE)}>
-                                    <span className={cn('truncate font-semibold', NAVY)}>{nombrePropio(f.nombre)}</span>
-                                    <span className={cn('text-right tabular-nums', NAVY)}>{numero(f.atendidas)}</span>
-                                    <span className={cn('text-right tabular-nums', MEDIO)}>{horasMin(f.hablando)}</span>
-                                    <span className={cn('text-right tabular-nums', MEDIO)}>{mmss(f.duracion_promedio)}</span>
-                                    <span className={cn('text-right tabular-nums', MEDIO)}>{mmss(f.espera_promedio)}</span>
-                                    <span className={cn('text-right tabular-nums', f.cortadas ? 'text-amber-700 dark:text-amber-400' : MEDIO)}>{numero(f.cortadas)}</span>
-                                </li>
+                                <div role="row" key={f.id} className={cn(columnas, 'h-11 border-b px-5 text-[13px] last:border-b-0', FILETE)}>
+                                    <span role="cell" className={cn('truncate font-semibold', NAVY)}>{nombrePropio(f.nombre)}</span>
+                                    <span role="cell" className={cn('text-right tabular-nums', NAVY)}>{numero(f.atendidas)}</span>
+                                    <span role="cell" className={cn('text-right tabular-nums', MEDIO)}>{horasMin(f.hablando)}</span>
+                                    <span role="cell" className={cn('text-right tabular-nums', MEDIO)}>{mmss(f.duracion_promedio)}</span>
+                                    <span role="cell" className={cn('text-right tabular-nums', MEDIO)}>{mmss(f.espera_promedio)}</span>
+                                    <span role="cell" className={cn('text-right tabular-nums', f.cortadas ? 'text-amber-700 dark:text-amber-400' : MEDIO)}>{numero(f.cortadas)}</span>
+                                </div>
                             ))}
-                        </ul>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1561,9 +1666,9 @@ function PorAsesorTabla({ filas }: { filas: PorAsesor[] }) {
 
 // ── Ajustes ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-function PestanaAjustes() {
+function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) => void }) {
     const { t } = useTranslation();
-    const { datos, error } = useDatos<AjustesRespuesta>(`${BASE}/ajustes`, 0);
+    const { datos, error, reintentar } = useDatos<AjustesRespuesta>(`${BASE}/ajustes`, 0);
     const [form, setForm] = useState<AjustesForm | null>(null);
     const [original, setOriginal] = useState<string>('');
     const [guardando, setGuardando] = useState(false);
@@ -1578,19 +1683,46 @@ function PestanaAjustes() {
         setOriginal(JSON.stringify(f));
     }
 
+    const cambiado = !!form && JSON.stringify(form) !== original;
+
+    // La pestaña muestra un punto mientras haya cambios sin guardar.
+    useEffect(() => {
+        onPendientes(cambiado);
+    }, [cambiado, onPendientes]);
+
+    // Con cambios sin guardar, salir de la pantalla (otro menú, recargar, cerrar) pregunta antes.
+    useEffect(() => {
+        if (!cambiado) return;
+        const alCerrar = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', alCerrar);
+        const quitar = router.on('before', (evento) => {
+            const visita = evento.detail.visit;
+            if (visita.prefetch || visita.only.length > 0 || visita.method !== 'get') return;
+            if (!window.confirm(t('llamadas.panel.ajustes.salirSinGuardar'))) evento.preventDefault();
+        });
+        return () => {
+            window.removeEventListener('beforeunload', alCerrar);
+            quitar();
+        };
+    }, [cambiado, t]);
+
     if (error && !datos) {
         return (
-            <p role="alert" className={cn(TARJETA, 'px-5 py-8 text-[13px] text-red-700 dark:text-red-400')}>
-                {t('llamadas.panel.errorCarga')}
-            </p>
+            <ErrorCarga onReintentar={reintentar} className={TARJETA} />
         );
     }
 
-    const cambiado = !!form && JSON.stringify(form) !== original;
     const poner = (parcial: Partial<AjustesForm>) => setForm((f) => (f ? { ...f, ...parcial } : f));
+    // Lo que no tiene sentido no se deja guardar (cierre antes de la apertura); lo raro, se avisa.
+    const horaInvalida = !!form && form.desde >= form.hasta;
+    const sinDias = !!form && form.dias.length === 0;
+    const grupoVacio = !!form && form.modo === 'grupo' && form.grupo.length === 0;
 
     const guardar = async () => {
-        if (!form || guardando) return;
+        if (!form || guardando || horaInvalida) return;
         setGuardando(true);
         setFalla(null);
         try {
@@ -1653,9 +1785,29 @@ function PestanaAjustes() {
                                 </label>
                                 <label className="flex items-center gap-2">
                                     {t('llamadas.panel.ajustes.hasta')}
-                                    <input type="time" step={300} value={form.hasta} onChange={(e) => poner({ hasta: e.target.value })} className={cn(CAMPO, 'h-9 rounded-[9px] px-2.5 text-[16px] tabular-nums sm:text-[13px]', NAVY)} />
+                                    <input
+                                        type="time"
+                                        step={300}
+                                        value={form.hasta}
+                                        aria-invalid={horaInvalida}
+                                        aria-describedby={horaInvalida ? 'ajustes-hora-invalida' : undefined}
+                                        onChange={(e) => poner({ hasta: e.target.value })}
+                                        className={cn(CAMPO, 'h-9 rounded-[9px] px-2.5 text-[16px] tabular-nums sm:text-[13px]', NAVY, horaInvalida && 'shadow-[inset_0_0_0_1.5px_#dc2626]')}
+                                    />
                                 </label>
                             </div>
+                            {horaInvalida && (
+                                <p id="ajustes-hora-invalida" role="alert" className="flex items-center gap-1.5 text-[12px] font-medium text-red-700 dark:text-red-400">
+                                    <CircleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                    {t('llamadas.panel.ajustes.horaInvalida')}
+                                </p>
+                            )}
+                            {sinDias && (
+                                <p className="flex items-center gap-1.5 text-[12px] font-medium text-amber-800 dark:text-amber-300">
+                                    <CircleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                    {t('llamadas.panel.ajustes.sinDias')}
+                                </p>
+                            )}
                             <div className="flex flex-col gap-2">
                                 <p className={cn('text-[13px] font-medium', MEDIO)}>{t('llamadas.panel.ajustes.festivos')}</p>
                                 <div className="flex flex-wrap items-center gap-1.5">
@@ -1782,9 +1934,17 @@ function PestanaAjustes() {
                                     })}
                                 </div>
                             )}
+                            {grupoVacio && (
+                                <p className="ml-8 flex items-center gap-1.5 text-[12px] font-medium text-amber-800 dark:text-amber-300">
+                                    <CircleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                    {t('llamadas.panel.ajustes.grupoVacio')}
+                                </p>
+                            )}
                         </fieldset>
 
-                        <div className={cn('flex flex-wrap items-center justify-end gap-2.5 rounded-b-2xl border-t px-5 py-3.5', FILETE)}>
+                        {/* Fija abajo: en pantallas bajas Guardar quedaba fuera de la vista. */}
+                        <div className={cn('sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2.5 rounded-b-2xl border-t bg-card px-5 py-3.5', FILETE)}>
+                            {cambiado && !falla && <p className={cn('mr-auto text-[12px] font-medium', 'text-amber-800 dark:text-amber-300')}>{t('llamadas.panel.ajustes.cambiosSinGuardar')}</p>}
                             {falla && (
                                 <p role="alert" className="mr-auto text-[13px] text-red-700 dark:text-red-400">
                                     {falla}
@@ -1802,7 +1962,7 @@ function PestanaAjustes() {
                             >
                                 {t('llamadas.panel.ajustes.descartar')}
                             </button>
-                            <button type="button" className={BOTON_PRIMARIO} disabled={!cambiado || guardando} onClick={guardar}>
+                            <button type="button" className={BOTON_PRIMARIO} disabled={!cambiado || guardando || horaInvalida} onClick={guardar}>
                                 {guardando && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
                                 {t('llamadas.panel.ajustes.guardar')}
                             </button>

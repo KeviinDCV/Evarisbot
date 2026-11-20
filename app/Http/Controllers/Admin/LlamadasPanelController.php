@@ -78,6 +78,8 @@ class LlamadasPanelController extends Controller
             'asesores_turno_conectados' => $conectados->filter(fn (User $u) => $u->role === 'advisor' && $u->is_on_duty && ! $u->equipo_id)->count(),
             'horario' => ['dias' => $a['dias'], 'desde' => $a['desde'], 'hasta' => $a['hasta'], 'abierto' => LlamadasWhatsApp::enHorario()],
             'buzon_sin_resolver' => $this->buzonSinResolver(),
+            // Cuánto timbra antes del buzón: la pantalla cuenta hacia atrás cuando nadie puede contestar.
+            'segundos_timbre' => LlamadasWhatsApp::segundosTimbre(),
         ]);
     }
 

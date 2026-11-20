@@ -2963,6 +2963,8 @@
         "offline": "Can’t reach Evarisbot. Check your network and try again."
     },
     "llamadas": {
+        "verChatDe": "Open chat with {{nombre}}",
+        "colgarDe": "Hang up the call with {{nombre}}",
         "titulo": "WhatsApp call",
         "enCurso": "Call in progress",
         "sinNombre": "Patient",
@@ -3009,6 +3011,8 @@
         "abierta": "Open call",
         "huerfana": "You have an open call with no audio in this tab (the page was reloaded or it is in another tab). If you are not talking anymore, hang it up.",
         "panel": {
+            "acciones": "Actions",
+            "reintentar": "Retry",
             "titulo": "Calls",
             "subtitulo": "Patients' WhatsApp calls",
             "delAl": "from {{desde}} to {{hasta}}",
@@ -3040,6 +3044,13 @@
                 "ajustes": "Settings"
             },
             "vivo": {
+                "colgarConfirmarDe": "Confirm: hang up the call with {{nombre}}",
+                "colgarAviso": "Press again to hang up the call with {{nombre}}.",
+                "colgada": "Call ended.",
+                "nadieBuzonEn": "Nobody is online: goes to voicemail in {{tiempo}}",
+                "nadieAlBuzon": "Nobody is online: going to voicemail",
+                "verAQuien": "See who it rings",
+                "sinConexion": "Offline · updated {{tiempo}} ago",
                 "titulo": "Live",
                 "timbrandoCuenta_one": "{{count}} ringing",
                 "timbrandoCuenta_other": "{{count}} ringing",
@@ -3183,6 +3194,11 @@
                 }
             },
             "ajustes": {
+                "cambiosSinGuardar": "Unsaved changes",
+                "salirSinGuardar": "There are unsaved changes in call settings. Leave without saving them?",
+                "horaInvalida": "The closing time must be after the opening time.",
+                "sinDias": "With no days selected, every call will go to voicemail.",
+                "grupoVacio": "You did not select any advisor: only administrators will be rung.",
                 "horario": "Call hours",
                 "horarioAyuda": "Outside these hours calls don't ring in Evarisbot: the patient hears the hospital's message and can leave a voice note.",
                 "dias": "Days it rings",

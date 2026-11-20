@@ -2963,6 +2963,8 @@
         "offline": "No hay conexión con Evarisbot. Revisa tu red e intenta de nuevo."
     },
     "llamadas": {
+        "verChatDe": "Ver chat de {{nombre}}",
+        "colgarDe": "Colgar la llamada de {{nombre}}",
         "titulo": "Llamada de WhatsApp",
         "enCurso": "Llamada en curso",
         "sinNombre": "Paciente",
@@ -3009,6 +3011,8 @@
         "abierta": "Llamada abierta",
         "huerfana": "Tiene una llamada abierta sin audio en esta pestaña (se recargó la página o sigue en otra pestaña). Si ya no está hablando, cuélguela.",
         "panel": {
+            "acciones": "Acciones",
+            "reintentar": "Reintentar",
             "titulo": "Llamadas",
             "subtitulo": "Llamadas de WhatsApp de los pacientes",
             "delAl": "del {{desde}} al {{hasta}}",
@@ -3040,6 +3044,13 @@
                 "ajustes": "Ajustes"
             },
             "vivo": {
+                "colgarConfirmarDe": "Confirmar: colgar la llamada de {{nombre}}",
+                "colgarAviso": "Pulsa otra vez para colgar la llamada de {{nombre}}.",
+                "colgada": "Llamada colgada.",
+                "nadieBuzonEn": "No hay nadie conectado: pasa al buzón en {{tiempo}}",
+                "nadieAlBuzon": "No hay nadie conectado: está pasando al buzón",
+                "verAQuien": "Ver a quién le timbra",
+                "sinConexion": "Sin conexión · actualizado hace {{tiempo}}",
                 "titulo": "En vivo",
                 "timbrandoCuenta_one": "{{count}} timbrando",
                 "timbrandoCuenta_other": "{{count}} timbrando",
@@ -3183,6 +3194,11 @@
                 }
             },
             "ajustes": {
+                "cambiosSinGuardar": "Cambios sin guardar",
+                "salirSinGuardar": "Hay cambios sin guardar en Ajustes de llamadas. ¿Salir sin guardarlos?",
+                "horaInvalida": "La hora de cierre tiene que ser después de la de apertura.",
+                "sinDias": "Sin días marcados, todas las llamadas irán al buzón de voz.",
+                "grupoVacio": "No marcaste ningún asesor: solo les timbrará a los administradores.",
                 "horario": "Horario de llamadas",
                 "horarioAyuda": "Fuera de este horario la llamada no timbra en Evarisbot: el paciente escucha el mensaje del hospital y puede dejar una nota de voz.",
                 "dias": "Días que timbra",
