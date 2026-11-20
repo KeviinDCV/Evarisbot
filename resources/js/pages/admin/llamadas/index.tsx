@@ -108,7 +108,8 @@ const ENLACE = 'font-semibold text-[#2e3f84] underline-offset-2 hover:underline 
 const CAMPO =
     'bg-[#f2f4f9] shadow-[inset_0_0_0_1px_#d4d8e8] dark:bg-white/[0.04] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]';
 const SEGMENTADO = 'flex shrink-0 rounded-[12px] bg-[#e7ebf4] p-[3px] shadow-[inset_0_0_0_1px_#d4d8e8] dark:bg-white/[0.05] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]';
-const SEG_BOTON = 'flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[9px] px-3.5 text-[13px] transition-[background-color,color,box-shadow] duration-150';
+const SEG_BOTON =
+    'flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[9px] px-3.5 text-[13px] transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-offset-0';
 const SEG_SI = 'bg-white font-semibold text-[#2e3f84] shadow-[0_1px_2px_rgba(46,63,132,.12),0_2px_6px_rgba(46,63,132,.08)] dark:bg-white/[0.12] dark:text-white';
 const SEG_NO = 'font-medium text-[#4a5378] hover:text-[#1e2550] dark:text-neutral-400 dark:hover:text-neutral-100';
 /** El input del buscador no pinta borde propio: el anillo de foco va en su contenedor (el mismo del resto de la app). */
@@ -143,10 +144,12 @@ function hora(iso: string | null): string {
     return new Intl.DateTimeFormat(idioma(), { timeZone: ZONA, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(iso));
 }
 
-/** "06:30" → "6:30 a. m." */
+/** "06:30" → "6:30 a. m." (con espacios que no parten: la hora nunca queda «4:00» en una línea y «p. m.» en otra). */
 function horaDeReloj(hhmm: string): string {
     const [h, m] = hhmm.split(':').map(Number);
-    return new Intl.DateTimeFormat(idioma(), { timeZone: 'UTC', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(Date.UTC(2000, 0, 1, h, m)));
+    return new Intl.DateTimeFormat(idioma(), { timeZone: 'UTC', hour: 'numeric', minute: '2-digit', hour12: true })
+        .format(new Date(Date.UTC(2000, 0, 1, h, m)))
+        .replace(/\s/g, '\u00a0');
 }
 
 /** "2026-12-08" → "lunes 8 de diciembre" (o "Monday, December 8"). */
@@ -407,7 +410,13 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                                 <SelectorPeriodo periodo={periodo} onCambiar={setPeriodo} />
                                 {tab === 'historial' &&
                                     (totalHistorial === 0 ? (
-                                        <button type="button" disabled title={t('llamadas.panel.exportarVacio')} className={BOTON_SECUNDARIO}>
+                                        // aria-disabled (no disabled): sigue recibiendo el ratón y el foco, así se lee por qué no exporta.
+                                        <button
+                                            type="button"
+                                            aria-disabled="true"
+                                            title={t('llamadas.panel.exportarVacio')}
+                                            className={cn(BOTON_SECUNDARIO, 'cursor-not-allowed opacity-50 active:scale-100')}
+                                        >
                                             <Download className="size-4" strokeWidth={2} aria-hidden="true" />
                                             {t('llamadas.panel.exportar')}
                                         </button>
@@ -425,7 +434,13 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
 
                     {/* En vivo es de toda la pantalla: la misma franja en las cuatro pestañas, así las pestañas no se mueven al
                         cambiar de una a otra. Solo crece cuando hay llamadas sonando o en curso. */}
-                    <EnVivo vivo={vivo} sinConexion={vivoSinConexion} onColgada={alColgar} onIrAjustes={() => cambiarTab('ajustes')} />
+                    <EnVivo
+                        vivo={vivo}
+                        sinConexion={vivoSinConexion}
+                        onReintentar={() => void pedirVivo()}
+                        onColgada={alColgar}
+                        onIrAjustes={() => cambiarTab('ajustes')}
+                    />
 
                     <div role="tablist" aria-label={t('llamadas.panel.tabs.etiqueta')} onKeyDown={alTeclaTabs} className={cn('-mb-1 flex gap-1 overflow-x-auto border-b [scrollbar-width:none]', FILETE)}>
                         {TABS.map((id) => {
@@ -444,7 +459,7 @@ export default function LlamadasIndex({ activas, tabInicial }: Props) {
                                     tabIndex={si ? 0 : -1}
                                     onClick={() => cambiarTab(id)}
                                     className={cn(
-                                        'flex h-[38px] shrink-0 items-center gap-2 px-3.5 text-[13px] whitespace-nowrap transition-colors duration-150',
+                                        'flex h-[38px] shrink-0 items-center gap-2 px-3.5 text-[13px] whitespace-nowrap transition-colors duration-150 focus-visible:outline-offset-[-2px]',
                                         si
                                             ? 'font-semibold text-[#2e3f84] shadow-[inset_0_-2px_0_#2e3f84] dark:text-white dark:shadow-[inset_0_-2px_0_#aab6ee]'
                                             : 'font-medium text-[#4a5378] hover:text-[#1e2550] dark:text-neutral-400 dark:hover:text-neutral-100',
@@ -616,11 +631,13 @@ function haceCuanto(segundos: number): string {
 function EnVivo({
     vivo,
     sinConexion,
+    onReintentar,
     onColgada,
     onIrAjustes,
 }: {
     vivo: Vivo | null;
     sinConexion: boolean;
+    onReintentar: () => void;
     onColgada: (id: number) => void;
     onIrAjustes: () => void;
 }) {
@@ -636,7 +653,10 @@ function EnVivo({
     }, [corre]);
     const pasado = vivo ? Math.max(0, Math.floor((ahora - vivo.recibido) / 1000)) : 0;
     const filas = vivo ? vivo.timbrando.length + vivo.en_curso.length : 0;
-    const columnas = 'grid grid-cols-[36px_minmax(0,1.25fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_150px] items-center gap-x-3.5';
+    // Angosto: cada llamada en tres líneas (paciente y botones; estado; a quién le timbra). Desde lg, en una sola. Así los
+    // botones nunca quedan fuera de la vista (antes la fila se desplazaba de lado y «Colgar» no se veía en el celular).
+    const columnas =
+        "grid grid-cols-[36px_minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-t py-2.5 [grid-template-areas:'i_p_a'_'i_e_e'_'i_d_d'] lg:min-h-11 lg:grid-cols-[36px_minmax(0,1.25fr)_minmax(0,1.5fr)_minmax(0,1.6fr)_150px] lg:items-center lg:gap-x-3.5 lg:py-1 lg:[grid-template-areas:'i_p_e_d_a']";
 
     return (
         <section aria-labelledby="en-vivo-titulo" className={cn(TARJETA, 'px-4 sm:px-5')}>
@@ -653,12 +673,23 @@ function EnVivo({
                     <h2 id="en-vivo-titulo" className={cn('text-[15px] leading-5 font-semibold', NAVY)}>
                         {t('llamadas.panel.vivo.titulo')}
                     </h2>
-                    {!vivo && (
-                        <span className={cn('flex items-center gap-1.5 text-[13px]', SUAVE)}>
-                            <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                            {t('llamadas.panel.cargando')}
-                        </span>
-                    )}
+                    {!vivo &&
+                        (sinConexion ? (
+                            <span role="alert" className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-red-700 dark:text-red-400">
+                                <span className="flex items-center gap-1.5">
+                                    <CircleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                                    {t('llamadas.panel.errorCarga')}
+                                </span>
+                                <button type="button" onClick={onReintentar} className={cn('text-[13px]', ENLACE)}>
+                                    {t('llamadas.panel.reintentar')}
+                                </button>
+                            </span>
+                        ) : (
+                            <span className={cn('flex items-center gap-1.5 text-[13px]', SUAVE)}>
+                                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                                {t('llamadas.panel.cargando')}
+                            </span>
+                        ))}
                     {vivo && (
                         <div className="flex flex-wrap items-center gap-2" aria-live="polite">
                             {filas === 0 && <span className={cn('text-[13px]', SUAVE)}>{t('llamadas.panel.vivo.nada')}</span>}
@@ -680,61 +711,63 @@ function EnVivo({
                     )}
                 </div>
                 {vivo && (
-                    <div className={cn('flex flex-wrap items-center gap-2 text-[12px]', SUAVE)}>
+                    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-[18px]', SUAVE)}>
                         {sinConexion && (
-                            <span role="status" className="mr-1 flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300">
-                                <CircleAlert className="size-3.5" strokeWidth={2} aria-hidden="true" />
+                            <span role="status" className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300">
+                                <CircleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
                                 {t('llamadas.panel.vivo.sinConexion', { tiempo: haceCuanto(pasado) })}
                             </span>
                         )}
-                        <Clock className="size-3.5" strokeWidth={2} aria-hidden="true" />
-                        <span
-                            className={cn(
-                                'font-semibold',
-                                !vivo.activas ? MEDIO : vivo.horario.abierto ? 'text-emerald-700 dark:text-emerald-400' : MEDIO,
-                            )}
-                        >
-                            {!vivo.activas
-                                ? t('llamadas.panel.vivo.apagadasAhora')
-                                : vivo.horario.abierto
-                                  ? t('llamadas.panel.vivo.abiertoAhora')
-                                  : t('llamadas.panel.vivo.fueraDeHorarioAhora')}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span>
-                            {t('llamadas.panel.vivo.horario', {
-                                dias: textoDias(vivo.horario.dias, {
-                                    lunesAViernes: t('llamadas.panel.vivo.lunesAViernes'),
-                                    todos: t('llamadas.panel.vivo.todosLosDias'),
-                                    ninguno: t('llamadas.panel.vivo.ningunDia'),
-                                }),
-                                desde: horaDeReloj(vivo.horario.desde),
-                                hasta: horaDeReloj(vivo.horario.hasta),
-                            })}
-                        </span>
+                        <p className="flex min-w-0 items-start gap-1.5">
+                            <Clock className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                            <span className="text-pretty">
+                                <span
+                                    className={cn(
+                                        'font-semibold',
+                                        !vivo.activas ? MEDIO : vivo.horario.abierto ? 'text-emerald-700 dark:text-emerald-400' : MEDIO,
+                                    )}
+                                >
+                                    {!vivo.activas
+                                        ? t('llamadas.panel.vivo.apagadasAhora')
+                                        : vivo.horario.abierto
+                                          ? t('llamadas.panel.vivo.abiertoAhora')
+                                          : t('llamadas.panel.vivo.fueraDeHorarioAhora')}
+                                </span>
+                                {' · '}
+                                {t('llamadas.panel.vivo.horario', {
+                                    dias: textoDias(vivo.horario.dias, {
+                                        lunesAViernes: t('llamadas.panel.vivo.lunesAViernes'),
+                                        todos: t('llamadas.panel.vivo.todosLosDias'),
+                                        ninguno: t('llamadas.panel.vivo.ningunDia'),
+                                    }),
+                                    desde: horaDeReloj(vivo.horario.desde),
+                                    hasta: horaDeReloj(vivo.horario.hasta),
+                                })}
+                            </span>
+                        </p>
                     </div>
                 )}
             </div>
 
             {vivo && filas > 0 && (
-                <div className="overflow-x-auto pb-1.5">
-                    <ul className="min-w-[720px]">
+                <div className="pb-1.5">
+                    <ul>
                         {vivo.timbrando.map((l) => {
                             const nadie = l.le_timbra_asesores + l.le_timbra_admins === 0;
                             // Cuánto le falta para irse al buzón (si el servidor manda el ajuste).
                             const restante = typeof vivo.segundos_timbre === 'number' ? Math.max(0, vivo.segundos_timbre - (l.espera + pasado)) : null;
                             return (
-                                <li key={`t${l.id}`} className={cn(columnas, 'h-11 border-t', FILETE)}>
-                                    <span className="flex size-8 items-center justify-center rounded-[10px] bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                                <li key={`t${l.id}`} className={cn(columnas, FILETE)}>
+                                    <span className="flex size-8 items-center justify-center self-start rounded-[10px] bg-amber-100 text-amber-700 [grid-area:i] lg:self-center dark:bg-amber-500/15 dark:text-amber-300">
                                         <PhoneIncoming className="size-4" strokeWidth={2} aria-hidden="true" />
                                     </span>
-                                    <Paciente fila={l} />
-                                    <p className="text-[13px] font-semibold text-amber-800 dark:text-amber-300">
+                                    <Paciente fila={l} className="[grid-area:p]" />
+                                    <p className="text-[13px] font-semibold text-amber-800 [grid-area:e] dark:text-amber-300">
                                         {t('llamadas.panel.vivo.timbrandoEspera')} <span className="tabular-nums">{mmss(l.espera + pasado)}</span>
                                     </p>
                                     {nadie ? (
                                         // Nadie la puede contestar: decir cuándo pasa al buzón y dónde se cambia a quién le timbra.
-                                        <p className="flex flex-wrap items-baseline gap-x-2 text-[12px]">
+                                        <p className="flex flex-wrap items-baseline gap-x-2 text-[12px] [grid-area:d]">
                                             <span className="font-semibold text-red-700 tabular-nums dark:text-red-400">
                                                 {restante === null
                                                     ? t('llamadas.panel.vivo.nadieConectado')
@@ -747,31 +780,31 @@ function EnVivo({
                                             </button>
                                         </p>
                                     ) : (
-                                        <p className={cn('text-[12px]', SUAVE)}>
+                                        <p className={cn('text-[12px] [grid-area:d]', SUAVE)}>
                                             {t('llamadas.panel.vivo.leTimbra', {
                                                 asesores: t('llamadas.panel.vivo.asesores', { count: l.le_timbra_asesores }),
                                                 admins: t('llamadas.panel.vivo.admins', { count: l.le_timbra_admins }),
                                             })}
                                         </p>
                                     )}
-                                    <span className="justify-self-end">{l.conversation_id && <VerChat id={l.conversation_id} fila={l} />}</span>
+                                    <span className="justify-self-end [grid-area:a]">{l.conversation_id && <VerChat id={l.conversation_id} fila={l} />}</span>
                                 </li>
                             );
                         })}
                         {vivo.en_curso.map((l) => (
-                            <li key={`c${l.id}`} className={cn(columnas, 'h-11 border-t', FILETE)}>
-                                <span className="flex size-8 items-center justify-center rounded-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                            <li key={`c${l.id}`} className={cn(columnas, FILETE)}>
+                                <span className="flex size-8 items-center justify-center self-start rounded-[10px] bg-emerald-100 text-emerald-700 [grid-area:i] lg:self-center dark:bg-emerald-500/15 dark:text-emerald-300">
                                     <Headset className="size-4" strokeWidth={2} aria-hidden="true" />
                                 </span>
-                                <Paciente fila={l} />
-                                <p className="text-[13px] font-semibold text-emerald-800 dark:text-emerald-300">
+                                <Paciente fila={l} className="[grid-area:p]" />
+                                <p className="text-[13px] font-semibold text-emerald-800 [grid-area:e] dark:text-emerald-300">
                                     {t('llamadas.panel.vivo.enCurso')}{' '}
                                     <span className="tabular-nums">{l.desde ? mmss((ahora - Date.parse(l.desde)) / 1000) : ''}</span>
                                 </p>
-                                <p className={cn('truncate text-[12px]', MEDIO)}>
+                                <p className={cn('truncate text-[12px] [grid-area:d]', MEDIO)}>
                                     {t('llamadas.panel.vivo.con')} <strong className="font-semibold">{l.atendio ? nombrePropio(l.atendio) : '—'}</strong>
                                 </p>
-                                <span className="flex items-center gap-3 justify-self-end">
+                                <span className="flex items-center gap-3 justify-self-end [grid-area:a]">
                                     {l.conversation_id && <VerChat id={l.conversation_id} fila={l} />}
                                     <BotonColgar id={l.id} fila={l} onColgada={onColgada} />
                                 </span>
@@ -784,7 +817,7 @@ function EnVivo({
     );
 }
 
-function Paciente({ fila, enLinea = false, celda = false }: { fila: Fila; enLinea?: boolean; celda?: boolean }) {
+function Paciente({ fila, enLinea = false, celda = false, className }: { fila: Fila; enLinea?: boolean; celda?: boolean; className?: string }) {
     const { t } = useTranslation();
     const nombre = fila.nombre ? nombrePropio(fila.nombre) : t('llamadas.panel.sinNombre');
     if (enLinea) {
@@ -796,7 +829,7 @@ function Paciente({ fila, enLinea = false, celda = false }: { fila: Fila; enLine
         );
     }
     return (
-        <div role={celda ? 'cell' : undefined} className="min-w-0">
+        <div role={celda ? 'cell' : undefined} className={cn('min-w-0', className)}>
             <p className={cn('truncate text-[13px] font-semibold', NAVY)}>{nombre}</p>
             <p className={cn('text-[12px] tabular-nums', SUAVE)}>{telefono(fila.telefono)}</p>
         </div>
@@ -875,7 +908,14 @@ function BotonColgar({ id, fila, onColgada }: { id: number; fila: Fila; onColgad
 
 function Cifras({ url, version }: { url: string; version: number }) {
     const { t } = useTranslation();
-    const { datos } = useDatos<Resumen>(url, version);
+    const { datos, error, reintentar } = useDatos<Resumen>(url, version);
+    if (error && !datos) {
+        return (
+            <section aria-label={t('llamadas.panel.cifras.etiqueta')} className={TARJETA}>
+                <ErrorCarga onReintentar={reintentar} className="py-4" />
+            </section>
+        );
+    }
     const celdas: { etiqueta: string; valor: ReactNode; tinta?: string }[] = datos
         ? [
               { etiqueta: t('llamadas.panel.cifras.llamadas'), valor: numero(datos.total) },
@@ -1107,7 +1147,8 @@ function PestanaHistorial({
                 </div>
             ) : (
                 <>
-                    <div className="overflow-x-auto">
+                    {/* relative: el «Acciones» oculto (sr-only, absoluto) queda dentro; sin él ensanchaba la página en el celular. */}
+                    <div className="relative overflow-x-auto">
                         <div role="table" aria-label={t('llamadas.panel.tabs.historial')} className="min-w-[860px]">
                             <div role="row" className={cn(columnas, 'h-[34px] border-b bg-[#f4f5f9]/70 px-4 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
                                 <span role="columnheader">{t('llamadas.panel.historial.col.hora')}</span>
@@ -1178,7 +1219,7 @@ function fechaCorta(iso: string): string {
 function Desplegable({ etiqueta, valor, opciones, onCambiar }: { etiqueta: string; valor: string; opciones: { id: string; texto: string }[]; onCambiar: (v: string) => void }) {
     const actual = opciones.find((o) => o.id === valor)?.texto ?? opciones[0]?.texto;
     return (
-        <label className={cn(CAMPO, 'relative flex h-9 items-center gap-1.5 rounded-[10px] pr-2.5 pl-3 text-[13px] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#2e3f84]', MEDIO)}>
+        <label className={cn(CAMPO, 'relative flex h-9 items-center gap-1.5 rounded-[10px] pr-2.5 pl-3 text-[13px] has-[select:focus-visible]:outline-2 has-[select:focus-visible]:outline-offset-2 has-[select:focus-visible]:outline-[#2e3f84] dark:has-[select:focus-visible]:outline-[#53bdeb]', MEDIO)}>
             <span aria-hidden="true">
                 {etiqueta}: <strong className={cn('font-semibold', NAVY)}>{actual}</strong>
             </span>
@@ -1256,7 +1297,8 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
 
     return (
         <div className="flex flex-col gap-4">
-            <p className={cn('max-w-[68ch] text-[13px] leading-5 text-pretty', MEDIO)}>{t('llamadas.panel.buzon.explicacion')}</p>
+            {/* 54ch de esta letra ≈ 75 caracteres por línea (con 68ch salían ~97). */}
+            <p className={cn('max-w-[54ch] text-[13px] leading-5 text-pretty', MEDIO)}>{t('llamadas.panel.buzon.explicacion')}</p>
             <section aria-label={t('llamadas.panel.tabs.buzon')} className={TARJETA}>
                 <div className={cn('flex flex-wrap items-center gap-2.5 border-b px-4 py-3', FILETE)}>
                     <div role="group" aria-label={t('llamadas.panel.buzon.filtro')} className={cn(SEGMENTADO, 'max-w-full overflow-x-auto')}>
@@ -1301,7 +1343,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                         </p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="relative overflow-x-auto">
                         <div role="table" aria-label={t('llamadas.panel.tabs.buzon')} className="min-w-[880px]">
                             <div role="row" className={cn(columnas, 'items-center border-b bg-[#f4f5f9]/70 px-4 py-2 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
                                 <span role="columnheader">{t('llamadas.panel.buzon.col.cuando')}</span>
@@ -1347,7 +1389,7 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                         {f.conversation_id && <VerChat id={f.conversation_id} fila={f} />}
                                                         <button
                                                             type="button"
-                                                            aria-disabled={ocupado === f.id}
+                                                            aria-disabled={ocupado !== null}
                                                             onClick={() => ocupado === null && void resolver(f, true)}
                                                             className={cn('text-[12px]', ENLACE)}
                                                         >
@@ -1366,9 +1408,9 @@ function PestanaBuzon({ version, onSinResolver }: { version: number; onSinResolv
                                                         {f.conversation_id && <VerChat id={f.conversation_id} fila={f} />}
                                                         <button
                                                             type="button"
-                                                            aria-disabled={ocupado === f.id}
+                                                            aria-disabled={ocupado !== null}
                                                             onClick={() => ocupado === null && void resolver(f, false)}
-                                                            className={cn(BOTON_PRIMARIO, 'h-8 px-3 text-[12px]')}
+                                                            className={cn(BOTON_PRIMARIO, 'h-8 px-3 text-[12px]', ocupado !== null && ocupado !== f.id && 'opacity-60')}
                                                         >
                                                             {ocupado === f.id && <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />}
                                                             {t('llamadas.panel.buzon.marcarResuelto')}
@@ -1442,7 +1484,7 @@ function AudioBuzon({ src, resuelto }: { src: string; resuelto: boolean }) {
                     setPos(Number(e.target.value));
                 }}
                 aria-label={t('llamadas.panel.buzon.posicion')}
-                className="h-1 min-w-0 flex-1 cursor-pointer accent-[#2e3f84] dark:accent-[#aab6ee]"
+                className="h-6 min-w-0 flex-1 cursor-pointer accent-[#2e3f84] disabled:cursor-default dark:accent-[#aab6ee]"
             />
             <span className={cn('w-10 text-right text-[12px] tabular-nums', SUAVE)}>{mmss(sonando || pos > 0 ? pos : dur)}</span>
             <audio
@@ -1471,11 +1513,7 @@ function PestanaIndicadores({ url, version }: { url: string; version: number }) 
     const { t } = useTranslation();
     const { datos, error, reintentar } = useDatos<Indicadores>(url, version);
 
-    if (error && !datos) {
-        return (
-            <ErrorCarga onReintentar={reintentar} className={TARJETA} />
-        );
-    }
+    if (error && !datos) return <ErrorCarga onReintentar={reintentar} className={TARJETA} />;
     if (!datos) {
         return (
             <div className={cn(TARJETA, 'flex items-center gap-2 px-5 py-8 text-[13px]', SUAVE)}>
@@ -1529,12 +1567,12 @@ function PestanaIndicadores({ url, version }: { url: string; version: number }) 
                                 <div className="rounded-xl bg-[#f4f5f9] px-3.5 py-3 dark:bg-white/[0.04]">
                                     <p className={cn('text-[12px]', SUAVE)}>{t('llamadas.panel.cifras.esperaPromedio')}</p>
                                     <p className={cn('text-[20px] leading-7 font-semibold tabular-nums', NAVY)}>{r.atendidas ? mmss(r.espera_promedio) : '—'}</p>
-                                    <p className={cn('text-[11px]', SUAVE)}>{t('llamadas.panel.indicadores.hastaQueContestan')}</p>
+                                    <p className={cn('text-[12px]', SUAVE)}>{t('llamadas.panel.indicadores.hastaQueContestan')}</p>
                                 </div>
                                 <div className="rounded-xl bg-[#f4f5f9] px-3.5 py-3 dark:bg-white/[0.04]">
                                     <p className={cn('text-[12px]', SUAVE)}>{t('llamadas.panel.cifras.duracionPromedio')}</p>
                                     <p className={cn('text-[20px] leading-7 font-semibold tabular-nums', NAVY)}>{r.atendidas ? mmss(r.duracion_promedio) : '—'}</p>
-                                    <p className={cn('text-[11px]', SUAVE)}>{t('llamadas.panel.indicadores.deLasAtendidas')}</p>
+                                    <p className={cn('text-[12px]', SUAVE)}>{t('llamadas.panel.indicadores.deLasAtendidas')}</p>
                                 </div>
                             </div>
                         </>
@@ -1597,39 +1635,39 @@ function PorHora({ barras, fuera }: { barras: Barra[]; fuera: Barra }) {
             {vacia ? (
                 <p className={cn('py-6 text-[13px]', SUAVE)}>{t('llamadas.panel.indicadores.sinDatos')}</p>
             ) : (
-            <div className="overflow-x-auto">
-                <div className="min-w-[480px]">
-                    <ul
-                        className="grid items-end gap-2 bg-[repeating-linear-gradient(to_top,transparent_0,transparent_42px,rgba(46,63,132,.07)_42px,rgba(46,63,132,.07)_43px)] dark:bg-[repeating-linear-gradient(to_top,transparent_0,transparent_42px,rgba(255,255,255,.06)_42px,rgba(255,255,255,.06)_43px)]"
-                        style={{ gridTemplateColumns: `repeat(${todas.length}, minmax(0,1fr))`, height: alto + 22 }}
-                    >
-                        {todas.map((b, i) => {
-                            const n = total(b);
-                            const leer = t('llamadas.panel.indicadores.barraLectura', { hora: etiqueta(b, i), total: n, atendidas: b.atendidas, buzon: b.buzon, perdidas: b.perdidas });
-                            return (
-                                <li key={b.hora ?? 'fuera'} className="relative flex h-full flex-col items-center justify-end gap-1" title={leer}>
-                                    <span className="sr-only">{leer}</span>
-                                    <span aria-hidden="true" className={cn('text-[11px] font-semibold tabular-nums', n === max && n > 0 ? NAVY : MEDIO)}>
-                                        {n || ''}
-                                    </span>
-                                    <span aria-hidden="true" className="flex w-full max-w-[34px] flex-col-reverse gap-px overflow-hidden rounded-t-[5px]" style={{ height: n ? Math.min(alto, Math.max(3, Math.round((n / max) * alto))) : 0 }}>
-                                        {b.atendidas > 0 && <span className={COLOR.atendidas} style={{ flexGrow: b.atendidas }} />}
-                                        {b.buzon > 0 && <span className={COLOR.buzon} style={{ flexGrow: b.buzon }} />}
-                                        {b.perdidas > 0 && <span className={COLOR.perdidas} style={{ flexGrow: b.perdidas }} />}
-                                    </span>
-                                </li>
-                            );
-                        })}
-                    </ul>
-                    <div aria-hidden="true" className={cn('mt-1.5 grid gap-2 border-t pt-1.5 text-center text-[11px]', FILETE, SUAVE)} style={{ gridTemplateColumns: `repeat(${todas.length}, minmax(0,1fr))` }}>
-                        {todas.map((b, i) => (
-                            <span key={b.hora ?? 'fuera'} className={cn('leading-[14px]', b.hora === null && 'font-semibold text-amber-700 dark:text-amber-400')}>
-                                {etiqueta(b, i)}
-                            </span>
-                        ))}
+                <div className="overflow-x-auto">
+                    <div className="min-w-[480px]">
+                        <ul
+                            className="grid items-end gap-2 bg-[repeating-linear-gradient(to_top,transparent_0,transparent_42px,rgba(46,63,132,.07)_42px,rgba(46,63,132,.07)_43px)] dark:bg-[repeating-linear-gradient(to_top,transparent_0,transparent_42px,rgba(255,255,255,.06)_42px,rgba(255,255,255,.06)_43px)]"
+                            style={{ gridTemplateColumns: `repeat(${todas.length}, minmax(0,1fr))`, height: alto + 22 }}
+                        >
+                            {todas.map((b, i) => {
+                                const n = total(b);
+                                const leer = t('llamadas.panel.indicadores.barraLectura', { hora: etiqueta(b, i), total: n, atendidas: b.atendidas, buzon: b.buzon, perdidas: b.perdidas });
+                                return (
+                                    <li key={b.hora ?? 'fuera'} className="relative flex h-full flex-col items-center justify-end gap-1" title={leer}>
+                                        <span className="sr-only">{leer}</span>
+                                        <span aria-hidden="true" className={cn('text-[11px] font-semibold tabular-nums', n === max && n > 0 ? NAVY : MEDIO)}>
+                                            {n || ''}
+                                        </span>
+                                        <span aria-hidden="true" className="flex w-full max-w-[34px] flex-col-reverse gap-px overflow-hidden rounded-t-[5px]" style={{ height: n ? Math.min(alto, Math.max(3, Math.round((n / max) * alto))) : 0 }}>
+                                            {b.atendidas > 0 && <span className={COLOR.atendidas} style={{ flexGrow: b.atendidas }} />}
+                                            {b.buzon > 0 && <span className={COLOR.buzon} style={{ flexGrow: b.buzon }} />}
+                                            {b.perdidas > 0 && <span className={COLOR.perdidas} style={{ flexGrow: b.perdidas }} />}
+                                        </span>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                        <div aria-hidden="true" className={cn('mt-1.5 grid gap-2 border-t pt-1.5 text-center text-[11px]', FILETE, SUAVE)} style={{ gridTemplateColumns: `repeat(${todas.length}, minmax(0,1fr))` }}>
+                            {todas.map((b, i) => (
+                                <span key={b.hora ?? 'fuera'} className={cn('leading-[14px]', b.hora === null && 'font-semibold text-amber-700 dark:text-amber-400')}>
+                                    {etiqueta(b, i)}
+                                </span>
+                            ))}
+                        </div>
                     </div>
                 </div>
-            </div>
             )}
             {frase && <p className={cn('text-[13px] leading-5 text-pretty', MEDIO)}>{frase}</p>}
         </section>
@@ -1655,7 +1693,7 @@ function PorAsesorTabla({ filas }: { filas: PorAsesor[] }) {
             {filas.length === 0 ? (
                 <p className={cn('border-t px-5 py-6 text-[13px]', FILETE, SUAVE)}>{t('llamadas.panel.indicadores.sinAtendidas')}</p>
             ) : (
-                <div className="overflow-x-auto">
+                <div className="relative overflow-x-auto">
                     <div role="table" aria-labelledby="por-asesor" className="min-w-[760px]">
                         <div role="row" className={cn(columnas, 'h-[34px] border-y bg-[#f4f5f9]/70 px-5 text-[11px] font-semibold tracking-[.04em] uppercase dark:bg-white/[0.03]', FILETE, SUAVE)}>
                             <span role="columnheader">{t('llamadas.panel.indicadores.col.asesor')}</span>
@@ -1731,11 +1769,7 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
         };
     }, [cambiado, t]);
 
-    if (error && !datos) {
-        return (
-            <ErrorCarga onReintentar={reintentar} className={TARJETA} />
-        );
-    }
+    if (error && !datos) return <ErrorCarga onReintentar={reintentar} className={TARJETA} />;
 
     const poner = (parcial: Partial<AjustesForm>) => setForm((f) => (f ? { ...f, ...parcial } : f));
     // Lo que no tiene sentido no se deja guardar (cierre antes de la apertura); lo raro, se avisa.
@@ -1954,11 +1988,15 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
                                 </label>
                             ))}
                             {form.modo === 'grupo' && (
-                                <div className={cn('ml-8 max-h-64 overflow-y-auto rounded-xl border', FILETE)}>
+                                // Un campo de selección (fondo de campo, como los buscadores), no una tarjeta dentro de la tarjeta.
+                                <div className={cn(CAMPO, 'ml-8 max-h-64 overflow-y-auto rounded-[10px]')}>
                                     {datos.usuarios.filter((u) => u.role === 'advisor').map((u) => {
                                         const si = form.grupo.includes(u.id);
                                         return (
-                                            <label key={u.id} className={cn('flex cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0', FILETE)}>
+                                            <label
+                                                key={u.id}
+                                                className="flex cursor-pointer items-center gap-3 border-b border-[#d4d8e8]/70 px-3 py-2 last:border-b-0 dark:border-white/[0.07]"
+                                            >
                                                 <input
                                                     type="checkbox"
                                                     checked={si}
@@ -2015,7 +2053,7 @@ function PestanaAjustes({ onPendientes }: { onPendientes: (pendientes: boolean) 
 function ConexionWhatsApp() {
     const { t } = useTranslation();
     const [refrescar, setRefrescar] = useState(0);
-    const { datos, cargando } = useDatos<Conexion>(`${BASE}/conexion${refrescar ? `?refrescar=1&n=${refrescar}` : ''}`, 0);
+    const { datos, cargando, error, reintentar } = useDatos<Conexion>(`${BASE}/conexion${refrescar ? `?refrescar=1&n=${refrescar}` : ''}`, 0);
     const [microfono, setMicrofono] = useState<'si' | 'no' | 'bloqueado'>(() => (microfonoDisponible() ? 'si' : 'no'));
 
     useEffect(() => {
@@ -2099,13 +2137,22 @@ function ConexionWhatsApp() {
                     <RotateCw className={cn('size-4', cargando && 'animate-spin')} strokeWidth={2} aria-hidden="true" />
                 </button>
             </div>
-            {!datos ? (
+            {error && !datos ? (
+                <ErrorCarga onReintentar={reintentar} className="px-0 py-3" />
+            ) : !datos ? (
                 <div className={cn('flex items-center gap-2 py-4 text-[13px]', SUAVE)}>
                     <Loader2 className="size-4 animate-spin" aria-hidden="true" />
                     {t('llamadas.panel.conexion.consultando')}
                 </div>
             ) : (
                 <ul className="flex flex-col">
+                    {/* Falló «Volver a consultar»: se queda lo último que se supo, pero se avisa. */}
+                    {error && !cargando && (
+                        <li role="alert" className="flex items-center gap-1.5 pb-2 text-[12px] font-medium text-red-700 dark:text-red-400">
+                            <CircleAlert className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+                            {t('llamadas.panel.errorCarga')}
+                        </li>
+                    )}
                     {items.map((it) => (
                         <li key={it.titulo} className={cn('flex items-start gap-3 border-t py-2.5 first:border-t-0', FILETE)}>
                             <span className="mt-px">{icono(it.estado)}</span>
