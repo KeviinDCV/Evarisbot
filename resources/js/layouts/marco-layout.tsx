@@ -11,7 +11,7 @@ import { logout } from '@/routes';
 import { type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Lock, LogOut, Menu, PanelLeftClose, PanelLeftOpen, UserCircle, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Lock, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Pause, UserCircle, X } from 'lucide-react';
 import { type CSSProperties, type FocusEvent as ReactFocusEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avisos } from '@/components/avisos';
@@ -45,6 +45,20 @@ const ICONO_FUERA = { opacity: 0, scale: 0.25, filter: 'blur(4px)' };
 const ICONO_DENTRO = { opacity: 1, scale: 1, filter: 'blur(0px)' };
 const ICONO_TRANSICION = { type: 'spring', duration: 0.3, bounce: 0 } as const;
 
+/** Flecha que avisa de ítems ocultos arriba o abajo cuando el menú no cabe (ventanas bajas): en el eje de los iconos
+ *  (centro x = 36). Es una ayuda para ratón y dedo; con teclado, el foco desplaza solo. */
+const FLECHA_MENU =
+    'absolute left-6 z-20 flex size-6 items-center justify-center rounded-full bg-[#3e4f94] text-white shadow-[0_1px_2px_rgba(0,0,0,.35),inset_0_0_0_1px_rgba(255,255,255,.14)] transition-colors after:absolute after:-inset-2 hover:bg-[#4e5fa4] active:scale-[0.96]';
+
+/** Menús de Radix que viven en un portal fuera del <aside> (Tema e Idioma de la tarjeta del usuario). */
+const PORTALES_RADIX = '[data-radix-popper-content-wrapper],[role="menu"],[role="listbox"]';
+
+/** El contador de Conversaciones va en rojo solo un rato después de que entra un chat nuevo; el resto del turno, en el
+ *  tono tranquilo del chat interno. Tener chats sin leer es lo normal: con el rojo siempre encendido dejaba de avisar.
+ *  A nivel de módulo porque el marco se vuelve a montar en cada navegación. */
+const ROJO_TRAS_LLEGAR_MS = 30_000;
+let chatNuevoHasta = 0;
+
 /** Menos movimiento pedido por el sistema: la cápsula salta en vez de viajar. */
 function prefiereMenosMovimiento(): boolean {
     return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
@@ -68,9 +82,18 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     // ── Contadores vivos: el mismo store de módulo que el riel de hoy (ver unread-store). ──
     const [unread, setUnread] = useState<UnreadState>(() => {
         const current = getUnread();
-        return current.chat === 0 && current.internal === 0 ? { chat: initialUnreadCount, internal: 0, chatMensajes: 0 } : current;
+        return current.chat === 0 && current.internal === 0 ? { chat: initialUnreadCount, internal: 0, chatMensajes: 0, sinConexion: current.sinConexion } : current;
     });
     const [pingChat, setPingChat] = useState(false);
+    const [chatNuevo, setChatNuevo] = useState(() => Date.now() < chatNuevoHasta);
+    // Cada llegada reinicia la cuenta: el rojo dura 30 s desde el ÚLTIMO chat nuevo, no desde el primero.
+    const [vezRojo, setVezRojo] = useState(0);
+    useEffect(() => {
+        const falta = chatNuevoHasta - Date.now();
+        if (falta <= 0) return;
+        const id = setTimeout(() => setChatNuevo(false), falta);
+        return () => clearTimeout(id);
+    }, [vezRojo]);
     const prevChatRef = useRef<number>(initialUnreadCount);
 
     // Tiempo real (Reverb): una sola conexión por usuario, que sobrevive a las navegaciones (ver lib/tiempo-real).
@@ -87,6 +110,9 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
             if (next.chat > prevChatRef.current) {
                 setPingChat(true);
                 setTimeout(() => setPingChat(false), 560);
+                chatNuevoHasta = Date.now() + ROJO_TRAS_LLEGAR_MS;
+                setChatNuevo(true);
+                setVezRojo((v) => v + 1);
             }
             prevChatRef.current = next.chat;
         });
@@ -99,10 +125,11 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     // ── Alturas pequeñas: si los ítems no caben, el <nav> se desplaza (la tarjeta del usuario
     // queda fija abajo). Mientras caben, overflow visible como siempre. ──
     const [desplaza, setDesplaza] = useState(false);
+    const [masArriba, setMasArriba] = useState(false);
+    const [masAbajo, setMasAbajo] = useState(false);
 
-    // Rótulo del ítem en el riel plegado. Va en position: fixed (no absoluto dentro del <nav>):
-    // con el <nav> desplazable, un absoluto que asoma a la derecha quedaría recortado.
-    const [rotulo, setRotulo] = useState<{ texto: string; top: number; left: number } | null>(null);
+    // Sin rótulo flotante en el riel plegado: el menú se despliega con los nombres a los 220 ms y el rótulo solo alcanzaba
+    // a parpadear en cada cruce del cursor (20/11/2026). El foco de teclado despliega al instante.
 
     const isAdvisor = auth.user.role === 'advisor';
     /** El turno sólo existe para asesores: es lo que decide si te auto-asignan pacientes. En un equipo (Teleconsulta…)
@@ -114,10 +141,13 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
 
     // ── Al entrar de turno, un barrido teal sube por el borde del menú ──
     const [sweep, setSweep] = useState(false);
+    // Cada vez que sube, la traza ECG da sus vueltas y se apaga (antes giraba todo el turno). 0 = quieta al cargar la página.
+    const [ecgVuelta, setEcgVuelta] = useState(0);
     const prevDutyRef = useRef<boolean | null>(null);
     useEffect(() => {
         if (prevDutyRef.current === false && onDuty) {
             setSweep(true);
+            setEcgVuelta((v) => v + 1);
             const id = setTimeout(() => setSweep(false), 950);
             return () => clearTimeout(id);
         }
@@ -208,12 +238,20 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
         const restante = Math.max(0, sobra - nav.scrollTop);
         nav.style.setProperty('--marco-fade-arriba', `${Math.min(18, Math.max(0, nav.scrollTop))}px`);
         nav.style.setProperty('--marco-fade-abajo', `${Math.min(26, restante)}px`);
+        // El degradado solo no se notaba (a 1024×460 Estadísticas, Usuarios y Configuración quedaban ocultos sin aviso).
+        setMasArriba(sobra > 1 && nav.scrollTop > 1);
+        setMasAbajo(sobra > 1 && restante > 1);
 
         const activo = nav.querySelector<HTMLElement>('[aria-current="page"]');
         if (activo) {
             setCapsula((c) => (c && c.top !== activo.offsetTop ? { top: activo.offsetTop, href: c.href } : c));
         }
     }, []);
+    const desplazarMenu = (sentido: 1 | -1) => {
+        const nav = navRef.current;
+        if (!nav) return;
+        nav.scrollBy({ top: sentido * nav.clientHeight * 0.7, behavior: prefiereMenosMovimiento() ? 'auto' : 'smooth' });
+    };
 
     useEffect(() => {
         const nav = navRef.current;
@@ -227,17 +265,6 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
             window.removeEventListener('resize', medirMenu);
         };
     }, [medirMenu, visibleGroups.length]);
-
-    const mostrarRotulo = (e: { currentTarget: HTMLElement }, texto: string) => {
-        // Solo con el riel plegado de escritorio; en el cajón móvil y expandido se lee el nombre.
-        if (expanded || !window.matchMedia('(min-width: 64rem)').matches) return;
-        const r = e.currentTarget.getBoundingClientRect();
-        setRotulo({ texto, top: r.top + r.height / 2, left: r.right + 16 });
-    };
-    const ocultarRotulo = () => setRotulo(null);
-    useEffect(() => {
-        if (expanded) setRotulo(null);
-    }, [expanded]);
 
     // ── Apertura con intención (espera de 220ms): en /admin/chat el cursor cruza el menú
     // decenas de veces por hora camino a la lista de conversaciones. ──
@@ -264,16 +291,40 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     /** El foco de teclado expande al instante: la espera existe para el ratón, no para el foco. */
     const onRailFocus = () => setHoverOpen(true);
     const onRailBlur = (e: ReactFocusEvent<HTMLElement>) => {
-        if (pinned || carnetOpen) return;
-        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        const destino = e.relatedTarget as HTMLElement | null;
+        if (e.currentTarget.contains(destino)) return;
+        if (carnetOpen) {
+            // Con la tarjeta abierta solo se cierra si el foco se fue a la página (Tab después de «Cerrar sesión»): antes
+            // seguía abierta y el foco quedaba escondido bajo el menú. No si fue a los menús de Tema/Idioma (portal de
+            // Radix) ni si se cambió de ventana (sin destino).
+            if (!destino || destino.closest(PORTALES_RADIX)) return;
+            setCarnetOpen(false);
+            if (!pinned) setHoverOpen(false);
+            return;
+        }
+        if (pinned) return;
         setHoverOpen(false);
     };
 
     const toggleCarnet = () => {
         const next = !carnetOpen;
         setCarnetOpen(next);
-        if (next) setHoverOpen(true);
+        if (next) {
+            setHoverOpen(true);
+            if (onDuty) setEcgVuelta((v) => v + 1);
+        }
     };
+
+    // Al abrir la tarjeta, el foco entra en ella: si no, con teclado había que tabular por todo el menú para llegar. Con
+    // ratón no pinta anillo (el foco programático solo lo muestra si se venía usando el teclado).
+    const carnetRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!carnetOpen) return;
+        const id = requestAnimationFrame(() => {
+            carnetRef.current?.querySelector<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')?.focus();
+        });
+        return () => cancelAnimationFrame(id);
+    }, [carnetOpen]);
 
     // Con el carnet abierto, el cierre es por clic fuera — ignorando los portales de Radix,
     // donde viven los menús de Tema/Idioma.
@@ -283,7 +334,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
             const target = e.target as HTMLElement | null;
             if (!target) return;
             if (railRef.current?.contains(target)) return;
-            if (target.closest('[data-radix-popper-content-wrapper],[role="menu"],[role="listbox"]')) return;
+            if (target.closest(PORTALES_RADIX)) return;
             setCarnetOpen(false);
             setHoverOpen(false);
         };
@@ -302,6 +353,9 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                 togglePin();
             }
             if (e.key === 'Escape') {
+                // Esc dentro de los menús de Tema/Idioma lo atiende Radix y cierra solo ese menú: antes cerraba también la
+                // tarjeta (dos capas de una vez).
+                if ((e.target as HTMLElement | null)?.closest?.(PORTALES_RADIX)) return;
                 if (carnetOpen) {
                     setCarnetOpen(false);
                     carnetBtnRef.current?.focus();
@@ -319,21 +373,23 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
     const contador = (item: NavEntry, count: number, shownActive: boolean) => {
         const chat = item.badge === 'chat';
         const llamada = item.badge === 'llamadas';
+        const rojo = chat && chatNuevo;
         const tinta = llamada
             ? 'bg-[#b45309] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(0,0,0,.3)]'
             : expanded
-            ? chat
+            ? rojo
                 ? 'bg-[#dc2626] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_1px_2px_rgba(0,0,0,.3)]'
                 : shownActive
                   ? // Sobre la cápsula BLANCA la píldora translúcida desaparecería: pasa a navy suave.
                     'bg-[#2e3f84]/10 text-[#2e3f84] shadow-[inset_0_0_0_1px_rgba(46,63,132,.14)]'
                   : 'bg-white/[0.14] text-slate-200 shadow-[inset_0_0_0_1px_rgba(255,255,255,.1)]'
-            : chat
+            : rojo
               ? 'bg-[#dc2626] text-white'
               : 'marco-pildora-interna text-slate-100';
-        return (
+        const insignia = (
             <span
-                aria-label={llamada ? t('navigation.ringingCount', { count }) : t('navigation.unreadCount', { count })}
+                aria-hidden="true"
+                title={!llamada && unread.sinConexion ? t('navigation.countersStale') : undefined}
                 className={`flex flex-shrink-0 items-center justify-center rounded-full font-bold tabular-nums leading-none ${tinta} ${
                     expanded
                         ? 'relative ml-2 mr-2.5 h-5 min-w-5 px-1.5 text-[11px] tracking-[.01em]'
@@ -341,10 +397,25 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                           // con anillo del color del marco. Arranca en x=46, a la derecha del glifo
                           // (27–45): al crecer lo hace hacia afuera y nunca tapa el icono.
                           'absolute -top-1 left-[34px] z-20 h-[18px] min-w-[18px] px-[5px] text-[10px] ring-2 ring-[color:var(--marco-anillo)]'
-                } ${pingChat && chat ? 'marco-ping' : ''}`}
+                } ${pingChat && chat ? 'marco-ping' : ''} ${!llamada && unread.sinConexion ? 'opacity-55' : ''}`}
             >
                 {count > 999 ? '999+' : count}
             </span>
+        );
+        // Lo que oye el lector de pantalla, dentro del enlace: el nombre del ítem y luego esto. Conversaciones cuenta chats
+        // con algo sin leer; el chat interno, mensajes; Llamadas, las que timbran.
+        const leido = llamada
+            ? t('navigation.ringingCount', { count })
+            : chat
+              ? t('navigation.unreadChats', { count })
+              : t('navigation.unreadInternal', { count });
+        return (
+            <>
+                {insignia}
+                <span className="sr-only">
+                    {`, ${leido}${!llamada && unread.sinConexion ? ` (${t('navigation.countersStale')})` : ''}`}
+                </span>
+            </>
         );
     };
 
@@ -414,17 +485,26 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                 {/* Notificaciones en segundo plano (invisible, global): UNA sola vez. */}
                 <MessageNotifications />
 
-                {/* Contenido del menú. Fuera de turno "el edificio está apagado": el filtro va
-                    AQUÍ y no en el <aside>, para no desaturar el panel (haría costura con el marco)
-                    ni el popover del carnet. */}
+                {/* Contenido del menú. «Fuera de turno» ya no lo desatura (sobre navy no se percibía): lo dice la
+                    marca ámbar del avatar y el texto bajo el nombre. */}
                 <div
-                    className={`relative flex min-h-0 flex-1 flex-col pb-2.5 pt-6 transition-[filter] duration-500 bajo:pt-3 ${
-                        isAdvisor && !onDuty ? 'saturate-[.72]' : ''
-                    }`}
+                    className="relative flex min-h-0 flex-1 flex-col pb-2.5 pt-6 bajo:pt-3"
                 >
                     {/* ── Cabecera: ALTO FIJO (120px) en los dos estados; si no, los iconos
                         saltarían al expandir. Plegado queda la baldosa sola, en el eje x=36. ── */}
-                    <div className="h-[120px] flex-shrink-0 bajo:h-[52px]">
+                    <div className="relative h-[120px] flex-shrink-0 bajo:h-[52px]">
+                        {/* Sin cursor (tableta) el menú plegado no tenía cómo desplegarse: botón para fijarlo abierto bajo el
+                            logo, solo en pantallas táctiles. En ventanas bajas no cabe y queda la tarjeta del usuario. */}
+                        {!expanded && (
+                            <button
+                                type="button"
+                                onClick={togglePin}
+                                aria-label={t('navigation.pinMenu', 'Fijar menú abierto')}
+                                className="absolute left-4 top-[72px] hidden size-10 items-center justify-center rounded-[10px] text-white/[0.72] transition-colors hover:bg-white/[0.08] hover:text-white lg:pointer-coarse:flex bajo:hidden"
+                            >
+                                <PanelLeftOpen className="h-[18px] w-[18px]" strokeWidth={1.75} />
+                            </button>
+                        )}
                         <div className="flex h-16 items-start bajo:h-11">
                             <div
                                 className={`flex flex-shrink-0 items-center justify-center bg-white shadow-[0_1px_1px_rgba(0,0,0,.18),0_10px_22px_-10px_rgba(0,0,0,.55),inset_0_-1px_0_rgba(46,63,132,.08)] transition-[width,height,margin,border-radius] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] ${
@@ -448,7 +528,8 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                     type="button"
                                     onClick={togglePin}
                                     aria-label={pinned ? t('navigation.collapseMenu', 'Contraer menú') : t('navigation.pinMenu', 'Fijar menú abierto')}
-                                    title={pinned ? t('navigation.collapseMenu', 'Contraer menú') : t('navigation.pinMenu', 'Fijar menú abierto')}
+                                    aria-keyshortcuts="Control+B"
+                                    title={`${pinned ? t('navigation.collapseMenu', 'Contraer menú') : t('navigation.pinMenu', 'Fijar menú abierto')} (Ctrl+B)`}
                                     className="relative ml-auto mr-5 mt-[17px] hidden h-[30px] w-[30px] flex-shrink-0 bajo:mt-[7px] items-center justify-center rounded-[10px] bg-white/[0.06] text-white/[0.72] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)] transition-[background-color,color,scale] duration-150 after:absolute after:-inset-[5px] hover:bg-white/[0.12] hover:text-white active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 lg:inline-flex"
                                 >
                                     <span className="grid">
@@ -481,18 +562,16 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                             }`}
                         >
                             <span className="text-[18px] font-semibold leading-6 tracking-[-0.018em] text-white">Evarisbot</span>
-                            <span className="text-xs font-medium leading-4 text-white/70">{t('navigation.institution', 'Hospital Universitario del Valle')}</span>
+                            <span className="text-[12px] font-medium leading-4 text-white/70">{t('navigation.institution', 'Hospital Universitario del Valle')}</span>
                         </div>
                     </div>
 
-                    {/* ── Navegación ── overflow visible: si no, recortaría tooltips e insignias. */}
+                    {/* ── Navegación ── overflow visible: si no, recortaría las insignias de los contadores. */}
+                    <div className="relative mt-7 flex min-h-0 flex-1 flex-col bajo:mt-2">
                     <nav
                         ref={navRef}
-                        onScroll={() => {
-                            medirMenu();
-                            ocultarRotulo();
-                        }}
-                        className={`relative mt-7 flex min-h-0 flex-1 flex-col gap-5 bajo:mt-2 bajo:gap-2 ${
+                        onScroll={medirMenu}
+                        className={`relative flex min-h-0 flex-1 flex-col gap-5 bajo:gap-2 ${
                             desplaza ? 'marco-nav-desplaza' : 'overflow-visible'
                         }`}
                     >
@@ -509,7 +588,9 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                         {visibleGroups.map((group) => (
                             <div key={group.key} className="flex flex-col gap-0.5">
                                 {/* Alto CONSTANTE (28px): al abrir, los iconos no se mueven ni un píxel.
-                                    Plegado queda un filete corto en el eje; expandido, el nombre. */}
+                                    Plegado queda un filete corto en el eje; expandido, el nombre. Con un solo grupo
+                                    (asesoras) no hay nada que separar: no se pinta. */}
+                                {visibleGroups.length > 1 && (
                                 <div className="relative flex h-7 items-center overflow-hidden whitespace-nowrap pl-6 pr-2.5">
                                     <span
                                         aria-hidden
@@ -518,13 +599,14 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                         }`}
                                     />
                                     <span
-                                        className={`text-[11px] font-semibold uppercase leading-none tracking-[0.09em] text-white/[0.66] transition-opacity duration-150 ${
+                                        className={`text-[11px] font-semibold uppercase leading-none tracking-[0.09em] text-white/[0.72] transition-opacity duration-150 ${
                                             expanded ? 'opacity-100' : 'opacity-0'
                                         }`}
                                     >
                                         {t(group.label)}
                                     </span>
                                 </div>
+                                )}
 
                                 {group.items.map((item) => {
                                     const Icon = item.icon;
@@ -538,14 +620,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                             key={item.href}
                                             href={item.href}
                                             prefetch
-                                            onClick={() => {
-                                                setIsMobileOpen(false);
-                                                ocultarRotulo();
-                                            }}
-                                            // Pointer y no Mouse: <Link prefetch> pisa onMouseEnter/Leave con
-                                            // los suyos. El foco de teclado no lo necesita: expande el riel.
-                                            onPointerEnter={(e) => mostrarRotulo(e, t(item.title))}
-                                            onPointerLeave={ocultarRotulo}
+                                            onClick={() => setIsMobileOpen(false)}
                                             aria-current={active ? 'page' : undefined}
                                             className={`group relative z-10 ml-3 flex h-10 flex-shrink-0 items-center rounded-[10px] transition-[width,background-color,color] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 ${
                                                 shownActive ? 'text-[#2e3f84]' : 'text-white/80 hover:bg-white/[0.08] hover:text-white'
@@ -574,6 +649,17 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                             </div>
                         ))}
                     </nav>
+                    {masArriba && (
+                        <button type="button" tabIndex={-1} aria-hidden onClick={() => desplazarMenu(-1)} className={`${FLECHA_MENU} top-0`}>
+                            <ChevronUp className="size-3.5" strokeWidth={2.25} />
+                        </button>
+                    )}
+                    {masAbajo && (
+                        <button type="button" tabIndex={-1} aria-hidden onClick={() => desplazarMenu(1)} className={`${FLECHA_MENU} bottom-0`}>
+                            <ChevronDown className="size-3.5" strokeWidth={2.25} />
+                        </button>
+                    )}
+                    </div>
 
                     {/* ── EL CARNET: tarjeta de usuario. Plegado queda sólo el avatar, en el eje x=36. ── */}
                     <button
@@ -582,6 +668,14 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                         onClick={toggleCarnet}
                         aria-haspopup="dialog"
                         aria-expanded={carnetOpen}
+                        aria-label={t('navigation.stationLabel', {
+                            nombre: auth.user?.name ?? '',
+                            estado: isAdvisor
+                                ? onDuty
+                                    ? equipo || t('navigation.onDuty', 'De turno')
+                                    : t('navigation.offDuty', 'Fuera de turno')
+                                : t('navigation.admin', 'Administrador'),
+                        })}
                         className={`ml-3 mt-4 flex h-[54px] flex-shrink-0 items-center rounded-[14px] text-left bajo:mt-2 transition-[width,background-color,box-shadow,scale] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/80 ${
                             expanded
                                 ? 'bg-white/[0.07] shadow-[inset_0_0_0_1px_rgba(255,255,255,.08),inset_0_1px_0_rgba(255,255,255,.05)] hover:bg-white/[0.1]'
@@ -605,8 +699,8 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                             strokeDasharray={onDuty ? undefined : '3 4'}
                                         />
                                     </svg>
-                                    {onDuty && (
-                                        <svg viewBox="0 0 46 46" className="marco-ecg pointer-events-none absolute left-1/2 top-1/2 h-11 w-11 -translate-x-1/2 -translate-y-1/2">
+                                    {onDuty && ecgVuelta > 0 && (
+                                        <svg key={ecgVuelta} viewBox="0 0 46 46" className="marco-ecg pointer-events-none absolute left-1/2 top-1/2 h-11 w-11 -translate-x-1/2 -translate-y-1/2">
                                             <path d="M23 3a20 20 0 1 1-.01 0" fill="none" stroke="#5eead4" strokeWidth="1.6" strokeLinecap="round" />
                                         </svg>
                                     )}
@@ -622,6 +716,15 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                     {getInitials(auth.user?.name ?? '')}
                                 </AvatarFallback>
                             </Avatar>
+                            {/* Fuera de turno se ve también con el menú plegado (antes solo el anillo punteado gris). */}
+                            {isAdvisor && !onDuty && (
+                                <span
+                                    aria-hidden
+                                    className="absolute -bottom-1 -right-1 z-10 flex size-[15px] items-center justify-center rounded-full bg-amber-300 text-[#422006] ring-2 ring-[color:var(--marco-anillo)]"
+                                >
+                                    <Pause className="size-[9px]" fill="currentColor" strokeWidth={0} />
+                                </span>
+                            )}
                         </span>
 
                         <span
@@ -631,7 +734,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                         >
                             <span className="truncate text-sm font-semibold leading-[18px] text-white">{auth.user?.name}</span>
                             <span
-                                className={`truncate text-xs font-medium leading-4 ${isAdvisor && onDuty ? 'text-[#2dd4bf]' : 'text-white/70'}`}
+                                className={`truncate text-[12px] font-medium leading-4 ${isAdvisor ? (onDuty ? 'text-[#2dd4bf]' : 'text-amber-200') : 'text-white/70'}`}
                             >
                                 {isAdvisor
                                     ? onDuty
@@ -640,25 +743,21 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                     : t('navigation.admin', 'Administrador')}
                             </span>
                         </span>
+                        {expanded && (
+                            <ChevronUp
+                                aria-hidden
+                                strokeWidth={2}
+                                className={`mr-3 size-4 flex-shrink-0 text-white/60 transition-transform duration-150 ${carnetOpen ? 'rotate-180' : ''}`}
+                            />
+                        )}
                     </button>
                 </div>
-
-                {/* Rótulo del ítem con el riel plegado: navy a la derecha, centrado en el ítem.
-                    aria-hidden: repite el nombre del enlace (ya en su etiqueta). */}
-                {rotulo && !expanded && (
-                    <span
-                        aria-hidden
-                        className="pointer-events-none fixed z-[70] -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#26356f] px-2.5 py-1.5 text-[13px] font-medium text-white shadow-xl ring-1 ring-white/10 before:absolute before:right-full before:top-1/2 before:-translate-y-1/2 before:border-4 before:border-transparent before:border-r-[#26356f] before:content-['']"
-                        style={{ top: rotulo.top, left: rotulo.left }}
-                    >
-                        {rotulo.texto}
-                    </span>
-                )}
 
                 {/* Popover del carnet: turno + tema + idioma + perfil + menú anterior + salir.
                     Fuera del contenedor con filtro: se lee siempre a todo color. */}
                 {carnetOpen && (
                     <div
+                        ref={carnetRef}
                         role="dialog"
                         aria-label={t('navigation.yourStation', 'Tu puesto')}
                         className="absolute bottom-[72px] left-3 z-[80] max-h-[calc(100dvh-88px)] w-[248px] max-w-[calc(100vw-24px)] origin-bottom-left animate-in fade-in-0 zoom-in-95 overflow-y-auto overscroll-contain rounded-[20px] border border-border bg-card p-3 shadow-2xl duration-150 motion-reduce:animate-none"
@@ -680,7 +779,7 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                                     interruptor propio se borraría al siguiente guardado. */}
                                 {/* En un equipo no hay turno que asignar. */}
                                 {!equipo && (
-                                    <div className="mb-3 flex items-start gap-2 rounded-lg bg-muted p-2 text-[12px] leading-snug text-muted-foreground">
+                                    <div className="mb-3 flex items-start gap-2 rounded-lg bg-muted/60 p-2 text-[12px] leading-snug text-muted-foreground">
                                         <Lock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={1.5} aria-hidden="true" />
                                         <span className="text-pretty">{t('navigation.dutyReadOnly', 'Tu turno lo asigna coordinación desde Configuración.')}</span>
                                     </div>
@@ -712,9 +811,9 @@ export default function MarcoLayout({ children }: { children: ReactNode }) {
                             href={logout()}
                             method="post"
                             as="button"
-                            className="flex h-10 w-full items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                            className="flex h-10 w-full items-center gap-2 rounded-lg px-2 text-[13px] font-medium text-foreground transition-colors hover:bg-muted"
                         >
-                            <LogOut className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                            <LogOut className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
                             {t('common.logout')}
                         </Link>
                     </div>

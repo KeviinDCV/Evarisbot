@@ -2403,10 +2403,18 @@ tr.table-row-hover:hover {
     100% { opacity: 0; bottom: calc(100% - 40px); }
 }
 
-/* Traza ECG viva alrededor del avatar mientras estás de turno. */
+/* Traza ECG alrededor del avatar: dos vueltas al entrar de turno o al abrir la tarjeta del usuario y se desvanece
+   (antes giraba sin fin todo el turno, en la visión periférica de la asesora). */
+.marco-ecg {
+    animation: marco-ecg-fin 6s linear forwards;
+}
 .marco-ecg path {
     stroke-dasharray: 18 130;
-    animation: marco-ecg 3s linear infinite;
+    animation: marco-ecg 3s linear 2;
+}
+@keyframes marco-ecg-fin {
+    0%, 85% { opacity: 1; }
+    100% { opacity: 0; }
 }
 @keyframes marco-ecg {
     to { stroke-dashoffset: -148; }
@@ -2423,6 +2431,10 @@ tr.table-row-hover:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    /* Sin movimiento, la traza no se muestra (quieta sería solo un trazo suelto sobre el anillo). */
+    .marco-ecg {
+        display: none;
+    }
     .marco-barrido, .marco-ecg path, .marco-ping {
         animation: none !important;
     }

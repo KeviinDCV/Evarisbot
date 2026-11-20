@@ -1,4 +1,4 @@
-import { BarChart3, Calendar, FileText, MessageSquare, MessagesSquare, Phone, Send, Settings, Users, type LucideIcon } from 'lucide-react';
+import { BarChart3, Calendar, FileText, MessageCircleMore, MessageSquare, Phone, Send, Settings, Users, type LucideIcon } from 'lucide-react';
 
 /**
  * Las secciones del menú (ítems y grupos) y la preferencia de fijado, aparte del layout para
@@ -53,7 +53,8 @@ export const GROUPS: NavGroupDef[] = [
             { href: '/admin/chat', title: 'navigation.conversations', icon: MessageSquare, badge: 'chat' },
             // Llamadas de WhatsApp: la pantalla del administrador (los asesores contestan desde el timbre, en cualquier pantalla).
             { href: '/admin/llamadas', title: 'navigation.calls', icon: Phone, badge: 'llamadas', adminOnly: true },
-            { href: '/admin/internal-chat', title: 'navigation.internalChat', icon: MessagesSquare, badge: 'internal' },
+            // Burbuja redonda: plegado se distinguía mal de Conversaciones (dos burbujas cuadradas casi iguales).
+            { href: '/admin/internal-chat', title: 'navigation.internalChat', icon: MessageCircleMore, badge: 'internal' },
             { href: '/admin/templates', title: 'navigation.templates', icon: FileText },
             { href: '/admin/bulk-sends', title: 'navigation.bulkSends', icon: Send, needsBulk: true },
         ],

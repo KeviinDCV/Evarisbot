@@ -78,12 +78,15 @@ export function LanguageSelector({ variant = 'default' }: LanguageSelectorProps)
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44 rounded-xl border-0 bg-white p-1 shadow-[0_0_0_1px_rgba(46,63,132,0.1),0_2px_4px_rgba(46,63,132,0.06),0_12px_28px_-12px_rgba(46,63,132,0.3)] dark:bg-popover dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_12px_28px_-12px_rgba(0,0,0,0.7)]">
-                    {languages.map((language) => (
-                        <DropdownMenuItem key={language.code} onClick={() => changeLanguage(language.code)} className="h-[30px] cursor-pointer gap-2.5 rounded-lg px-2.5 py-0 pointer-coarse:h-11 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100">
-                            <span className={currentLanguage === language.code ? 'font-semibold' : ''}>{language.name}</span>
-                            {currentLanguage === language.code && <Check className="ml-auto size-3.5" strokeWidth={2} aria-hidden="true" />}
-                        </DropdownMenuItem>
-                    ))}
+                    {/* Opciones marcables: el lector de pantalla dice cuál está elegida (como en el inicio de sesión). */}
+                    <DropdownMenuRadioGroup value={currentLanguage} onValueChange={(lng) => void changeLanguage(lng)}>
+                        {languages.map((language) => (
+                            <DropdownMenuRadioItem key={language.code} value={language.code} lang={language.code} className="h-[30px] cursor-pointer gap-2.5 rounded-lg pr-2.5 pl-2.5 py-0 pointer-coarse:h-11 text-[13px] leading-[18px] font-medium text-[#2e3f84] focus:bg-[#2e3f84]/6 focus:text-[#2e3f84] dark:text-neutral-100 dark:focus:bg-white/8 dark:focus:text-neutral-100 [&>span:first-child]:hidden">
+                                <span className={currentLanguage === language.code ? 'font-semibold' : ''}>{language.name}</span>
+                                {currentLanguage === language.code && <Check className="ml-auto size-3.5" strokeWidth={2} aria-hidden="true" />}
+                            </DropdownMenuRadioItem>
+                        ))}
+                    </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
             </DropdownMenu>
         );

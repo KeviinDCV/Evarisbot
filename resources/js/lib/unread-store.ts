@@ -21,7 +21,8 @@ import { agrupar, alAviso, hayTiempoReal } from './tiempo-real';
 
 // chatMensajes: suma de mensajes sin leer en esas conversaciones (sube aunque el mismo paciente vuelva a escribir y la
 // cifra de conversaciones no cambie; la usa la notificación de escritorio).
-export type UnreadState = { chat: number; internal: number; chatMensajes: number };
+// sinConexion: las dos últimas consultas fallaron; las cifras pueden estar viejas (el menú las atenúa y lo dice).
+export type UnreadState = { chat: number; internal: number; chatMensajes: number; sinConexion: boolean };
 
 type Listener = (state: UnreadState) => void;
 
@@ -31,7 +32,9 @@ const BASE_CON_TIEMPO_REAL_MS = 60000;
 const MAX_MS = 60000;
 const JITTER_MS = 4000;
 
-let state: UnreadState = { chat: 0, internal: 0, chatMensajes: 0 };
+let state: UnreadState = { chat: 0, internal: 0, chatMensajes: 0, sinConexion: false };
+/** Fallos seguidos antes de avisar: uno suelto (un reinicio del servidor, un instante sin red) no merece aviso. */
+const FALLOS_PARA_AVISAR = 2;
 const listeners = new Set<Listener>();
 
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -108,12 +111,16 @@ async function poll(porAviso = false): Promise<void> {
         const internal = interno.count;
         if (interno.anuncios) ponerAnuncios(interno.anuncios);
         failures = 0;
-        if (chat.count !== state.chat || internal !== state.internal || chat.mensajes !== state.chatMensajes) {
-            state = { chat: chat.count, internal, chatMensajes: chat.mensajes };
+        if (chat.count !== state.chat || internal !== state.internal || chat.mensajes !== state.chatMensajes || state.sinConexion) {
+            state = { chat: chat.count, internal, chatMensajes: chat.mensajes, sinConexion: false };
             emit();
         }
     } catch {
         failures++;
+        if (failures >= FALLOS_PARA_AVISAR && !state.sinConexion) {
+            state = { ...state, sinConexion: true };
+            emit();
+        }
     } finally {
         pidiendo = false;
         if (running && pendiente) {

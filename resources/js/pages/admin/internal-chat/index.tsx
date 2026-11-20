@@ -13,7 +13,7 @@ import {
     MessageSquare,
     Megaphone,
     MegaphoneOff,
-    MessagesSquare,
+    MessageCircleMore,
     Music,
     PanelLeftClose,
     PanelLeftOpen,
@@ -1593,7 +1593,7 @@ export default function InternalChat({ auth, chats: serverChats, users: serverUs
                 {!activeChat ? (
                     <div className={cn('hidden flex-1 items-center justify-center md:flex', FONDO_CHAT)}>
                         <Vacio
-                            icono={MessagesSquare}
+                            icono={MessageCircleMore}
                             titulo={t('internalChat.vista.pickTitle')}
                             texto={t('internalChat.vista.pickText')}
                             accion={
