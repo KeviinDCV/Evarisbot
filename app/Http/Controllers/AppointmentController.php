@@ -116,6 +116,43 @@ class AppointmentController extends Controller
     }
 
     /**
+     * «Enviar todas ya»: todas las citas desde mañana a las que se les puede mandar el recordatorio, en orden de fecha y
+     * hora (las más cercanas salen primero). desde/hasta son la primera y la última fecha de las que salen.
+     */
+    protected function tandaTodas(int $max): array
+    {
+        $validos = [];
+        $fechas = [];
+        $sinCelular = 0;
+        $filas = $this->serviceQuery()->porRecordarDesde(Recordatorios::dentroDe(1))
+            ->orderBy('citfc')->orderBy('cithor')->orderBy('id')
+            ->get(['id', 'citfc', 'pactel', 'pactel2']);
+        foreach ($filas as $fila) {
+            if (Recordatorios::celularesCita($fila->pactel, $fila->pactel2) === []) {
+                $sinCelular++;
+
+                continue;
+            }
+            $validos[] = (int) $fila->id;
+            $fechas[] = Recordatorios::fechaDe($fila->getAttributes()['citfc'] ?? null);
+        }
+        $salen = min(count($validos), $max);
+        $dias = array_values(array_unique(array_slice($fechas, 0, $salen)));
+
+        return [
+            'desde' => $dias[0] ?? null,
+            'hasta' => $dias ? $dias[count($dias) - 1] : null,
+            'dias' => count($dias),
+            'por_enviar' => count($validos),
+            'sin_celular' => $sinCelular,
+            'salen' => $salen,
+            'hora_inicio' => Recordatorios::HORA_INICIO_ENVIO,
+            'hora_fin' => Recordatorios::HORA_FIN_ENVIO,
+            'ids' => array_slice($validos, 0, $salen),
+        ];
+    }
+
+    /**
      * Mostrar la página de gestión de citas
      */
     public function index()
@@ -135,6 +172,7 @@ class AppointmentController extends Controller
             'reminderPaused' => $estado['paused'],
             'reminderProgress' => $estado['processing'] ? $estado['progress'] : null,
             'reminderStalled' => $estado['sin_avanzar'],
+            'reminderEspera' => $estado['espera_hasta'] ?? null,
             'ultimoEnvio' => EnvioRecordatorios::ultimoEnvio($this->service),
             'uploadedFile' => session('uploaded_file'),
             'uploadError' => session('upload_error'),
@@ -196,7 +234,8 @@ class AppointmentController extends Controller
 
         $objetivo = $this->tanda(Recordatorios::dentroDe($dias), $max);
         $manana = $dias === 1 ? $objetivo : $this->tanda(Recordatorios::dentroDe(1), $max);
-        unset($objetivo['ids'], $manana['ids']);
+        $todas = $this->tandaTodas($max);
+        unset($objetivo['ids'], $manana['ids'], $todas['ids']);
 
         // OJO: NO combinar estos COUNT en un SUM(condición) "de una sola pasada".
         // Se probó y fue 2,5x MÁS LENTO (3.418 ms vs 1.351 ms): COUNT(*) con un índice
@@ -213,6 +252,7 @@ class AppointmentController extends Controller
             'max_per_day' => $max,
             'objetivo' => $objetivo,
             'manana' => $manana,
+            'todas' => $todas,
             'sent' => max(0, $enviados - $noEntregados),
             'failed' => $this->serviceQuery()->where('reminder_status', 'failed')->count(),
             'futuras' => $this->serviceQuery()->where('citfc', '>=', $hoy)->count(),
@@ -989,6 +1029,15 @@ class AppointmentController extends Controller
     }
 
     /**
+     * «Enviar todas ya»: todas las citas cargadas desde mañana, sin esperar a los días de anticipación. Sale de a una
+     * en cadena (se turna con los masivos) y solo de día (Recordatorios::HORA_INICIO_ENVIO–HORA_FIN_ENVIO).
+     */
+    public function startRemindersAll(Request $request)
+    {
+        return $this->iniciarEnvio($request, 'todas');
+    }
+
+    /**
      * Inicia un envío. La fecha la calcula SIEMPRE el servidor (hoy en Colombia + días): lo que manda la página
      * (fecha_citas y esperadas, lo que mostró la confirmación) solo se compara. Si no coincide no se crea nada y
      * se responde 409 'cambio' con las cifras nuevas para volver a confirmar.
@@ -1006,6 +1055,7 @@ class AppointmentController extends Controller
         try {
             $validacion = Validator::make($request->all(), [
                 'fecha_citas' => ['required', 'date_format:Y-m-d'],
+                'fecha_hasta' => [$tipo === 'todas' ? 'required' : 'nullable', 'date_format:Y-m-d'],
                 'esperadas' => ['required', 'integer', 'min:1', 'max:100000'],
             ]);
             if ($validacion->fails()) {
@@ -1021,16 +1071,26 @@ class AppointmentController extends Controller
                 return response()->json(['success' => false, 'code' => 'sin_configurar'], 422);
             }
 
-            $dias = $tipo === 'dia_antes' ? 1 : $this->diasDeAnticipacion();
-            $fecha = Recordatorios::dentroDe($dias);
-            $tanda = $this->tanda($fecha, $this->maxPorDia());
+            if ($tipo === 'todas') {
+                $tanda = $this->tandaTodas($this->maxPorDia());
+                $fecha = $tanda['desde'];
+                $cambio = $tanda['salen'] === 0
+                    || $request->input('fecha_citas') !== $fecha
+                    || $request->input('fecha_hasta') !== $tanda['hasta'];
+            } else {
+                $dias = $tipo === 'dia_antes' ? 1 : $this->diasDeAnticipacion();
+                $fecha = Recordatorios::dentroDe($dias);
+                $tanda = $this->tanda($fecha, $this->maxPorDia());
+                $cambio = $request->input('fecha_citas') !== $fecha;
+            }
 
-            if ($request->input('fecha_citas') !== $fecha || (int) $request->input('esperadas') !== $tanda['salen']) {
+            if ($cambio || (int) $request->input('esperadas') !== $tanda['salen']) {
                 return response()->json([
                     'success' => false,
                     'code' => 'cambio',
                     'cambio' => true,
                     'fecha' => $fecha,
+                    'hasta' => $tanda['hasta'] ?? null,
                     'total' => $tanda['salen'],
                     'por_enviar' => $tanda['por_enviar'],
                     'sin_celular' => $tanda['sin_celular'],
@@ -1046,7 +1106,12 @@ class AppointmentController extends Controller
                 ->update(['reminder_error' => null, 'reminder_status' => 'pending']);
 
             $service = $this->service;
-            $batch = Bus::batch(array_map(fn ($id) => new SendAppointmentReminderJob($id), $ids))
+            // «todas»: solo el primero; cada trabajo deja al siguiente (SendAppointmentReminderJob::encadenar). Sale
+            // a los 5 s para que la lista de ids del lote (EnvioRecordatorios::iniciar, abajo) ya esté guardada.
+            $trabajos = $tipo === 'todas'
+                ? [(new SendAppointmentReminderJob($ids[0]))->encadenar($service)->delay(now()->addSeconds(5))]
+                : array_map(fn ($id) => new SendAppointmentReminderJob($id), $ids);
+            $batch = Bus::batch($trabajos)
                 ->name(EnvioRecordatorios::NOMBRE_LOTE.' ('.$service.') - '.now(Recordatorios::ZONA)->format('Y-m-d H:i'))
                 ->allowFailures() // Permitir que algunos jobs fallen sin cancelar todo
                 ->finally(function (\Illuminate\Bus\Batch $batch) use ($service) {
@@ -1058,6 +1123,7 @@ class AppointmentController extends Controller
             $ultimo = EnvioRecordatorios::iniciar($service, $batch->id, $ids, [
                 'tipo' => $tipo,
                 'fecha_citas' => $fecha,
+                'fecha_hasta' => $tanda['hasta'] ?? null,
                 'sin_celular' => $tanda['sin_celular'],
                 'iniciado_por' => auth()->user()?->name,
             ]);
@@ -1067,6 +1133,7 @@ class AppointmentController extends Controller
                 'service' => $service,
                 'tipo' => $tipo,
                 'fecha_citas' => $fecha,
+                'fecha_hasta' => $tanda['hasta'] ?? null,
                 'total' => count($ids),
                 'sin_celular' => $tanda['sin_celular'],
                 'batch_id' => $batch->id,
@@ -1191,6 +1258,7 @@ class AppointmentController extends Controller
             'paused' => $estado['paused'],
             'progress' => $estado['processing'] ? $estado['progress'] : null,
             'sin_avanzar' => $estado['sin_avanzar'],
+            'espera_hasta' => $estado['espera_hasta'] ?? null,
             'ultimo_envio' => EnvioRecordatorios::ultimoEnvio($this->service),
         ])->header('Cache-Control', 'no-store');
     }

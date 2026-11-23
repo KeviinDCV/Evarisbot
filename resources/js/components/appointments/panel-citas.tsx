@@ -2,7 +2,7 @@ import { BANDA, BOTON_APAGADO, BOTON_PELIGRO_LLENO, BOTON_PRIMARIO, BOTON_SECUND
 import { cn } from '@/lib/utils';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import axios from 'axios';
-import { LoaderCircle, Pause, Send, Square, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { LoaderCircle, Moon, Pause, Send, Square, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 /* ── Piezas del PANEL de Citas (General y Oncología): bandas de sección, rótulos, avisos, la confirmación y la
@@ -107,7 +107,16 @@ export function Rotulo({ titulo, apoyo }: { titulo: string; apoyo?: string }) {
 }
 
 /** Estado del envío en la banda: icono o punto + texto del color de su significado. */
-export function EstadoEnvio({ tipo, texto }: { tipo: 'enviando' | 'pausa' | 'sin_avanzar' | 'quieto'; texto: string }) {
+export function EstadoEnvio({ tipo, texto }: { tipo: 'enviando' | 'pausa' | 'sin_avanzar' | 'espera' | 'quieto'; texto: string }) {
+    if (tipo === 'espera') {
+        // «Enviar todas»: de noche espera a la mañana a propósito (no es un problema, por eso no va en ámbar).
+        return (
+            <span className="inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-semibold whitespace-nowrap text-[#2e3f84] dark:text-[#a9b6ec]">
+                <Moon className="size-3.5" strokeWidth={2.25} aria-hidden="true" />
+                {texto}
+            </span>
+        );
+    }
     if (tipo === 'enviando') {
         return (
             <span className="inline-flex items-center gap-1.5 text-[12.5px] leading-4 font-semibold whitespace-nowrap text-sky-700 dark:text-sky-300">

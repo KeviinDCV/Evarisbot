@@ -47,6 +47,7 @@ import {
     History,
     Info,
     LoaderCircle,
+    Moon,
     Pause,
     Play,
     Send,
@@ -76,8 +77,10 @@ interface Progreso {
 /** El último envío del ámbito. Las horas llegan en hora de Colombia como 'Y-m-d H:i' (sin zona). */
 interface UltimoEnvio {
     batch_id: string;
-    tipo: 'normal' | 'dia_antes';
+    tipo: 'normal' | 'dia_antes' | 'todas';
     fecha_citas: string;
+    /** Solo en «todas»: la última fecha (fecha_citas es la primera). */
+    fecha_hasta?: string | null;
     total: number;
     sin_celular: number;
     iniciado_por: string | null;
@@ -99,12 +102,25 @@ interface Tanda {
     salen: number;
 }
 
+/** «Enviar todas ya»: todas las citas desde mañana; desde/hasta son la primera y la última fecha de las que salen. */
+interface TandaTodas {
+    desde: string | null;
+    hasta: string | null;
+    dias: number;
+    por_enviar: number;
+    sin_celular: number;
+    salen: number;
+    hora_inicio: number;
+    hora_fin: number;
+}
+
 interface RemindersStats {
     hoy: string;
     days_in_advance: number;
     max_per_day: number;
     objetivo: Tanda;
     manana: Tanda;
+    todas?: TandaTodas;
     sent: number;
     failed: number;
     futuras: number;
@@ -129,6 +145,8 @@ interface AppointmentIndexProps {
     reminderPaused?: boolean;
     reminderProgress?: Progreso | null;
     reminderStalled?: boolean;
+    /** «Enviar todas» esperando la mañana: hasta cuándo ('Y-m-d H:i', hora de Colombia). */
+    reminderEspera?: string | null;
     ultimoEnvio?: UltimoEnvio | null;
     uploadedFile?: UploadResult | null;
     uploadError?: { code: string; columnas?: string[] } | null;
@@ -143,14 +161,15 @@ interface AppointmentIndexProps {
 
 // Lo que se recarga para saber el estado del envío y las cifras: al abrir la confirmación, al volver a
 // la pestaña sin envío en curso y al terminar un envío (entonces, además, las citas).
-const ESTADO = ['reminderProcessing', 'reminderPaused', 'reminderProgress', 'reminderStalled', 'ultimoEnvio', 'remindersStats'];
+const ESTADO = ['reminderProcessing', 'reminderPaused', 'reminderProgress', 'reminderStalled', 'reminderEspera', 'ultimoEnvio', 'remindersStats'];
 const ESTADO_Y_CITAS = [...ESTADO, 'appointments', 'totalAppointments'];
 
 // Cada mensaje tarda unos 3-4 s (la pausa de 3 s del trabajo más la llamada a WhatsApp).
 const SEGUNDOS_POR_MENSAJE = 4;
 const MAX_MB = 10;
 
-type Accion = 'start' | 'dayBefore' | 'pause' | 'resume' | 'stop';
+type TipoEnvio = 'start' | 'dayBefore' | 'all';
+type Accion = TipoEnvio | 'pause' | 'resume' | 'stop';
 type AvisoEnvio = { tipo: 'ok' | 'aviso' | 'error'; texto: string };
 
 const ERROR_CARGA = {
@@ -216,6 +235,10 @@ function horaColombia() {
 const ahoraColombia = (lng: string) =>
     new Intl.DateTimeFormat(esIngles(lng) ? 'en-US' : 'es-CO', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Bogota' }).format(new Date());
 
+/** Una hora en punto del día: "7 a. m." (es) · "7 AM" (en). */
+const horaCorta = (hora: number, lng: string) =>
+    new Intl.DateTimeFormat(esIngles(lng) ? 'en-US' : 'es-CO', { hour: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, 0, 1, hora)));
+
 /** "1,5 MB" (es) · "1.5 MB" (en). */
 function tamanoArchivo(bytes: number, lng: string) {
     const formato = new Intl.NumberFormat(esIngles(lng) ? 'en-US' : 'es-CO', { maximumFractionDigits: 1 });
@@ -233,6 +256,7 @@ export default function AppointmentsIndex({
     reminderPaused = false,
     reminderProgress = null,
     reminderStalled = false,
+    reminderEspera = null,
     ultimoEnvio: ultimoEnvioServidor = null,
     uploadedFile = null,
     uploadError = null,
@@ -260,6 +284,7 @@ export default function AppointmentsIndex({
     const [isPaused, setIsPaused] = useState(reminderProcessing && reminderPaused);
     const [progress, setProgress] = useState<Progreso | null>(reminderProgress);
     const [sinAvanzar, setSinAvanzar] = useState(reminderProcessing && reminderStalled);
+    const [espera, setEspera] = useState<string | null>(reminderProcessing ? reminderEspera : null);
     const [ultimo, setUltimo] = useState<UltimoEnvio | null>(ultimoEnvioServidor);
     // Al terminar o detener, la barra se queda con las cifras finales hasta cerrar el aviso del resultado.
     const [barraFinal, setBarraFinal] = useState<UltimoEnvio | null>(null);
@@ -269,7 +294,7 @@ export default function AppointmentsIndex({
     const [fallosSondeo, setFallosSondeo] = useState(0);
     // El sondeo se paró porque la sesión caducó: la barra deja de decir «se actualiza solo».
     const [sondeoParado, setSondeoParado] = useState(false);
-    const [confirmarEnvio, setConfirmarEnvio] = useState<'start' | 'dayBefore' | null>(null);
+    const [confirmarEnvio, setConfirmarEnvio] = useState<TipoEnvio | null>(null);
     const [recalculando, setRecalculando] = useState(false);
     const [confirmarDetener, setConfirmarDetener] = useState(false);
     const [confirmarReanudar, setConfirmarReanudar] = useState(false);
@@ -348,6 +373,7 @@ export default function AppointmentsIndex({
             setIsProcessing(false);
             setIsPaused(false);
             setSinAvanzar(false);
+            setEspera(null);
             setFallosSondeo(0);
             setUltimo(u);
             setBarraFinal(u && u.estado !== 'en_curso' && u.total > 0 ? u : null);
@@ -363,8 +389,9 @@ export default function AppointmentsIndex({
         setIsPaused(reminderProcessing && reminderPaused);
         setProgress(reminderProgress);
         setSinAvanzar(reminderProcessing && reminderStalled);
+        setEspera(reminderProcessing ? reminderEspera : null);
         setUltimo(ultimoEnvioServidor);
-    }, [reminderProcessing, reminderPaused, reminderProgress, reminderStalled, ultimoEnvioServidor]);
+    }, [reminderProcessing, reminderPaused, reminderProgress, reminderStalled, reminderEspera, ultimoEnvioServidor]);
 
     // Resetear visibilidad del mensaje flash cuando cambie
     useEffect(() => {
@@ -430,6 +457,7 @@ export default function AppointmentsIndex({
                     setIsPaused(estado.paused === true);
                     setProgress(estado.progress ?? null);
                     setSinAvanzar(estado.sin_avanzar === true);
+                    setEspera(typeof estado.espera_hasta === 'string' ? estado.espera_hasta : null);
                     setUltimo(estado.ultimo_envio ?? null);
                 }
             } catch (error) {
@@ -499,7 +527,7 @@ export default function AppointmentsIndex({
     /* ── Envío: abrir la confirmación, iniciar, pausar, reanudar, detener ── */
 
     // Al abrir la confirmación se piden las cifras de nuevo: el diálogo dice la fecha y la cantidad de AHORA.
-    const abrirConfirmacion = (tipo: 'start' | 'dayBefore') => {
+    const abrirConfirmacion = (tipo: TipoEnvio) => {
         setAvisoEnvio(null);
         setConfirmarEnvio(tipo);
         setRecalculando(true);
@@ -512,6 +540,14 @@ export default function AppointmentsIndex({
                     setAvisoEnvio({ tipo: 'aviso', texto: textoEnCurso(props.ultimoEnvio) });
                     return;
                 }
+                if (tipo === 'all') {
+                    const todas = props.remindersStats?.todas;
+                    if (todas && todas.salen <= 0) {
+                        setConfirmarEnvio(null);
+                        setAvisoEnvio({ tipo: 'aviso', texto: t('appointments.errorNothingLeftAll') });
+                    }
+                    return;
+                }
                 const tanda = tipo === 'dayBefore' ? props.remindersStats?.manana : props.remindersStats?.objetivo;
                 if (tanda && tanda.salen <= 0) {
                     setConfirmarEnvio(null);
@@ -522,20 +558,26 @@ export default function AppointmentsIndex({
         });
     };
 
-    const iniciar = async (tipo: 'start' | 'dayBefore') => {
+    const iniciar = async (tipo: TipoEnvio) => {
+        const todas = stats?.todas;
         const tanda = tipo === 'dayBefore' ? stats?.manana : stats?.objetivo;
-        if (!tanda) return;
+        // La fecha (o el rango, en «todas») la decide el servidor; esto solo le dice lo que la persona confirmó.
+        const cuerpo =
+            tipo === 'all'
+                ? todas?.desde && todas.hasta
+                    ? { fecha_citas: todas.desde, fecha_hasta: todas.hasta, esperadas: todas.salen }
+                    : null
+                : tanda
+                  ? { fecha_citas: tanda.fecha, esperadas: tanda.salen }
+                  : null;
+        if (!cuerpo) return;
         setAccion(tipo);
         setAvisoEnvio(null);
         setBarraFinal(null);
 
         try {
-            // La fecha la decide el servidor; esto solo le dice lo que la persona confirmó, para que lo compare.
-            const { status, data: r } = await axios.post(
-                `${routePrefix}/reminders/${tipo === 'dayBefore' ? 'start-day-before' : 'start'}`,
-                { fecha_citas: tanda.fecha, esperadas: tanda.salen },
-                VALIDAR
-            );
+            const ruta = tipo === 'all' ? 'start-all' : tipo === 'dayBefore' ? 'start-day-before' : 'start';
+            const { status, data: r } = await axios.post(`${routePrefix}/reminders/${ruta}`, cuerpo, VALIDAR);
             const codigo = r && typeof r === 'object' ? r.code : undefined;
 
             if (status === 200 && (!r || typeof r !== 'object')) {
@@ -544,10 +586,11 @@ export default function AppointmentsIndex({
             } else if (status === 200 && r.success) {
                 versionEnvio.current += 1;
                 setSondeoParado(false);
-                const total = Number(r.total) || tanda.salen;
+                const total = Number(r.total) || cuerpo.esperadas;
                 setProgress({ total, sent: 0, failed: 0, pending: total, skipped: 0, percentage: 0 });
                 setIsPaused(false);
                 setSinAvanzar(false);
+                setEspera(null);
                 setFallosSondeo(0);
                 setUltimo(r.ultimo_envio ?? null);
                 setIsProcessing(true);
@@ -563,9 +606,13 @@ export default function AppointmentsIndex({
                 setAvisoEnvio({
                     tipo: 'aviso',
                     texto:
-                        total > 0
-                            ? t('appointments.errorChanged', { count: total, value: miles(total, lng), date: fechaTexto(r.fecha) })
-                            : t('appointments.errorNothingLeft', { date: fechaTexto(r.fecha) }),
+                        tipo === 'all'
+                            ? total > 0
+                                ? t('appointments.errorChangedAll', { count: total, value: miles(total, lng), from: fechaTexto(r.fecha), to: fechaTexto(r.hasta) })
+                                : t('appointments.errorNothingLeftAll')
+                            : total > 0
+                              ? t('appointments.errorChanged', { count: total, value: miles(total, lng), date: fechaTexto(r.fecha) })
+                              : t('appointments.errorNothingLeft', { date: fechaTexto(r.fecha) }),
                 });
             } else if (codigo === 'sin_configurar') {
                 setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorNotConfigured') });
@@ -656,6 +703,7 @@ export default function AppointmentsIndex({
                 setIsProcessing(false);
                 setIsPaused(false);
                 setSinAvanzar(false);
+                setEspera(null);
                 setFallosSondeo(0);
                 setUltimo(u);
                 setBarraFinal(u && u.total > 0 ? u : null);
@@ -833,34 +881,64 @@ export default function AppointmentsIndex({
               ? t('appointments.whenDayAfterTomorrow')
               : t('appointments.whenInDays', { count: diasAntes });
 
-    const iniciando = accion === 'start' || accion === 'dayBefore';
+    const iniciando = accion === 'start' || accion === 'dayBefore' || accion === 'all';
     const hayEnvio = isProcessing || isPaused;
-    const estadoEnvio = iniciando ? 'enviando' : isPaused ? 'pausa' : isProcessing ? (sinAvanzar ? 'sin_avanzar' : 'enviando') : 'quieto';
+    // «Enviar todas» de noche: espera a la mañana a propósito.
+    const esperando = isProcessing && !isPaused && !!espera;
+    const horaEspera = espera ? horaDe(espera) : '';
+    const estadoEnvio = iniciando
+        ? 'enviando'
+        : isPaused
+          ? 'pausa'
+          : esperando
+            ? 'espera'
+            : isProcessing
+              ? sinAvanzar
+                  ? 'sin_avanzar'
+                  : 'enviando'
+              : 'quieto';
     const textoEstado = iniciando
         ? t('appointments.statusStarting')
         : isPaused
           ? t('appointments.statusPaused')
-          : isProcessing
-            ? sinAvanzar
-                ? t('appointments.statusStalled')
-                : t('appointments.statusSending')
-            : t('appointments.statusNoActiveProcess');
+          : esperando
+            ? t('appointments.statusWaitingMorning', { time: horaEspera })
+            : isProcessing
+              ? sinAvanzar
+                  ? t('appointments.statusStalled')
+                  : t('appointments.statusSending')
+              : t('appointments.statusNoActiveProcess');
     const barra: Progreso | null = isProcessing ? (progress && progress.total > 0 ? progress : null) : barraFinal ? progresoDe(barraFinal) : null;
     const esFinal = !isProcessing && !!barraFinal;
 
+    // «Todas las citas cargadas»: se ofrece cuando hay citas por enviar más allá de las dos fechas de arriba.
+    const todas = stats?.todas;
+    const todasVisible =
+        !!todas && !!todas.desde && !!objetivo && !!manana && todas.por_enviar > objetivo.por_enviar + (mananaVisible ? manana.por_enviar : 0);
+
     // Confirmación de enviar: la tanda de la fila que la abrió (recargada al abrir).
-    const tandaConfirmar = confirmarEnvio === 'dayBefore' ? manana : objetivo;
+    const confirmaTodas = confirmarEnvio === 'all';
+    const tandaConfirmar = confirmaTodas ? todas : confirmarEnvio === 'dayBefore' ? manana : objetivo;
     const salen = tandaConfirmar?.salen ?? 0;
     const quedanOtraTanda = Math.max(0, (tandaConfirmar?.por_enviar ?? 0) - salen);
     const minutos = Math.max(1, Math.ceil((salen * SEGUNDOS_POR_MENSAJE) / 60));
+    const horas = Math.max(1, Math.round((salen * SEGUNDOS_POR_MENSAJE) / 3600));
     const horaAhora = horaColombia();
     const deNoche = horaAhora >= 19 || horaAhora < 7;
+    const horaInicio = todas?.hora_inicio ?? 7;
+    const horaFin = todas?.hora_fin ?? 19;
+    // «todas» fuera de horario: no sale nada hasta la mañana (el trabajo duerme hasta horaInicio).
+    const todasDeNoche = horaAhora >= horaFin || horaAhora < horaInicio;
 
     const notaEnCurso = t('appointments.sendingInProgressNote');
 
     /** «Último envío: citas del … · 120 enviados · 3 con error · terminó a las 9:05 · lo inició …». */
     const lineaUltimo = (u: UltimoEnvio) => {
-        const partes = [t('appointments.lastSendPrefix', { date: fechaTexto(u.fecha_citas) })];
+        const partes = [
+            u.tipo === 'todas' && u.fecha_hasta && u.fecha_hasta !== u.fecha_citas
+                ? t('appointments.lastSendPrefixRange', { from: fechaTexto(u.fecha_citas), to: fechaTexto(u.fecha_hasta) })
+                : t('appointments.lastSendPrefix', { date: fechaTexto(u.fecha_citas) }),
+        ];
         partes.push(t('appointments.lastSendSent', { count: u.enviados, value: miles(u.enviados, lng) }));
         partes.push(t('appointments.lastSendFailed', { value: miles(u.con_error, lng) }));
         if (u.omitidas > 0) partes.push(t('appointments.lastSendSkipped', { count: u.omitidas, value: miles(u.omitidas, lng) }));
@@ -879,9 +957,9 @@ export default function AppointmentsIndex({
         return partes.join(' · ');
     };
 
-    const botonEnviar = (tipo: 'start' | 'dayBefore', tanda: Tanda) => {
+    const botonEnviar = (tipo: TipoEnvio, tanda: { por_enviar: number; salen: number }) => {
         if (tanda.por_enviar <= 0) return null;
-        const Icono = tipo === 'start' ? Send : CalendarCheck2;
+        const Icono = tipo === 'dayBefore' ? CalendarCheck2 : Send;
         // El botón dice lo que sale en ESTA pulsación: el servidor envía como máximo max_per_day.
         const parcial = tanda.salen < tanda.por_enviar;
         const propia = accion === tipo;
@@ -889,7 +967,9 @@ export default function AppointmentsIndex({
             ? t('appointments.starting')
             : parcial
               ? t('appointments.sendRemindersPartial', { value: miles(tanda.salen, lng), total: miles(tanda.por_enviar, lng) })
-              : t('appointments.sendRemindersButton', { count: tanda.por_enviar, value: miles(tanda.por_enviar, lng) });
+              : tipo === 'all'
+                ? t('appointments.sendAllButton', { value: miles(tanda.por_enviar, lng) })
+                : t('appointments.sendRemindersButton', { count: tanda.por_enviar, value: miles(tanda.por_enviar, lng) });
         const apagado = accion !== null || hayEnvio;
 
         return (
@@ -931,6 +1011,37 @@ export default function AppointmentsIndex({
                 )}
             </div>
             <div className="flex @3xl/hoja:justify-end">{botonEnviar(tipo, tanda)}</div>
+        </div>
+    );
+
+    /** «Todas las citas cargadas»: el rango de fechas, cuántas y el botón «Enviar todas ya». */
+    const filaTodas = (tanda: TandaTodas) => (
+        <div
+            className={cn(
+                'grid grid-cols-1 gap-y-2.5 border-t py-3.5 @3xl/hoja:min-h-16 @3xl/hoja:grid-cols-[220px_minmax(0,1fr)_auto] @3xl/hoja:items-center @3xl/hoja:gap-x-8 @3xl/hoja:py-2 @5xl/hoja:grid-cols-[300px_minmax(0,1fr)_auto]',
+                SANGRIA,
+                FILETE
+            )}
+        >
+            <div className="flex min-w-0 flex-col gap-[3px]">
+                <span className={cn('text-[13.5px] leading-[18px] font-semibold tracking-[-0.003em]', TEXTO_NAVY)}>{t('appointments.allLabel')}</span>
+                <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>
+                    {tanda.desde === tanda.hasta
+                        ? t('appointments.appointmentsOfDate', { date: fechaTexto(tanda.desde) })
+                        : t('appointments.appointmentsOfRange', { from: fechaTexto(tanda.desde), to: fechaTexto(tanda.hasta), count: tanda.dias })}
+                </span>
+                <span className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('appointments.allHint', { from: horaCorta(horaInicio, lng), to: horaCorta(horaFin, lng) })}</span>
+            </div>
+            <div className="flex min-w-0 flex-col gap-0.5">
+                <div className="flex min-w-0 items-baseline gap-2">
+                    <span className={cn('text-[20px] leading-6 font-medium tracking-[-0.02em] tabular-nums', TEXTO_NAVY)}>{miles(tanda.por_enviar, lng)}</span>
+                    <span className={cn('text-[13px] leading-[18px]', TEXTO_SUAVE)}>{t('appointments.rowPendingCount', { count: tanda.por_enviar })}</span>
+                </div>
+                {tanda.sin_celular > 0 && (
+                    <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{t('appointments.rowNoMobile', { count: tanda.sin_celular, value: miles(tanda.sin_celular, lng) })}</span>
+                )}
+            </div>
+            <div className="flex @3xl/hoja:justify-end">{botonEnviar('all', tanda)}</div>
         </div>
     );
 
@@ -1149,8 +1260,12 @@ export default function AppointmentsIndex({
                                                         : sondeoParado
                                                           ? t('appointments.sessionExpired')
                                                           : isPaused
-                                                            ? t('appointments.progressPausedHint')
-                                                            : t('appointments.progressAutoRefresh')
+                                                            ? ultimo?.tipo === 'todas'
+                                                                ? t('appointments.progressPausedHintAll')
+                                                                : t('appointments.progressPausedHint')
+                                                            : esperando
+                                                              ? t('appointments.progressWaitingHint', { time: horaEspera })
+                                                              : t('appointments.progressAutoRefresh')
                                                 }
                                             />
                                             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -1258,8 +1373,9 @@ export default function AppointmentsIndex({
                                             {filaTanda({ tipo: 'start', cuando: rotuloObjetivo, tanda: objetivo, final: !mananaVisible })}
                                             {mananaVisible &&
                                                 filaTanda({ tipo: 'dayBefore', cuando: t('appointments.dayBeforeLabel'), pista: t('appointments.dayBeforeHint'), tanda: manana, final: true })}
+                                            {todasVisible && todas && filaTodas(todas)}
 
-                                            {(hayEnvio || (objetivo.por_enviar === 0 && (!mananaVisible || manana.por_enviar === 0))) && (
+                                            {(hayEnvio || (!todasVisible && objetivo.por_enviar === 0 && (!mananaVisible || manana.por_enviar === 0))) && (
                                                 <div className={cn('flex min-h-12 items-center gap-3 border-t px-4 py-3 @3xl/hoja:px-5', FILETE)}>
                                                     <span className={cn('flex w-8 shrink-0 justify-center', TEXTO_SUAVE)}>
                                                         <Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
@@ -1542,10 +1658,21 @@ export default function AppointmentsIndex({
                 confirmarDesactivado={recalculando || salen <= 0}
                 respaldoFoco="citas-envio"
             >
-                <p>{t('appointments.confirmSendText', { date: fechaTexto(tandaConfirmar?.fecha) })}</p>
-                <p>{t('appointments.confirmSendDuration', { count: minutos })}</p>
-                {(tandaConfirmar?.sin_celular ?? 0) > 0 && (
-                    <p>{t('appointments.confirmSendNoMobile', { count: tandaConfirmar?.sin_celular ?? 0, value: miles(tandaConfirmar?.sin_celular ?? 0, lng) })}</p>
+                {confirmaTodas && todas ? (
+                    <>
+                        <p>{t('appointments.confirmAllText', { from: fechaTexto(todas.desde), to: fechaTexto(todas.hasta), count: diasAntes })}</p>
+                        <p>{t('appointments.confirmAllDuration', { count: horas })}</p>
+                        <p>{t('appointments.confirmAllHours', { from: horaCorta(horaInicio, lng), to: horaCorta(horaFin, lng) })}</p>
+                        {todas.sin_celular > 0 && <p>{t('appointments.confirmAllNoMobile', { count: todas.sin_celular, value: miles(todas.sin_celular, lng) })}</p>}
+                    </>
+                ) : (
+                    <>
+                        <p>{t('appointments.confirmSendText', { date: fechaTexto(confirmarEnvio === 'dayBefore' ? manana?.fecha : objetivo?.fecha) })}</p>
+                        <p>{t('appointments.confirmSendDuration', { count: minutos })}</p>
+                        {(tandaConfirmar?.sin_celular ?? 0) > 0 && (
+                            <p>{t('appointments.confirmSendNoMobile', { count: tandaConfirmar?.sin_celular ?? 0, value: miles(tandaConfirmar?.sin_celular ?? 0, lng) })}</p>
+                        )}
+                    </>
                 )}
                 {quedanOtraTanda > 0 && (
                     <p>
@@ -1556,12 +1683,19 @@ export default function AppointmentsIndex({
                         />
                     </p>
                 )}
-                {deNoche && (
-                    <p className={cn('flex items-start gap-2 font-medium', TONO_TEXTO.aviso)}>
-                        <TriangleAlert className="mt-0.5 size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
-                        <span>{t('appointments.confirmSendNight', { time: ahoraColombia(lng) })}</span>
-                    </p>
-                )}
+                {confirmaTodas
+                    ? todasDeNoche && (
+                          <p className={cn('flex items-start gap-2 font-medium', TONO_TEXTO.aviso)}>
+                              <Moon className="mt-0.5 size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                              <span>{t('appointments.confirmAllNight', { time: ahoraColombia(lng), from: horaCorta(horaInicio, lng) })}</span>
+                          </p>
+                      )
+                    : deNoche && (
+                          <p className={cn('flex items-start gap-2 font-medium', TONO_TEXTO.aviso)}>
+                              <TriangleAlert className="mt-0.5 size-4 shrink-0" strokeWidth={2} aria-hidden="true" />
+                              <span>{t('appointments.confirmSendNight', { time: ahoraColombia(lng) })}</span>
+                          </p>
+                      )}
             </Confirmacion>
 
             {/* ── Confirmación de reanudar: dice cuántos van a salir ── */}

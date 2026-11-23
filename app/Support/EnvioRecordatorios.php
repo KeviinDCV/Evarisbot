@@ -75,10 +75,42 @@ class EnvioRecordatorios
     }
 
     /**
+     * La lista de ids del lote como se guarda en settings.value (TEXT, 64 KB). Hasta ~8.000 ids cabe en JSON plano
+     * (así sigue como siempre en los envíos por fecha); más larga va comprimida en «z» (gzip + base64).
+     */
+    private static function textoDelLote(string $batchId, array $ids): string
+    {
+        $ids = array_values(array_map('intval', $ids));
+        $plano = json_encode(['batch_id' => $batchId, 'ids' => $ids]);
+        if (strlen($plano) <= 60000) {
+            return $plano;
+        }
+
+        return json_encode(['batch_id' => $batchId, 'z' => base64_encode((string) gzdeflate(json_encode($ids), 9))]);
+    }
+
+    /** Los ids del lote guardado (o null si no hay, o si es de otro lote que $batchId). */
+    public static function idsDelLote(string $service, ?string $batchId = null): ?array
+    {
+        $lote = json_decode((string) self::leer($service, 'reminder_lote_ids'), true);
+        if (! is_array($lote) || ($batchId !== null && ($lote['batch_id'] ?? null) !== $batchId)) {
+            return null;
+        }
+        if (isset($lote['z']) && is_string($lote['z'])) {
+            $json = @gzinflate((string) base64_decode($lote['z'], true));
+            $ids = $json === false ? null : json_decode($json, true);
+        } else {
+            $ids = $lote['ids'] ?? null;
+        }
+
+        return is_array($ids) && $ids !== [] ? array_values(array_map('intval', $ids)) : null;
+    }
+
+    /**
      * Deja el envío en marcha: ids encolados, resumen «en_curso», lote, sin pausa y processing = true, todo en una
      * transacción para que nadie lea a medias (p. ej. processing sin lote).
      *
-     * @param  array{tipo: string, fecha_citas: string, sin_celular: int, iniciado_por: ?string}  $datos
+     * @param  array{tipo: string, fecha_citas: string, fecha_hasta?: string, sin_celular: int, iniciado_por: ?string}  $datos
      */
     public static function iniciar(string $service, string $batchId, array $ids, array $datos): array
     {
@@ -86,6 +118,8 @@ class EnvioRecordatorios
             'batch_id' => $batchId,
             'tipo' => $datos['tipo'],
             'fecha_citas' => $datos['fecha_citas'],
+            // Solo en «todas»: la última fecha de las citas del envío (fecha_citas es la primera).
+            'fecha_hasta' => $datos['fecha_hasta'] ?? null,
             'total' => count($ids),
             'sin_celular' => (int) $datos['sin_celular'],
             'iniciado_por' => $datos['iniciado_por'],
@@ -100,14 +134,34 @@ class EnvioRecordatorios
         ];
 
         DB::transaction(function () use ($service, $batchId, $ids, $ultimo) {
-            self::guardar($service, 'reminder_lote_ids', json_encode(['batch_id' => $batchId, 'ids' => array_values(array_map('intval', $ids))]));
+            self::guardar($service, 'reminder_lote_ids', self::textoDelLote($batchId, $ids));
             self::guardarUltimo($service, $ultimo);
             self::guardar($service, 'reminder_batch_id', $batchId);
             self::guardar($service, 'reminder_paused', 'false');
+            self::guardar($service, 'reminder_espera_hasta', null);
             self::guardar($service, 'reminder_processing', 'true');
         });
 
         return $ultimo;
+    }
+
+    /**
+     * El envío «todas» está esperando la mañana (fuera de Recordatorios::HORA_INICIO_ENVIO–HORA_FIN_ENVIO): lo anota el
+     * trabajo al dormirse, para que la pantalla diga «sigue a las 7:00» en vez de «Sin avanzar». Hora de Colombia.
+     */
+    public static function anotarEspera(string $service, string $hasta): void
+    {
+        if (self::leer($service, 'reminder_espera_hasta') !== $hasta) {
+            self::guardar($service, 'reminder_espera_hasta', $hasta);
+        }
+    }
+
+    /** Hasta cuándo espera el envío ('Y-m-d H:i', hora de Colombia), o null si no está esperando. */
+    public static function esperaHasta(string $service): ?string
+    {
+        $hasta = self::leer($service, 'reminder_espera_hasta');
+
+        return $hasta !== null && $hasta > Recordatorios::ahoraCol() ? $hasta : null;
     }
 
     /** Sin envío: processing y pausa en false y sin lote (solo si el lote guardado es $batchId, o con null). */
@@ -121,6 +175,7 @@ class EnvioRecordatorios
             self::guardar($service, 'reminder_processing', 'false');
             self::guardar($service, 'reminder_paused', 'false');
             self::guardar($service, 'reminder_batch_id', null);
+            self::guardar($service, 'reminder_espera_hasta', null);
         });
     }
 
@@ -136,10 +191,9 @@ class EnvioRecordatorios
     public static function progreso(string $service, ?Batch $batch = null, ?string $batchId = null): ?array
     {
         $batchId ??= $batch?->id;
-        $lote = json_decode((string) self::leer($service, 'reminder_lote_ids'), true);
+        $ids = self::idsDelLote($service, $batchId);
 
-        if (is_array($lote) && ! empty($lote['ids']) && ($batchId === null || ($lote['batch_id'] ?? null) === $batchId)) {
-            $ids = array_values(array_map('intval', (array) $lote['ids']));
+        if ($ids !== null) {
             $total = count($ids);
             $fila = DB::table('appointments')->whereIntegerInRaw('id', $ids)->selectRaw(
                 "SUM(CASE WHEN reminder_sent = 1 AND reminder_whatsapp_message_id IS NOT NULL THEN 1 ELSE 0 END) AS sent,
@@ -265,13 +319,16 @@ class EnvioRecordatorios
         }
 
         $sinAvanzar = self::sinAvanzar($batch, $filas);
+        // De noche el envío «todas» duerme a propósito: eso no es «Sin avanzar».
+        $espera = self::esperaHasta($service);
 
         return [
             'processing' => true,
             'paused' => $paused,
             'batch' => $batchId,
             'progress' => self::progreso($service, $batch),
-            'sin_avanzar' => $sinAvanzar && ! $paused,
+            'sin_avanzar' => $sinAvanzar && ! $paused && $espera === null,
+            'espera_hasta' => $espera,
         ];
     }
 

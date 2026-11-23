@@ -14,6 +14,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -36,6 +37,27 @@ class SendAppointmentReminderJob implements ShouldQueue
     ) {}
 
     /**
+     * Envío «todas las citas cargadas»: en vez de meter miles de trabajos de golpe en la única cola (los masivos y el
+     * segundo número esperarían horas detrás), hay UN trabajo del envío en la cola. Cada uno, cuando ya va a seguir
+     * (sin pausa y de día), deja en la fila al de la siguiente cita del lote (EnvioRecordatorios::idsDelLote). Así se
+     * turna con los demás trabajos, como los masivos. De noche espera hasta Recordatorios::HORA_INICIO_ENVIO.
+     *
+     * Propiedades con valor por defecto (no en el constructor): los trabajos ya encolados se deserializan sin ellas y
+     * quedan en false/null, como siempre.
+     */
+    public bool $encadenado = false;
+
+    public ?string $ambito = null;
+
+    public function encadenar(string $service): static
+    {
+        $this->encadenado = true;
+        $this->ambito = $service;
+
+        return $this;
+    }
+
+    /**
      * Get the middleware the job should pass through.
      * Rate limiting: máximo 20 mensajes por minuto (1 cada 3 segundos)
      */
@@ -51,7 +73,55 @@ class SendAppointmentReminderJob implements ShouldQueue
      */
     public function retryUntil(): \DateTime
     {
+        // En cadena el trabajo entra a la cola justo a su turno, pero puede dormir la noche o una pausa larga: si
+        // venciera en esa espera, su cita se saltaría.
+        if ($this->encadenado) {
+            return now()->addDays(3);
+        }
+
         return now()->addHours(3); // Permitir hasta 3 horas para lotes grandes (1000+ citas)
+    }
+
+    /**
+     * En cadena: deja en la cola el trabajo de la siguiente cita del lote. Una sola vez por cita y lote (un trabajo
+     * liberado o reintentado no la vuelve a dejar) y nunca con el lote cancelado («Detener» o un corte).
+     */
+    private function encadenarSiguiente(): void
+    {
+        if (! $this->encadenado || ! $this->batchId) {
+            return;
+        }
+
+        try {
+            $lote = $this->batch();
+            if (! $lote || $lote->cancelled()) {
+                return;
+            }
+            if (! Cache::add('recordatorios:'.$this->batchId.':cadena:'.$this->appointmentId, 1, now()->addDays(4))) {
+                return;
+            }
+
+            $ids = EnvioRecordatorios::idsDelLote($this->ambito ?: 'general', $this->batchId);
+            if ($ids === null) {
+                // La lista del lote aún no está guardada (el inicio la escribe justo después de encolar): reintentar.
+                throw new \RuntimeException('La lista de citas del envío todavía no está guardada');
+            }
+            $posicion = array_search($this->appointmentId, $ids, true);
+            if ($posicion === false || ! isset($ids[$posicion + 1])) {
+                return; // Era la última: el lote termina cuando acabe este trabajo.
+            }
+
+            $lote->add([(new self($ids[$posicion + 1]))->encadenar($this->ambito ?: 'general')]);
+        } catch (\Throwable $e) {
+            // Sin el siguiente la cadena se cortaría: se suelta la marca para que el reintento lo deje.
+            Cache::forget('recordatorios:'.$this->batchId.':cadena:'.$this->appointmentId);
+            Log::error('Recordatorios en cadena: no se pudo dejar el siguiente', [
+                'appointment_id' => $this->appointmentId,
+                'batch_id' => $this->batchId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -74,6 +144,7 @@ class SendAppointmentReminderJob implements ShouldQueue
 
         if (!$appointment) {
             Log::warning('Cita no encontrada', ['appointment_id' => $this->appointmentId]);
+            $this->encadenarSiguiente();
             return;
         }
 
@@ -86,6 +157,17 @@ class SendAppointmentReminderJob implements ShouldQueue
             $this->release(15);
             return;
         }
+
+        // Envío «todas»: de noche no se les escribe a los pacientes. El trabajo duerme hasta la apertura (sin dejar
+        // al siguiente: la cadena sigue en la mañana).
+        if ($this->encadenado && ($apertura = Recordatorios::proximaApertura())) {
+            EnvioRecordatorios::anotarEspera($service, $apertura->format('Y-m-d H:i'));
+            $this->release(max(60, $apertura->getTimestamp() - now()->getTimestamp()));
+            return;
+        }
+
+        // Va a seguir: deja en la fila al de la siguiente cita (solo en cadena).
+        $this->encadenarSiguiente();
 
         // Ya enviado → saltar (sin gastar el rate-limit).
         if ($appointment->reminder_sent) {
@@ -234,6 +316,13 @@ class SendAppointmentReminderJob implements ShouldQueue
      */
     public function failed(\Throwable $exception): void
     {
+        // En cadena, un trabajo que muere sin haber dejado al siguiente cortaría el envío: se deja aquí.
+        try {
+            $this->encadenarSiguiente();
+        } catch (\Throwable) {
+            // Ya quedó en el log; el envío se puede volver a iniciar desde la pantalla.
+        }
+
         if ($exception instanceof MaxAttemptsExceededException) {
             Log::warning('Recordatorio agotado por tiempo o intentos: la cita queda por enviar', [
                 'appointment_id' => $this->appointmentId,

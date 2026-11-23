@@ -155,6 +155,29 @@ class Recordatorios
     }
 
     /**
+     * Horario del envío de «todas las citas cargadas» (hora de Colombia): de las 7:00 a las 19:00. Fuera de él ese
+     * envío espera a la mañana siguiente en vez de escribirles a los pacientes de noche. Los envíos por fecha (pasado
+     * mañana / mañana) no lo usan: siguen como siempre.
+     */
+    public const HORA_INICIO_ENVIO = 7;
+
+    public const HORA_FIN_ENVIO = 19;
+
+    /** Cuándo se puede volver a enviar: null si ahora es de día; si no, la próxima apertura (hora de Colombia). */
+    public static function proximaApertura(): ?Carbon
+    {
+        $ahora = now(self::ZONA);
+        $hora = (int) $ahora->format('G');
+        if ($hora >= self::HORA_INICIO_ENVIO && $hora < self::HORA_FIN_ENVIO) {
+            return null;
+        }
+
+        $apertura = $ahora->copy()->setTime(self::HORA_INICIO_ENVIO, 0);
+
+        return $hora >= self::HORA_FIN_ENVIO ? $apertura->addDay() : $apertura;
+    }
+
+    /**
      * El celular al que se puede mandar el WhatsApp, con el 57 delante, o null si el teléfono no sirve.
      *
      * Un único normalizador para contar, encolar y enviar. Acepta los formatos que hoy funcionan («300 123 4567»,

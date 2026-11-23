@@ -47,7 +47,18 @@ class Appointment extends Model
      */
     public function scopePorRecordar(Builder $query, string $fecha): Builder
     {
-        return $query->where('citfc', $fecha)
+        return $this->pendientesDeRecordar($query->where('citfc', $fecha));
+    }
+
+    /** Lo mismo que porRecordar, pero para todas las citas desde esa fecha en adelante («Enviar todas ya»). */
+    public function scopePorRecordarDesde(Builder $query, string $desde): Builder
+    {
+        return $this->pendientesDeRecordar($query->where('citfc', '>=', $desde));
+    }
+
+    private function pendientesDeRecordar(Builder $query): Builder
+    {
+        return $query
             ->where('reminder_sent', false)
             ->where(fn ($q) => $q->whereNull('reminder_status')->orWhereNotIn('reminder_status', Recordatorios::RESUELTAS))
             ->where(fn ($q) => Recordatorios::errorReintentable($q))

@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { router } from '@inertiajs/react';
 import axios from 'axios';
 import { CircleAlert, CircleCheck, Clock, History, Info, LoaderCircle, Pause, Phone, PhoneCall, Play, Square, TriangleAlert, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -58,9 +58,13 @@ export interface LlamadasStats {
     activas: boolean;
     robot?: boolean;
     ensayo?: boolean;
+    /** Se llama a todos los que no respondieron, salvo a quien dijo que no (si no, solo a quien dijo que sí). */
+    sin_pedir_permiso?: boolean;
     en_horario?: boolean;
     abre?: string | null;
+    /** Tope de llamadas en 24 horas que fijó un administrador (intentos), y el máximo que acepta. */
     limite?: number;
+    tope_maximo?: number;
     usadas?: number;
     quedan?: number;
     salen?: number;
@@ -632,14 +636,20 @@ export default function RecordatorioLlamada({
                         <div className="flex min-w-0 flex-col gap-[3px]">
                             <div className="flex min-w-0 items-baseline gap-2">
                                 <span className={cn('text-[20px] leading-6 font-medium tracking-[-0.02em] tabular-nums', conPermiso ? TEXTO_NAVY : TEXTO_SUAVE)}>{miles(conPermiso, lng)}</span>
-                                <span className={cn('text-[13px] leading-[18px]', TEXTO_SUAVE)}>{t('appointments.calls.withPermission', { count: conPermiso })}</span>
+                                <span className={cn('text-[13px] leading-[18px]', TEXTO_SUAVE)}>
+                                    {t(stats.sin_pedir_permiso ? 'appointments.calls.canCall' : 'appointments.calls.withPermission', { count: conPermiso })}
+                                </span>
                             </div>
                             <span className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>
                                 {(stats.no_respondieron ?? 0) === 0
                                     ? t('appointments.calls.nobodyPending')
                                     : [
                                           t('appointments.calls.ofNoResponse', { count: stats.no_respondieron, value: miles(stats.no_respondieron ?? 0, lng) }),
-                                          (stats.sin_permiso ?? 0) > 0 && t('appointments.calls.noPermission', { count: stats.sin_permiso, value: miles(stats.sin_permiso ?? 0, lng) }),
+                                          (stats.sin_permiso ?? 0) > 0 &&
+                                              t(stats.sin_pedir_permiso ? 'appointments.calls.saidNo' : 'appointments.calls.noPermission', {
+                                                  count: stats.sin_permiso,
+                                                  value: miles(stats.sin_permiso ?? 0, lng),
+                                              }),
                                           (stats.ya_llamadas ?? 0) > 0 && t('appointments.calls.alreadyCalled', { count: stats.ya_llamadas, value: miles(stats.ya_llamadas ?? 0, lng) }),
                                           (stats.fuera_ensayo ?? 0) > 0 && t('appointments.calls.outsideTest', { count: stats.fuera_ensayo, value: miles(stats.fuera_ensayo ?? 0, lng) }),
                                       ]
@@ -684,9 +694,7 @@ export default function RecordatorioLlamada({
                             </p>
                         </div>
                     )}
-                    <Linea icono={<Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />} final>
-                        {t('appointments.calls.metaLimit', { limit: miles(stats.limite ?? 0, lng), used: miles(stats.usadas ?? 0, lng), left: miles(stats.quedan ?? 0, lng) })}
-                    </Linea>
+                    <FilaTope routePrefix={routePrefix} limite={stats.limite ?? 0} usadas={stats.usadas ?? 0} quedan={stats.quedan ?? 0} maximo={stats.tope_maximo ?? 15000} />
                 </>
             ) : (
                 <Linea icono={<Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />} final>
@@ -712,7 +720,7 @@ export default function RecordatorioLlamada({
             >
                 {cambio && <p className="font-medium text-amber-800 dark:text-amber-300">{t('appointments.calls.changedText', { value: miles(salen, lng) })}</p>}
                 <p>
-                    {t('appointments.calls.confirmText', {
+                    {t(stats?.sin_pedir_permiso ? 'appointments.calls.confirmTextOpen' : 'appointments.calls.confirmText', {
                         count: salen,
                         value: miles(salen, lng),
                         when: stats?.fecha === ymdColombia(1) ? t('appointments.calls.tomorrowLower') : t('appointments.calls.onDay'),
@@ -761,6 +769,140 @@ function Tramo({ valor, total, color }: { valor: number; total: number; color: s
             className={cn('h-full min-w-[3px] transition-[width] duration-500 ease-out motion-reduce:transition-none forced-color-adjust-none forced-colors:bg-[Highlight]', color)}
             style={{ width: `${Math.min((valor / total) * 100, 100)}%` }}
         />
+    );
+}
+
+/**
+ * Tope de llamadas en 24 horas (RondaLlamadas::AJUSTE_TOPE): se empieza con pocas y se sube a medida que Meta amplía el
+ * cupo del número. «Cambiar tope» abre el campo en la misma fila; Escape o Cancelar lo cierran sin guardar.
+ */
+function FilaTope({ routePrefix, limite, usadas, quedan, maximo }: { routePrefix: string; limite: number; usadas: number; quedan: number; maximo: number }) {
+    const { t, i18n } = useTranslation();
+    const lng = i18n.language;
+    const [editando, setEditando] = useState(false);
+    const [valor, setValor] = useState(String(limite));
+    const [guardando, setGuardando] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const campo = useRef<HTMLInputElement>(null);
+    const botonCambiar = useRef<HTMLButtonElement>(null);
+    const volverAlBoton = useRef(false);
+
+    useEffect(() => {
+        if (editando) campo.current?.select();
+        else if (volverAlBoton.current) {
+            volverAlBoton.current = false;
+            botonCambiar.current?.focus();
+        }
+    }, [editando]);
+
+    const numero = Number(valor);
+    const valido = valor.trim() !== '' && Number.isInteger(numero) && numero >= 1 && numero <= maximo;
+
+    const cerrar = () => {
+        volverAlBoton.current = true;
+        setError(null);
+        setEditando(false);
+    };
+
+    const guardar = async (e: FormEvent) => {
+        e.preventDefault();
+        if (!valido || guardando) return;
+        setGuardando(true);
+        setError(null);
+        try {
+            const { status, data } = await axios.post(`${routePrefix}/calls/tope`, { tope: numero }, VALIDAR);
+            if (status === 200 && data?.success) {
+                cerrar();
+                router.reload({ only: ['llamadasStats'] });
+            } else {
+                setError(sesionVencida(status) ? t('appointments.sessionExpired') : t('appointments.calls.capError'));
+            }
+        } catch (err) {
+            setError(sesionVencida(leerEstado(err)) ? t('appointments.sessionExpired') : t('appointments.calls.capError'));
+        } finally {
+            setGuardando(false);
+        }
+    };
+
+    if (!editando) {
+        return (
+            <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 @3xl/hoja:px-5">
+                <span className={cn('flex w-8 shrink-0 justify-center', TEXTO_SUAVE)}>
+                    <Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
+                </span>
+                <p className={cn('min-w-0 flex-1 text-[12.5px] leading-4 tabular-nums', TEXTO_SUAVE)}>
+                    {t('appointments.calls.dailyCap', { limit: miles(limite, lng), used: miles(usadas, lng), left: miles(quedan, lng) })}
+                </p>
+                <button
+                    ref={botonCambiar}
+                    type="button"
+                    onClick={() => {
+                        setValor(String(limite));
+                        setEditando(true);
+                    }}
+                    className={cn(
+                        'inline-flex h-8 cursor-pointer items-center rounded-lg px-2 text-[13px] leading-[18px] font-semibold transition-colors pointer-coarse:h-11 hover:bg-[#2e3f84]/6 dark:hover:bg-white/8',
+                        TEXTO_NAVY,
+                        FOCO
+                    )}
+                >
+                    {t('appointments.calls.capChange')}
+                </button>
+            </div>
+        );
+    }
+
+    const ayuda = error ?? (valor.trim() !== '' && !valido ? t('appointments.calls.capInvalid', { max: miles(maximo, lng) }) : t('appointments.calls.capHelp', { max: miles(maximo, lng) }));
+
+    return (
+        <form
+            onSubmit={guardar}
+            onKeyDown={(e) => {
+                if (e.key === 'Escape' && !guardando) {
+                    e.stopPropagation();
+                    cerrar();
+                }
+            }}
+            className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 @3xl/hoja:px-5"
+        >
+            <span className={cn('flex w-8 shrink-0 justify-center', TEXTO_SUAVE)}>
+                <Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
+            </span>
+            <label htmlFor="tope-llamadas" className={cn('text-[13px] leading-[18px] font-medium', TEXTO_NAVY)}>
+                {t('appointments.calls.capLabel')}
+            </label>
+            <input
+                ref={campo}
+                id="tope-llamadas"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={maximo}
+                step={1}
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+                disabled={guardando}
+                aria-invalid={(valor.trim() !== '' && !valido) || !!error || undefined}
+                aria-describedby="tope-llamadas-ayuda"
+                className="caja-ajuste h-9 w-[104px] rounded-[10px] px-2.5 text-[13px] leading-[18px] font-medium tabular-nums outline-hidden pointer-coarse:h-11 pointer-coarse:text-[16px]"
+            />
+            <div className="flex items-center gap-2">
+                <button type="submit" disabled={!valido || guardando} className={!valido || guardando ? BOTON_APAGADO : BOTON_PRIMARIO}>
+                    {guardando && <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" />}
+                    {guardando ? t('appointments.calls.capSaving') : t('appointments.calls.capSave')}
+                </button>
+                <button type="button" onClick={cerrar} disabled={guardando} className={BOTON_SECUNDARIO}>
+                    {t('common.cancel')}
+                </button>
+            </div>
+            <p
+                id="tope-llamadas-ayuda"
+                role={error ? 'alert' : undefined}
+                className={cn('basis-full pl-11 text-[12px] leading-4', error || (valor.trim() !== '' && !valido) ? 'font-medium text-red-700 dark:text-red-400' : TEXTO_SUAVE)}
+            >
+                {ayuda}
+            </p>
+        </form>
     );
 }
 
