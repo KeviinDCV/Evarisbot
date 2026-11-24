@@ -56,6 +56,12 @@ class RobotLlamadasController extends Controller
         if ($tecla === '9') {
             return ['repetir' => true];
         }
+        if ($tecla === '3') {
+            // Prueba: se dice el texto de «no llamar» y se anota, pero no se registra ningún «no» (no hay paciente real).
+            $llamada->update(['tecla' => '3', 'resultado_robot' => 'no_llamar']);
+
+            return ['decir' => 'no_llamar', 'fin' => true];
+        }
         if ($tecla === '1' || $tecla === '2') {
             $llamada->update(['tecla' => $tecla, 'resultado_robot' => $tecla === '1' ? 'confirmo' : 'cancelo']);
 

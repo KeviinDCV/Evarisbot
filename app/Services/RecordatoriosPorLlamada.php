@@ -57,7 +57,8 @@ class RecordatoriosPorLlamada
 
         return [
             'mensaje' => implode('', $partes).'.',
-            'pregunta' => 'Para confirmar su asistencia, marque uno. Para cancelar la cita, marque dos. Para escuchar de nuevo, marque nueve.',
+            'pregunta' => 'Para confirmar su asistencia, marque uno. Para cancelar la cita, marque dos. Para escuchar de nuevo, marque nueve. Si no desea recibir más llamadas del hospital, marque tres.',
+            'no_llamar' => 'Entendido. No le volveremos a llamar para recordarle sus citas. Seguirá recibiendo los recordatorios por WhatsApp. Hasta luego.',
             'confirmada' => 'Gracias. Su cita quedó confirmada. Recuerde llegar quince minutos antes, con su documento de identidad. Que tenga un buen día.',
             'cancelada' => 'Entendido. Registramos que desea cancelar su cita. Para terminar la cancelación, le enviamos un mensaje por WhatsApp con los datos que necesitamos. Hasta luego.',
             'ya_cancelada' => 'Esta cita ya estaba cancelada y no se puede confirmar por este medio. Si necesita ayuda, escríbanos por WhatsApp. Hasta luego.',
@@ -121,6 +122,22 @@ class RecordatoriosPorLlamada
     {
         if ($tecla === '9') {
             return ['repetir' => true];
+        }
+        if ($tecla === '3') {
+            // No quiere más llamadas (se llama sin pedir permiso antes: RondaLlamadas 'salvo_no'). Queda como «no» y no se
+            // le vuelve a llamar; la cita no cambia y se le confirma por escrito.
+            try {
+                PermisoLlamada::registrar($llamada->telefono, false, 'llamada', null, $llamada->conversation_id, 'Marcó 3 en la llamada de recordatorio');
+            } catch (\Throwable $e) {
+                Log::error('Recordatorio por llamada: no se pudo anotar el «no llamar»', ['llamada_id' => $llamada->id, 'error' => $e->getMessage()]);
+
+                return ['decir' => 'error', 'fin' => true];
+            }
+            $llamada->update(['tecla' => '3', 'resultado_robot' => 'no_llamar']);
+            Log::info('Recordatorio por llamada: el paciente pidió no más llamadas', ['llamada_id' => $llamada->id, 'cita_id' => $llamada->cita_id]);
+            $this->escribir($llamada, "Listo, no le volveremos a llamar para recordarle sus citas. Seguirá recibiendo los recordatorios por WhatsApp.\n\n_HUV - Evaristo García_");
+
+            return ['decir' => 'no_llamar', 'fin' => true];
         }
         if ($tecla !== '1' && $tecla !== '2') {
             return ['decir' => 'no_entendi', 'fin' => false];
@@ -238,14 +255,18 @@ class RecordatoriosPorLlamada
         }
     }
 
-    /** ¿Se le puede llamar por esta cita? (permiso, número, que no se haya llamado ya por ella). */
+    /**
+     * ¿Se le puede llamar por esta cita? (permiso según el modo de RondaLlamadas, número, que no sea la copia repetida de
+     * otra cita y que no se haya llamado ya por ella).
+     */
     public static function sePuedeLlamar(Appointment $a, ?Conversation $c): bool
     {
         return $c !== null
             && ! $c->is_blocked
             && in_array($a->reminder_status, ['sent', 'delivered', 'read'], true)
             && $a->citfc && $a->citfc->toDateString() >= now('America/Bogota')->toDateString()
-            && PermisoLlamada::acepta($c->phone_number)
+            && ! str_contains((string) $a->notes, \App\Support\RondaLlamadas::MARCA_GEMELA)
+            && \App\Support\RondaLlamadas::permitido(PermisoLlamada::vigente($c->phone_number))
             && ! Llamada::where('cita_id', $a->id)->where('origen', 'robot')->exists();
     }
 }

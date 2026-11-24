@@ -165,7 +165,7 @@ export interface CitaFila {
     sin_permiso_llamada?: boolean;
 }
 
-export type ResultadoLlamada = 'confirmo' | 'cancelo' | 'en_curso' | 'sin_marcar' | 'no_se_pudo' | 'rechazo' | 'no_contesto';
+export type ResultadoLlamada = 'confirmo' | 'cancelo' | 'en_curso' | 'sin_marcar' | 'no_se_pudo' | 'rechazo' | 'no_contesto' | 'no_llamar';
 
 const RECORDATORIO = {
     con_error: { clave: 'appointments.recordatorio.con_error', tono: 'error' },

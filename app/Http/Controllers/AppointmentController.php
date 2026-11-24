@@ -53,6 +53,18 @@ class AppointmentController extends Controller
         'nom_paciente' => 'paciente',
     ];
 
+    /** Resultado de la llamada del robot (RondaLlamadas::resultadoFila) → texto del Excel exportado. */
+    private const ETIQUETAS_LLAMADA = [
+        'confirmo' => 'Confirmó (marcó 1)',
+        'cancelo' => 'Canceló (marcó 2)',
+        'sin_marcar' => 'Contestó y no marcó',
+        'no_contesto' => 'No contestó',
+        'rechazo' => 'Rechazó la llamada',
+        'no_se_pudo' => 'No se pudo llamar',
+        'no_llamar' => 'Pidió no más llamadas (marcó 3)',
+        'en_curso' => 'En curso',
+    ];
+
     /** Filtros, columnas de orden y direcciones que acepta la lista (view) y la exportación. */
     private const FILTROS = ['all', 'pending', 'failed', 'confirmed', 'cancelled'];
     private const ORDENES = ['id', 'nom_paciente', 'citide', 'pactel', 'citfc', 'cithor', 'mednom', 'espnom', 'reminder_status'];
@@ -451,13 +463,20 @@ class AppointmentController extends Controller
         $libro = new LibroExcel('Citas', [
             'A' => 12, 'B' => 20, 'C' => 12, 'D' => 30, 'E' => 10, 'F' => 15, 'G' => 15, 'H' => 14, 'I' => 8, 'J' => 25,
             'K' => 20, 'L' => 24, 'M' => 12, 'N' => 18, 'O' => 40, 'P' => 18, 'Q' => 18, 'R' => 24, 'S' => 40, 'T' => 40, 'U' => 15, 'V' => 16,
+            'W' => 24, 'X' => 18,
         ], $carpeta);
         $libro->encabezados([
             'Admisión', 'IPS', 'N.º de cita', 'Paciente', 'Tipo de documento', 'Documento', 'Teléfono',
             'Fecha de la cita', 'Hora', 'Médico', 'Especialidad', 'Consultorio', 'Cód. consultorio', 'EPS',
             'Observaciones', 'Recordatorio', 'Fecha de envío (hora Colombia)', 'Respuesta del paciente',
             'Motivo del error', 'Notas', 'Teléfono 2', 'Recordatorio enviado a',
+            'Llamada de recordatorio', 'Hora de la llamada (Colombia)',
         ], '2e3f84');
+
+        // Lo que pasó en la llamada del robot de cada cita (si la hubo): la misma lectura que la lista (RondaLlamadas).
+        $llamadas = \App\Models\Llamada::where('origen', 'robot')->whereNotNull('cita_id')->orderBy('id')
+            ->get(['id', 'cita_id', 'estado', 'contestada_en', 'resultado_robot', 'iniciada_en', 'created_at'])
+            ->keyBy('cita_id');
 
         $hoy = Recordatorios::hoy();
         // Una sola consulta con el orden de la pantalla (cursor): por páginas, cada una volvía a ordenar toda la tabla.
@@ -465,6 +484,7 @@ class AppointmentController extends Controller
             $estado = Recordatorios::estadoFila($appt, $hoy);
             $respuesta = Recordatorios::respuesta($appt);
             $motivo = $estado === 'con_error' ? (Recordatorios::motivo($appt->reminder_error) ?? 'otro') : null;
+            $llamada = $llamadas[(int) $appt->id] ?? null;
             $libro->fila([
                 $appt->citead,
                 $appt->cianom,
@@ -488,6 +508,8 @@ class AppointmentController extends Controller
                 $appt->notes,
                 $appt->pactel2,
                 match ((int) $appt->reminder_numero) { 1 => 'Teléfono', 2 => 'Teléfono 2', default => null },
+                $llamada ? (self::ETIQUETAS_LLAMADA[RondaLlamadas::resultadoFila($llamada)] ?? null) : null,
+                $llamada ? Recordatorios::horaCol($llamada->iniciada_en ?? $llamada->created_at) : null,
             ]);
         }
 
@@ -502,6 +524,12 @@ class AppointmentController extends Controller
         ]);
         $libro->colorear('R', [
             'Confirmada' => $verde, 'Cancelada' => $rojo, 'Cancelada por el hospital' => $rojo, 'Sin respuesta' => $ambar,
+        ]);
+        $libro->colorear('W', [
+            self::ETIQUETAS_LLAMADA['confirmo'] => $verde, self::ETIQUETAS_LLAMADA['cancelo'] => $rojo,
+            self::ETIQUETAS_LLAMADA['no_contesto'] => $ambar, self::ETIQUETAS_LLAMADA['rechazo'] => $ambar,
+            self::ETIQUETAS_LLAMADA['sin_marcar'] => $gris, self::ETIQUETAS_LLAMADA['no_se_pudo'] => $gris,
+            self::ETIQUETAS_LLAMADA['no_llamar'] => $gris,
         ]);
 
         $fileName = 'citas_'.($this->service === 'oncology' ? 'oncologia' : 'generales').'_'.now(Recordatorios::ZONA)->format('Y-m-d_Hi').'.xlsx';
@@ -1280,7 +1308,7 @@ class AppointmentController extends Controller
         try {
             $validacion = Validator::make($request->all(), [
                 'fecha_citas' => ['required', 'date_format:Y-m-d'],
-                'esperadas' => ['required', 'integer', 'min:1', 'max:10000'],
+                'esperadas' => ['required', 'integer', 'min:1', 'max:'.RondaLlamadas::TOPE_MAXIMO],
             ]);
             if ($validacion->fails()) {
                 return response()->json(['success' => false, 'code' => 'datos_invalidos'], 422);
@@ -1323,6 +1351,27 @@ class AppointmentController extends Controller
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Tope de llamadas del robot en 24 horas (RondaLlamadas::AJUSTE_TOPE): se empieza con pocas y se va subiendo a medida
+     * que Meta amplía el cupo del número. Vale para General y Oncología (el cupo de Meta es del número).
+     */
+    public function guardarTopeLlamadas(Request $request)
+    {
+        $validacion = Validator::make($request->all(), [
+            'tope' => ['required', 'integer', 'min:1', 'max:'.RondaLlamadas::TOPE_MAXIMO],
+        ]);
+        if ($validacion->fails()) {
+            return response()->json(['success' => false, 'code' => 'datos_invalidos'], 422);
+        }
+
+        $antes = RondaLlamadas::tope();
+        $tope = (int) $request->input('tope');
+        Setting::set(RondaLlamadas::AJUSTE_TOPE, (string) $tope, 'Llamadas de recordatorio: máximo de llamadas del robot en 24 horas (Citas)');
+        Log::info('Tope de llamadas de recordatorio cambiado', ['user_id' => auth()->id(), 'antes' => $antes, 'ahora' => $tope]);
+
+        return response()->json(['success' => true, 'tope' => $tope]);
     }
 
     public function pauseCalls()

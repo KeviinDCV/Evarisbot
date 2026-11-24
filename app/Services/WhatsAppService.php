@@ -1783,6 +1783,15 @@ class WhatsAppService
             $planCita = $this->planRespuestaCita($from, $messageData);
             // Permiso para recordatorios por llamada (botones «Sí, llámenme» / «No, solo mensajes» o «NO LLAMAR»).
             $planPermiso = $planCita ? null : $this->planPermisoLlamada($messageData, $from);
+            // Respondió la cita y además pidió que no lo llamen («No asistiré, no me llamen»): el «no» queda anotado sin
+            // mandar otro mensaje (desde el 23/11/2026 se llama sin pedir permiso antes: RondaLlamadas 'salvo_no').
+            if ($planCita && self::pideNoLlamar((string) ($messageData['text']['body'] ?? ''))) {
+                try {
+                    \App\Models\PermisoLlamada::registrar($from, false, 'no_llamar', null, null, 'Texto libre junto a la respuesta de la cita');
+                } catch (\Throwable $e) {
+                    Log::warning('No se pudo anotar el «no llamar» de un texto libre', ['error' => $e->getMessage()]);
+                }
+            }
             $appointments = $planCita['citas'] ?? new \Illuminate\Database\Eloquent\Collection();
             $appointment = $appointments->first(); // Para compatibilidad con lógica de conversación
 
@@ -2588,6 +2597,24 @@ class WhatsAppService
 
     // ── Permiso para recordatorios de cita por llamada (pedido del 19/11/2026; ver App\Models\PermisoLlamada) ──
 
+    /**
+     * ¿El texto pide que no lo llamen? «NO LLAMAR», «no me llamen más», «no me vuelvan a llamar», «no quiero llamadas»,
+     * «dejen de llamar»… Desde el 23/11/2026 el robot llama sin pedir permiso antes (RondaLlamadas 'salvo_no'), así que
+     * un «no» dicho con otras palabras tiene que quedar anotado. Una pregunta («¿no me van a llamar?») no cuenta, ni «no
+     * me llamaron». Equivocarse aquí solo deja a alguien sin llamada, que es el error menos grave.
+     */
+    public static function pideNoLlamar(string $texto): bool
+    {
+        if ($texto === '' || mb_strlen($texto) > 160 || str_contains($texto, '?') || str_contains($texto, '¿')) {
+            return false;
+        }
+        $t = ' '.trim((string) preg_replace('/\s+/', ' ', (string) preg_replace('/[^A-Z ]+/', ' ', strtoupper(\Illuminate\Support\Str::ascii($texto))))).' ';
+
+        return (bool) preg_match('/ (NO|NUNCA) (ME |NOS |LE |LES )?(VUELVAN A |VUELVA A |SIGAN |MAS )?(LLAMEN|LLAME|LLAMAR|LLAMADAS|LLAMADA) /', $t)
+            || (bool) preg_match('/ NO (QUIERO|DESEO|NECESITO|ME INTERESA|ME INTERESAN) (MAS |RECIBIR |QUE ME |QUE NOS |LAS |ESAS |SUS )*(LLAMADAS|LLAMADA|LLAMEN|LLAMAR) /', $t)
+            || (bool) preg_match('/ (DEJEN|PAREN|DEJE|PARE) DE LLAMAR/', $t);
+    }
+
     /** 'si' / 'no' (botones de la pregunta) o 'no_llamar' (escribió NO LLAMAR); null si el mensaje no es eso. */
     private function planPermisoLlamada(array $messageData, string $from): ?string
     {
@@ -2599,13 +2626,13 @@ class WhatsAppService
             return 'no';
         }
         $texto = (string) ($messageData['text']['body'] ?? '');
-        if ($texto === '' || mb_strlen($texto) > 40) {
+        if ($texto === '' || (mb_strlen($texto) > 40 && ! self::pideNoLlamar($texto))) {
             return null;
         }
         $limpio = trim(preg_replace('/[^A-Z ]+/', ' ', strtoupper(\Illuminate\Support\Str::ascii($texto))));
         $limpio = preg_replace('/\s+/', ' ', $limpio);
 
-        if (in_array($limpio, ['NO LLAMAR', 'NO ME LLAMEN', 'NO MAS LLAMADAS', 'NO LLAMEN'], true)) {
+        if (self::pideNoLlamar($texto)) {
             return 'no_llamar';
         }
         // Un «Sí» o «No» escrito en vez del botón cuenta solo si lo último que se le preguntó (24 h) fue esto.

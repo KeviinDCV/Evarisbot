@@ -100,6 +100,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
         // Recordatorio por llamada (rondas del robot): App\Support\RondaLlamadas.
         Route::post('/calls/start', 'startCalls')->middleware('throttle:10,1,ronda-llamadas')->name('calls.start');
+        Route::post('/calls/tope', 'guardarTopeLlamadas')->middleware('throttle:20,1,tope-llamadas')->name('calls.tope');
         Route::post('/calls/pause', 'pauseCalls')->name('calls.pause');
         Route::post('/calls/resume', 'resumeCalls')->name('calls.resume');
         Route::post('/calls/stop', 'stopCalls')->name('calls.stop');
@@ -121,6 +122,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/reminders/status', 'getReminderStatus')->name('reminders.status');
         // Recordatorio por llamada (rondas del robot): App\Support\RondaLlamadas.
         Route::post('/calls/start', 'startCalls')->middleware('throttle:10,1,ronda-llamadas')->name('calls.start');
+        Route::post('/calls/tope', 'guardarTopeLlamadas')->middleware('throttle:20,1,tope-llamadas')->name('calls.tope');
         Route::post('/calls/pause', 'pauseCalls')->name('calls.pause');
         Route::post('/calls/resume', 'resumeCalls')->name('calls.resume');
         Route::post('/calls/stop', 'stopCalls')->name('calls.stop');

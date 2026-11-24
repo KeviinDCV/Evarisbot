@@ -22,7 +22,7 @@ export type LlamadaChat = {
     direccion?: 'entrante' | 'saliente';
     motivo?: string | null;
     /** Llamada del ROBOT (recordatorio de cita por voz): qué pasó con la cita. */
-    robot?: 'confirmo' | 'cancelo' | 'en_curso' | 'sin_marcar' | 'no_se_pudo' | 'rechazo' | 'no_contesto' | null;
+    robot?: 'confirmo' | 'cancelo' | 'en_curso' | 'sin_marcar' | 'no_se_pudo' | 'rechazo' | 'no_contesto' | 'no_llamar' | null;
 };
 
 type ConFecha = { id: number; created_at: string };
@@ -68,7 +68,7 @@ export function LineaLlamada({ llamada, hora }: { llamada: LlamadaChat; hora: st
         Icono = PhoneOutgoing;
         titulo = t('llamadas.chat.robot');
         detalle = t(`llamadas.chat.robotResultado.${llamada.robot}`);
-        tono = { confirmo: 'verde', cancelo: 'rojo', en_curso: 'ambar', sin_marcar: 'ambar', no_se_pudo: 'rojo', rechazo: 'gris', no_contesto: 'gris' }[llamada.robot] as typeof tono;
+        tono = { confirmo: 'verde', cancelo: 'rojo', en_curso: 'ambar', sin_marcar: 'ambar', no_se_pudo: 'rojo', rechazo: 'gris', no_contesto: 'gris', no_llamar: 'gris' }[llamada.robot] as typeof tono;
         if (llamada.robot === 'no_contesto' || llamada.robot === 'rechazo') Icono = PhoneMissed;
         if (llamada.robot === 'no_se_pudo') Icono = CircleAlert;
     } else if (llamada.direccion === 'saliente') {

@@ -2581,6 +2581,7 @@
             "capHelp": "Start with a few and raise it little by little. Meta allows 1,000 a day at first and raises the quota on its own (here, up to {{max}}).",
             "capInvalid": "Enter a whole number between 1 and {{max}}.",
             "capError": "The limit couldn't be saved. Try again.",
+            "earlyDate": "Nobody to call for tomorrow: calls go to the nearest date with patients who didn't reply to the WhatsApp. The robot says the full appointment date.",
             "nobodyPending": "Everyone replied to the WhatsApp",
             "ofNoResponse_one": "Out of {{value}} who did not reply to the WhatsApp",
             "ofNoResponse_other": "Out of {{value}} who did not reply to the WhatsApp",
@@ -2627,6 +2628,7 @@
             "no_se_pudo": "Call: could not be made",
             "rechazo": "Call: declined",
             "no_contesto": "Call: no answer",
+            "no_llamar": "Call: asked for no more calls",
             "noPermission": "Not called: no permission"
         },
         "headerSubtitle": "Load schedules from Excel, send WhatsApp reminders and see how patients replied.",
@@ -3314,7 +3316,8 @@
                 "sin_marcar": "answered without pressing a key",
                 "no_se_pudo": "could not call",
                 "rechazo": "declined it",
-                "no_contesto": "no answer"
+                "no_contesto": "no answer",
+                "no_llamar": "asked for no more calls"
             },
             "deWhatsApp": "WhatsApp call",
             "laAtendio": "answered by {{nombre}} · lasted {{duracion}}",

@@ -60,6 +60,8 @@ export interface LlamadasStats {
     ensayo?: boolean;
     /** Se llama a todos los que no respondieron, salvo a quien dijo que no (si no, solo a quien dijo que sí). */
     sin_pedir_permiso?: boolean;
+    /** La fecha no es la de mañana: mañana no había a quién llamar y se toma la más cercana con pacientes por llamar. */
+    adelantada?: boolean;
     en_horario?: boolean;
     abre?: string | null;
     /** Tope de llamadas en 24 horas que fijó un administrador (intentos), y el máximo que acepta. */
@@ -679,6 +681,7 @@ export default function RecordatorioLlamada({
                         </div>
                     </div>
 
+                    {stats.adelantada && <Linea icono={<Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />}>{t('appointments.calls.earlyDate')}</Linea>}
                     {stats.en_horario ? (
                         <Linea icono={<Clock className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />}>{t('appointments.calls.hours')}</Linea>
                     ) : (
@@ -881,7 +884,9 @@ function FilaTope({ routePrefix, limite, usadas, quedan, maximo }: { routePrefix
                 step={1}
                 value={valor}
                 onChange={(e) => setValor(e.target.value)}
-                disabled={guardando}
+                // readOnly y no disabled: con Enter el foco está aquí, y un campo deshabilitado lo perdería.
+                readOnly={guardando}
+                aria-busy={guardando || undefined}
                 aria-invalid={(valor.trim() !== '' && !valido) || !!error || undefined}
                 aria-describedby="tope-llamadas-ayuda"
                 className="caja-ajuste h-9 w-[104px] rounded-[10px] px-2.5 text-[13px] leading-[18px] font-medium tabular-nums outline-hidden pointer-coarse:h-11 pointer-coarse:text-[16px]"

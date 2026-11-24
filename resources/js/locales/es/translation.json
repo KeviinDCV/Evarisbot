@@ -2581,6 +2581,7 @@
             "capHelp": "Empieza con pocas y súbelo de a poco. Meta deja 1.000 al día al empezar y amplía el cupo sola (aquí, hasta {{max}}).",
             "capInvalid": "Escribe un número entero entre 1 y {{max}}.",
             "capError": "No se pudo guardar el tope. Intenta de nuevo.",
+            "earlyDate": "Mañana no hay a quién llamar: se llama por la fecha más cercana con pacientes que no respondieron el WhatsApp. El robot dice la fecha completa de la cita.",
             "nobodyPending": "Nadie quedó sin responder el WhatsApp",
             "ofNoResponse_one": "De {{value}} que no respondió el WhatsApp",
             "ofNoResponse_other": "De {{value}} que no respondieron el WhatsApp",
@@ -2627,6 +2628,7 @@
             "no_se_pudo": "Llamada: no se pudo hacer",
             "rechazo": "Llamada: la rechazó",
             "no_contesto": "Llamada: no contestó",
+            "no_llamar": "Llamada: pidió no más llamadas",
             "noPermission": "No se llamó: sin permiso"
         },
         "headerSubtitle": "Carga las agendas en Excel, envía los recordatorios por WhatsApp y mira qué respondieron los pacientes.",
@@ -3314,7 +3316,8 @@
                 "sin_marcar": "contestó sin marcar",
                 "no_se_pudo": "no se pudo llamar",
                 "rechazo": "la rechazó",
-                "no_contesto": "no contestó"
+                "no_contesto": "no contestó",
+                "no_llamar": "pidió no más llamadas"
             },
             "deWhatsApp": "Llamada de WhatsApp",
             "laAtendio": "la atendió {{nombre}} · duró {{duracion}}",

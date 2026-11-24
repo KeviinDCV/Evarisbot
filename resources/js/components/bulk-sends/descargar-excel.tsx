@@ -13,14 +13,25 @@ const nuevaMarca = () => Math.random().toString(36).slice(2, 12);
  * 10 s con todos): mientras, «Preparando…» y no se puede pedir otra vez. Sabe que llegó por la cookie
  * masivos_export_<marca> que pone la respuesta (el mismo mecanismo de Exportar en Citas).
  */
-export function BotonDescargarExcel({ href, ayuda, className }: { href: string; ayuda: string; className?: string }) {
+export function BotonDescargarExcel({
+    href,
+    ayuda,
+    className,
+    prefijo = 'masivos_export_',
+}: {
+    href: string;
+    ayuda: string;
+    className?: string;
+    /** Nombre de la cookie que pone la respuesta (Citas usa citas_export_). */
+    prefijo?: string;
+}) {
     const { t } = useTranslation();
     const [marca, setMarca] = useState(nuevaMarca);
     const [preparando, setPreparando] = useState(false);
 
     useEffect(() => {
         if (!preparando) return;
-        const cookie = `masivos_export_${marca}`;
+        const cookie = `${prefijo}${marca}`;
         const inicio = Date.now();
         const vigilar = window.setInterval(() => {
             const lista = document.cookie.split('; ').some((c) => c.startsWith(`${cookie}=`));
@@ -33,7 +44,7 @@ export function BotonDescargarExcel({ href, ayuda, className }: { href: string; 
         }, 500);
 
         return () => window.clearInterval(vigilar);
-    }, [preparando, marca]);
+    }, [preparando, marca, prefijo]);
 
     return (
         <a

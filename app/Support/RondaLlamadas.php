@@ -38,8 +38,29 @@ class RondaLlamadas
 
     public const SEGUNDOS_ENTRE_VUELTAS = 5;
 
-    /** Meta: llamadas iniciadas por la empresa y CONTESTADAS por número, en 24 horas. */
-    public const LIMITE_META_24H = 100;
+    /**
+     * Tope de llamadas (intentos) en 24 horas: lo fija un administrador en Citas y lo va subiendo de a poco. Meta deja
+     * 1.000 intentos al día al número al empezar (CALLING_TIER_1K) y lo sube sola; las 100 «contestadas» de Meta son POR
+     * PACIENTE, no del número (doc. de Calling, verificada el 23/11/2026). Si Meta corta antes (138037), la ronda se
+     * corta con 'limite' igual.
+     */
+    public const AJUSTE_TOPE = 'llamadas_robot_tope_diario';
+
+    public const TOPE_POR_DEFECTO = 100;
+
+    public const TOPE_MAXIMO = 15000;
+
+    /**
+     * 'normal': el robot llama a los pacientes aunque las llamadas ENTRANTES sigan en ensayo (sin diadema ni micrófono
+     * para los asesores). Cualquier otro valor: el robot sigue el ensayo de las entrantes, como antes.
+     */
+    public const AJUSTE_MODO = 'llamadas_robot_modo';
+
+    /**
+     * A quién se llama: 'salvo_no' = a todos salvo a quien dijo que no (lo que Meta permite en Colombia, modelo por
+     * calidad) o cualquier otro valor = solo a quien dijo que sí (como antes).
+     */
+    public const AJUSTE_PERMISO = 'llamadas_robot_permiso';
 
     /**
      * Horario de las llamadas automáticas, por día ISO (1 = lunes): el mismo que fija la ley 2300 de 2023 para llamar a
@@ -59,6 +80,9 @@ class RondaLlamadas
 
     /** Recordatorio que salió y el paciente no respondió (los únicos a los que se llama). */
     public const SIN_RESPONDER = ['sent', 'delivered', 'read'];
+
+    /** La nota que deja SendAppointmentReminderJob en una cita repetida de otra que ya recibió el recordatorio. */
+    public const MARCA_GEMELA = '[Duplicada de la cita #';
 
     /** Fallos seguidos al llamar (robot o Meta) tras los que la ronda se corta: algo general está mal. */
     private const FALLOS_PARA_CORTAR = 3;
@@ -174,7 +198,49 @@ class RondaLlamadas
      */
     public static function ensayo(): array
     {
+        if (self::modoNormal()) {
+            return ['activo' => false, 'invitados' => []];
+        }
+
         return ['activo' => LlamadasWhatsApp::usuariosEnsayo() !== [], 'invitados' => LlamadasWhatsApp::numerosEnsayo()];
+    }
+
+    /** El robot en modo normal (llama a pacientes reales), sin importar el ensayo de las entrantes. */
+    public static function modoNormal(): bool
+    {
+        return self::ajuste(self::AJUSTE_MODO) === 'normal';
+    }
+
+    /** Se llama sin pedir permiso antes (salvo a quien dijo que no). */
+    public static function sinPedirPermiso(): bool
+    {
+        return self::ajuste(self::AJUSTE_PERMISO) === 'salvo_no';
+    }
+
+    /** ¿Se le puede llamar con lo que dijo? ($vigente: true dijo que sí, false dijo que no, null nunca respondió). */
+    public static function permitido(?bool $vigente): bool
+    {
+        return self::sinPedirPermiso() ? $vigente !== false : $vigente === true;
+    }
+
+    /** Tope de llamadas en 24 h (ver AJUSTE_TOPE), entre 1 y TOPE_MAXIMO. */
+    public static function tope(): int
+    {
+        $tope = (int) (self::ajuste(self::AJUSTE_TOPE) ?? self::TOPE_POR_DEFECTO);
+
+        return $tope >= 1 ? min($tope, self::TOPE_MAXIMO) : self::TOPE_POR_DEFECTO;
+    }
+
+    /** Un ajuste leído directo de la tabla (sin la caché de Setting::get: la vuelta corre en otro proceso). */
+    private static function ajuste(string $clave): ?string
+    {
+        try {
+            $valor = \Illuminate\Support\Facades\DB::table('settings')->where('key', $clave)->value('value');
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $valor === null ? null : (string) $valor;
     }
 
     private static function fueraDelEnsayo(array $ensayo, string $telefono): bool
@@ -216,6 +282,42 @@ class RondaLlamadas
         return null;
     }
 
+    /** Hasta cuántos días adelante busca la ronda cuando la fecha de siempre no tiene a nadie por llamar. */
+    public const DIAS_ADELANTE = 31;
+
+    /**
+     * La fecha por la que se llama ahora y si es «adelantada». La de siempre es fechaObjetivo() (el próximo día hábil);
+     * si ahí no queda nadie por llamar, la próxima fecha (hasta DIAS_ADELANTE días) con pacientes que no respondieron y
+     * se pueden llamar. Así, con todas las citas del mes enviadas de una vez («Enviar todas ya»), se llama desde ya a
+     * las más cercanas (pedido del 23/11/2026: «se envía el mensaje y luego se llama»). El robot dice la fecha completa.
+     *
+     * @return array{0: string, 1: bool, 2: array} [fecha, adelantada, candidatos de esa fecha]
+     */
+    public static function fechaDeLaRonda(string $service): array
+    {
+        $normal = self::fechaObjetivo();
+        $cand = self::candidatos($service, $normal);
+        if ($cand['con_permiso'] > 0) {
+            return [$normal, false, $cand];
+        }
+
+        $fechas = Appointment::where('service', $service)
+            ->where('citfc', '>', $normal)
+            ->where('citfc', '<=', Carbon::parse($normal, Recordatorios::ZONA)->addDays(self::DIAS_ADELANTE)->format('Y-m-d'))
+            ->where('reminder_sent', true)
+            ->whereIn('reminder_status', self::SIN_RESPONDER)
+            ->distinct()->orderBy('citfc')->limit(10)->pluck('citfc')
+            ->map(fn ($d) => Recordatorios::fechaDe($d))->filter()->unique()->values();
+        foreach ($fechas as $fecha) {
+            $otra = self::candidatos($service, $fecha);
+            if ($otra['con_permiso'] > 0) {
+                return [$fecha, true, $otra];
+            }
+        }
+
+        return [$normal, false, $cand];
+    }
+
     /** Las citas por las que se llama: las del próximo día que no sea domingo ni festivo. */
     public static function fechaObjetivo(): string
     {
@@ -227,13 +329,15 @@ class RondaLlamadas
         return $d->format('Y-m-d');
     }
 
-    /** Llamadas que hizo Evarisbot (robot o asesor) y el paciente contestó, en las últimas 24 horas. */
+    /**
+     * Llamadas que hizo Evarisbot (robot o asesor) en las últimas 24 horas y que llegaron a Meta (contestadas o no: el
+     * tope de Meta cuenta intentos). Las que fallaron antes de llegar a Meta conservan el id «pendiente.…» y no cuentan.
+     */
     public static function usadas24h(): int
     {
-        return Llamada::where('created_at', '>=', now()->subHours(25))
+        return Llamada::where('created_at', '>=', now()->subDay())
             ->where('direccion', 'saliente')
-            ->whereNotNull('contestada_en')
-            ->where('contestada_en', '>=', now()->subDay())
+            ->where('wa_call_id', 'not like', 'pendiente.%')
             ->count();
     }
 
@@ -252,6 +356,8 @@ class RondaLlamadas
             ->where('citfc', $fecha)
             ->where('reminder_sent', true)
             ->whereIn('reminder_status', self::SIN_RESPONDER)
+            // La misma cita cargada dos veces (SendAppointmentReminderJob::marcarSiEsGemela): se llama solo por la original.
+            ->where(fn ($q) => $q->whereNull('notes')->orWhere('notes', 'not like', '%'.self::MARCA_GEMELA.'%'))
             ->orderBy('cithor')->orderBy('id')
             ->get(['id', 'conversation_id', 'citfc', 'cithor']);
 
@@ -277,7 +383,7 @@ class RondaLlamadas
                 continue;
             }
             $tel = PermisoLlamada::digitos($chat->phone_number);
-            if (($permisos[$tel] ?? null) !== true) {
+            if (! self::permitido($permisos[$tel] ?? null)) {
                 $cuenta['sin_permiso']++;
 
                 continue;
@@ -366,6 +472,12 @@ class RondaLlamadas
     /** Lo que ve la lista de citas en la columna Respuesta. */
     public static function resultadoFila(Llamada $l): string
     {
+        // Marcó 3: pidió que no lo vuelvan a llamar (RecordatoriosPorLlamada::tecla). En las cifras de la ronda cuenta
+        // como «contestó sin marcar» (no confirmó ni canceló la cita).
+        if ($l->resultado_robot === 'no_llamar') {
+            return 'no_llamar';
+        }
+
         return match (self::categoria($l)) {
             'confirmaron' => 'confirmo',
             'cancelaron' => 'cancelo',
@@ -443,18 +555,23 @@ class RondaLlamadas
         if (! LlamadasWhatsApp::activas()) {
             return ['activas' => false];
         }
-        $cand = self::candidatos($service, self::fechaObjetivo());
+        [, $adelantada, $cand] = self::fechaDeLaRonda($service);
         unset($cand['ids']);
         $usadas = self::usadas24h();
-        $quedan = max(0, self::LIMITE_META_24H - $usadas);
+        $tope = self::tope();
+        $quedan = max(0, $tope - $usadas);
 
         return [
             'activas' => true,
             'robot' => RobotLlamadas::disponible(),
             'ensayo' => self::ensayo()['activo'],
+            'sin_pedir_permiso' => self::sinPedirPermiso(),
+            // La fecha no es la de mañana: mañana no había a quién llamar (ver fechaDeLaRonda).
+            'adelantada' => $adelantada,
             'en_horario' => self::enHorario(),
             'abre' => self::proximaApertura(),
-            'limite' => self::LIMITE_META_24H,
+            'limite' => $tope,
+            'tope_maximo' => self::TOPE_MAXIMO,
             'usadas' => $usadas,
             'quedan' => $quedan,
             'salen' => min($cand['con_permiso'], $quedan),
@@ -570,7 +687,7 @@ class RondaLlamadas
             ($r['fecha_citas'] ?? '') < Recordatorios::hoy() => 'vencida',
             ! LlamadasWhatsApp::activas() => 'desactivadas',
             ! self::enHorario() => 'horario',
-            self::usadas24h() >= self::LIMITE_META_24H => 'limite',
+            self::usadas24h() >= self::tope() => 'limite',
             ! RobotLlamadas::disponible() => 'robot',
             default => null,
         };
@@ -650,6 +767,15 @@ class RondaLlamadas
                 return; // pausaron o detuvieron mientras se preparaba: no se marcó ni cuenta como fallo
             }
             Log::warning('Ronda de llamadas: no se pudo llamar', ['cita_id' => $citaId, 'error' => $error]);
+            if ($error === 'sin_permiso') {
+                // Meta (138006): el paciente negó o quitó el permiso de llamadas del hospital. Queda como «no» para no
+                // volver a intentarlo en las próximas rondas (también se ve en la lista: «No se llamó: sin permiso»).
+                try {
+                    PermisoLlamada::registrar($tel, false, 'meta', null, $chat->id, 'Meta: el paciente no acepta llamadas del hospital (138006)');
+                } catch (\Throwable $e) {
+                    Log::warning('Ronda de llamadas: no se pudo anotar el «no» de Meta', ['cita_id' => $citaId, 'error' => $e->getMessage()]);
+                }
+            }
             $fila = $resultado['llamada'] ?? null;
             // Un fallo que no es del paciente (el robot, la red, la cuenta de Meta) no «gasta» su cita: la fila deja de
             // apuntar a ella y la cita se omite solo en ESTA ronda (otra ronda la puede volver a intentar).
@@ -731,7 +857,7 @@ class RondaLlamadas
                 $permisos = self::permisos(array_values($telDe));
                 foreach ($chatDe as $citaId => $chatId) {
                     $tel = PermisoLlamada::digitos($telDe[$chatId] ?? '');
-                    if ($tel !== '' && ($permisos[$tel] ?? null) !== true) {
+                    if ($tel !== '' && ! self::permitido($permisos[$tel] ?? null)) {
                         $sinPermiso[(int) $citaId] = true;
                     }
                 }
