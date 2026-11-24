@@ -96,6 +96,77 @@ export function Banda({
     );
 }
 
+/**
+ * Una tarea de «Por hacer» (diseño B, 24/11/2026): icono, qué es (+ estado), UNA cifra y su botón, en una sola fila.
+ * Sin icono (null) es una fila hija de la de arriba (otra fecha por enviar), alineada con su texto.
+ */
+export function FilaTarea({
+    id,
+    icon: Icon,
+    titulo,
+    estado,
+    detalle,
+    cifra,
+    acciones,
+    className,
+}: {
+    id?: string;
+    icon: LucideIcon | null;
+    titulo: string;
+    estado?: ReactNode;
+    detalle?: ReactNode;
+    cifra?: { valor: string; texto: string; apagada?: boolean; nota?: string } | null;
+    acciones?: ReactNode;
+    className?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                'grid grid-cols-[32px_minmax(0,1fr)] items-center gap-x-3 gap-y-2.5 border-b px-4 py-3.5 @3xl/hoja:min-h-[72px] @3xl/hoja:grid-cols-[32px_minmax(0,1fr)_minmax(0,210px)_auto] @3xl/hoja:gap-x-5 @3xl/hoja:px-5 @3xl/hoja:py-3',
+                FILETE,
+                className
+            )}
+        >
+            {Icon ? (
+                <span className="flex size-8 items-center justify-center self-start rounded-[9px] bg-[#2e3f84]/[0.065] text-[#2e3f84] @3xl/hoja:self-center dark:bg-white/8 dark:text-neutral-100">
+                    <Icon className="size-4" strokeWidth={1.9} aria-hidden="true" />
+                </span>
+            ) : (
+                <span aria-hidden="true" />
+            )}
+            <div className="flex min-w-0 flex-col gap-[3px]">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <h3
+                        id={id}
+                        tabIndex={id ? -1 : undefined}
+                        className={cn(Icon ? 'text-[14px]' : 'text-[13.5px]', 'leading-[18px] font-semibold tracking-[-0.005em] text-balance focus-visible:outline-hidden', TEXTO_NAVY)}
+                    >
+                        {titulo}
+                    </h3>
+                    {estado}
+                </div>
+                {detalle && <div className={cn('text-[12.5px] leading-[17px] text-pretty tabular-nums', TEXTO_SUAVE)}>{detalle}</div>}
+            </div>
+            {cifra ? (
+                <div className="col-start-2 flex min-w-0 flex-col gap-0.5 @3xl/hoja:col-start-auto">
+                    <p className="flex min-w-0 items-baseline gap-2">
+                        <span className={cn('text-[22px] leading-[26px] font-medium tracking-[-0.02em] tabular-nums', cifra.apagada ? TEXTO_SUAVE : TEXTO_NAVY)}>{cifra.valor}</span>
+                        <span className={cn('text-[13px] leading-[18px]', TEXTO_SUAVE)}>{cifra.texto}</span>
+                    </p>
+                    {cifra.nota && <p className={cn('text-[12px] leading-4 tabular-nums', TEXTO_SUAVE)}>{cifra.nota}</p>}
+                </div>
+            ) : (
+                <span className="hidden @3xl/hoja:block" aria-hidden="true" />
+            )}
+            {acciones ? (
+                <div className="col-start-2 flex flex-wrap items-center gap-2.5 @3xl/hoja:col-start-auto @3xl/hoja:justify-end">{acciones}</div>
+            ) : (
+                <span className="hidden @3xl/hoja:block" aria-hidden="true" />
+            )}
+        </div>
+    );
+}
+
 /** Rótulo en versalitas + apoyo ("PROGRESO DEL ENVÍO  se actualiza solo mientras la pestaña está abierta"). */
 export function Rotulo({ titulo, apoyo }: { titulo: string; apoyo?: string }) {
     return (
