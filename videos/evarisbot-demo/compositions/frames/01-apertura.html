@@ -1,0 +1,294 @@
+<template>
+  <div data-hf-id="hf-jbqn" id="root" data-composition-id="01-apertura" data-duration="5.5" data-width="1920" data-height="1080">
+    <style>
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 400;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-400-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 500;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-500-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 600;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-600-normal.woff2') format('woff2');
+    }
+    @font-face {
+      font-family: 'Instrument Sans';
+      font-style: normal;
+      font-weight: 700;
+      font-display: block;
+      src: url('assets/fonts/instrument-sans-latin-700-normal.woff2') format('woff2');
+    }
+
+    
+    
+    
+    
+
+      
+
+      #root {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        container-type: size;
+        font-family: 'Instrument Sans',  "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ---- Scene ground: full-bleed institutional blue on its own clip layer ---- */
+      .apertura-bg {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(
+            ellipse 78% 62% at 50% 36%,
+            rgba(255, 255, 255, 0.055) 0%,
+            rgba(255, 255, 255, 0) 68%
+          ),
+          #2e3f84;
+      }
+
+      /* ---- Stage: holds the name lockup, optically centred above the keep-out ---- */
+      .apertura-stage {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 60px;
+        height: 836px; /* bottom edge lands exactly on the 896px keep-out cutoff */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .apertura-lockup {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /* ---- Wordmark: two pixel-identical stacked copies (base + gradient sheen) ---- */
+      .apertura-name-stack {
+        display: grid;
+      }
+
+      .apertura-name {
+        grid-area: 1 / 1;
+        margin: 0;
+        font-family: 'Instrument Sans',  "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+        font-size: 10.8cqw;
+        font-weight: 700;
+        line-height: 1;
+        letter-spacing: -0.035em;
+        white-space: nowrap;
+      }
+
+      .apertura-name-base {
+        color: rgba(255, 255, 255, 0.86);
+      }
+
+      .apertura-name-sheen {
+        color: transparent;
+        background-image: linear-gradient(
+          104deg,
+          rgba(255, 255, 255, 0) 43%,
+          rgba(255, 255, 255, 0.55) 47.5%,
+          rgba(255, 255, 255, 1) 50%,
+          rgba(255, 255, 255, 0.55) 52.5%,
+          rgba(255, 255, 255, 0) 57%
+        );
+        background-size: 300% 100%;
+        background-position: 100% 50%;
+        background-repeat: no-repeat;
+        -webkit-background-clip: text;
+        background-clip: text;
+      }
+
+      /* ---- The thin drawn rule ---- */
+      .apertura-rule {
+        display: block;
+        margin-top: 46px;
+        opacity: 0.4;
+      }
+
+      .apertura-rule path {
+        fill: none;
+        stroke: #ffffff;
+        stroke-width: 2;
+        stroke-linecap: round;
+      }
+
+      /* ---- Institution line, versalitas ---- */
+      .apertura-hospital {
+        margin: 34px 0 0 0;
+        font-family: 'Instrument Sans',  "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+        font-size: 1.35cqw;
+        font-weight: 500;
+        line-height: 1.2;
+        letter-spacing: 0.3em;
+        text-indent: 0.3em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        color: rgba(255, 255, 255, 0.78);
+        opacity: 0;
+      }
+
+      /* ---- Framing line, lower third ---- */
+      .apertura-tagline-wrap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 722px;
+        text-align: center;
+      }
+
+      .apertura-tagline {
+        margin: 0;
+        font-family: 'Instrument Sans',  "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+        font-size: 2.75cqw;
+        font-weight: 400;
+        line-height: 1.25;
+        letter-spacing: -0.005em;
+        color: rgba(255, 255, 255, 0.9);
+        opacity: 0;
+      }
+    </style>
+
+    <div data-hf-id="hf-f5dz" class="clip apertura-bg" data-start="0" data-duration="6" data-track-index="0"></div>
+
+    <div data-hf-id="hf-99un" class="clip apertura-stage" data-start="0" data-duration="6" data-track-index="1">
+      <div data-hf-id="hf-rz40" class="apertura-lockup" data-el="lockup">
+        <div data-hf-id="hf-va2k" class="apertura-name-stack" data-el="name-stack">
+          <div data-hf-id="hf-1trn" class="apertura-name apertura-name-base" data-el="name-base">Evarisbot</div>
+          <div data-hf-id="hf-cpuq" class="apertura-name apertura-name-sheen" data-el="name-sheen" data-layout-allow-occlusion="" aria-hidden="true">
+            Evarisbot
+          </div>
+        </div>
+
+        <svg data-hf-id="hf-nx9z" class="apertura-rule" data-el="rule" width="480" height="4" viewBox="0 0 480 4" xmlns="http://www.w3.org/2000/svg">
+          <path data-hf-id="hf-9w0k" data-el="rule-path" d="M 0 2 L 480 2" />
+        </svg>
+
+        <div data-hf-id="hf-i0ay" class="apertura-hospital" data-el="hospital">
+          Hospital Universitario del Valle · Evaristo García
+        </div>
+      </div>
+    </div>
+
+    <div data-hf-id="hf-xxjo" class="clip apertura-tagline-wrap" data-start="2.8" data-duration="3.2" data-track-index="2">
+      <p data-hf-id="hf-1ypq" class="apertura-tagline" data-el="tagline">La atención al paciente, por WhatsApp.</p>
+    </div>
+
+    <script>
+      (function () {
+        var FRAME_ID = "01-apertura";
+
+        window.__timelines = window.__timelines || {};
+        var tl = gsap.timeline({ paused: true });
+        window.__timelines[FRAME_ID] = tl;
+
+        var root = document.querySelector('[data-composition-id="' + FRAME_ID + '"]');
+        if (!root) return;
+
+        function el(name) {
+          return root.querySelector('[data-el="' + name + '"]');
+        }
+
+        var lockup = el("lockup");
+        var nameStack = el("name-stack");
+        var nameBase = el("name-base");
+        var nameSheen = el("name-sheen");
+        var ruleSvg = el("rule");
+        var rulePath = el("rule-path");
+        var hospital = el("hospital");
+        var tagline = el("tagline");
+
+        /* ---------- Scene 1 (0.0-1.6s) — "Evarisbot" + gradient-text-sweep ---------- */
+
+        // Hero is on screen well before 0.5s; entrance is a fromTo, never a CSS-hidden state.
+        tl.fromTo(
+          nameStack,
+          { opacity: 0, scale: 0.982 },
+          { opacity: 1, scale: 1, duration: 0.62, ease: "power2.out" },
+          0.05
+        );
+
+        // One-pass sheen INSIDE the letterforms. background-size is 300% (>100%) so the
+        // position tween actually travels; 100% -> 0% reads left-to-right; ease "none"
+        // so it reads as light rather than as a moving object.
+        tl.fromTo(
+          nameSheen,
+          { backgroundPosition: "100% 50%" },
+          { backgroundPosition: "0% 50%", duration: 1.15, ease: "none" },
+          0.28
+        );
+
+        // The sweep resolves: the base copy settles from 86% to full white behind it.
+        tl.to(
+          nameBase,
+          { color: "rgb(255, 255, 255)", duration: 0.4, ease: "power1.out" },
+          1.35
+        );
+
+        /* ---------- Scene 2 (1.6-2.8s) — svg-path-draw rule, then the institution ---------- */
+
+        var len = 480;
+        if (rulePath && typeof rulePath.getTotalLength === "function") {
+          var measured = rulePath.getTotalLength();
+          if (measured > 0) len = measured;
+        }
+        rulePath.style.strokeDasharray = String(len);
+        rulePath.style.strokeDashoffset = String(len);
+
+        tl.to(rulePath, { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" }, 1.6);
+
+        // The wordmark's companion line fades in only after the stroke settles (+ a beat).
+        tl.fromTo(
+          hospital,
+          { opacity: 0, y: 12 },
+          { opacity: 1, y: 0, duration: 0.55, ease: "power2.out" },
+          2.2
+        );
+
+        /* ---------- Scene 3 (2.8-4.2s) — the block yields, the framing line arrives ---------- */
+
+        // Layout resolves to rule-of-thirds: the lockup rises, the tagline takes the lower third.
+        tl.fromTo(
+          lockup,
+          { y: 0 },
+          { y: -70, duration: 0.95, ease: "power3.out" },
+          2.8
+        );
+
+        tl.fromTo(
+          tagline,
+          { opacity: 0, y: 34 },
+          { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" },
+          3.05
+        );
+
+        /* ---------- Scene 4 (4.2-5.0s) — allocated stillness; only the rule breathes ---------- */
+
+        tl.fromTo(
+          ruleSvg,
+          { opacity: 0.4 },
+          { opacity: 0.55, duration: 0.8, ease: "sine.inOut" },
+          4.2
+        );
+      })();
+    </script>
+  </div>
+</template>

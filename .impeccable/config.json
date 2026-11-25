@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "instrument sans",
+        "createdAt": "2026-11-10T14:50:29.145Z",
+        "reason": "Claude: tipografía de toda la app desde el commit inicial (2025-10-20), autoalojada en public/fonts; no la introdujo este trabajo y cambiarla está fuera del alcance del login"
+      }
+    ]
+  }
+}

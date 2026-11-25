@@ -1,0 +1,19 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-19T14:55:00Z" },
+  "title": "Evarisbot – Llamadas dentro del chat",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1100, "h": 720, "title": "A. Solo en el historial (como quedó hecho)" },
+    "OpcionB.dc.html": { "x": 1180, "y": 0, "w": 1100, "h": 720, "title": "B. También dentro de la conversación (recomendada)" }
+  },
+  "order": ["Main.dc.html", "OpcionB.dc.html"],
+  "notes": {
+    "titulo": { "x": 0, "y": -330, "text": "¿Dónde ve el asesor que el paciente llamó?", "kind": "title1", "maxW": 2280 },
+    "pregunta": { "x": -620, "y": 0, "w": 540, "size": "l", "fill": "blue", "text": "Una sola pregunta: ¿A o B?\n\nEs el mismo chat, con lo mismo que pasó hoy: el paciente escribió, llamó y nadie contestó (dejó un mensaje de voz), volvió a llamar y lo atendió Andrea.\n\nLo único que cambia es el centro, la conversación. El panel de la derecha es igual en las dos.\n\nNombres y mensajes inventados." },
+    "nota-a": { "x": 0, "y": 760, "w": 1100, "size": "m", "text": "A. Solo en el historial\n• La conversación queda igual que hoy: solo mensajes.\n• Para saber que llamó hay que abrir «Historial de actividad», a la derecha.\n• La nota de voz que dejó en el buzón aparece suelta, sin decir que vino de una llamada perdida." },
+    "nota-b": { "x": 1180, "y": 760, "w": 1100, "size": "m", "text": "B. También dentro de la conversación (la recomiendo)\n• Al abrir el chat se ve de una vez, en el orden en que pasó: que llamó, si lo atendieron, quién y cuánto duró. Como en WhatsApp.\n• La nota de voz del buzón queda pegada a su llamada perdida, así se entiende de dónde salió.\n• Lo que se pierde: unas líneas más en el chat. Las líneas son discretas, no son burbujas." }
+  },
+  "designSystems": []
+}

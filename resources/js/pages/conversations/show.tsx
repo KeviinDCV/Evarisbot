@@ -186,7 +186,7 @@ export default function ConversationShow({ conversation }: ConversationShowProps
 
     return (
         <AdminLayout>
-            <Head title={`Chat - ${conversation.contact_name || conversation.phone_number}`} />
+            <Head title={t('conversations.chatTitle', { name: conversation.contact_name || conversation.phone_number })} />
 
             <div className="h-[calc(100vh-0px)] flex flex-col bg-background">
                 {/* Header del Chat */}

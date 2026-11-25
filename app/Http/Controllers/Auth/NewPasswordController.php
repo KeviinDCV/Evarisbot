@@ -21,6 +21,11 @@ class NewPasswordController extends Controller
      */
     public function create(Request $request): Response
     {
+        // Recuperación de contraseña por correo desactivada: no hay correo configurado (MAIL_MAILER=log),
+        // así que el enlace se escribía en el log del servidor, y el formulario servía para averiguar qué
+        // correos tienen cuenta. Las contraseñas las restablece un administrador desde Usuarios.
+        abort(404);
+
         return Inertia::render('auth/reset-password', [
             'email' => $request->email,
             'token' => $request->route('token'),
@@ -34,6 +39,11 @@ class NewPasswordController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Recuperación de contraseña por correo desactivada: no hay correo configurado (MAIL_MAILER=log),
+        // así que el enlace se escribía en el log del servidor, y el formulario servía para averiguar qué
+        // correos tienen cuenta. Las contraseñas las restablece un administrador desde Usuarios.
+        abort(404);
+
         $request->validate([
             'token' => 'required',
             'email' => 'required|email',

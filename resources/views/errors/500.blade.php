@@ -44,7 +44,7 @@
         <div class="code">500</div>
         <h1>Error del servidor</h1>
         <p>Ocurrió un error inesperado. Nuestro equipo técnico ha sido notificado. Por favor intenta de nuevo en unos minutos.</p>
-        <a href="/admin/dashboard" class="btn">← Volver al inicio</a>
+        <a href="/dashboard" class="btn">← Volver al inicio</a>
         <div class="logo">Evarisbot — Hospital Universitario del Valle</div>
     </div>
 </body>

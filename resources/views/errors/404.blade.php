@@ -44,7 +44,7 @@
         <div class="code">404</div>
         <h1>Página no encontrada</h1>
         <p>La página que buscas no existe o fue movida. Verifica la dirección e intenta de nuevo.</p>
-        <a href="/admin/dashboard" class="btn">← Volver al inicio</a>
+        <a href="/dashboard" class="btn">← Volver al inicio</a>
         <div class="logo">Evarisbot — Hospital Universitario del Valle</div>
     </div>
 </body>

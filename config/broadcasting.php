@@ -40,9 +40,16 @@ return [
                 'port' => env('REVERB_PORT', 443),
                 'scheme' => env('REVERB_SCHEME', 'https'),
                 'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
+                // El tiempo máximo que de verdad usa el cliente de Pusher en cada petición (si no, 30 s): con Reverb
+                // colgado, el webhook y el worker no esperan más de 1,5 s (luego TiempoReal pausa 30 s).
+                'timeout' => 1.5,
             ],
             'client_options' => [
                 // Guzzle client options: https://docs.guzzlephp.org/en/stable/request-options.html
+                // Reverb corre en este mismo equipo: responde en milisegundos. Si no, se corta pronto para no frenar el
+                // webhook ni el worker (App\Support\TiempoReal deja de intentar 30 s).
+                'connect_timeout' => 0.5,
+                'timeout' => 1.5,
             ],
         ],
 
