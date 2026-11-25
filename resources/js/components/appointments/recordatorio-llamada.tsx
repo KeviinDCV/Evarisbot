@@ -1,4 +1,4 @@
-import { Banda, Confirmacion, EstadoEnvio, FilaAviso, Rotulo, SANGRIA, VALIDAR, leerEstado, sesionVencida } from '@/components/appointments/panel-citas';
+import { Banda, Confirmacion, EstadoEnvio, FilaAviso, FilaTarea, Rotulo, SANGRIA, VALIDAR, leerEstado, sesionVencida } from '@/components/appointments/panel-citas';
 import {
     BOTON_APAGADO,
     BOTON_PELIGRO,
@@ -141,10 +141,13 @@ export default function RecordatorioLlamada({
     routePrefix,
     ronda: rondaServidor,
     stats: statsServidor,
+    compacto = false,
 }: {
     routePrefix: string;
     ronda: RondaLlamadas | null;
     stats: LlamadasStats | undefined;
+    /** Diseño B (24/11/2026): una fila de «Por hacer»; horario y explicaciones van en «¿Cómo funciona?». */
+    compacto?: boolean;
 }) {
     const { t, i18n } = useTranslation();
     const lng = i18n.language;
@@ -160,6 +163,16 @@ export default function RecordatorioLlamada({
     const [confirmarDetener, setConfirmarDetener] = useState(false);
     const [fallosSondeo, setFallosSondeo] = useState(0);
     const [anuncio, setAnuncio] = useState('');
+    // Compacto: «Cambiar tope» abre el campo debajo de la fila; al cerrarlo, el foco vuelve a ese enlace.
+    const [editarTope, setEditarTope] = useState(false);
+    const botonTope = useRef<HTMLButtonElement>(null);
+    const volverATope = useRef(false);
+    useEffect(() => {
+        if (!editarTope && volverATope.current) {
+            volverATope.current = false;
+            botonTope.current?.focus();
+        }
+    }, [editarTope]);
     const version = useRef(0);
 
     useEffect(() => setRonda(rondaServidor), [rondaServidor]);
@@ -262,9 +275,9 @@ export default function RecordatorioLlamada({
                 setAviso(resumen);
                 anunciar(resumen.texto);
             }
-            router.reload({ only: ['llamadasStats', 'appointments'] });
+            router.reload({ only: compacto ? ['llamadasStats', 'appointments', 'historialEnvios'] : ['llamadasStats', 'appointments'] });
         },
-        [resumenDe, anunciar]
+        [resumenDe, anunciar, compacto]
     );
 
     /**
@@ -471,9 +484,87 @@ export default function RecordatorioLlamada({
         </>
     ) : undefined;
 
+    const botonLlamar =
+        salen > 0 ? (
+            <button
+                type="button"
+                onClick={() => {
+                    setCambio(false);
+                    setConfirmarInicio(true);
+                }}
+                disabled={apagado}
+                title={motivoApagado ?? t('appointments.calls.asksConfirmation')}
+                aria-haspopup="dialog"
+                className={apagado ? BOTON_APAGADO : BOTON_PRIMARIO}
+            >
+                {accion === 'start' ? <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" /> : <Phone strokeWidth={2} aria-hidden="true" />}
+                {parcial
+                    ? t('appointments.calls.callButtonPartial', { value: miles(salen, lng), total: miles(conPermiso, lng) })
+                    : t('appointments.calls.callButton', { value: miles(salen, lng) })}
+            </button>
+        ) : null;
+
+    const fueraDeHorario = stats?.activas && !stats.en_horario && (
+        <div className="flex min-h-[52px] items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 @3xl/hoja:px-5 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+            <span className="flex w-8 shrink-0 justify-center text-amber-700 dark:text-amber-400">
+                <Clock className="size-4" strokeWidth={2} aria-hidden="true" />
+            </span>
+            <p className="text-[13px] leading-[18px]">
+                <span className="font-semibold">{t('appointments.calls.outsideHoursLabel')}</span>{' '}
+                {stats.abre ? conPunto(t('appointments.calls.outsideHoursText', { now: ahoraColombia(lng), opens: aperturaTexto(stats.abre) })) : t('appointments.calls.hours')}
+            </p>
+        </div>
+    );
+
+    // Compacto: la línea de la fila dice de qué citas es y cuántas llamadas quedan hoy (con «Cambiar tope» al lado).
+    const detalleCompacto = activa ? (
+        [t('appointments.appointmentsOfDate', { date: fechaTexto(ronda?.fecha_citas) }), ronda?.iniciado_por ? t('appointments.porHacer.callsStartedBy', { name: nombrePropio(ronda.iniciado_por) }) : '']
+            .filter(Boolean)
+            .join(' · ')
+    ) : !stats ? (
+        <Skeleton className="mt-0.5 h-4 w-64 rounded" />
+    ) : !stats.activas ? (
+        t('appointments.calls.disabledWhatsApp')
+    ) : (
+        <>
+            {(stats.no_respondieron ?? 0) === 0 ? t('appointments.calls.nobodyPending') : t('appointments.appointmentsOfDate', { date: fechaTexto(stats.fecha) })}
+            {' · '}
+            {t('appointments.porHacer.capLeft', { left: miles(stats.quedan ?? 0, lng), limit: miles(stats.limite ?? 0, lng) })}{' '}
+            <button
+                ref={botonTope}
+                type="button"
+                onClick={() => setEditarTope(true)}
+                aria-expanded={editarTope}
+                className={cn('cursor-pointer rounded font-semibold underline-offset-2 hover:underline pointer-coarse:py-2', TEXTO_NAVY, FOCO)}
+            >
+                {t('appointments.calls.capChange')}
+            </button>
+        </>
+    );
+
     return (
-        <section aria-labelledby="citas-llamadas" className={cn('border-t', FILETE)}>
-            <Banda id="citas-llamadas" icon={PhoneCall} titulo={t('appointments.calls.title')} estado={<EstadoEnvio tipo={estadoBanda.tipo} texto={estadoBanda.texto} />} texto={t('appointments.calls.bandText')} acciones={acciones} />
+        <section aria-labelledby="citas-llamadas" className={cn(!compacto && 'border-t', FILETE)}>
+            {compacto ? (
+                <FilaTarea
+                    id="citas-llamadas"
+                    icon={PhoneCall}
+                    titulo={t('appointments.porHacer.callsTitle')}
+                    estado={activa ? <EstadoEnvio tipo={estadoBanda.tipo} texto={estadoBanda.texto} /> : undefined}
+                    detalle={detalleCompacto}
+                    cifra={
+                        !activa && stats?.activas
+                            ? {
+                                  valor: miles(conPermiso, lng),
+                                  texto: t(stats.sin_pedir_permiso ? 'appointments.calls.canCall' : 'appointments.calls.withPermission', { count: conPermiso }),
+                                  apagada: conPermiso === 0,
+                              }
+                            : null
+                    }
+                    acciones={activa ? acciones : botonLlamar}
+                />
+            ) : (
+                <Banda id="citas-llamadas" icon={PhoneCall} titulo={t('appointments.calls.title')} estado={<EstadoEnvio tipo={estadoBanda.tipo} texto={estadoBanda.texto} />} texto={t('appointments.calls.bandText')} acciones={acciones} />
+            )}
 
             <p className="sr-only" aria-live="polite">
                 {anuncio}
@@ -584,7 +675,7 @@ export default function RecordatorioLlamada({
             {ronda && !activa && !final && llamadasDe(ronda) > 0 && (
                 ronda.estado === 'cortada' ? (
                     <FilaAviso>{resumenDe(ronda).texto}</FilaAviso>
-                ) : (
+                ) : compacto ? null : (
                     <div className={cn('flex min-h-11 items-center gap-3 border-b px-4 py-2.5 @3xl/hoja:px-5', FILETE)}>
                         <span className={cn('flex w-8 shrink-0 justify-center', TEXTO_SUAVE)}>
                             <History className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
@@ -610,13 +701,33 @@ export default function RecordatorioLlamada({
                 )
             )}
 
+            {compacto && fueraDeHorario}
+            {compacto && stats?.activas && editarTope && (
+                <div className={cn('border-b', FILETE)}>
+                    <FilaTope
+                        routePrefix={routePrefix}
+                        limite={stats.limite ?? 0}
+                        usadas={stats.usadas ?? 0}
+                        quedan={stats.quedan ?? 0}
+                        maximo={stats.tope_maximo ?? 15000}
+                        inicialEditando
+                        onCerrar={() => {
+                            volverATope.current = true;
+                            setEditarTope(false);
+                        }}
+                    />
+                </div>
+            )}
+
             {/* Por llamar: la próxima fecha con citas. */}
+            {!compacto && (
             <div className={cn('flex min-h-10 flex-wrap items-end gap-x-2.5 gap-y-0.5 pt-4 pb-2', SANGRIA)}>
                 <h3 className={cn('text-[11px] leading-4 font-semibold tracking-[0.07em] uppercase', TEXTO_SUAVE)}>{t('appointments.calls.toCallTitle')}</h3>
                 <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('appointments.calls.toCallHint')}</p>
             </div>
+            )}
 
-            {!stats ? (
+            {compacto ? null : !stats ? (
                 <div className={cn('flex items-center gap-8 py-4', SANGRIA)} aria-hidden="true">
                     <Skeleton className="h-9 w-56 rounded-lg" />
                     <Skeleton className="h-9 flex-1 rounded-lg" />
@@ -659,44 +770,11 @@ export default function RecordatorioLlamada({
                                           .join(' · ')}
                             </span>
                         </div>
-                        <div className="flex @3xl/hoja:justify-end">
-                            {salen > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setCambio(false);
-                                        setConfirmarInicio(true);
-                                    }}
-                                    disabled={apagado}
-                                    title={motivoApagado ?? t('appointments.calls.asksConfirmation')}
-                                    aria-haspopup="dialog"
-                                    className={apagado ? BOTON_APAGADO : BOTON_PRIMARIO}
-                                >
-                                    {accion === 'start' ? <LoaderCircle className="animate-spin motion-reduce:animate-none" strokeWidth={2} aria-hidden="true" /> : <Phone strokeWidth={2} aria-hidden="true" />}
-                                    {parcial
-                                        ? t('appointments.calls.callButtonPartial', { value: miles(salen, lng), total: miles(conPermiso, lng) })
-                                        : t('appointments.calls.callButton', { value: miles(salen, lng) })}
-                                </button>
-                            )}
-                        </div>
+                        <div className="flex @3xl/hoja:justify-end">{botonLlamar}</div>
                     </div>
 
                     {stats.adelantada && <Linea icono={<Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />}>{t('appointments.calls.earlyDate')}</Linea>}
-                    {stats.en_horario ? (
-                        <Linea icono={<Clock className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />}>{t('appointments.calls.hours')}</Linea>
-                    ) : (
-                        <div className="flex min-h-[52px] items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 @3xl/hoja:px-5 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-                            <span className="flex w-8 shrink-0 justify-center text-amber-700 dark:text-amber-400">
-                                <Clock className="size-4" strokeWidth={2} aria-hidden="true" />
-                            </span>
-                            <p className="text-[13px] leading-[18px]">
-                                <span className="font-semibold">{t('appointments.calls.outsideHoursLabel')}</span>{' '}
-                                {stats.abre
-                                    ? conPunto(t('appointments.calls.outsideHoursText', { now: ahoraColombia(lng), opens: aperturaTexto(stats.abre) }))
-                                    : t('appointments.calls.hours')}
-                            </p>
-                        </div>
-                    )}
+                    {stats.en_horario ? <Linea icono={<Clock className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />}>{t('appointments.calls.hours')}</Linea> : fueraDeHorario}
                     <FilaTope routePrefix={routePrefix} limite={stats.limite ?? 0} usadas={stats.usadas ?? 0} quedan={stats.quedan ?? 0} maximo={stats.tope_maximo ?? 15000} />
                 </>
             ) : (
@@ -779,10 +857,26 @@ function Tramo({ valor, total, color }: { valor: number; total: number; color: s
  * Tope de llamadas en 24 horas (RondaLlamadas::AJUSTE_TOPE): se empieza con pocas y se sube a medida que Meta amplía el
  * cupo del número. «Cambiar tope» abre el campo en la misma fila; Escape o Cancelar lo cierran sin guardar.
  */
-function FilaTope({ routePrefix, limite, usadas, quedan, maximo }: { routePrefix: string; limite: number; usadas: number; quedan: number; maximo: number }) {
+function FilaTope({
+    routePrefix,
+    limite,
+    usadas,
+    quedan,
+    maximo,
+    inicialEditando = false,
+    onCerrar,
+}: {
+    routePrefix: string;
+    limite: number;
+    usadas: number;
+    quedan: number;
+    maximo: number;
+    inicialEditando?: boolean;
+    onCerrar?: () => void;
+}) {
     const { t, i18n } = useTranslation();
     const lng = i18n.language;
-    const [editando, setEditando] = useState(false);
+    const [editando, setEditando] = useState(inicialEditando);
     const [valor, setValor] = useState(String(limite));
     const [guardando, setGuardando] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -805,6 +899,7 @@ function FilaTope({ routePrefix, limite, usadas, quedan, maximo }: { routePrefix
         volverAlBoton.current = true;
         setError(null);
         setEditando(false);
+        onCerrar?.();
     };
 
     const guardar = async (e: FormEvent) => {

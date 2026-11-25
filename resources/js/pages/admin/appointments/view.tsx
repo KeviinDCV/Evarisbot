@@ -17,9 +17,12 @@ import {
     esIngles,
     fechaLocal,
     miles,
+    nombrePropio,
     type CitaFila,
 } from '@/components/appointments/piezas-citas';
+import { EstadoDeEnvio, nombreEnvio, tipoDeEnvio, type EnvioHistorial, type LlamadasEnvio } from '@/components/appointments/historial-envios';
 import { AvisoCampo } from '@/components/avisos-campo';
+import { Segmentado, fechaHora } from '@/components/bulk-sends/piezas-envio';
 import { cn } from '@/lib/utils';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
@@ -36,6 +39,7 @@ import {
     ChevronRight,
     CircleAlert,
     CircleX,
+    Clock,
     Download,
     LoaderCircle,
     X,
@@ -44,7 +48,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 
 type Ambito = 'general' | 'oncology';
-type Filtro = 'all' | 'pending' | 'failed' | 'confirmed' | 'cancelled';
+type Filtro = 'all' | 'pending' | 'no_answer' | 'failed' | 'confirmed' | 'cancelled';
 type Sentido = 'asc' | 'desc';
 
 interface PaginatedAppointments {
@@ -71,6 +75,7 @@ interface AppointmentsViewProps {
     stats: {
         all: number;
         pending: number;
+        no_answer?: number;
         failed?: number;
         confirmed: number;
         cancelled: number;
@@ -78,9 +83,18 @@ interface AppointmentsViewProps {
     ambito?: Ambito;
     routePrefix?: string;
     limite_exportar?: number;
+    /** La lista es la de un envío del historial (?envio=ID), con sus cifras en vivo. */
+    envio?: EnvioHistorial | null;
+    /** El id del envío validado por el servidor (está aunque el resumen no se haya podido leer). */
+    envio_id?: number | null;
+    /** Filtro por la llamada del robot (?llamada=si|confirmo|…). */
+    llamada?: string | null;
 }
 
-type Parametros = Partial<Record<'filter' | 'search' | 'date_from' | 'date_to' | 'sort' | 'direction', string>>;
+type Parametros = Partial<Record<'filter' | 'search' | 'date_from' | 'date_to' | 'sort' | 'direction' | 'envio' | 'llamada', string>>;
+
+// Resultados de la llamada que se pueden filtrar, en el orden en que se muestran.
+const RESULTADOS_LLAMADA: (keyof Omit<LlamadasEnvio, 'total'>)[] = ['confirmo', 'cancelo', 'sin_marcar', 'no_contesto', 'rechazo', 'no_se_pudo', 'no_llamar', 'en_curso'];
 
 // Espera tras la última tecla antes de buscar: cada búsqueda recorre todas las citas del ámbito.
 const ESPERA_BUSQUEDA = 350;
@@ -114,6 +128,9 @@ export default function AppointmentsView({
     ambito,
     routePrefix = '/admin/appointments',
     limite_exportar: limiteExportar = 1048575,
+    envio = null,
+    envio_id: envioId = null,
+    llamada: llamadaServidor = null,
 }: AppointmentsViewProps) {
     const { t, i18n } = useTranslation();
     const lng = i18n.language;
@@ -130,6 +147,8 @@ export default function AppointmentsView({
         date_to: hastaServidor ?? '',
         sort: ordenServidor || 'id',
         direction: (sentidoServidor === 'asc' ? 'asc' : 'desc') as Sentido,
+        envio: envioId ? String(envioId) : envio ? String(envio.id) : '',
+        llamada: llamadaServidor ?? '',
     };
 
     const [filter, setFilter] = useState(servidor.filter);
@@ -172,7 +191,17 @@ export default function AppointmentsView({
 
     /** Todos los parámetros de la pantalla (siempre con el orden), con los cambios de esta visita. */
     const parametros = (cambios: Parametros = {}) =>
-        limpiar({ filter, search: searchTerm.trim(), date_from: dateFrom, date_to: dateTo, sort: sortField, direction: sortDirection, ...cambios });
+        limpiar({
+            filter,
+            search: searchTerm.trim(),
+            date_from: dateFrom,
+            date_to: dateTo,
+            sort: sortField,
+            direction: sortDirection,
+            envio: servidor.envio,
+            llamada: servidor.llamada,
+            ...cambios,
+        });
 
     const visitar = (datos: Record<string, string | number>, reemplazar = false) => {
         clearTimeout(temporizador.current);
@@ -233,8 +262,10 @@ export default function AppointmentsView({
         textoEscrito.current = '';
         setDateFrom('');
         setDateTo('');
-        visitar(parametros({ filter: 'all', search: '', date_from: '', date_to: '' }));
+        visitar(parametros({ filter: 'all', search: '', date_from: '', date_to: '', llamada: '' }));
     };
+
+    const elegirLlamada = (valor: string) => visitar(parametros({ llamada: valor }));
 
     // Paginación y exportación salen de lo que el servidor listó (no de un texto a medio escribir).
     const delServidor = limpiar(servidor);
@@ -263,7 +294,7 @@ export default function AppointmentsView({
         return () => window.clearInterval(vigilar);
     }, [preparando, marcaDescarga]);
 
-    const hayFiltros = servidor.filter !== 'all' || !!servidor.search || !!servidor.date_from || !!servidor.date_to;
+    const hayFiltros = servidor.filter !== 'all' || !!servidor.search || !!servidor.date_from || !!servidor.date_to || !!servidor.llamada;
     const rangoInvertido = !!dateFrom && !!dateTo && dateTo < dateFrom;
 
     // Las cifras siguen las fechas y la búsqueda (no el filtro de estado): se dice de qué citas son.
@@ -282,7 +313,12 @@ export default function AppointmentsView({
 
     const filterButtons: { key: Filtro; label: string; marca: ReactNode; count: number }[] = [
         { key: 'all', label: t('common.allFeminine'), marca: <Calendar className={cn('size-3.5', TEXTO_NAVY)} strokeWidth={2} aria-hidden="true" />, count: stats.all },
-        {
+        envio ? {
+            key: 'no_answer',
+            label: t('appointments.envioView.filterNoAnswer'),
+            marca: <Clock className="size-3.5 text-amber-600 dark:text-amber-400" strokeWidth={2} aria-hidden="true" />,
+            count: stats.no_answer ?? 0,
+        } : {
             key: 'pending',
             label: t('appointments.filterPending'),
             marca: (
@@ -324,7 +360,9 @@ export default function AppointmentsView({
                     <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
                         <div className="flex min-w-0 flex-col gap-1">
                             <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
-                                <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>{t('appointments.allAppointmentsTitle')}</h1>
+                                <h1 className={cn('text-[28px] leading-[34px] font-semibold tracking-[-0.025em]', TEXTO_NAVY)}>
+                                    {envio ? nombreEnvio(envio, t, lng) : t('appointments.allAppointmentsTitle')}
+                                </h1>
                                 <span
                                     title={t('appointments.scopeChipTitle')}
                                     className="inline-flex h-6 items-center rounded-[7px] bg-[#2e3f84]/7 px-2.5 text-[12px] leading-4 font-semibold whitespace-nowrap text-[#2e3f84] forced-colors:border dark:bg-white/8 dark:text-neutral-100"
@@ -332,7 +370,24 @@ export default function AppointmentsView({
                                     {nombreAmbito}
                                 </span>
                             </div>
-                            <p className="text-[14px] leading-5 text-muted-foreground">{t('appointments.viewSubtitle')}</p>
+                            {envio ? (
+                                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] leading-5 text-muted-foreground tabular-nums">
+                                    <EstadoDeEnvio envio={envio} peq />
+                                    <span aria-hidden="true">·</span>
+                                    <span>
+                                        {t('appointments.envioView.subtitle', {
+                                            type: tipoDeEnvio(envio, t),
+                                            date: fechaHora(envio.inicio, lng),
+                                        })}
+                                        {envio.iniciado_por ? ` · ${t('appointments.porHacer.startedBy', { name: nombrePropio(envio.iniciado_por) })}` : ''}
+                                    </span>
+                                    <Link href={`${routePrefix}/view`} className={cn('font-semibold underline-offset-2 hover:underline', TEXTO_NAVY, FOCO)}>
+                                        {t('appointments.envioView.seeAll')}
+                                    </Link>
+                                </p>
+                            ) : (
+                                <p className="text-[14px] leading-5 text-muted-foreground">{t('appointments.viewSubtitle')}</p>
+                            )}
                         </div>
 
                         <div className="flex flex-col items-start gap-1.5 sm:shrink-0 sm:items-end">
@@ -449,6 +504,61 @@ export default function AppointmentsView({
                         </section>
                         {notaCifras && <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>{notaCifras}</p>}
                     </div>
+
+                    {envio && (
+                        <section aria-label={t('appointments.envioView.summaryLabel')} className={cn(HOJA, 'flex flex-col gap-3 px-4 py-4 @3xl/hoja:px-5')}>
+                            <div className="flex flex-col gap-1">
+                                <p className={cn('text-[13px] leading-[18px] tabular-nums', TEXTO_NAVY)}>
+                                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                        {t('appointments.envioView.confirmedLine', {
+                                            whatsapp: miles(envio.cifras.confirmadas - envio.cifras.conf_llamada, lng),
+                                            call: miles(envio.cifras.conf_llamada, lng),
+                                        })}
+                                    </span>
+                                </p>
+                                <p className={cn('text-[13px] leading-[18px] tabular-nums', TEXTO_SUAVE)}>
+                                    {t('appointments.envioView.cancelledLine', {
+                                        whatsapp: miles(envio.cifras.canceladas - envio.cifras.canc_llamada - envio.cifras.canc_hospital, lng),
+                                        call: miles(envio.cifras.canc_llamada, lng),
+                                    })}
+                                    {envio.cifras.canc_hospital > 0 && ` · ${t('appointments.envioView.cancelledHospital', { value: miles(envio.cifras.canc_hospital, lng) })}`}
+                                    {envio.cifras.no_entregados > 0 && ` · ${t('appointments.envioView.notDelivered', { value: miles(envio.cifras.no_entregados, lng) })}`}
+                                </p>
+                                {(envio.cifras.reenviadas > 0 || envio.cifras.borradas > 0) && (
+                                    <p className={cn('text-[12.5px] leading-4', TEXTO_SUAVE)}>
+                                        {[
+                                            envio.cifras.reenviadas > 0 ? t('appointments.envioView.resent', { count: envio.cifras.reenviadas, value: miles(envio.cifras.reenviadas, lng) }) : '',
+                                            envio.cifras.borradas > 0 ? t('appointments.envioView.deleted', { count: envio.cifras.borradas, value: miles(envio.cifras.borradas, lng) }) : '',
+                                        ]
+                                            .filter(Boolean)
+                                            .join(' ')}
+                                    </p>
+                                )}
+                            </div>
+                            {envio.llamadas.total > 0 && (
+                                <div className={cn('flex flex-col gap-2 border-t pt-3', FILETE)}>
+                                    <p className={cn('text-[12.5px] leading-4 font-semibold', TEXTO_NAVY)}>
+                                        {t('appointments.envioView.callsTitle', { count: envio.llamadas.total, value: miles(envio.llamadas.total, lng) })}
+                                    </p>
+                                    <Segmentado
+                                        etiqueta={t('appointments.envioView.callFilterLabel')}
+                                        activa={servidor.llamada}
+                                        onElegir={elegirLlamada}
+                                        className="flex-wrap"
+                                        opciones={[
+                                            { value: '', label: t('appointments.envioView.callAll') },
+                                            { value: 'si', label: t('appointments.envioView.callAny'), count: miles(envio.llamadas.total, lng) },
+                                            ...RESULTADOS_LLAMADA.filter((r) => envio.llamadas[r] > 0 || servidor.llamada === r).map((r) => ({
+                                                value: r,
+                                                label: t(`appointments.envioView.call.${r}`),
+                                                count: miles(envio.llamadas[r], lng),
+                                            })),
+                                        ]}
+                                    />
+                                </div>
+                            )}
+                        </section>
+                    )}
 
                     {/* ── La hoja: barra (buscar + fechas), cabecera ordenable, citas y paginado fijo al pie ── */}
                     <section aria-label={t('appointments.allAppointmentsTitle')} className={cn(HOJA, 'lg:rounded-b-none')}>

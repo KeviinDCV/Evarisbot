@@ -22,6 +22,10 @@ return new class extends Migration
             DB::statement('SET SESSION lock_wait_timeout = 5');
         }
 
+        // Tablas nuevas: si un intento anterior quedó a medias (p. ej. la clave foránea falló por un bloqueo), se rehacen.
+        Schema::dropIfExists('envio_recordatorio_cita');
+        Schema::dropIfExists('envios_recordatorio');
+
         Schema::create('envios_recordatorio', function (Blueprint $table) {
             $table->id();
             $table->string('service', 20)->default('general');

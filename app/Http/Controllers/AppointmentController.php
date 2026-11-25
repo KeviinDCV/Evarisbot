@@ -6,6 +6,7 @@ use App\Jobs\SendAppointmentReminderJob;
 use App\Models\Appointment;
 use App\Models\Setting;
 use App\Support\EnvioRecordatorios;
+use App\Support\HistorialEnvios;
 use App\Support\LibroExcel;
 use App\Support\Recordatorios;
 use App\Support\RondaLlamadas;
@@ -66,7 +67,16 @@ class AppointmentController extends Controller
     ];
 
     /** Filtros, columnas de orden y direcciones que acepta la lista (view) y la exportación. */
-    private const FILTROS = ['all', 'pending', 'failed', 'confirmed', 'cancelled'];
+    private const FILTROS = ['all', 'pending', 'no_answer', 'failed', 'confirmed', 'cancelled'];
+
+    /** Filtro por la llamada del robot: «si» = las que tuvieron llamada; o un resultado (RondaLlamadas::resultadoFila). */
+    private const FILTROS_LLAMADA = ['si', 'confirmo', 'cancelo', 'sin_marcar', 'no_contesto', 'rechazo', 'no_se_pudo', 'no_llamar', 'en_curso'];
+
+    /** Tipo de envío → texto del Excel del historial. */
+    private const TIPOS_ENVIO = ['normal' => 'Pasado mañana', 'dia_antes' => 'Mañana', 'todas' => 'Todas las cargadas'];
+
+    /** Estado del envío → texto del Excel del historial. */
+    private const ESTADOS_ENVIO = ['en_curso' => 'Enviando', 'terminado' => 'Completado', 'detenido' => 'Detenido', 'cortado' => 'Cortado'];
     private const ORDENES = ['id', 'nom_paciente', 'citide', 'pactel', 'citfc', 'cithor', 'mednom', 'espnom', 'reminder_status'];
     private const COLUMNAS_BUSQUEDA = ['nom_paciente', 'citide', 'pactel', 'pactel2', 'mednom', 'espnom'];
 
@@ -188,6 +198,8 @@ class AppointmentController extends Controller
             'ultimoEnvio' => EnvioRecordatorios::ultimoEnvio($this->service),
             'uploadedFile' => session('uploaded_file'),
             'uploadError' => session('upload_error'),
+            // Diseño B («Por hacer» arriba, historial abajo) para todos; mientras, cada quien lo prueba con ?nuevo=1.
+            'citasDiseno' => Setting::get('citas_diseno') === 'por_hacer',
 
             // Últimas 50 citas (más recientes primero) - todos los admins ven todas
             'appointments' => Inertia::defer(function () {
@@ -208,7 +220,21 @@ class AppointmentController extends Controller
             // de la próxima fecha (permisos, robot, tope de Meta) en su propio grupo diferido, sin frenar las demás.
             'rondaLlamadas' => $this->rondaLlamadas(),
             'llamadasStats' => Inertia::defer(fn () => $this->cifrasLlamadas(), 'llamadas'),
+            // Historial de envíos: solo lo pide el diseño B (recarga parcial al abrir); el de siempre no lo calcula.
+            'historialEnvios' => Inertia::optional(fn () => $this->historialEnvios()),
         ]);
+    }
+
+    /** Los envíos del ámbito con sus cifras en vivo, o null si no se pudieron leer (la página no se cae por esto). */
+    protected function historialEnvios(): ?array
+    {
+        try {
+            return HistorialEnvios::lista($this->service);
+        } catch (\Throwable $e) {
+            Log::warning('Citas: no se pudo leer el historial de envíos', ['service' => $this->service, 'error' => $e->getMessage()]);
+
+            return null;
+        }
     }
 
     /** La ronda de llamadas del ámbito, o null (también si algo falla: la página no se cae por esto). */
@@ -295,6 +321,10 @@ class AppointmentController extends Controller
             'date_to' => $filtros['date_to'],
             'sort' => $filtros['sort'],
             'direction' => $filtros['direction'],
+            'envio' => $filtros['envio'] ? $this->envioDelHistorial($filtros['envio']) : null,
+            // El id validado aparte: si el resumen no se pudo leer, la lista sigue siendo la del envío al paginar.
+            'envio_id' => $filtros['envio'],
+            'llamada' => $filtros['llamada'],
             'stats' => $this->estadisticasLista($filtros),
             'ambito' => $this->service,
             'routePrefix' => $this->urlPrefix,
@@ -306,7 +336,9 @@ class AppointmentController extends Controller
      * Normaliza los parámetros de la lista y los aplica (fechas, búsqueda, estado y orden). Lo usan view() y
      * export(), así que lo exportado es exactamente lo que se ve, en el mismo orden.
      *
-     * @return array{filter: string, search: ?string, date_from: ?string, date_to: ?string, sort: string, direction: string}
+     * «envio» (id del historial, solo si es de este ámbito) y «llamada» (FILTROS_LLAMADA) son opcionales.
+     *
+     * @return array{filter: string, search: ?string, date_from: ?string, date_to: ?string, sort: string, direction: string, envio: ?int, llamada: ?string}
      */
     protected function aplicarFiltros(Builder $query, Request $request): array
     {
@@ -317,6 +349,7 @@ class AppointmentController extends Controller
         $filter = $texto('filter');
         $sort = $texto('sort');
         $direction = strtolower((string) $texto('direction'));
+        $llamada = $texto('llamada');
 
         $filtros = [
             'filter' => in_array($filter, self::FILTROS, true) ? $filter : 'all',
@@ -325,6 +358,8 @@ class AppointmentController extends Controller
             'date_to' => $this->fechaValida($texto('date_to')),
             'sort' => in_array($sort, self::ORDENES, true) ? $sort : 'id',
             'direction' => in_array($direction, ['asc', 'desc'], true) ? $direction : 'desc',
+            'envio' => $this->envioValido($texto('envio')),
+            'llamada' => in_array($llamada, self::FILTROS_LLAMADA, true) ? $llamada : null,
         ];
 
         $this->aplicarBase($query, $filtros);
@@ -332,6 +367,31 @@ class AppointmentController extends Controller
         $this->aplicarOrden($query, $filtros['sort'], $filtros['direction']);
 
         return $filtros;
+    }
+
+    /** El id de un envío del historial de ESTE ámbito, o null (otro ámbito, inexistente, basura o sin tablas). */
+    private function envioValido(?string $valor): ?int
+    {
+        if ($valor === null || ! ctype_digit($valor) || strlen($valor) > 18) {
+            return null;
+        }
+        try {
+            return DB::table(HistorialEnvios::TABLA)->where('id', (int) $valor)->where('service', $this->service)->exists() ? (int) $valor : null;
+        } catch (QueryException) {
+            return null;
+        }
+    }
+
+    /** El envío del historial con sus cifras (para el encabezado de la lista), o null si algo falla. */
+    private function envioDelHistorial(int $id): ?array
+    {
+        try {
+            return HistorialEnvios::uno($this->service, $id);
+        } catch (\Throwable $e) {
+            Log::warning('Citas: no se pudo leer el envío del historial', ['id' => $id, 'error' => $e->getMessage()]);
+
+            return null;
+        }
     }
 
     /** 'Y-m-d' real o null (cualquier otra cosa se ignora). */
@@ -351,6 +411,23 @@ class AppointmentController extends Controller
      */
     private function aplicarBase(Builder $query, array $filtros): void
     {
+        // Las citas de un envío del historial (las que cuentan en él: lo mismo que dicen sus cifras).
+        if (! empty($filtros['envio'])) {
+            $query->whereIn('appointments.id', HistorialEnvios::citasDelEnvio((int) $filtros['envio']));
+        }
+        // Por la ÚLTIMA llamada del robot de la cita (la que muestra la columna Respuesta).
+        if (! empty($filtros['llamada'])) {
+            [$caso, $enlaces] = HistorialEnvios::sqlResultadoLlamada('l');
+            $query->whereExists(function ($q) use ($filtros, $caso, $enlaces) {
+                $q->selectRaw('1')->from('llamadas as l')
+                    ->whereColumn('l.cita_id', 'appointments.id')
+                    ->where('l.origen', 'robot')
+                    ->whereRaw("l.id = (SELECT MAX(l2.id) FROM llamadas l2 WHERE l2.origen = 'robot' AND l2.cita_id = l.cita_id)");
+                if ($filtros['llamada'] !== 'si') {
+                    $q->whereRaw("({$caso}) = ?", [...$enlaces, $filtros['llamada']]);
+                }
+            });
+        }
         if ($filtros['date_from']) {
             $query->where('citfc', '>=', $filtros['date_from']);
         }
@@ -377,6 +454,9 @@ class AppointmentController extends Controller
     {
         match ($filtro) {
             'pending' => $query->where('reminder_sent', false)
+                ->where(fn ($q) => $q->whereNull('reminder_status')->orWhereNotIn('reminder_status', ['failed', 'cancelled', 'confirmed'])),
+            // «Sin respuesta»: le llegó el recordatorio y no confirmó ni canceló.
+            'no_answer' => $query->where('reminder_sent', true)
                 ->where(fn ($q) => $q->whereNull('reminder_status')->orWhereNotIn('reminder_status', ['failed', 'cancelled', 'confirmed'])),
             'failed' => $query->where('reminder_status', 'failed'),
             'confirmed' => $query->where('reminder_status', 'confirmed'),
@@ -406,8 +486,9 @@ class AppointmentController extends Controller
     protected function estadisticasLista(array $filtros): array
     {
         $pendiente = "reminder_sent = 0 AND (reminder_status IS NULL OR reminder_status NOT IN ('failed', 'cancelled', 'confirmed'))";
+        $sinRespuesta = "reminder_sent = 1 AND (reminder_status IS NULL OR reminder_status NOT IN ('failed', 'cancelled', 'confirmed'))";
 
-        if (! $filtros['search'] && ! $filtros['date_from'] && ! $filtros['date_to']) {
+        if (! $filtros['search'] && ! $filtros['date_from'] && ! $filtros['date_to'] && empty($filtros['envio']) && empty($filtros['llamada'])) {
             return [
                 'all' => $this->serviceQuery()->count(),
                 'pending' => $this->serviceQuery()->whereRaw($pendiente)->count(),
@@ -422,6 +503,7 @@ class AppointmentController extends Controller
         $fila = $base->toBase()->selectRaw(
             "COUNT(*) AS todas,
              SUM(CASE WHEN {$pendiente} THEN 1 ELSE 0 END) AS pendientes,
+             SUM(CASE WHEN {$sinRespuesta} THEN 1 ELSE 0 END) AS sin_respuesta,
              SUM(CASE WHEN reminder_status = 'failed' THEN 1 ELSE 0 END) AS con_error,
              SUM(CASE WHEN reminder_status = 'confirmed' THEN 1 ELSE 0 END) AS confirmadas,
              SUM(CASE WHEN reminder_status = 'cancelled' THEN 1 ELSE 0 END) AS canceladas"
@@ -430,6 +512,7 @@ class AppointmentController extends Controller
         return [
             'all' => (int) ($fila->todas ?? 0),
             'pending' => (int) ($fila->pendientes ?? 0),
+            'no_answer' => (int) ($fila->sin_respuesta ?? 0),
             'failed' => (int) ($fila->con_error ?? 0),
             'confirmed' => (int) ($fila->confirmadas ?? 0),
             'cancelled' => (int) ($fila->canceladas ?? 0),
@@ -451,7 +534,7 @@ class AppointmentController extends Controller
             'mednom', 'espnom', 'connom', 'citcon', 'citres', 'citobsobs',
             'reminder_sent', 'reminder_sent_at', 'reminder_status', 'reminder_error', 'notes', 'pactel2', 'reminder_numero',
         ]);
-        $this->aplicarFiltros($query, $request);
+        $filtros = $this->aplicarFiltros($query, $request);
 
         // Solo el máximo de filas de una hoja de Excel (el libro se escribe fila por fila, sin armarlo en memoria).
         if ((clone $query)->reorder()->count() > self::LIMITE_EXPORTAR) {
@@ -532,7 +615,7 @@ class AppointmentController extends Controller
             self::ETIQUETAS_LLAMADA['no_llamar'] => $gris,
         ]);
 
-        $fileName = 'citas_'.($this->service === 'oncology' ? 'oncologia' : 'generales').'_'.now(Recordatorios::ZONA)->format('Y-m-d_Hi').'.xlsx';
+        $fileName = 'citas_'.($this->service === 'oncology' ? 'oncologia' : 'generales').($filtros['envio'] ? '_envio_'.$filtros['envio'] : '').'_'.now(Recordatorios::ZONA)->format('Y-m-d_Hi').'.xlsx';
         $temp = tempnam($carpeta, 'cit');
         try {
             $libro->guardar($temp);
@@ -557,6 +640,103 @@ class AppointmentController extends Controller
         ])->deleteFileAfterSend(true);
 
         // La pantalla vigila esta cookie para saber que el archivo ya salió y quitar «Preparando…» (solo mira el nombre).
+        $marca = $request->query('descarga');
+        if (is_string($marca) && preg_match('/^[a-z0-9]{6,32}$/i', $marca)) {
+            $respuesta->headers->setCookie(cookie('citas_export_'.$marca, '1', 5, '/', null, false, false));
+        }
+
+        return $respuesta;
+    }
+
+    /** «Pasado mañana», «Mañana», «N días antes» o «Todas las cargadas» (el normal sale de sus días de anticipación). */
+    private function tipoDeEnvio(array $e): string
+    {
+        if ($e['tipo'] === 'normal' && $e['fecha_citas'] && $e['inicio']) {
+            $dias = (int) round((strtotime($e['fecha_citas']) - strtotime(substr($e['inicio'], 0, 10))) / 86400);
+            if ($dias === 1) {
+                return 'Mañana';
+            }
+            if ($dias !== 2 && $dias > 0) {
+                return $dias.' días antes';
+            }
+        }
+
+        return self::TIPOS_ENVIO[$e['tipo']] ?? $e['tipo'];
+    }
+
+    /**
+     * «Descargar Excel» del historial de envíos: una fila por envío con sus cifras de este momento (las mismas de la
+     * pantalla). El detalle paciente por paciente sale de «Ver citas» de cada envío.
+     */
+    public function exportarEnvios(Request $request)
+    {
+        set_time_limit(300);
+        $envios = HistorialEnvios::lista($this->service, 1000);
+
+        $carpeta = LibroExcel::carpeta();
+        $libro = new LibroExcel('Envíos', [
+            'A' => 20, 'B' => 20, 'C' => 26, 'D' => 26, 'E' => 14, 'F' => 22, 'G' => 10, 'H' => 10, 'I' => 12, 'J' => 12,
+            'K' => 12, 'L' => 12, 'M' => 14, 'N' => 14, 'O' => 12, 'P' => 14, 'Q' => 14, 'R' => 14, 'S' => 12, 'T' => 12,
+            'U' => 14, 'V' => 14, 'W' => 12, 'X' => 12, 'Y' => 12, 'Z' => 14,
+        ], $carpeta);
+        $libro->encabezados([
+            'Inicio (hora Colombia)', 'Fin (hora Colombia)', 'Tipo', 'Citas de', 'Estado', 'Responsable', 'Citas',
+            'Llegaron', 'No llegaron', 'Sin enviar (error)', 'Por enviar', 'Confirmaron', 'Confirmaron por WhatsApp',
+            'Confirmaron por llamada', 'Cancelaron', 'Cancelaron por WhatsApp', 'Cancelaron por llamada',
+            'Cancelada por el hospital', 'Sin respuesta', 'Llamadas', 'Llamada: confirmó', 'Llamada: canceló',
+            'Llamada: contestó sin marcar', 'Llamada: no contestó', 'Llamada: rechazó', 'Llamada: otras',
+        ], '2e3f84');
+
+        foreach ($envios as $e) {
+            $c = $e['cifras'];
+            $l = $e['llamadas'];
+            $desde = Recordatorios::fechaDe($e['fecha_citas']);
+            $hasta = $e['fecha_hasta'] && $e['fecha_hasta'] !== $e['fecha_citas'] ? Recordatorios::fechaDe($e['fecha_hasta']) : null;
+            $libro->fila([
+                $e['inicio'],
+                $e['fin'],
+                $this->tipoDeEnvio($e),
+                $hasta ? $desde.' a '.$hasta : $desde,
+                self::ESTADOS_ENVIO[$e['estado']] ?? $e['estado'],
+                $e['iniciado_por'],
+                $e['total'],
+                $c['llegaron'],
+                $c['no_entregados'],
+                $c['con_error'],
+                $c['por_enviar'],
+                $c['confirmadas'],
+                $c['confirmadas'] - $c['conf_llamada'],
+                $c['conf_llamada'],
+                $c['canceladas'],
+                $c['canceladas'] - $c['canc_llamada'] - $c['canc_hospital'],
+                $c['canc_llamada'],
+                $c['canc_hospital'],
+                $c['sin_respuesta'],
+                $l['total'],
+                $l['confirmo'],
+                $l['cancelo'],
+                $l['sin_marcar'],
+                $l['no_contesto'],
+                $l['rechazo'],
+                $l['no_se_pudo'] + $l['no_llamar'] + $l['en_curso'],
+            ]);
+        }
+
+        $temp = tempnam($carpeta, 'env');
+        try {
+            $libro->guardar($temp);
+        } catch (\Throwable $e) {
+            @unlink($temp);
+            throw $e;
+        }
+
+        Log::info('Historial de envíos exportado', ['servicio' => $this->service, 'envios' => count($envios), 'user_id' => auth()->id()]);
+
+        $nombre = 'historial_envios_'.($this->service === 'oncology' ? 'oncologia' : 'generales').'_'.now(Recordatorios::ZONA)->format('Y-m-d_Hi').'.xlsx';
+        $respuesta = response()->download($temp, $nombre, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+
         $marca = $request->query('descarga');
         if (is_string($marca) && preg_match('/^[a-z0-9]{6,32}$/i', $marca)) {
             $respuesta->headers->setCookie(cookie('citas_export_'.$marca, '1', 5, '/', null, false, false));
@@ -1154,6 +1334,7 @@ class AppointmentController extends Controller
                 'fecha_hasta' => $tanda['hasta'] ?? null,
                 'sin_celular' => $tanda['sin_celular'],
                 'iniciado_por' => auth()->user()?->name,
+                'iniciado_por_id' => auth()->id(),
             ]);
 
             Log::info('Envío de recordatorios iniciado', [

@@ -84,9 +84,29 @@ function diaMes(ymd: string | null | undefined, lng: string) {
 /** «Citas del 1 de diciembre» o «Citas del 1 al 31 de diciembre». */
 export function nombreEnvio(e: Pick<EnvioHistorial, 'fecha_citas' | 'fecha_hasta'>, t: TFunction, lng: string) {
     if (e.fecha_hasta && e.fecha_hasta !== e.fecha_citas) {
+        // Mismo mes: «del 1 al 31 de diciembre» (en inglés, «from December 1 to 31»).
+        const a = fechaLocal(e.fecha_citas);
+        const b = fechaLocal(e.fecha_hasta);
+        if (a && b && a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
+            return esIngles(lng)
+                ? t('appointments.history.rangeName', { from: diaMes(e.fecha_citas, lng), to: String(b.getDate()) })
+                : t('appointments.history.rangeName', { from: String(a.getDate()), to: diaMes(e.fecha_hasta, lng) });
+        }
         return t('appointments.history.rangeName', { from: diaMes(e.fecha_citas, lng), to: diaMes(e.fecha_hasta, lng) });
     }
     return t('appointments.history.dayName', { date: diaMes(e.fecha_citas, lng) });
+}
+
+/** «Pasado mañana», «Mañana», «N días antes» o «Todas las cargadas»: el normal, por sus días de anticipación reales. */
+export function tipoDeEnvio(e: Pick<EnvioHistorial, 'tipo' | 'fecha_citas' | 'inicio'>, t: TFunction) {
+    if (e.tipo === 'todas') return t('appointments.history.typeAll');
+    if (e.tipo === 'dia_antes') return t('appointments.history.typeDayBefore');
+    const cita = fechaLocal(e.fecha_citas);
+    const envio = fechaLocal(e.inicio?.slice(0, 10));
+    const dias = cita && envio ? Math.round((cita.getTime() - envio.getTime()) / 86400000) : 2;
+    if (dias === 1) return t('appointments.history.typeDayBefore');
+    if (dias > 2) return t('appointments.history.typeDays', { count: dias });
+    return t('appointments.history.typeNormal');
 }
 
 /** Cifras de la barra: las del sondeo si es el envío vivo; si no, las contadas en la base. */
@@ -190,15 +210,14 @@ export default function HistorialEnvios({ envios, routePrefix, enVivo }: { envio
     const [busqueda, setBusqueda] = useState('');
     const lista = useMemo(() => envios ?? [], [envios]);
 
-    const tipoTexto = (tipo: TipoEnvioHistorial) =>
-        tipo === 'todas' ? t('appointments.history.typeAll') : tipo === 'dia_antes' ? t('appointments.history.typeDayBefore') : t('appointments.history.typeNormal');
+    const tipoTexto = (e: Pick<EnvioHistorial, 'tipo' | 'fecha_citas' | 'inicio'>) => tipoDeEnvio(e, t);
 
     // La búsqueda mira lo que se ve en la fila: el nombre del envío, el tipo, quién lo inició y la fecha.
     const encontrados = useMemo(() => {
         const q = busqueda.trim().toLocaleLowerCase(lng).normalize('NFD').replace(/\p{Diacritic}/gu, '');
         if (!q) return lista;
         return lista.filter((e) =>
-            [nombreEnvio(e, t, lng), tipoTexto(e.tipo), e.iniciado_por ?? '', fechaHora(e.inicio, lng)]
+            [nombreEnvio(e, t, lng), tipoTexto(e), e.iniciado_por ?? '', fechaHora(e.inicio, lng)]
                 .join(' ')
                 .toLocaleLowerCase(lng)
                 .normalize('NFD')
@@ -296,7 +315,7 @@ export default function HistorialEnvios({ envios, routePrefix, enVivo }: { envio
                                 {visibles.map((e) => {
                                     const p = progresoDe(e, enVivo);
                                     const nombre = nombreEnvio(e, t, lng);
-                                    const detalle = `${tipoTexto(e.tipo)} · ${t('appointments.history.appointments', { count: e.total, value: miles(e.total, lng) })}`;
+                                    const detalle = `${tipoTexto(e)} · ${t('appointments.history.appointments', { count: e.total, value: miles(e.total, lng) })}`;
                                     const lado = e.estado === 'en_curso' ? t('appointments.history.doneOf', { done: miles(p.hechas, lng), total: miles(p.total, lng) }) : t('appointments.history.arrived', { value: miles(p.ok, lng) });
                                     const quien = e.iniciado_por ? nombrePropio(e.iniciado_por) : t('appointments.history.system');
                                     return (

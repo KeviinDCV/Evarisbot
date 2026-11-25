@@ -27,10 +27,12 @@ import {
     nombrePropio,
     type CitaFila,
 } from '@/components/appointments/piezas-citas';
-import { Banda, Cifra, Confirmacion, Divisor, EstadoEnvio, FilaAviso, FRANJA, Rotulo, SANGRIA, VALIDAR, leerEstado, sesionVencida } from '@/components/appointments/panel-citas';
+import { Banda, Cifra, Confirmacion, Divisor, EstadoEnvio, FilaAviso, FilaTarea, FRANJA, Rotulo, SANGRIA, VALIDAR, leerEstado, sesionVencida } from '@/components/appointments/panel-citas';
+import HistorialEnvios, { HistorialEnviosEsqueleto, type EnvioHistorial } from '@/components/appointments/historial-envios';
 import RecordatorioLlamada, { type LlamadasStats, type RondaLlamadas } from '@/components/appointments/recordatorio-llamada';
 import { AvisoCampo } from '@/components/avisos-campo';
 import { Skeleton } from '@/components/ui/skeleton';
+import { usarDisenoNuevo } from '@/lib/diseno-nuevo';
 import { plano } from '@/lib/texto';
 import { cn } from '@/lib/utils';
 import { Deferred, Head, Link, useForm, router, usePage } from '@inertiajs/react';
@@ -42,6 +44,7 @@ import {
     CircleAlert,
     CircleCheck,
     CircleX,
+    ClipboardList,
     Clock,
     FileSpreadsheet,
     History,
@@ -157,6 +160,10 @@ interface AppointmentIndexProps {
     // Recordatorio por llamada: la ronda llega con la página; sus cifras, diferidas (grupo «llamadas»).
     rondaLlamadas?: RondaLlamadas | null;
     llamadasStats?: LlamadasStats;
+    // Historial de envíos (prop opcional: solo lo pide el diseño B al abrir y al recargar): null si no se pudo leer.
+    historialEnvios?: EnvioHistorial[] | null;
+    /** Diseño B («Por hacer» arriba, historial abajo) para todos: Setting citas_diseno = 'por_hacer'. */
+    citasDiseno?: boolean;
 }
 
 // Lo que se recarga para saber el estado del envío y las cifras: al abrir la confirmación, al volver a
@@ -265,6 +272,8 @@ export default function AppointmentsIndex({
     remindersStats,
     rondaLlamadas = null,
     llamadasStats,
+    historialEnvios,
+    citasDiseno = false,
 }: AppointmentIndexProps) {
     const { t, i18n } = useTranslation();
     const lng = i18n.language;
@@ -302,6 +311,17 @@ export default function AppointmentsIndex({
     const [anuncio, setAnuncio] = useState('');
     const [avisoArchivo, setAvisoArchivo] = useState<string | undefined>();
     const [errorCargaOculto, setErrorCargaOculto] = useState(false);
+    // Diseño B del 24/11/2026: ?nuevo=1 lo prueba en este navegador (ver lib/diseno-nuevo).
+    const [nuevo] = useState(() => usarDisenoNuevo('evarisbot.citas-nuevo', citasDiseno));
+    const [ayudaAbierta, setAyudaAbierta] = useState(false);
+    const [cargaAbierta, setCargaAbierta] = useState(false);
+    // Lo que se recarga además del estado: en el B, también el historial (el de siempre no lo muestra ni lo calcula).
+    const conHistorial = useCallback((claves: string[]) => (nuevo ? [...claves, 'historialEnvios'] : claves), [nuevo]);
+
+    // El historial no viaja con la página: el B lo pide al abrir (recarga parcial, sin frenar el resto).
+    useEffect(() => {
+        if (nuevo) router.reload({ only: ['historialEnvios'] });
+    }, [nuevo]);
 
     const { data, setData, post, processing, errors, reset, progress: subida } = useForm({
         file: null as File | null,
@@ -378,9 +398,9 @@ export default function AppointmentsIndex({
             setUltimo(u);
             setBarraFinal(u && u.estado !== 'en_curso' && u.total > 0 ? u : null);
             setAvisoEnvio(resumenDe(u));
-            router.reload({ only: ESTADO_Y_CITAS });
+            router.reload({ only: conHistorial(ESTADO_Y_CITAS) });
         },
-        [resumenDe]
+        [resumenDe, conHistorial]
     );
 
     // El servidor manda: cada vez que llegan sus props (carga de la página o recarga parcial) se toma su estado.
@@ -509,7 +529,7 @@ export default function AppointmentsIndex({
             ultimaVez = Date.now();
             router.reload({
                 // Al volver a la pestaña también las cifras de llamadas (horario, robot, tope de Meta pudieron cambiar).
-                only: [...ESTADO, 'llamadasStats'],
+                only: conHistorial([...ESTADO, 'llamadasStats']),
                 onFinish: () => {
                     enVuelo = false;
                 },
@@ -522,7 +542,7 @@ export default function AppointmentsIndex({
             document.removeEventListener('visibilitychange', refrescar);
             window.removeEventListener('focus', refrescar);
         };
-    }, [isProcessing]);
+    }, [isProcessing, conHistorial]);
 
     /* ── Envío: abrir la confirmación, iniciar, pausar, reanudar, detener ── */
 
@@ -595,7 +615,10 @@ export default function AppointmentsIndex({
                 setUltimo(r.ultimo_envio ?? null);
                 setIsProcessing(true);
                 anunciar(t('appointments.announceStarted', { count: total, value: miles(total, lng) }));
+                if (nuevo) router.reload({ only: ['historialEnvios'] });
             } else if (status === 409 && codigo === 'en_curso') {
+                // Otra persona ya está enviando: su fila aparece en el historial.
+                if (nuevo) router.reload({ only: ['historialEnvios'] });
                 setUltimo(r.ultimo_envio ?? null);
                 setProgress(null);
                 setIsProcessing(true);
@@ -711,7 +734,7 @@ export default function AppointmentsIndex({
                     tipo: 'ok',
                     texto: u ? t('appointments.stopSummary', { sent: miles(u.enviados, lng), left: miles(u.sin_enviar, lng) }) : t('appointments.stopSuccess'),
                 });
-                router.reload({ only: ESTADO_Y_CITAS });
+                router.reload({ only: conHistorial(ESTADO_Y_CITAS) });
             } else {
                 setAvisoEnvio({ tipo: 'error', texto: t('appointments.errorStop') });
             }
@@ -1090,6 +1113,110 @@ export default function AppointmentsIndex({
         </>
     );
 
+    /* ── Diseño B: «Por hacer» ── */
+
+    // Envío en marcha: de qué citas es y quién lo inició (las cifras van en la barra y en el historial).
+    const detalleEnvio = ultimo
+        ? [
+              ultimo.tipo === 'todas' && ultimo.fecha_hasta && ultimo.fecha_hasta !== ultimo.fecha_citas
+                  ? t('appointments.porHacer.range', { from: fechaTexto(ultimo.fecha_citas), to: fechaTexto(ultimo.fecha_hasta) })
+                  : t('appointments.appointmentsOfDate', { date: fechaTexto(ultimo.fecha_citas) }),
+              ultimo.iniciado_por ? t('appointments.porHacer.startedBy', { name: nombrePropio(ultimo.iniciado_por) }) : '',
+          ]
+              .filter(Boolean)
+              .join(' · ')
+        : notaEnCurso;
+
+    /** Las fechas con recordatorios por enviar, una fila cada una (solo las que tienen algo); la primera lleva el título. */
+    const filasPorEnviar = () => {
+        if (!objetivo || !manana) return null;
+        const tandas: { tipo: TipoEnvio; cuando: string; fecha: string; pista?: string; tanda: { por_enviar: number; salen: number; sin_celular: number } }[] = [];
+        if (objetivo.por_enviar > 0) tandas.push({ tipo: 'start', cuando: rotuloObjetivo, fecha: t('appointments.appointmentsOfDate', { date: fechaTexto(objetivo.fecha) }), tanda: objetivo });
+        if (mananaVisible && manana.por_enviar > 0) {
+            tandas.push({
+                tipo: 'dayBefore',
+                cuando: t('appointments.dayBeforeLabel'),
+                fecha: t('appointments.appointmentsOfDate', { date: fechaTexto(manana.fecha) }),
+                pista: t('appointments.dayBeforeHint'),
+                tanda: manana,
+            });
+        }
+        if (todasVisible && todas) {
+            tandas.push({
+                tipo: 'all',
+                cuando: t('appointments.allLabel'),
+                fecha:
+                    todas.desde === todas.hasta
+                        ? t('appointments.appointmentsOfDate', { date: fechaTexto(todas.desde) })
+                        : t('appointments.porHacer.range', { from: fechaTexto(todas.desde), to: fechaTexto(todas.hasta) }),
+                pista: t('appointments.allHint', { from: horaCorta(horaInicio, lng), to: horaCorta(horaFin, lng) }),
+                tanda: todas,
+            });
+        }
+        if (tandas.length === 0) {
+            return <FilaTarea id="citas-envio" icon={Send} titulo={t('appointments.porHacer.whatsTitle')} detalle={t('appointments.porHacer.whatsNothing')} />;
+        }
+        return (
+            <>
+                {avisoTope(rotuloObjetivo, objetivo)}
+                {mananaVisible && avisoTope(t('appointments.dayBeforeLabel'), manana)}
+                {tandas.map((x, i) => (
+                    <FilaTarea
+                        key={x.tipo}
+                        id={i === 0 ? 'citas-envio' : undefined}
+                        icon={i === 0 ? Send : null}
+                        titulo={i === 0 ? t('appointments.porHacer.whatsTitle') : x.cuando}
+                        detalle={[x.fecha, i === 0 ? x.cuando.toLocaleLowerCase(lng) : '', x.pista].filter(Boolean).join(' · ')}
+                        cifra={{
+                            valor: miles(x.tanda.por_enviar, lng),
+                            texto: t('appointments.porHacer.toSend', { count: x.tanda.por_enviar }),
+                            nota: x.tanda.sin_celular > 0 ? t('appointments.rowNoMobile', { count: x.tanda.sin_celular, value: miles(x.tanda.sin_celular, lng) }) : undefined,
+                        }}
+                        acciones={botonEnviar(x.tipo, x.tanda)}
+                    />
+                ))}
+            </>
+        );
+    };
+
+    // La carga del Excel se abre con su botón (o sola si ya hay archivo, se está subiendo o falló).
+    const cargaVisible = cargaAbierta || !!data.file || processing || (!!errorCarga && !errorCargaOculto);
+
+    // «¿Cómo funciona?»: lo que antes iba en los subtítulos y notas de cada sección.
+    const ayudaPorHacer = (
+        <div id="citas-ayuda" className={cn('border-b bg-[#2e3f84]/[0.02] py-4 dark:bg-white/[0.02]', SANGRIA, FILETE)}>
+            <dl className="grid grid-cols-1 gap-x-8 gap-y-3.5 @3xl/hoja:grid-cols-2">
+                {[
+                    [t('appointments.porHacer.whatsTitle'), `${t('appointments.reminderBandText')} ${t('appointments.porHacer.helpWhats', { from: horaCorta(horaInicio, lng), to: horaCorta(horaFin, lng) })}`],
+                    [
+                        t('appointments.porHacer.callsTitle'),
+                        [
+                            t('appointments.calls.bandText'),
+                            t('appointments.calls.hours'),
+                            llamadasStats?.activas && llamadasStats.adelantada ? t('appointments.calls.earlyDate') : '',
+                            llamadasStats?.activas
+                                ? t('appointments.calls.dailyCap', {
+                                      limit: miles(llamadasStats.limite ?? 0, lng),
+                                      used: miles(llamadasStats.usadas ?? 0, lng),
+                                      left: miles(llamadasStats.quedan ?? 0, lng),
+                                  })
+                                : '',
+                        ]
+                            .filter(Boolean)
+                            .join(' '),
+                    ],
+                    [t('appointments.porHacer.uploadTitle'), t('appointments.uploadFileSubtitle')],
+                    [t('appointments.history.title'), t('appointments.porHacer.helpHistory')],
+                ].map(([titulo, texto]) => (
+                    <div key={titulo} className="flex min-w-0 flex-col gap-1">
+                        <dt className={cn('text-[12.5px] leading-[17px] font-semibold', TEXTO_NAVY)}>{titulo}</dt>
+                        <dd className={cn('text-[12.5px] leading-[18px] text-pretty', TEXTO_SUAVE)}>{texto}</dd>
+                    </div>
+                ))}
+            </dl>
+        </div>
+    );
+
     const textoTitulo = t('appointments.tabTitle', { scope: nombreAmbito });
 
     return (
@@ -1149,6 +1276,7 @@ export default function AppointmentsIndex({
                     </p>
 
                     {/* ── Franja de cifras (sin cajas: filetes entre cifras) ── */}
+                    {!nuevo && (
                     <Deferred data={['appointments', 'totalAppointments', 'remindersStats']} fallback={<AppointmentMetricsSkeleton />}>
                         {() =>
                             // Con un servidor sin el contrato nuevo (despliegue a medias) no hay objetivo: la franja no se pinta en vez de romper la página.
@@ -1194,20 +1322,72 @@ export default function AppointmentsIndex({
                             )
                         }
                     </Deferred>
+                    )}
 
                     {/* ── La hoja: envío, carga del Excel y últimas citas, una sección tras otra ── */}
                     <div className={HOJA}>
+                        {nuevo && (
+                            <>
+                                <Banda
+                                    id="citas-por-hacer"
+                                    icon={ClipboardList}
+                                    titulo={t('appointments.porHacer.title')}
+                                    texto={t('appointments.porHacer.text')}
+                                    acciones={
+                                        <button
+                                            type="button"
+                                            onClick={() => setAyudaAbierta((v) => !v)}
+                                            aria-expanded={ayudaAbierta}
+                                            aria-controls="citas-ayuda"
+                                            className={cn(
+                                                'inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[13px] leading-[18px] font-semibold transition-colors pointer-coarse:h-11 hover:bg-[#2e3f84]/6 dark:hover:bg-white/8',
+                                                TEXTO_NAVY,
+                                                FOCO
+                                            )}
+                                        >
+                                            <Info className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
+                                            {ayudaAbierta ? t('appointments.porHacer.hideHelp') : t('appointments.porHacer.howItWorks')}
+                                        </button>
+                                    }
+                                    className="rounded-t-2xl"
+                                />
+                                {ayudaAbierta && ayudaPorHacer}
+                            </>
+                        )}
+
                         {/* ── 1. Envío de recordatorios ── */}
                         <section aria-labelledby="citas-envio">
-                            <Banda
-                                id="citas-envio"
-                                icon={Send}
-                                titulo={t('appointments.reminderControlTitle')}
-                                estado={<EstadoEnvio tipo={estadoEnvio} texto={textoEstado} />}
-                                texto={t('appointments.reminderBandText')}
-                                acciones={hayEnvio && !iniciando ? accionesEnvio : undefined}
-                                className="rounded-t-2xl"
-                            />
+                            {nuevo ? (
+                                hayEnvio || iniciando ? (
+                                    <FilaTarea
+                                        id="citas-envio"
+                                        icon={Send}
+                                        titulo={t('appointments.porHacer.whatsTitle')}
+                                        estado={<EstadoEnvio tipo={estadoEnvio} texto={textoEstado} />}
+                                        detalle={detalleEnvio}
+                                        acciones={hayEnvio && !iniciando ? accionesEnvio : undefined}
+                                    />
+                                ) : (
+                                    <Deferred
+                                        data="remindersStats"
+                                        fallback={
+                                            <FilaTarea id="citas-envio" icon={Send} titulo={t('appointments.porHacer.whatsTitle')} detalle={<Skeleton className="mt-0.5 h-4 w-64 rounded" />} />
+                                        }
+                                    >
+                                        {() => filasPorEnviar()}
+                                    </Deferred>
+                                )
+                            ) : (
+                                <Banda
+                                    id="citas-envio"
+                                    icon={Send}
+                                    titulo={t('appointments.reminderControlTitle')}
+                                    estado={<EstadoEnvio tipo={estadoEnvio} texto={textoEstado} />}
+                                    texto={t('appointments.reminderBandText')}
+                                    acciones={hayEnvio && !iniciando ? accionesEnvio : undefined}
+                                    className="rounded-t-2xl"
+                                />
+                            )}
 
                             {/* Resultado de enviar / pausar / reanudar / detener, y el resumen al terminar. */}
                             <div aria-live="polite">
@@ -1348,7 +1528,7 @@ export default function AppointmentsIndex({
                                 ultimo.estado !== 'en_curso' &&
                                 (ultimo.estado === 'cortado' ? (
                                     <FilaAviso>{textoCorte(ultimo)}</FilaAviso>
-                                ) : (
+                                ) : nuevo ? null : (
                                     <div className={cn('flex min-h-11 items-center gap-3 border-b px-4 py-2.5 @3xl/hoja:px-5', FILETE)}>
                                         <span className={cn('flex w-8 shrink-0 justify-center', TEXTO_SUAVE)}>
                                             <History className="size-[15px]" strokeWidth={1.9} aria-hidden="true" />
@@ -1357,6 +1537,7 @@ export default function AppointmentsIndex({
                                     </div>
                                 ))}
 
+                            {!nuevo && (
                             <Deferred data="remindersStats" fallback={<RemindersRowsSkeleton />}>
                                 {() =>
                                     objetivo &&
@@ -1387,16 +1568,57 @@ export default function AppointmentsIndex({
                                     )
                                 }
                             </Deferred>
+                            )}
                         </section>
 
                         {/* ── 1b. Recordatorio por llamada (rondas del robot) ── */}
-                        <RecordatorioLlamada routePrefix={routePrefix} ronda={rondaLlamadas} stats={llamadasStats} />
+                        <RecordatorioLlamada routePrefix={routePrefix} ronda={rondaLlamadas} stats={llamadasStats} compacto={nuevo} />
 
                         {/* ── 2. Cargar archivo de citas ── */}
-                        <form onSubmit={submit} aria-labelledby="citas-carga">
-                            <Banda id="citas-carga" icon={FileSpreadsheet} titulo={t('appointments.uploadFileTitle')} texto={t('appointments.uploadFileSubtitle')} className="border-t" />
+                        <form onSubmit={submit} aria-labelledby="citas-carga" className={nuevo ? '[&>:last-child]:border-b-0' : undefined}>
+                            {nuevo ? (
+                                <FilaTarea
+                                    id="citas-carga"
+                                    icon={FileSpreadsheet}
+                                    titulo={t('appointments.porHacer.uploadTitle')}
+                                    detalle={t('appointments.porHacer.uploadText')}
+                                    acciones={
+                                        cargaVisible ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCargaAbierta(false);
+                                                    removeFile();
+                                                    setErrorCargaOculto(true);
+                                                }}
+                                                disabled={processing}
+                                                aria-expanded="true"
+                                                aria-controls="citas-carga-panel"
+                                                className={BOTON_SECUNDARIO}
+                                            >
+                                                <X strokeWidth={2} aria-hidden="true" />
+                                                {t('appointments.porHacer.uploadClose')}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCargaAbierta(true)}
+                                                aria-expanded="false"
+                                                aria-controls="citas-carga-panel"
+                                                className={BOTON_SECUNDARIO}
+                                            >
+                                                <Upload strokeWidth={2} aria-hidden="true" />
+                                                {t('appointments.porHacer.uploadButton')}
+                                            </button>
+                                        )
+                                    }
+                                />
+                            ) : (
+                                <Banda id="citas-carga" icon={FileSpreadsheet} titulo={t('appointments.uploadFileTitle')} texto={t('appointments.uploadFileSubtitle')} className="border-t" />
+                            )}
 
-                            <div className={cn('grid grid-cols-1 gap-5 border-b py-5 @5xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,380px)] @5xl/hoja:gap-x-7 @6xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,440px)]', SANGRIA, FILETE)}>
+                            {(!nuevo || cargaVisible) && (
+                            <div id="citas-carga-panel" className={cn('grid grid-cols-1 gap-5 border-b py-5 @5xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,380px)] @5xl/hoja:gap-x-7 @6xl/hoja:grid-cols-[minmax(0,1fr)_1px_minmax(0,440px)]', SANGRIA, FILETE)}>
                                 <div className="flex min-w-0 flex-col">
                                     <div
                                         onDrop={handleDrop}
@@ -1516,6 +1738,7 @@ export default function AppointmentsIndex({
                                     <p className={cn('text-[12px] leading-4', TEXTO_SUAVE)}>{t('appointments.excelColumnsNote')}</p>
                                 </div>
                             </div>
+                            )}
 
                             {uploadedFile && showUploadResult && frasesCarga.length > 0 && (
                                 <div className={cn('flex items-start gap-3 border-b px-4 py-3 @3xl/hoja:min-h-[60px] @3xl/hoja:items-center @3xl/hoja:px-5', FILETE)}>
@@ -1558,6 +1781,7 @@ export default function AppointmentsIndex({
                         </form>
 
                         {/* ── 3. Últimas citas cargadas ── */}
+                        {!nuevo && (
                         <Deferred data="appointments" fallback={<AppointmentsTableSkeleton />}>
                             <section aria-labelledby="citas-ultimas">
                                 <Banda
@@ -1637,7 +1861,21 @@ export default function AppointmentsIndex({
                                 )}
                             </section>
                         </Deferred>
+                        )}
                     </div>
+
+                    {/* ── 4. Historial de envíos (diseño B) ── */}
+                    {/* Sin <Deferred>: en cada recarga parcial la lista conserva su filtro y su búsqueda. */}
+                    {nuevo &&
+                        (historialEnvios === undefined ? (
+                            <HistorialEnviosEsqueleto />
+                        ) : (
+                            <HistorialEnvios
+                                envios={historialEnvios}
+                                routePrefix={routePrefix}
+                                enVivo={{ batchId: ultimo?.batch_id ?? null, progreso: isProcessing ? progress : null, pausa: isPaused, espera: esperando }}
+                            />
+                        ))}
                 </div>
             </div>
 

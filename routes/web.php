@@ -90,6 +90,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/', 'index')->name('index');
         Route::get('/view', 'view')->name('view');
         Route::get('/export', 'export')->name('export');
+        Route::get('/envios/export', 'exportarEnvios')->name('envios.export');
         Route::post('/upload', 'upload')->name('upload');
         Route::post('/reminders/start', 'startReminders')->name('reminders.start');
         Route::post('/reminders/start-day-before', 'startRemindersDayBefore')->name('reminders.start-day-before');
@@ -112,6 +113,7 @@ Route::middleware(['auth', 'verified', 'role:admin'])->prefix('admin')->name('ad
         Route::get('/', 'index')->name('index');
         Route::get('/view', 'view')->name('view');
         Route::get('/export', 'export')->name('export');
+        Route::get('/envios/export', 'exportarEnvios')->name('envios.export');
         Route::post('/upload', 'upload')->name('upload');
         Route::post('/reminders/start', 'startReminders')->name('reminders.start');
         Route::post('/reminders/start-day-before', 'startRemindersDayBefore')->name('reminders.start-day-before');

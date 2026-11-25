@@ -110,7 +110,9 @@ class EnvioRecordatorios
      * Deja el envío en marcha: ids encolados, resumen «en_curso», lote, sin pausa y processing = true, todo en una
      * transacción para que nadie lea a medias (p. ej. processing sin lote).
      *
-     * @param  array{tipo: string, fecha_citas: string, fecha_hasta?: string, sin_celular: int, iniciado_por: ?string}  $datos
+     * Además queda en el historial de envíos (HistorialEnvios::registrar), que nunca frena el envío.
+     *
+     * @param  array{tipo: string, fecha_citas: string, fecha_hasta?: string, sin_celular: int, iniciado_por: ?string, iniciado_por_id?: ?int}  $datos
      */
     public static function iniciar(string $service, string $batchId, array $ids, array $datos): array
     {
@@ -141,6 +143,8 @@ class EnvioRecordatorios
             self::guardar($service, 'reminder_espera_hasta', null);
             self::guardar($service, 'reminder_processing', 'true');
         });
+
+        HistorialEnvios::registrar($service, $batchId, $ids, $datos);
 
         return $ultimo;
     }
@@ -340,6 +344,16 @@ class EnvioRecordatorios
     {
         $u = self::ultimoEnvio($service);
         if (! $u || ($u['batch_id'] ?? null) !== $batchId || ($u['estado'] ?? null) !== 'en_curso') {
+            // El historial se cierra igual (solo si sigue «en curso»): un lote viejo puede terminar con otro ya vigente.
+            // Si el resumen es de ESTE lote y ya dice cómo terminó (cortado, detenido), eso manda sobre «terminado».
+            $final = $u && ($u['batch_id'] ?? null) === $batchId && in_array($u['estado'] ?? null, ['terminado', 'detenido', 'cortado'], true);
+            HistorialEnvios::cerrar(
+                $batchId,
+                $final ? $u['estado'] : $estado,
+                $final && $u['estado'] === 'cortado' ? ($u['motivo'] ?? null) : null,
+                $progreso
+            );
+
             return $u;
         }
 
@@ -351,6 +365,7 @@ class EnvioRecordatorios
         $u['sin_enviar'] = (int) $p['pending'];
         $u['omitidas'] = (int) $p['skipped'];
         self::guardarUltimo($service, $u);
+        HistorialEnvios::cerrar($batchId, $estado, null, $p);
 
         return $u;
     }
@@ -366,6 +381,8 @@ class EnvioRecordatorios
         }
         $u = self::ultimoEnvio($service);
         if (! $u || ($u['batch_id'] ?? null) !== $batchId || ($u['estado'] ?? null) !== 'en_curso') {
+            HistorialEnvios::cerrar($batchId, 'cortado', $motivo);
+
             return;
         }
 
@@ -378,6 +395,7 @@ class EnvioRecordatorios
         $u['sin_enviar'] = (int) $p['pending'];
         $u['omitidas'] = (int) $p['skipped'];
         self::guardarUltimo($service, $u);
+        HistorialEnvios::cerrar($batchId, 'cortado', $motivo, $p);
     }
 
     /** «finally» del lote: solo limpia si sigue siendo el lote vigente del ámbito (otro lote puede llevar el estado). */
